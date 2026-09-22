@@ -4,7 +4,46 @@ const ROLE_PERMISSIONS=JSON.parse(document.getElementById('permission-data').tex
 const ROLE_ROUTES={
  overview:['My workspace','grid'],acquisition:['Acquisition & proposals','target'], 'client-summary':['Client relationships','users'],intake:['Onboarding cases','checkboard'],invitations:['Invitation requests','send'],compliance:['Restricted compliance','shield'],acceptance:['Acceptance decisions','shield'],clients:['Client portfolio','users'],engagements:['Engagements','brief'],team:['Team & deadlines','calendar'],documents:['Documents & PBC','folder'],accounting:['Accounting workbench','calculator'],audit:['Audit workpapers','checkboard'],reviews:['Review desk','message'],quality:['Independent EQR','shield'],delivery:['Report release','archive'],continuance:['Annual continuance','refresh'],renewal:['Renewal coordination','refresh'],portal:['Client home','globe'],'client-team':['Contacts & access','users'],'client-requests':['Document requests','upload'],'client-approvals':['Management approvals','checkcircle'],'client-deliverables':['Published deliverables','file'],billing:['Invoices & receipts','receipt'],'commercial-review':['Commercial review','receipt'],'commercial-requests':['Commercial requests','receipt'],records:['Records & holds','archive'],handover:['Controlled handover','folder'],administration:['User administration','users'],'access-requests':['Access requests','lock'],operations:['Integration & operations','settings'],'my-time':['My time entries','clock'],services:['Service catalogue','layers'],'role-guide':['All 14 role views','users'],privileges:['Privileges & boundaries','shield'],requirements:['Requirements reference','book']};
 knownRoutes.splice(0,knownRoutes.length,...Object.keys(ROLE_ROUTES));
+const initialRoleRoute=location.hash.slice(1);
+if(ROLE_ROUTES[initialRoleRoute])ui.route=initialRoleRoute;
 let roleUi={group:'All',selectedRole:null};
+function ensurePbcRequest(p,e){
+ if(!p)return false;
+ let changed=false;
+ const client=e?C(e.client):C();
+ if(!p.description){p.description=p.title||'Requested supporting information';changed=true;}
+ if(!p.requestedBy){p.requestedBy=e?.manager||'Layla Rahman';changed=true;}
+ if(!p.requestedAt){p.requestedAt=DEMO_DATE+'T08:30:00.000Z';changed=true;}
+ if(!p.requestLink){p.requestLink='#client-requests';changed=true;}
+ if(!p.email||typeof p.email!=='object'){
+  p.email={status:'Prepared for demo delivery — not sent',to:p.owner||client?.contact||'Client contact',subject:'AuditSphere file request: '+p.title,link:p.requestLink};
+  changed=true;
+ }else{
+  if(!p.email.status){p.email.status='Prepared for demo delivery — not sent';changed=true;}
+  if(!p.email.to){p.email.to=p.owner||client?.contact||'Client contact';changed=true;}
+  if(!p.email.subject){p.email.subject='AuditSphere file request: '+p.title;changed=true;}
+  if(!p.email.link){p.email.link=p.requestLink;changed=true;}
+ }
+ if(!Array.isArray(p.thread)){p.thread=[];changed=true;}
+ if(!p.thread.length){
+  p.thread.push({id:p.id+'-REQUEST',kind:'request',author:p.requestedBy,role:'staff',text:p.description,time:p.requestedAt});
+  p.thread.push({id:p.id+'-EMAIL',kind:'email',author:'AuditSphere demo notification',role:'system',text:'Email preview prepared for '+(p.email.to||'the client')+' with a portal upload link.',time:p.requestedAt});
+  changed=true;
+ }
+ if(!Array.isArray(p.sharedFiles)){p.sharedFiles=[];changed=true;}
+ if(p.file){
+  const version=p.version||1,uploadedBy=p.lastUploader||p.contributor||p.owner||'Client contact',uploadedAt=p.updatedAt||p.requestedAt;
+  if(!p.sharedFiles.some(f=>f.version===version&&f.name===p.file)){
+   p.sharedFiles.push({id:p.id+'-FILE-'+version,name:p.file,version,size:p.size||0,sha:p.sha||null,uploadedBy,uploadedAt,source:'Existing synthetic record'});
+   changed=true;
+  }
+  if(!p.thread.some(entry=>entry.kind==='file'&&entry.file===p.file&&entry.version===version)){
+   p.thread.push({id:p.id+'-FILE-EVENT-'+version,kind:'file',author:uploadedBy,role:'client_finance',text:'Shared file: '+p.file,time:uploadedAt,file:p.file,version});
+   changed=true;
+  }
+ }
+ return changed;
+}
 function initRoleState(){
  if(!ROLES[state.role])state.role='manager';
  if(!state.roleViews){
@@ -18,7 +57,7 @@ function initRoleState(){
  }
  state.times.forEach(t=>{if(!t.status)t.status='Submitted';});
  for(const inv of state.invoices){if(inv.status!=='Draft'&&!inv.commercialApproval)inv.commercialApproval={by:'Layla Rahman',basis:'Synthetic prior approval'};if(!inv.preparedBy)inv.preparedBy='Leila Hassan';}
- for(const e of state.engagements){e.pbc.forEach((p,i)=>{if(!p.contributor)p.contributor='Rami Nasser';});}
+ for(const e of state.engagements){e.pbc.forEach((p,i)=>{if(!p.contributor)p.contributor='Rami Nasser';ensurePbcRequest(p,e);});}
 }
 const rv=()=>state.roleViews;
 const isClientRole=()=>ROLES[state.role].group==='Client';
@@ -163,6 +202,76 @@ actions['pbc-detail']=d=>pbcModal(d.id);
 const sampleAction=actions['sample-upload'];actions['sample-upload']=d=>{sampleAction(d);const p=E().pbc.find(p=>p.id===d.id);if(p)p.lastUploader=actor().name;save();};
 const oldPbcAccept=actions['pbc-accept'];actions['pbc-accept']=d=>{const p=E().pbc.find(p=>p.id===d.id);if(p?.lastUploader===actor().name)throw Error('An independent technical reviewer must accept the submission.');return oldPbcAccept(d);};
 // Client consent, technical review and release remain separate even in the demo.
+const CLIENT_REQUEST_ROLES=['client_admin','client_finance','client'];
+function visibleRequest(id){
+ const e=E(),p=e?.pbc.find(x=>x.id===id);
+ if(!p)throw Error('The requested file request is unavailable.');
+ if(isClientRole()&&!CLIENT_REQUEST_ROLES.includes(state.role))throw Error('The requested client thread is unavailable.');
+ if(state.role==='client_finance'&&p.contributor!==actor().name)throw Error('This request is assigned to another client contributor.');
+ if(!isClientRole()&&!authorizedEng(e.id))throw Error('The requested engagement is unavailable.');
+ const hadThread=Array.isArray(p.thread)&&p.thread.length>0;
+ const hadFile=Array.isArray(p.sharedFiles)&&p.sharedFiles.some(f=>f.version===p.version&&f.name===p.file);
+ ensurePbcRequest(p,e);
+ if(hadThread&&p.file&&!hadFile)recordPbcFile(p,p.file,p.lastUploader||actor().name,p.size,p.sha);
+ return p;
+}
+function requestTime(value){const d=new Date(value);return Number.isNaN(d.valueOf())?'Recorded locally':d.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}
+function appendPbcThread(p,text,kind='reply',extra={}){
+ ensurePbcRequest(p,E());
+ const entry={id:p.id+'-THREAD-'+String((p.thread?.length||0)+1).padStart(3,'0'),kind,author:actor().name,role:state.role,text,time:new Date().toISOString(),...extra};
+ p.thread.push(entry);
+ return entry;
+}
+function recordPbcFile(p,name,uploader,size=0,sha=null){
+ ensurePbcRequest(p,E());
+ const version=p.version||1;
+ if(!name||p.sharedFiles.some(f=>f.version===version&&f.name===name))return false;
+ p.sharedFiles.push({id:p.id+'-FILE-'+version,name,version,size:size||0,sha:sha||null,uploadedBy:uploader||actor().name,uploadedAt:new Date().toISOString(),source:'Client portal upload'});
+ appendPbcThread(p,'Shared file: '+name,'file',{file:name});
+ addRoleEvent('Client file shared for '+p.id,E().client);
+ save();
+ return true;
+}
+function requestTimeline(p,limit){
+ const entries=[...(p.thread||[])].sort((a,b)=>new Date(a.time)-new Date(b.time));
+ const view=Number.isFinite(limit)?entries.slice(-limit):entries;
+ return view.length?`<div class="request-timeline" aria-label="Conversation timeline">${view.map(entry=>{const kind=entry.kind||'reply',label=kind==='email'?'Email notification':kind==='file'?'Shared file':kind==='request'?'File request':'Reply';return `<div class="request-event ${esc(kind)}"><span class="request-event-icon">${icon(kind==='file'?'upload':kind==='email'?'send':kind==='request'?'folder':'message')}</span><div class="request-event-body"><div class="between gap8"><b>${esc(entry.author||'AuditSphere')}</b><span class="caption">${esc(label)} · ${esc(requestTime(entry.time))}</span></div><p>${esc(entry.text||'')}</p></div></div>`;}).join('')}</div>`:'<div class="empty">No conversation events recorded yet.</div>';
+}
+function requestFiles(p){
+ const files=p.sharedFiles||[];
+ return files.length?`<div class="request-files" aria-label="Files shared in this request">${files.map(f=>`<div class="attachment-chip"><span class="document-icon ${f.name?.toLowerCase().endsWith('.pdf')?'pdf':''}">${f.name?.toLowerCase().endsWith('.pdf')?'PDF':'FILE'}</span><span><b>${esc(f.name)}</b><small>v${f.version||1} · ${esc(f.uploadedBy||'Client')} · ${f.size?Math.max(1,Math.round(f.size/1024))+' KB':'metadata only'}</small></span></div>`).join('')}</div>`:'<div class="empty">No files have been shared in this request.</div>';
+}
+function requestEmailMarkup(p,withPortalButton=false){
+ const link=withPortalButton?btn('Open upload portal','request-thread','soft sm',`data-id="${p.id}"`,'upload'):`<span class="mono">${esc(p.email?.link||'#client-requests')}</span>`;
+ return `<div class="request-email" aria-label="Client email preview"><div class="between"><span class="eyebrow">EMAIL NOTIFICATION · DEMO</span>${demoStatus(p.email?.status||'Prepared — not sent')}</div><div class="email-meta mt12"><div><label>To</label><span>${esc(p.email?.to||p.owner||'Client contact')}</span></div><div><label>Subject</label><span>${esc(p.email?.subject||'AuditSphere file request')}</span></div></div><div class="email-body mt16"><p>Hello,</p><p>${esc(p.requestedBy||'Your engagement team')} requested the following file or information:</p><p><strong>${esc(p.title)}</strong><br>${esc(p.description)}</p><div class="mt12"><label>Portal link</label><div class="between gap8"><span class="mono">${esc(p.email?.link||'#client-requests')}</span>${withPortalButton?link:''}</div></div></div><p class="caption mt12">This browser prototype prepares the email handoff locally; it does not send a real email.</p></div>`;
+}
+function requestModal(id){
+ const e=E(),p=visibleRequest(id),client=C(e.client),canUpload=state.role==='client_finance'&&p.contributor===actor().name;
+ const upload=canUpload?`${btn(p.file?'Replace shared file':'Upload file','pick-document','soft sm',`data-id="${p.id}"`,'upload')}${btn('Use built-in sample','sample-upload','sm',`data-id="${p.id}"`)}`:'';
+ const review=!isClientRole()?`${btn('Request clarification','pbc-clarify','sm',`data-id="${p.id}"`,'message')}${btn('Accept for request','pbc-accept','primary sm',`data-id="${p.id}"`,'check')}`:'';
+ openModal(p.id+' · '+p.title,`${note(isClientRole()?'Client-visible request. Internal reviewer notes remain private.':'Client-facing request thread. Reviewer deliberations remain private.','') }<div class="info-grid"><div><label>Client</label><span>${esc(client?.name||'Authorized client')}</span></div><div><label>Due</label><span>${esc(shortDate(p.due))}</span></div><div><label>Status</label>${demoStatus(p.status)}</div></div><div class="request-description mt20"><span class="eyebrow">REQUEST DESCRIPTION</span><p class="mt8">${esc(p.description)}</p></div><div class="mt20">${requestEmailMarkup(p,isClientRole())}</div><div class="mt20"><div class="between"><div><h3>Shared files</h3><p class="sub">Files and metadata visible to both sides of this request.</p></div>${demoStatus(String((p.sharedFiles||[]).length)+' shared')}</div><div class="mt12">${requestFiles(p)}</div>${upload?`<div class="row wrap mt12">${upload}</div>`:''}</div><div class="mt20"><div class="between"><div><h3>Conversation timeline</h3><p class="sub">Replies are visible to the authorized client and assigned engagement team.</p></div><span class="caption">${p.thread.length} event(s)</span></div><div class="mt12">${requestTimeline(p)}</div></div>`,`${btn('Close','close-modal')}${btn('Reply in thread','request-reply','soft',`data-id="${p.id}"`,'message')}${review}`,true);
+}
+function requestEmailModal(id){const p=visibleRequest(id);openModal(p.id+' · email preview',requestEmailMarkup(p,false)+note('No external message is sent in this prototype. The client sees the same request and link through the simulated portal.','amber'),`${btn('Close','close-modal')}${btn('Open request thread','request-thread','primary',`data-id="${p.id}"`,'message')}`);}
+function requestReplyModal(id){const p=visibleRequest(id);openModal('Reply to '+p.id,`<p class="small">Your reply will be visible to the authorized client and assigned engagement team in the shared timeline.</p><div class="field mt16"><label for="request-reply-text">Message *</label><textarea class="input" id="request-reply-text" placeholder="Write a client-facing reply or clarification."></textarea></div>`,`${btn('Cancel','close-modal')}${btn('Add reply','save-request-reply','primary',`data-id="${p.id}"`,'send')}`);}
+function clientRequestsWithThreads(){
+ const e=E();let list=e.pbc;if(state.role==='client_finance')list=list.filter(p=>p.contributor===actor().name);
+ list.forEach(p=>ensurePbcRequest(p,e));
+ return head(state.role==='client_admin'?'Client file requests':'Your file requests & conversations','Every request includes the description, email handoff, shared files and a conversation timeline.')+clientContext()+note('This is a local email-and-portal simulation. Uploads retain metadata and a local hash only; no document bytes are sent or stored.','amber')+`<div class="stack">${list.length?list.map(p=>`<section class="panel request-card"><div class="panel-head"><div><span class="eyebrow">FILE REQUEST · ${esc(p.id)}</span><h2 class="mt8">${esc(p.title)}</h2><p class="sub">Due ${esc(shortDate(p.due))} · Assigned to ${esc(p.contributor||'client contributor')}</p></div>${demoStatus(p.status)}</div><div class="panel-pad" style="padding-top:0"><p class="request-description-text">${esc(p.description)}</p>${requestEmailMarkup(p,true)}<div class="between mt20"><div><h3>Conversation timeline</h3><p class="sub">${p.thread.length} shared event(s)</p></div>${btn('Open full thread','request-thread','soft sm',`data-id="${p.id}"`,'message')}</div><div class="mt12">${requestTimeline(p,3)}</div><div class="between mt20"><div><h3>Shared files</h3><p class="sub">Visible to you and the engagement team.</p></div>${demoStatus(String((p.sharedFiles||[]).length)+' shared')}</div><div class="mt12">${requestFiles(p)}</div></div></section>`).join(''):'<div class="empty panel panel-pad">No file requests are currently assigned to this client scope.</div>'}</div>`+footer('LC-11–12 · Client request communications');
+}
+function staffRequestThreads(){
+ const e=E();return `<div class="mt24">${panel('Client request threads','Create a request, preview the client email handoff, and continue the shared conversation.',`<div class="panel-list">${e.pbc.map(p=>`<div class="list-item"><div><div class="list-item-title">${esc(p.title)}</div><div class="list-item-sub">${p.id} · ${esc(p.owner||'Client contact')} · ${p.thread.length} timeline event(s) · ${(p.sharedFiles||[]).length} shared file(s)</div><p class="sub">${esc(p.description)}</p></div><div class="row wrap">${btn('Open thread','request-thread','soft sm',`data-id="${p.id}"`,'message')}${btn('Email preview','request-email-preview','sm',`data-id="${p.id}"`,'send')}</div></div>`).join('')}</div>`)}</div>`;
+}
+const originalDocumentsPage=pages.documents;pages.documents=()=>originalDocumentsPage()+staffRequestThreads();
+pages['client-requests']=clientRequestsWithThreads;
+actions['new-pbc']=()=>openModal('Request a client file',`<div class="field-grid"><div class="field full"><label for="pbc-title">File or information requested *</label><input class="input" id="pbc-title" placeholder="e.g. Year-end inventory listing"></div><div class="field full"><label for="pbc-description">Client-facing description *</label><textarea class="input" id="pbc-description" placeholder="Explain what the client should upload, which period/entity it covers, and any useful context."></textarea></div><div class="field"><label for="pbc-date">Due date *</label><input class="input" id="pbc-date" type="date" value="2026-09-28"></div><div class="field"><label for="pbc-owner">Client email recipient *</label><input class="input" id="pbc-owner" value="${esc(C().contact)}"></div></div><p class="sub mt20">Creates a portal request and a local email preview with an upload link. No external email is sent.</p>`,`${btn('Cancel','close-modal')}${btn('Prepare request & email','save-pbc','primary','', 'send')}`);
+actions['save-pbc']=()=>{const title=required('pbc-title','File or information requested'),description=required('pbc-description','Client-facing description'),due=required('pbc-date','Due date'),owner=required('pbc-owner','Client email recipient');if(!/^\d{4}-\d{2}-\d{2}$/.test(due))throw Error('Use a valid date.');const e=E(),p={id:'PBC-'+String(e.pbc.length+1).padStart(2,'0'),title:title.slice(0,150),description:description.slice(0,1000),due,owner:owner.slice(0,120),contributor:'Rami Nasser',category:'Other evidence',status:'Requested',file:'',version:0,requestedBy:actor().name,requestedAt:new Date().toISOString(),requestLink:'#client-requests',sharedFiles:[],thread:[]};ensurePbcRequest(p,e);e.pbc.push(p);addRoleEvent('Client file request prepared: '+p.id,p.id);closeModal();render();toast('Request prepared with a client email preview and upload link. No email was sent.');};
+actions['request-thread']=d=>requestModal(d.id);
+actions['request-email-preview']=d=>requestEmailModal(d.id);
+actions['request-reply']=d=>requestReplyModal(d.id);
+actions['save-request-reply']=d=>{const p=visibleRequest(d.id),text=required('request-reply-text','Message').slice(0,2000);appendPbcThread(p,text,'reply');addRoleEvent('Reply added to client request '+p.id,E().client);save();closeModal();render();toast('Reply added to the shared request timeline.');};
+const legacySavePbcClarification=actions['save-pbc-clarification'];actions['save-pbc-clarification']=d=>{const p=E().pbc.find(x=>x.id===d.id),result=legacySavePbcClarification(d);if(p){appendPbcThread(p,'Clarification requested: '+p.message,'reply');save();render();}return result;};
+const legacyPbcDetail=actions['pbc-detail'];actions['pbc-detail']=d=>requestModal(d.id);
+pbcModal=requestModal;
 const BASE_ACTION_RULES={
  'new-lead':'lead.write','save-lead':'lead.write','lead-advance':'lead.write','new-eng':'team.assign','save-eng':'team.assign',
  'new-pbc':'pbc.clarify','save-pbc':'pbc.clarify','pick-document':'pbc.upload','sample-upload':'pbc.upload','pbc-accept':'pbc.accept','pbc-clarify':'pbc.clarify','save-pbc-clarification':'pbc.clarify',
@@ -180,6 +289,8 @@ function allowedAction(name,d={}){
  if(name==='r-renewal-note')return ['relationship','onboarding'].includes(state.role);
  if(name==='r-contact-detail')return ['client_admin','onboarding','admin'].includes(state.role);
  if(name==='r-ack-delivery'||name==='client-query'||name==='save-client-query')return isClientRole();
+ if(['request-thread','request-reply','save-request-reply'].includes(name))return ['preparer','reviewer','manager','client_admin','client_finance','client'].includes(state.role);
+ if(name==='request-email-preview')return ['preparer','reviewer','manager'].includes(state.role);
  if(name==='invoice')return state.role==='billing';
  if(name==='lead-detail')return state.role==='relationship';
  if(name==='package-approve')return state.role===d.key&&permission({manager:'manager.approve',client:'management.approve',partner:'partner.approve',eqr:'eqr.complete'}[d.key]);

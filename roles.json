@@ -439,6 +439,7 @@
       "Client engagement and request overview",
       "Contact nominations and limited client-role requests",
       "PBC responsibility assignment",
+      "Shared request conversations and file visibility",
       "Portal invitation/expiry/revocation requests",
       "Published client deliverables and communication status"
     ],
@@ -487,6 +488,7 @@
       "My document requests and due dates",
       "Trial-balance/GL/support upload metadata",
       "Replacement submissions and version history",
+      "Client-facing conversation timeline and shared files",
       "Client-facing clarification messages",
       "Factual correction proposals and delivery access"
     ],
@@ -524,6 +526,7 @@
     "routes": [
       "overview",
       "portal",
+      "client-requests",
       "client-approvals",
       "client-deliverables",
       "role-guide",

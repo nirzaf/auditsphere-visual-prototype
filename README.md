@@ -1,31 +1,56 @@
 # AuditSphere · All-role portals v2
 
-A source-grounded, dependency-free frontend visualization of the 14 roles in STE-PRD-001.
+AuditSphere is a source-grounded, browser-only visualization of the 14 roles in STE-PRD-001. It uses synthetic data only; there is no backend, live provider connection, authentication, or production authorization boundary.
 
-## Open
-Open `index.html` in a modern browser. Choose a persona in the top-right **DEMO PERSONA — NOT A LOGIN** selector. The default is Engagement manager. **All 14 role views** opens the role directory. The play icon opens the cross-role walkthrough.
+## React + TypeScript + Vite
 
-No provider login, paid package, backend or network connection is needed. Optional local hosting: run `python3 -m http.server 8080` inside this folder and open localhost on that port.
+Install dependencies and start the development server:
 
-## Build
-Run `python3 build.py`. The script embeds source.json, roles.json, permissions.json, CSS and JavaScript into one index.html. It also emits app.bundle.js for syntax checking.
+```bash
+npm install
+npm run dev
+```
 
-- base-app.js: preserved original workflow demonstration with the v2 storage namespace and upload-context checks.
-- role-views.js: role-specific screens, frontend activity policy, projections and local handoffs.
-- roles.json: all 14 source roles, proposed views/features and explicit demo scope.
-- permissions.json: 44 proposed activity families and their conditions.
-- styles.css / roles.css: shared and role-specific styling.
-- source.json: the user-supplied PRD as read-only reference; original DOCX SHA-256 is recorded.
-- ROLE_GUIDE.md: features, privileges, restrictions, handoffs and limitations.
+Create a production build with:
 
-## Validate
-`node --check app.bundle.js`
+```bash
+npm run build
+npm run preview
+```
 
-The optional test script requires Playwright for Python and an installed Chromium. Set `CHROMIUM_PATH` to its executable when different from `/usr/bin/chromium`; then run `python3 test_roles.py`. Tests use in-memory document rendering. `test-results.json` identifies the tested HTML hash and limits.
+The Vite build is written to `dist-vite/` so the existing Cloudflare Pages artifact in `dist/` remains available while this migration is validated. `deploy.sh` builds and deploys the Vite output.
 
-## Important limits
-This is NOT the AuditSphere production repository, not a backend, and not authentication/authorization. All synthetic state and role definitions remain inspectable by anyone who has the HTML. Menu filtering and browser checks are not a security boundary. There are no real Microsoft connections, screening lookups, documents stored at a provider, legal signatures, ledger postings, emails, money movement, filings or immutable archives. Uploads retain metadata/hash only, not original document bytes.
+## Migration architecture
 
-Production requires the source specification's individual authority, scope checks, server-side gates and independent acceptance. Features listed in the role guide are source responsibilities/proposed design; representative frontend interactions do not implement every service or policy.
+React owns the Vite entrypoint, typed data bootstrapping, runtime lifecycle, and static asset pipeline in `src/main.tsx`. The existing role portal renderer is loaded as one compatibility runtime from `app.bundle.js`; this preserves the complete local workflow, role switching, dialogs, uploads, and role-scoped guards while the screen templates are migrated incrementally into React components.
 
-No original Google document, repository or earlier prototype was modified. The v2 storage namespace is separate. Use synthetic data only.
+- `src/main.tsx`: React host and typed legacy-runtime bridge.
+- `src/host.css`: React runtime loading/error state.
+- `vite.config.ts`: Vite + React configuration with an isolated `dist-vite` output.
+- `base-app.js` / `role-views.js`: existing imperative role portal behavior.
+- `styles.css` / `roles.css`: existing responsive visual system, imported by Vite.
+- `roles.json` / `permissions.json` / `source.json`: synthetic source and role data loaded through the typed entrypoint.
+
+## Client file-request workflow
+
+Auditors and accountants can create a client-facing file request from `Documents & PBC`. Each request captures a description, due date, recipient, simulated email preview, portal link, shared-file metadata, and a two-sided conversation timeline. Client administrator, finance contributor, and authorized signatory views expose the same request thread within their permitted client scope; the finance contributor can upload or replace a built-in synthetic sample through the portal and the engagement team can reply or review it.
+
+Because this remains a browser-only prototype, email delivery is represented as a local preview and upload handling stores metadata plus a local hash only. No external email is sent and no document bytes leave or persist in the browser.
+
+## Legacy compatibility build
+
+The original dependency-free HTML build is still available for comparison or rollback:
+
+```bash
+py -3 build.py
+```
+
+It regenerates `app.bundle.js` and writes the standalone artifact to `legacy/index.html`; it no longer overwrites the Vite entrypoint. Validate the compatibility bundle with:
+
+```bash
+npm run legacy:check
+```
+
+## Scope and limitations
+
+All synthetic state is inspectable in the browser and saved only in local storage when available. Uploads retain metadata and a local hash only; file bytes are not stored. The visualization does not implement production authentication, enforceable multi-user authorization, real Microsoft integrations, legal signatures, ledger postings, payments, filings, or immutable retention.
