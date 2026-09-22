@@ -14,7 +14,7 @@ def main():
   page=browser.new_page(viewport={'width':1512,'height':1000},device_scale_factor=1)
   page.set_default_timeout(7000)
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  page.set_content((ROOT/'index.html').read_text(),wait_until='load')
+  page.set_content((ROOT/'legacy/index.html').read_text(),wait_until='load')
   def check(name,expr):
    ok=page.evaluate(expr) if isinstance(expr,str) else bool(expr)
    results.append({'test':name,'passed':bool(ok)})
@@ -127,7 +127,7 @@ if __name__=='__main__':
  except Exception as e:
   error=str(e);print('FAILED:',error)
  finally:
-  payload={'tested_file_sha256':hashlib.sha256((ROOT/'index.html').read_bytes()).hexdigest(),'environment':'Chromium in-memory rendering using Playwright. Synthetic single-browser data only. No server/tenant tests.','passed':sum(t['passed'] for t in results),'failed':sum(not t['passed'] for t in results),'execution_error':error,'not_tested':['real authentication or authorization','provider integrations','browser-origin persistence','actual downloads/printing','production concurrency/security','legal signatures/retention'], 'results':results}
+  payload={'tested_file_sha256':hashlib.sha256((ROOT/'legacy/index.html').read_bytes()).hexdigest(),'environment':'Chromium in-memory rendering using Playwright. Synthetic single-browser data only. No server/tenant tests.','passed':sum(t['passed'] for t in results),'failed':sum(not t['passed'] for t in results),'execution_error':error,'not_tested':['real authentication or authorization','provider integrations','browser-origin persistence','actual downloads/printing','production concurrency/security','legal signatures/retention'], 'results':results}
   (ROOT/'test-results.json').write_text(json.dumps(payload,indent=2))
   print('Checks:',payload['passed'],'passed;',payload['failed'],'failed')
  if error:raise SystemExit(1)

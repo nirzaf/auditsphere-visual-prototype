@@ -1,7 +1,7 @@
 {
-  "tested_file_sha256": "4edb6d7adaa0ad27776507e158ee698695b54250b8240c015cf3c20d635d110f",
+  "tested_file_sha256": "bca789d374dad26350016847ef23cb2c516b5cc6d8565d533166115ffcb11da4",
   "environment": "Chromium in-memory rendering using Playwright. Synthetic single-browser data only. No server/tenant tests.",
-  "passed": 464,
+  "passed": 467,
   "failed": 0,
   "execution_error": null,
   "not_tested": [
@@ -86,19 +86,11 @@
       "passed": true
     },
     {
-      "test": "relationship denied route administration",
-      "passed": true
-    },
-    {
-      "test": "relationship denied route billing",
-      "passed": true
-    },
-    {
       "test": "relationship denied route client-team",
       "passed": true
     },
     {
-      "test": "relationship denied route accounting",
+      "test": "relationship denied route billing",
       "passed": true
     },
     {
@@ -107,6 +99,14 @@
     },
     {
       "test": "relationship denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "relationship denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "relationship denied route administration",
       "passed": true
     },
     {
@@ -174,19 +174,11 @@
       "passed": true
     },
     {
-      "test": "onboarding denied route administration",
-      "passed": true
-    },
-    {
-      "test": "onboarding denied route billing",
-      "passed": true
-    },
-    {
       "test": "onboarding denied route client-team",
       "passed": true
     },
     {
-      "test": "onboarding denied route accounting",
+      "test": "onboarding denied route billing",
       "passed": true
     },
     {
@@ -195,6 +187,14 @@
     },
     {
       "test": "onboarding denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "onboarding denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "onboarding denied route administration",
       "passed": true
     },
     {
@@ -246,7 +246,7 @@
       "passed": true
     },
     {
-      "test": "compliance denied route administration",
+      "test": "compliance denied route client-team",
       "passed": true
     },
     {
@@ -254,7 +254,7 @@
       "passed": true
     },
     {
-      "test": "compliance denied route client-team",
+      "test": "compliance denied route delivery",
       "passed": true
     },
     {
@@ -262,7 +262,7 @@
       "passed": true
     },
     {
-      "test": "compliance denied route delivery",
+      "test": "compliance denied route administration",
       "passed": true
     },
     {
@@ -374,15 +374,15 @@
       "passed": true
     },
     {
+      "test": "partner denied route client-team",
+      "passed": true
+    },
+    {
       "test": "partner denied route administration",
       "passed": true
     },
     {
       "test": "partner denied route compliance",
-      "passed": true
-    },
-    {
-      "test": "partner denied route client-team",
       "passed": true
     },
     {
@@ -498,15 +498,11 @@
       "passed": true
     },
     {
-      "test": "manager denied route administration",
+      "test": "manager denied route client-team",
       "passed": true
     },
     {
       "test": "manager denied route billing",
-      "passed": true
-    },
-    {
-      "test": "manager denied route client-team",
       "passed": true
     },
     {
@@ -515,6 +511,10 @@
     },
     {
       "test": "manager denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "manager denied route administration",
       "passed": true
     },
     {
@@ -590,15 +590,11 @@
       "passed": true
     },
     {
-      "test": "preparer denied route administration",
+      "test": "preparer denied route client-team",
       "passed": true
     },
     {
       "test": "preparer denied route billing",
-      "passed": true
-    },
-    {
-      "test": "preparer denied route client-team",
       "passed": true
     },
     {
@@ -607,6 +603,10 @@
     },
     {
       "test": "preparer denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "preparer denied route administration",
       "passed": true
     },
     {
@@ -682,15 +682,11 @@
       "passed": true
     },
     {
-      "test": "reviewer denied route administration",
+      "test": "reviewer denied route client-team",
       "passed": true
     },
     {
       "test": "reviewer denied route billing",
-      "passed": true
-    },
-    {
-      "test": "reviewer denied route client-team",
       "passed": true
     },
     {
@@ -699,6 +695,10 @@
     },
     {
       "test": "reviewer denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "reviewer denied route administration",
       "passed": true
     },
     {
@@ -742,19 +742,11 @@
       "passed": true
     },
     {
-      "test": "eqr denied route administration",
-      "passed": true
-    },
-    {
-      "test": "eqr denied route billing",
-      "passed": true
-    },
-    {
       "test": "eqr denied route client-team",
       "passed": true
     },
     {
-      "test": "eqr denied route accounting",
+      "test": "eqr denied route billing",
       "passed": true
     },
     {
@@ -763,6 +755,14 @@
     },
     {
       "test": "eqr denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "eqr denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "eqr denied route administration",
       "passed": true
     },
     {
@@ -830,15 +830,7 @@
       "passed": true
     },
     {
-      "test": "client_admin denied route administration",
-      "passed": true
-    },
-    {
       "test": "client_admin denied route billing",
-      "passed": true
-    },
-    {
-      "test": "client_admin denied route accounting",
       "passed": true
     },
     {
@@ -847,6 +839,14 @@
     },
     {
       "test": "client_admin denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "client_admin denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "client_admin denied route administration",
       "passed": true
     },
     {
@@ -906,19 +906,11 @@
       "passed": true
     },
     {
-      "test": "client_finance denied route administration",
-      "passed": true
-    },
-    {
-      "test": "client_finance denied route billing",
-      "passed": true
-    },
-    {
       "test": "client_finance denied route client-team",
       "passed": true
     },
     {
-      "test": "client_finance denied route accounting",
+      "test": "client_finance denied route billing",
       "passed": true
     },
     {
@@ -927,6 +919,14 @@
     },
     {
       "test": "client_finance denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "client_finance denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "client_finance denied route administration",
       "passed": true
     },
     {
@@ -943,6 +943,14 @@
     },
     {
       "test": "client no desktop body overflow portal",
+      "passed": true
+    },
+    {
+      "test": "client renders client-requests",
+      "passed": true
+    },
+    {
+      "test": "client no desktop body overflow client-requests",
       "passed": true
     },
     {
@@ -986,19 +994,11 @@
       "passed": true
     },
     {
-      "test": "client denied route administration",
-      "passed": true
-    },
-    {
-      "test": "client denied route billing",
-      "passed": true
-    },
-    {
       "test": "client denied route client-team",
       "passed": true
     },
     {
-      "test": "client denied route accounting",
+      "test": "client denied route billing",
       "passed": true
     },
     {
@@ -1007,6 +1007,14 @@
     },
     {
       "test": "client denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "client denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "client denied route administration",
       "passed": true
     },
     {
@@ -1058,15 +1066,7 @@
       "passed": true
     },
     {
-      "test": "billing denied route administration",
-      "passed": true
-    },
-    {
       "test": "billing denied route client-team",
-      "passed": true
-    },
-    {
-      "test": "billing denied route accounting",
       "passed": true
     },
     {
@@ -1075,6 +1075,14 @@
     },
     {
       "test": "billing denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "billing denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "billing denied route administration",
       "passed": true
     },
     {
@@ -1126,19 +1134,11 @@
       "passed": true
     },
     {
-      "test": "records denied route administration",
-      "passed": true
-    },
-    {
-      "test": "records denied route billing",
-      "passed": true
-    },
-    {
       "test": "records denied route client-team",
       "passed": true
     },
     {
-      "test": "records denied route accounting",
+      "test": "records denied route billing",
       "passed": true
     },
     {
@@ -1147,6 +1147,14 @@
     },
     {
       "test": "records denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "records denied route accounting",
+      "passed": true
+    },
+    {
+      "test": "records denied route administration",
       "passed": true
     },
     {
@@ -1206,15 +1214,11 @@
       "passed": true
     },
     {
-      "test": "admin denied route billing",
-      "passed": true
-    },
-    {
       "test": "admin denied route client-team",
       "passed": true
     },
     {
-      "test": "admin denied route accounting",
+      "test": "admin denied route billing",
       "passed": true
     },
     {
@@ -1223,6 +1227,10 @@
     },
     {
       "test": "admin denied route delivery",
+      "passed": true
+    },
+    {
+      "test": "admin denied route accounting",
       "passed": true
     },
     {
@@ -1763,6 +1771,10 @@
     },
     {
       "test": "client no mobile body overflow portal",
+      "passed": true
+    },
+    {
+      "test": "client no mobile body overflow client-requests",
       "passed": true
     },
     {

@@ -80,14 +80,216 @@ function initialRows(multiplier=1){return [
  ['5000','Operating expenses','expense',300000],['2000','Trade payables','liability',-300000],['2200','Loan','liability',-700000],
  ['3000','Opening equity','equity',-1000000],['4000','Revenue','revenue',-600000]
 ].map(([code,name,type,balance])=>({code,name,type,balance:balance*multiplier}));}
+function defaultGuidelines(id){
+ if(id==='WP-A1')return {
+  methodology:'STE-AUD-MET-01 · Cash and cash equivalents substantive testing protocol (ISA 500 / ISA 505 / ISA 520)',
+  assertionsFocus:'Existence · Completeness · Rights & obligations · Presentation & disclosure',
+  procedures:[
+   'Obtain standard bank confirmations for all operating, deposit, and foreign currency accounts active during the fiscal year.',
+   'Inspect year-end bank reconciliation statements, verify mathematical accuracy, and tie book balances to general ledger.',
+   'Test significant outstanding cheques and deposits in transit to subsequent bank statements (post-year-end clearance).',
+   'Test foreign exchange revaluation rates at balance date against approved exchange rates.',
+   'Verify that restricted cash, overdrafts, and cash equivalents are classified in accordance with reporting framework.'
+  ],
+  documentationRequired:[
+   'Approved working paper schedule tying to trial balance account 1000',
+   'Signed or electronically received direct bank confirmation letter(s)',
+   'Bank reconciliation statements with supporting bank statements (e.g. PBC-02)',
+   'Cut-off testing schedule showing subsequent bank clearance of reconciling items',
+   'Preparer conclusion statement and independent reviewer sign-off'
+  ]
+ };
+ if(id==='WP-B1')return {
+  methodology:'STE-AUD-MET-02 · Trade receivables substantive audit procedures (ISA 500 / 505)',
+  assertionsFocus:'Existence · Valuation & allocation · Rights & obligations',
+  procedures:[
+   'Agree trade receivables sub-ledger to the general ledger balance.',
+   'Perform debtor circularisation or test subsequent receipts for selected high-value balances.',
+   'Evaluate management expected credit loss (ECL) or allowance for doubtful accounts.'
+  ],
+  documentationRequired:[
+   'Aged debtor listing reconciled to trial balance',
+   'Debtor confirmation samples and replies',
+   'Subsequent cash receipt verification records'
+  ]
+ };
+ if(id==='WP-C1')return {
+  methodology:'STE-AUD-MET-03 · Property, plant, equipment & depreciation testing (ISA 540)',
+  assertionsFocus:'Valuation & allocation · Rights & obligations · Completeness',
+  procedures:[
+   'Inspect fixed asset register roll-forward from opening to closing balances.',
+   'Vouch significant additions to supplier invoices and title/ownership evidence.',
+   'Recalculate depreciation charges based on approved useful lives and test proposed adjustment AJ-001.'
+  ],
+  documentationRequired:[
+   'Fixed asset register agreeing to trial balance',
+   'Depreciation recalculation schedule',
+   'Asset inspection notes or invoice vouchers'
+  ]
+ };
+ return {
+  methodology:'STE-AUD-MET-00 · General substantive audit and completion methodology',
+  assertionsFocus:'Presentation & disclosure · Completeness · Accuracy',
+  procedures:[
+   'Perform analytical procedures and tie final balances to reporting framework requirements.',
+   'Review completeness of disclosures and evaluate unadjusted differences.'
+  ],
+  documentationRequired:[
+   'Completed audit disclosure checklist',
+   'Documented auditor evaluation and clearance sign-off'
+  ]
+ };
+}
+
+function defaultTemplate(id){
+ if(id==='WP-A1')return {
+  name:'WP-A1 Cash & Bank Audit Template',
+  ref:'TPL-WP-A1-v2.0',
+  version:'2.0',
+  format:'Excel (.xlsx) / CSV',
+  instructions:'Download this approved audit schedule template. Reconcile all cash and bank accounts, record confirmation status, test reconciling item cut-off, and document audit conclusion before upload.',
+  csv:`Audit Area: WP-A1 · Cash and Bank Balances
+Client: Example Trading Entity
+Period Ended: 31 December 2026
+Preparer: Adam Khan | Date: 2026-09-21
+Reviewer: Sara Malik | Status: Approved Template v2.0
+
+SECTION 1: BANK ACCOUNTS SUMMARY
+GL Code,Bank Name,Account Number,Currency,GL Balance (QAR),Bank Stmt Balance (QAR),Diff (QAR),Confirmation Received
+1000,Commercial Bank - Operating,QA00CBQA0001234567,QAR,750000.00,750000.00,0.00,Yes
+1010,Qatar National Bank - Call Deposit,QA00QNB0009876543,QAR,250000.00,250000.00,0.00,Yes
+TOTAL,ALL ACCOUNTS,,QAR,1000000.00,1000000.00,0.00,
+
+SECTION 2: BANK RECONCILIATION TESTING
+Account,Item Description,Date,Amount (QAR),Subsequent Clearance Date,Cleared in Post-YE Stmt?
+1000,Outstanding Cheque #44019,2026-12-29,-15200.00,2027-01-04,Yes
+1000,Deposit in Transit - Batch #8812,2026-12-31,15200.00,2027-01-02,Yes
+NET ADJUSTING ITEMS,,,0.00,,
+
+SECTION 3: CONFIRMATION PROCEDURES
+Account,Circularisation Method,Sent Date,Received Date,Agreed to Statement?,Exceptions Noted
+Commercial Bank - Operating,Direct Standard Bank Confirmation,2026-12-15,2027-01-05,Yes,None
+Qatar National Bank - Deposit,Direct Standard Bank Confirmation,2026-12-15,2027-01-03,Yes,None
+
+SECTION 4: CUT-OFF TESTING
+Test Type,Sample Range,Exceptions Identified,Conclusion
+Receipts Cut-off,Last 5 pre-YE and first 5 post-YE deposits,None,Proper period recognition verified
+Disbursements Cut-off,Last 5 pre-YE and first 5 post-YE cheques,None,Proper period recognition verified
+
+SECTION 5: AUDIT CONCLUSION
+Assertions Tested: Existence, Completeness, Rights & Obligations, Presentation & Disclosure
+Work Performed: Agreed all bank balances to general ledger and trial balance (TB-v1). Reconciled statements and inspected direct bank confirmations. Tested cut-off transactions with no exceptions noted.
+Auditor Conclusion: Cash and bank balances are free from material misstatement and fairly presented as at 31 December 2026.`
+ };
+ if(id==='WP-B1')return {
+  name:'WP-B1 Trade Receivables Audit Template',
+  ref:'TPL-WP-B1-v1.0',
+  version:'1.0',
+  format:'Excel (.xlsx) / CSV',
+  instructions:'Reconcile aged debtor trial balance to general ledger, record debtor confirmations, and evaluate ECL provision.',
+  csv:`Audit Area: WP-B1 · Trade Receivables
+Account,Customer Name,Invoice Ref,Date,Gross Balance (QAR),Overdue > 90 Days (QAR),Confirmation Status
+1100,Customer A,INV-0891,2026-11-12,250000.00,0.00,Confirmed
+1100,Customer B,INV-0914,2026-12-05,175000.00,0.00,Confirmed
+1100,Customer C,INV-0762,2026-09-18,75000.00,75000.00,Subsequent payment verified
+TOTAL,TRADE RECEIVABLES,,,500000.00,75000.00,`
+ };
+ return {
+  name:`${id} Audit Template`,
+  ref:`TPL-${id}-v1.0`,
+  version:'1.0',
+  format:'Excel (.xlsx) / CSV',
+  instructions:`Complete substantive audit testing for ${id}, attach supporting evidence, and record audit conclusions.`,
+  csv:`Audit Area: ${id}
+Ref,Procedure,Tested Balance,Exception Noted,Conclusion
+01,Agree balance to trial balance,Agreed,None,Satisfactory
+02,Substantive sample testing,Sample verified,None,Satisfactory`
+ };
+}
+
+function normalizeWorkpaper(w, e){
+ if(w.applicable === undefined) w.applicable = true;
+ if(!w.guidelines) w.guidelines = defaultGuidelines(w.id);
+ if(!w.template) w.template = defaultTemplate(w.id);
+ if(w.workingPaper === undefined) w.workingPaper = null;
+ if(!Array.isArray(w.supportingEvidence)) w.supportingEvidence = [];
+ if(w.clearance === undefined) w.clearance = null;
+ if(!Array.isArray(w.clearanceHistory)) w.clearanceHistory = [];
+ 
+ if(w.id === 'WP-A1' && w.status === 'Cleared' && !w.clearance){
+  w.clearance = {
+   clearedBy: w.reviewer || 'Sara Malik',
+   clearedAt: '2026-09-21T10:00:00.000Z',
+   sourceVersion: e?.sourceVersion || 1,
+   generation: e?.generation || 3,
+   version: w.version,
+   notes: 'Bank confirmation and year-end reconciliation agreed to trial balance. Substantive testing cleared.'
+  };
+  if(!w.workingPaper){
+   w.workingPaper = {
+    file: 'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',
+    name: 'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',
+    size: 45200,
+    sha: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    version: 2,
+    uploadedAt: '2026-09-21T09:30:00.000Z',
+    uploadedBy: w.preparer || 'Adam Khan',
+    local: false
+   };
+  }
+  if(!w.supportingEvidence.some(ev => ev.pbcId === 'PBC-02')){
+   w.supportingEvidence.push({
+    id: 'EVD-A1-01',
+    pbcId: 'PBC-02',
+    title: 'Bank statement and reconciliation',
+    file: 'Bank_Statement_December.pdf',
+    sha: 'a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7',
+    source: 'PBC-02',
+    status: 'Accepted',
+    linkedAt: '2026-09-21T09:15:00.000Z'
+   });
+  }
+ }
+ if(w.id === 'WP-B1' && w.status === 'Cleared' && !w.clearance){
+  w.clearance = {
+   clearedBy: w.reviewer || 'Sara Malik',
+   clearedAt: '2026-09-21T10:15:00.000Z',
+   sourceVersion: e?.sourceVersion || 1,
+   generation: e?.generation || 3,
+   version: w.version,
+   notes: 'Aged debtors reconciled to trial balance; confirmations cleared.'
+  };
+  if(!w.workingPaper){
+   w.workingPaper = {
+    file: 'WP-B1_Trade_Receivables_Schedule.xlsx',
+    name: 'WP-B1_Trade_Receivables_Schedule.xlsx',
+    size: 38400,
+    sha: 'c2b3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
+    version: 2,
+    uploadedAt: '2026-09-21T09:45:00.000Z',
+    uploadedBy: w.preparer || 'Adam Khan',
+    local: false
+   };
+  }
+ }
+ return w;
+}
+
+function normalizeWorkpapers(e){
+ if(!e || !Array.isArray(e.workpapers)) return;
+ e.workpapers.forEach(w => normalizeWorkpaper(w, e));
+}
+
 function newEng(id,client,service='External audit',stage='Review',multiplier=1){return {
  id,client,service,stage,year:2026,mode:'External books',period:'01 Jan – 31 Dec 2026',due:'2026-09-28',manager:'Layla Rahman',partner:'Daniel James',acceptance:true,terms:true,planning:true,sourceAccepted:true,mappingApproved:true,generation:3,packageRevision:3,builtGeneration:3,sourceVersion:1,
  rows:initialRows(multiplier),adjustment:50000*multiplier,journalState:'Applied',sourceReflection:false,supplements:true,
  reconciliations:[{name:'Cash & bank',ref:'REC-01',status:'Cleared',evidence:'Bank statement and book balance'},{name:'Trade receivables',ref:'REC-02',status:'Cleared',evidence:'Ageing schedule tied to TB'},{name:'Property and equipment',ref:'REC-03',status:'Cleared',evidence:'Asset register and depreciation'},{name:'Equity',ref:'REC-04',status:'Cleared',evidence:'Opening equity and current profit'}],
- workpapers:[{id:'WP-A1',title:'Cash & bank',objective:'Agree cash balances to the ledger and supporting statement.',assertion:'Existence · Completeness',risk:'Unreconciled cash balances',version:2,status:'Cleared',preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Illustrative reconciliation ties to the selected reporting balance.'},
- {id:'WP-B1',title:'Trade receivables',objective:'Evaluate year-end receivables and supporting ageing.',assertion:'Existence · Valuation',risk:'Overstated or unrecoverable receivables',version:2,status:'Cleared',preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Synthetic ageing agrees to the selected trial balance.'},
- {id:'WP-C1',title:'Fixed assets',objective:'Review equipment cost and the supported depreciation adjustment.',assertion:'Valuation · Rights',risk:'Unsupported depreciation assumptions',version:3,status:'Changes required',preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Depreciation proposal is linked to the illustrative asset schedule; reviewer response is pending.'},
- {id:'WP-F1',title:'Completion & disclosures',objective:'Tie final statements and complete the disclosure review.',assertion:'Presentation · Completeness',risk:'Missing financial statement disclosures',version:1,status:'Changes required',preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Final disclosures require a management confirmation and independent clearance.'}],
+ workpapers:[
+  {id:'WP-A1',title:'Cash & bank',objective:'Agree cash balances to the ledger, reconcile bank statements, verify confirmations/cut-off, and confirm presentation/disclosures.',assertion:'Existence · Completeness · Rights & obligations · Presentation',risk:'Unreconciled cash balances, unrecorded transactions, omitted bank accounts, or improper classification of restricted funds.',version:2,status:'Cleared',applicable:true,preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Agreed all bank balances to general ledger and trial balance (TB-v1). Reconciled statements and inspected direct bank confirmations. Tested cut-off transactions with no exceptions noted.',guidelines:defaultGuidelines('WP-A1'),template:defaultTemplate('WP-A1'),workingPaper:{file:'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',name:'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',size:45200,sha:'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',version:2,uploadedAt:'2026-09-21T09:30:00.000Z',uploadedBy:'Adam Khan',local:false},supportingEvidence:[{id:'EVD-A1-01',pbcId:'PBC-02',title:'Bank statement and reconciliation',file:'Bank_Statement_December.pdf',sha:'a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7',source:'PBC-02',status:'Accepted',linkedAt:'2026-09-21T09:15:00.000Z'}],clearance:{clearedBy:'Sara Malik',clearedAt:'2026-09-21T10:00:00.000Z',sourceVersion:1,generation:3,version:2,notes:'Bank confirmation and year-end reconciliation agreed to trial balance. Substantive testing cleared.'},clearanceHistory:[]},
+  {id:'WP-B1',title:'Trade receivables',objective:'Evaluate year-end receivables and supporting ageing.',assertion:'Existence · Valuation',risk:'Overstated or unrecoverable receivables',version:2,status:'Cleared',applicable:true,preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Synthetic ageing agrees to the selected trial balance.',guidelines:defaultGuidelines('WP-B1'),template:defaultTemplate('WP-B1'),workingPaper:{file:'WP-B1_Trade_Receivables_Schedule.xlsx',name:'WP-B1_Trade_Receivables_Schedule.xlsx',size:38400,sha:'c2b3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',version:2,uploadedAt:'2026-09-21T09:45:00.000Z',uploadedBy:'Adam Khan',local:false},supportingEvidence:[],clearance:{clearedBy:'Sara Malik',clearedAt:'2026-09-21T10:15:00.000Z',sourceVersion:1,generation:3,version:2,notes:'Aged debtors reconciled to trial balance; confirmations cleared.'},clearanceHistory:[]},
+  {id:'WP-C1',title:'Fixed assets',objective:'Review equipment cost and the supported depreciation adjustment.',assertion:'Valuation · Rights',risk:'Unsupported depreciation assumptions',version:3,status:'Changes required',applicable:true,preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Depreciation proposal is linked to the illustrative asset schedule; reviewer response is pending.',guidelines:defaultGuidelines('WP-C1'),template:defaultTemplate('WP-C1'),workingPaper:{file:'WP-C1_Fixed_Asset_Register.xlsx',name:'WP-C1_Fixed_Asset_Register.xlsx',size:52100,sha:'f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2',version:3,uploadedAt:'2026-09-21T08:50:00.000Z',uploadedBy:'Adam Khan',local:false},supportingEvidence:[],clearance:null,clearanceHistory:[]},
+  {id:'WP-F1',title:'Completion & disclosures',objective:'Tie final statements and complete the disclosure review.',assertion:'Presentation · Completeness',risk:'Missing financial statement disclosures',version:1,status:'Changes required',applicable:true,preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'Final disclosures require a management confirmation and independent clearance.',guidelines:defaultGuidelines('WP-F1'),template:defaultTemplate('WP-F1'),workingPaper:null,supportingEvidence:[],clearance:null,clearanceHistory:[]}
+ ],
  reviews:[{id:'RN-001',wp:'WP-C1',title:'Support the depreciation assumptions',body:'Document the useful-life rationale supporting the QAR 500 depreciation adjustment. Link the updated asset schedule and explain the accounting treatment.',severity:'High',status:'Open',raisedBy:'Sara Malik',assigned:'Adam Khan',due:'2026-09-23',response:'',version:3,history:[]},{id:'RN-002',wp:'WP-F1',title:'Confirm related-party disclosures',body:'Obtain the management confirmation and explain the applicability of the related-party note. A blank disclosure is not an approved not-applicable decision.',severity:'Medium',status:'Open',raisedBy:'Sara Malik',assigned:'Adam Khan',due:'2026-09-24',response:'',version:1,history:[]}],
  approvals:{manager:null,client:null,partner:null,eqr:null},eqrRequired:true,opinion:'Unmodified — illustrative only',candidate:null,releases:[],archive:null,
  pbc:[{id:'PBC-01',title:'Year-end trial balance',category:'Financial records',status:'Accepted',due:'2026-09-18',owner:'Omar Nasser',file:'FY2026_Trial_Balance.csv',version:1},{id:'PBC-02',title:'Bank statement and reconciliation',category:'Cash & bank',status:'Accepted',due:'2026-09-20',owner:'Omar Nasser',file:'Bank_Statement_December.pdf',version:1},{id:'PBC-03',title:'Fixed-asset register and useful lives',category:'Fixed assets',status:'Requested',due:'2026-09-23',owner:'Omar Nasser',file:'',version:0},{id:'PBC-04',title:'Related-party confirmation',category:'Disclosures',status:'Requested',due:'2026-09-24',owner:'Omar Nasser',file:'',version:0}],annual:{confirmed:[],decision:null,nextId:null},questionnaire:{answers:{},status:'Not started'},events:[]};}
@@ -100,7 +302,7 @@ try{const raw=localStorage.getItem(STORAGE_KEY);state=raw?JSON.parse(raw):seed()
 const knownRoutes=['overview','clients','acquisition','engagements','onboarding','documents','accounting','audit','reviews','delivery','portal','billing','continuance','services','requirements'];
 let ui={route:knownRoutes.includes(location.hash.slice(1))?location.hash.slice(1):'overview',accountTab:'tb',auditTab:'workpapers',reviewTab:'notes',requirementTab:'lifecycle',selectedReview:'RN-001',onboardTab:'assessment',search:'',clientFilter:'',docFilter:'All',serviceFilter:'',referenceSearch:'',modal:null};
 let lastFocus=null, uploadTarget=null;
-const E=()=>state.engagements.find(x=>x.id===state.selected)||state.engagements[0];
+const E=()=>{const e=state.engagements.find(x=>x.id===state.selected)||state.engagements[0];normalizeWorkpapers(e);return e;};
 const C=id=>state.clients.find(x=>x.id===(id||E().client));
 const actor=()=>ROLES[state.role];
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{persist=false;}}
@@ -109,8 +311,10 @@ function log(text,ref=E().id,type='checkcircle'){const t={text,ref,time:'Demo ·
 function roleAllowed(role){if(![role].flat().includes(state.role)){toast('Switch the demo role to '+[role].flat().map(r=>ROLES[r].label).join(' or ')+'.','warn');return false;}return true;}
 function changed(reason){const e=E();e.generation++;e.candidate=null;log(reason+' · dependent approvals are now stale');save();}
 function isCurrent(key,e=E()){return e.approvals[key]?.generation===e.generation;}
+function isCurrentWorkpaperClearance(w,e=E()){if(!w||!w.clearance||w.applicable===false)return false;return w.clearance.version===w.version&&w.clearance.sourceVersion===e.sourceVersion;}
 function allNotesClear(e=E()){return e.reviews.every(r=>r.status==='Cleared');}
-function allWorkClear(e=E()){return e.workpapers.every(w=>w.status==='Cleared');}
+function allWorkClear(e=E()){return e.workpapers.filter(w=>w.applicable!==false).every(w=>w.status==='Cleared'&&isCurrentWorkpaperClearance(w,e));}
+function auditWorkpaperProgress(e=E()){const applicable=e.workpapers.filter(w=>w.applicable!==false);const cleared=applicable.filter(w=>w.status==='Cleared'&&isCurrentWorkpaperClearance(w,e));const percent=applicable.length?Math.round(cleared.length/applicable.length*100):100;return {total:e.workpapers.length,applicable:applicable.length,cleared:cleared.length,percent};}
 function isAudit(e=E()){return e.service==='External audit';}
 function totals(e=E()){
  const rows=clone(e.rows);if(e.journalState==='Applied'&&!e.sourceReflection){const a=rows.find(r=>r.code==='1590'),b=rows.find(r=>r.code==='5200');if(a)a.balance-=e.adjustment;else rows.push({code:'1590',name:'Accumulated depreciation',type:'asset',balance:-e.adjustment});if(b)b.balance+=e.adjustment;else rows.push({code:'5200',name:'Depreciation expense',type:'expense',balance:e.adjustment});}
@@ -151,7 +355,7 @@ function adjustmentsView(){const e=E();return `<div class="grid-main"><div class
 function reconciliationView(){const e=E();return panel('Source-bound reconciliations','Opening balances, supporting schedules and explained differences.',`<div class="tablewrap"><table><thead><tr><th>Area</th><th>Reference</th><th>Supporting basis</th><th>Status</th><th></th></tr></thead><tbody>${e.reconciliations.map((r,i)=>`<tr><td><b>${r.name}</b></td><td class="mono">${r.ref}</td><td class="small muted">${r.evidence}</td><td>${badge(r.status)}</td><td>${btn('Open schedule','reconciliation','sm',`data-id="${i}"`)}</td></tr>`).join('')}</tbody></table></div>`)+`<div class="panel panel-pad mt20"><h3>Unexplained differences cannot be hidden</h3><p class="sub mt8">The production workflow classifies timing, error, omission, estimates and disputed items. This prototype displays sample reconciliation outcomes; it does not perform bank matching.</p><div class="mt12">${btn('Read detailed reconciliation requirements','source','ghost sm','data-section="10"')}</div></div>`;}
 function statementPaper(e=E(),release=null){const t=release?.totals||totals(e),rev=release?.revision||e.packageRevision,c=C(e.client);return `<article class="paper"><div class="watermark">${release?'DEMO ISSUED ARTIFACT — NOT AN AUDITOR’S REPORT':'ILLUSTRATIVE DRAFT — NOT FOR PROFESSIONAL USE'}</div><div class="letterhead"><div><h2>${esc(c.name)}</h2><p>Illustrative financial statements · FY ${e.year}</p></div><div class="right"><strong>QAR</strong><div class="caption">Package v${rev}</div><div class="caption">STE-PRD-001 demonstration</div></div></div><h3>Statement of financial position</h3><table><thead><tr><th>Line item</th><th class="right">Amount</th></tr></thead><tbody>${t.rows.filter(r=>r.type==='asset').map(r=>`<tr><td>${esc(r.name)}</td><td class="right num">${moneyView(r.balance)}</td></tr>`).join('')}<tr class="statement-total"><td>Total assets</td><td class="right">${fmt(t.assets)}</td></tr>${t.rows.filter(r=>r.type==='liability').map(r=>`<tr><td>${esc(r.name)}</td><td class="right">${moneyView(-r.balance)}</td></tr>`).join('')}<tr><td>Total liabilities</td><td class="right">${fmt(t.liabilities)}</td></tr><tr><td>Opening equity</td><td class="right">${fmt(t.openingEquity)}</td></tr><tr><td>Current-period profit / (loss)</td><td class="right">${moneyView(t.profit)}</td></tr><tr class="statement-total"><td>Total liabilities and equity</td><td class="right">${fmt(t.liabilities+t.openingEquity+t.profit)}</td></tr></tbody></table><h3>Statement of profit or loss</h3><table><tbody>${t.rows.filter(r=>['revenue','expense'].includes(r.type)).map(r=>`<tr><td>${esc(r.name)}</td><td class="right">${moneyView(r.type==='revenue'?-r.balance:r.balance)}</td></tr>`).join('')}<tr class="statement-total"><td>Profit / (loss) for the period</td><td class="right">${moneyView(t.profit)}</td></tr></tbody></table><h3>Equity movement</h3><p>Opening equity ${cash(t.openingEquity)} + current result ${cash(t.profit)} = closing equity ${cash(t.openingEquity+t.profit)}. This simplified illustration assumes no distributions or other comprehensive income.</p><h3>Cash-flow and disclosure support</h3>${e.supplements?`<p><b>Illustrative supporting schedule, not derived from closing TB alone.</b> The original example assumes opening cash QAR 8,000 and a QAR 1,000 increase in receivables: operating cash QAR 2,000, no investing or financing movements, closing cash QAR 10,000. These demo assumptions apply only to the original Example Trading fixture; source changes require new supporting schedules.</p><p>Disclosure checklist: accounting basis, asset policy, related parties, going concern and subsequent events require explicit applicability and review. This preview is not a complete framework-compliant statement set.</p>`:`<p><strong>Supporting schedules require review.</strong> Opening balances, cash movements, noncash changes and disclosure information must be supplied. A closing trial balance is insufficient.</p>`}<div class="divider"></div><div class="caption">Source: ${e.id} · TB-v${e.sourceVersion} · input generation ${release?.generation||e.generation}<br>No real signature, audit opinion, management attestation or filing is created by this prototype.</div></article>`;}
 function statementsView(){const e=E(),t=totals();return `<div class="toolbar">${btn('Rebuild current package','build-package','primary','','refresh')}${btn('Export preview HTML','export-report','','','download')}${btn('Print preview','print-report','','','file')}${linkBtn('Approval desk','reviews')}</div><div class="grid3 mb16">${metric('Total assets',cash(t.assets),'Statement of financial position','chart')}${metric('Closing equity',cash(t.openingEquity+t.profit),'Opening equity + current-period result','layers','purple')}${metric('Statement equation',t.assets===t.liabilities+t.openingEquity+t.profit?'Balanced':'Review required','Assets = liabilities + equity','checkcircle','blue')}</div>${!e.supplements?note('After a source change, the illustrative cash-flow/disclosure support must be reconfirmed. This demo confirmation does not create real evidence.','amber',`<span class="banner-action">${btn('Review demo supplements','supplements','sm')}</span>`):''}${statementPaper()}<div class="row mt20 wrap">${btn('Review demo supplements','supplements','soft')}${btn('Read statement requirements','source','ghost','data-section="10"')}</div>`;}
-function audit(){const e=E();return head('Evidence that supports a conclusion.','Plan, test and review without losing the source version.',btn('Planning & materiality','planning','primary','','target'))+context()+tabs([['workpapers','Working papers'],['risks','Risks & assertions'],['sampling','Population & sampling'],['memoranda','Memoranda']],'auditTab')+(ui.auditTab==='workpapers'?`<div class="metric-grid">${metric('Working papers',e.workpapers.length,'In this illustrative engagement','checkboard')}${metric('Cleared',e.workpapers.filter(w=>w.status==='Cleared').length,'Independent sample review recorded','checkcircle','blue')}${metric('Changes required',e.workpapers.filter(w=>w.status==='Changes required').length,'Responses and evidence outstanding','message','amber')}${metric('Input generation',e.generation,'Source changes invalidate dependent work','layers','purple')}</div>${panel('Workpaper index','A completed task is not an evidence-based sign-off.',`<div class="tablewrap"><table><thead><tr><th>Reference / area</th><th>Assertion focus</th><th>Version</th><th>Status</th><th>Reviewer</th><th></th></tr></thead><tbody>${e.workpapers.map(w=>`<tr><td><b>${esc(w.title)}</b><div class="cell-sub">${w.id}</div></td><td class="small">${esc(w.assertion)}</td><td class="mono">v${w.version}</td><td>${badge(w.status)}</td><td><div class="row gap8">${avatar('SM','purple','sm')}<span class="small">Sara Malik</span></div></td><td>${btn('Open','workpaper','sm',`data-id="${w.id}"`,'arrow')}</td></tr>`).join('')}</tbody></table></div>`)}<div class="panel panel-pad mt20"><h3>Evidence chain</h3><div class="lineage mt16">${['Risk','Assertion','Procedure','Population','Evidence','Exception','Conclusion','Review'].map((t,i)=>`<span>${t}</span>${i<7?icon('arrow'):''}`).join('')}</div></div>`:ui.auditTab==='risks'?`<div class="grid2">${e.workpapers.map(w=>`<section class="panel panel-pad"><div class="between"><span class="eyebrow">${w.id}</span>${badge('Engagement-specific','purple')}</div><h3 class="mt12">${esc(w.risk)}</h3><p class="sub mt8">${esc(w.assertion)}</p><p class="small mt16">${esc(w.objective)}</p><div class="mt16">${btn('View linked procedure','workpaper','soft sm',`data-id="${w.id}"`,'link')}</div></section>`).join('')}</div>`:ui.auditTab==='sampling'?samplingView():memorandaView())+footer('AUD-01–05 · LC-10');}
+function audit(){const e=E(), prog=auditWorkpaperProgress(e);return head('Evidence that supports a conclusion.','Plan, test and review without losing the source version.',btn('Planning & materiality','planning','primary','','target'))+context()+tabs([['workpapers','Working papers'],['risks','Risks & assertions'],['sampling','Population & sampling'],['memoranda','Memoranda']],'auditTab')+(ui.auditTab==='workpapers'?`<div class="metric-grid">${metric('Audit workpapers',prog.total,'Across all planned audit areas','checkboard')}${metric('Applicable areas',prog.applicable,'Subject to substantive testing','target')}${metric('Cleared areas',prog.cleared,'Current independent clearance','checkcircle','blue')}${metric('Audit completion',prog.percent+'%','Cleared applicable audit areas','shield','green')}</div><div class="wp-progress-card"><div class="wp-progress-info"><h3>Audit Execution & Clearance Progress</h3><p class="sub" style="color:#d4e9e2;margin-top:4px">Progress reflects independently cleared working papers for the current source version (TB-v${e.sourceVersion}) and input generation ${e.generation}.</p></div><div style="text-align:right"><div class="wp-progress-stat"><span style="font-size:24px;font-weight:700">${prog.percent}%</span><div style="font-size:11px;color:#a2cfba">${prog.cleared} of ${prog.applicable} cleared</div></div><div class="wp-progress-bar mt8"><i style="width:${prog.percent}%"></i></div></div></div>${panel('Audit execution & clearance index','Execute procedures, upload working papers, attach evidence, and obtain independent clearance.',`<div class="tablewrap"><table><thead><tr><th>Reference / area</th><th>Assertion focus</th><th>Working paper</th><th>Evidence</th><th>Notes</th><th>Status</th><th>Reviewer</th><th></th></tr></thead><tbody>${e.workpapers.map(w=>{const curClr=isCurrentWorkpaperClearance(w,e);const openNotes=e.reviews.filter(r=>r.wp===w.id&&r.status!=='Cleared').length;return `<tr><td><b>${esc(w.title)}</b><div class="cell-sub">${w.id} · Rev v${w.version}</div></td><td class="small">${esc(w.assertion)}</td><td>${w.workingPaper?`<span class="attachment-chip" title="${esc(w.workingPaper.file)}">${icon('file')}${esc(w.workingPaper.file.length>20?w.workingPaper.file.slice(0,18)+'…':w.workingPaper.file)}</span>`:'<span class="caption muted">No workbook</span>'}</td><td>${w.supportingEvidence.length?`<span class="tag gray">${w.supportingEvidence.length} item${w.supportingEvidence.length===1?'':'s'}</span>`:'<span class="caption muted">—</span>'}</td><td>${openNotes?`<span class="tag red">${openNotes} open</span>`:'<span class="caption muted">0</span>'}</td><td>${w.applicable===false?badge('Not applicable','gray'):curClr?badge('Cleared','green'):w.status==='Cleared'?badge('Clearance stale','red'):badge(w.status)}</td><td><div class="row gap8">${avatar('SM','purple','sm')}<span class="small">${esc(w.reviewer||'Sara Malik')}</span></div></td><td>${btn('Workspace','workpaper','sm',`data-id="${w.id}"`,'arrow')}</td></tr>`;}).join('')}</tbody></table></div>`)}<div class="panel panel-pad mt20"><h3>Evidence chain</h3><div class="lineage mt16">${['Guidance','Approved Template','Work Performed','Working Paper Upload','Supporting Evidence','Review Points','Preparer Response','Reviewer Clearance'].map((t,i)=>`<span>${t}</span>${i<7?icon('arrow'):''}`).join('')}</div></div>`:ui.auditTab==='risks'?`<div class="grid2">${e.workpapers.map(w=>`<section class="panel panel-pad"><div class="between"><span class="eyebrow">${w.id}</span>${badge('Engagement-specific','purple')}</div><h3 class="mt12">${esc(w.risk)}</h3><p class="sub mt8">${esc(w.assertion)}</p><p class="small mt16">${esc(w.objective)}</p><div class="mt16">${btn('Open workspace','workpaper','soft sm',`data-id="${w.id}"`,'link')}</div></section>`).join('')}</div>`:ui.auditTab==='sampling'?samplingView():memorandaView())+footer('AUD-01–05 · LC-10');}
 function samplingView(){return note('This is a sampling-workflow illustration, not a statistical sampling engine. No confidence level or assurance is implied by selecting demonstration rows.','amber')+`<div class="grid-main"><div class="panel panel-pad"><h2>Receivables population</h2><p class="sub">A miniature synthetic population for exploring the evidence workflow.</p><div class="tablewrap mt20"><table><thead><tr><th>Source ID</th><th>Counterparty</th><th class="right">QAR</th><th>Selection</th></tr></thead><tbody>${[['AR-01','Demo Customer A',250000],['AR-02','Demo Customer B',175000],['AR-03','Demo Customer C',75000]].map(([id,name,value],i)=>`<tr><td class="mono">${id}</td><td>${name}</td><td class="right">${fmt(value)}</td><td>${badge(i===0?'Specific item':'Unselected',i===0?'purple':'gray')}</td></tr>`).join('')}</tbody></table></div><p class="sub mt20">This example population totals QAR 5,000 for the original Example Trading fixture. Reconcile the actual source and define the testing objective before real selections.</p></div><div class="panel panel-pad"><h3>Selection plan</h3><div class="info-grid mt20" style="grid-template-columns:1fr"><div><label>Method</label><span>Specific-item selection · demonstration</span></div><div><label>Objective</label><span>Inspect support for one high-value receivable</span></div><div><label>Evaluation</label><span>No projection to the untested remainder</span></div></div>${btn('Record illustrative test','sample-result','primary mt24')}</div></div>`;}
 function memorandaView(){return `<div class="grid2">${[['Strategy memorandum','Scope, entity understanding, significant areas, materiality, procedures, team and timing.','planning'],['Summary memorandum','Work performed, findings, estimates, differences, going concern, subsequent events and reporting conclusion.','summary-memo'],['Audit announcement','Approved scope, intended dates, support required and contact responsibilities.','announcement'],['Report / service conclusion','Version-bound report, supporting conclusion and the authorized final package.','report-memo']].map(([title,sub,action])=>`<div class="panel panel-pad"><span class="metric-icon">${icon('file')}</span><h3 class="mt16">${title}</h3><p class="sub mt8">${sub}</p><div class="mt16">${btn('Open illustrative document',action,'soft sm')}</div></div>`).join('')}</div>`;}
 function reviews(){const e=E();const r=e.reviews.find(r=>r.id===ui.selectedReview)||e.reviews[0];return head('Review the work. Preserve the decision.','Responses, independent clearance and exact-version sign-off remain separate.',btn('Demonstrate a source change','source-change','','','refresh'))+context()+tabs([['notes','Review points'],['approvals','Package approvals'],['history','Decision history']],'reviewTab')+(ui.reviewTab==='notes'?(r?`<div class="review-split"><div class="panel"><div class="panel-head"><h2>Review queue</h2><span class="tag gray">${e.reviews.filter(n=>n.status!=='Cleared').length} open</span></div>${e.reviews.map(n=>`<button class="review-selector ${n.id===r.id?'active':''}" data-action="select-review" data-id="${n.id}"><div class="between"><span class="mono">${n.id}</span>${badge(n.severity,n.severity==='High'?'red':'amber')}</div><h3>${esc(n.title)}</h3><p>${n.wp} · due ${shortDate(n.due)}</p><div class="mt12">${badge(n.status)}</div></button>`).join('')}<div class="panel-pad">${btn('Add review point','add-note','soft sm','','plus')}</div></div><div class="panel"><div class="panel-head"><div><span class="eyebrow">${r.id} · ${r.wp}</span><h2 class="mt8">${esc(r.title)}</h2></div>${badge(r.status)}</div><div class="panel-pad" style="padding-top:0"><div class="row"><span class="caption">Raised by ${esc(r.raisedBy)}</span><span class="caption">Assigned to ${esc(r.assigned)}</span></div><div class="comment"><div class="row gap8">${avatar('SM','purple','sm')}<b class="small">Reviewer’s request</b></div><p>${esc(r.body)}</p></div><div class="lineage"><span>${r.wp}-v${r.version}</span>${icon('link')}<span>TB-v${e.sourceVersion}</span>${icon('link')}<span>Package-v${e.packageRevision}</span></div>${r.response?`<div class="comment" style="background:#f1f8f4;border-color:#dbe9e0"><div class="row gap8">${avatar('AK','','sm')}<b class="small">Response from ${esc(r.respondedBy||'Adam Khan')}</b></div><p>${esc(r.response)}</p><p class="caption">A response is not clearance. The reviewer must assess it.</p></div>`:''}<div class="field mt24"><label for="review-response">Response and supporting evidence explanation</label><textarea class="input" id="review-response" placeholder="Describe the correction, evidence supplied, and revised conclusion…">${esc(r.status==='Open'?'':r.response)}</textarea></div><div class="row mt16 wrap">${btn('Submit response & revision','respond-note','primary',`data-id="${r.id}"`,'send')}${btn('Clear as reviewer','clear-note','',`data-id="${r.id}"`,'check')}${r.status==='Cleared'?btn('Reopen','reopen-note','danger',`data-id="${r.id}"`):''}</div><div class="role-note">Simulated role: <b>${actor().label}</b>. Use Preparer to respond and Senior reviewer to clear. Browser role switching is not real authentication.</div>${r.status==='Cleared'?note('This review point is cleared for the recorded workpaper revision. A later relevant change reopens review and invalidates dependent package approvals.'):''}</div></div></div>`:note('There are no review points in this selected engagement. Workpapers and package gates still require their own review.')):ui.reviewTab==='approvals'?approvalView():historyView())+footer('LC-20–23 · GOV-01–04');}
@@ -167,7 +371,7 @@ function sourceBlocks(blocks){return `<div class="reference-block">${blocks.map(
 function requirements(){return head('The requirements, made navigable.','STE-PRD-001 · Revision 1.0 · Source-derived requirements, not implementation status.',btn('About this prototype','about','','','info'))+tabs([['lifecycle','26-stage lifecycle'],['modes','Accounting modes'],['architecture','Architecture boundaries'],['source','Original requirements']],'requirementTab')+(ui.requirementTab==='lifecycle'?`<div class="banner">${icon('flow')}<p>Explore any stage to read its required inputs, optional steps, review responsibilities, transformations and exit conditions. Accounting and audit planning may progress in parallel.</p></div><div class="lifecycle-grid">${PRD.lifecycle.map(l=>`<button class="lifecycle-card" data-action="lifecycle-detail" data-id="${l.id}"><span class="eyebrow">${l.id}</span><h4>${esc(l.title)}</h4><span class="caption">Read stage requirements ${icon('arrow')}</span></button>`).join('')}</div><div class="panel panel-pad mt24"><h3>The cycle continues</h3><div class="service-track mt16"><span>Archive</span>${icon('arrow')}<span>Annual change review</span>${icon('arrow')}<span>Human continuance</span>${icon('arrow')}<span>New engagement</span>${icon('refresh')}</div><p class="sub mt12">Alternative path: authorized suspension → termination → scoped handover → access revocation → retained evidence.</p></div>`:ui.requirementTab==='modes'?`<div class="grid3"><div class="mode-card"><span class="tag blue">MODE 01</span><h3 class="mt16">Managed bookkeeping</h3><p>Approved source transactions → reviewed journals → entity ledger → trial balance. One posting authority per book. Shown as a requirement, not implemented in this prototype.</p></div><div class="mode-card"><span class="tag green">MODE 02</span><h3 class="mt16">External books / audit workspace</h3><p>External trial balance + approved reporting adjustments → adjusted reporting TB. This is the interactive accounting scenario in the demo.</p></div><div class="mode-card"><span class="tag purple">MODE 03</span><h3 class="mt16">Reporting-only / advisory</h3><p>Validated financial datasets → mappings, models and deliverables. No operational ledger posting unless separately contracted.</p></div></div>${note('The firm’s fee ledger is separate from client books. A professional-fee invoice must never become client income simply because the CRM client is selected.').replace('class="banner ','class="banner mt24 ')}`:ui.requirementTab==='architecture'?`<div class="panel panel-pad"><div class="architecture-row"><div class="architecture-node"><h3>Staff workspace</h3><p>Practice and professional responsibilities</p></div><div class="architecture-node"><h3>Client portal</h3><p>Requests, accounts approval and published deliverables</p></div></div><div class="architecture-arrow">↓</div><div class="architecture-row"><div class="architecture-node"><h3>Scoped identity & authorized commands</h3><p>Client · legal entity · engagement · period · role · revision</p></div></div><div class="architecture-arrow">↓</div><div class="architecture-row"><div class="architecture-node"><h3>Practice lifecycle</h3><p>CRM · acceptance · continuance · billing</p></div><div class="architecture-node"><h3>Accounting production</h3><p>Sources · mappings · journals · statements</p></div><div class="architecture-node"><h3>Professional delivery</h3><p>Workpapers · review · approvals · reports</p></div></div><div class="architecture-arrow">↓</div><div class="architecture-row"><div class="architecture-node"><h3>Versioned data & evidence</h3><p>Relational records · private documents · durable outbox · retained decisions</p></div></div></div><div class="grid2 mt20"><div class="requirements-note"><b>Source PRD architecture</b><br>ARC-01 specifies Perfex CRM / PHP / CodeIgniter / MySQL. Those are preserved in the source reference below, not silently replaced.</div><div class="requirements-note"><b>This deliverable</b><br>A standalone HTML/CSS/JavaScript product visualization. It does not implement Perfex, the AuditSphere .NET backend, or Microsoft services. Screen behavior demonstrates business intent only.</div></div><div class="panel panel-pad mt20"><h3>Production integrations are not connected</h3><div class="row wrap mt16">${['Microsoft Entra ID','SharePoint / Graph','Word / Excel','Purview records','Signing','Filing providers'].map(p=>`<span class="tag gray">${p} · not connected</span>`).join('')}</div></div>`:`<div class="toolbar"><div class="input-search" style="max-width:470px">${icon('search')}<input class="input" id="reference-search" value="${esc(ui.referenceSearch)}" placeholder="Search original sections and requirement text" aria-label="Search original requirements"></div><span class="tag gray">27 source sections</span></div>${PRD.sections.filter(s=>(s.title+JSON.stringify(s.blocks)).toLowerCase().includes(ui.referenceSearch.toLowerCase())).map(s=>`<details class="ref-details"><summary><span class="tag green">§${s.id}</span>${esc(s.title.replace(/^\d+\.\s*/,''))}</summary>${sourceBlocks(s.blocks)}</details>`).join('')}`)+footer();}
 const pages={overview,clients,acquisition,engagements,onboarding,documents,accounting,audit,reviews,delivery,portal,billing,continuance,services,requirements};
 /* Dialogs, accessibility, local commands, and strictly synthetic side effects. */
-function openModal(title,body,foot='',wide=false){lastFocus=document.activeElement;ui.modal=title;document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" id="modal-backdrop"><section class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="modal-body">${body}</div>${foot?`<div class="modal-footer">${foot}</div>`:''}</section></div>`;document.body.style.overflow='hidden';setTimeout(()=>document.querySelector('.modal input:not([type=checkbox]), .modal textarea, .modal select, .modal button')?.focus(),30);}
+function openModal(title,body,foot='',wide=false){lastFocus=document.activeElement;ui.modal=title;const cls=wide==='xlarge'?'xlarge':wide?'wide':'';document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" id="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="modal-body">${body}</div>${foot?`<div class="modal-footer">${foot}</div>`:''}</section></div>`;document.body.style.overflow='hidden';setTimeout(()=>document.querySelector('.modal input:not([type=checkbox]), .modal textarea, .modal select, .modal button')?.focus(),30);}
 function closeModal(){document.getElementById('modal-root').innerHTML='';document.body.style.overflow='';ui.modal=null;if(lastFocus?.isConnected)lastFocus.focus();}
 function val(id){return document.getElementById(id)?.value?.trim()||'';}
 function required(id,label){const v=val(id);if(!v)throw Error(label+' is required.');return v;}
@@ -188,11 +392,345 @@ async function sha256(text){
  return H.map(x=>x.toString(16).padStart(8,'0')).join('');
 }
 function plainReport(e,release=null){return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Illustrative financial preview — ${esc(C(e.client)?.name)}</title><style>body{font:14px/1.6 system-ui,sans-serif;color:#233e42;margin:40px auto;padding:24px;max-width:800px}h2{font-size:22px}h3{margin-top:30px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #e1e9e6;text-align:left}.right{text-align:right}.statement-total{font-weight:bold;background:#f0f7f3}.watermark{color:#9b6a33;font-size:12px;letter-spacing:1px}.caption{font-size:11px;color:#637a80}.letterhead{border-bottom:2px solid #233e42;padding-bottom:14px}.divider{border-top:1px solid #e1e9e6;margin:24px 0}</style>${statementPaper(e,release)}</html>`;}
-function blankEng(id,client,service,year){const e=newEng(id,client,service,'Onboarding');e.year=year;e.period=`01 Jan – 31 Dec ${year}`;e.rows=[];e.sourceVersion=0;e.generation=1;e.packageRevision=0;e.builtGeneration=0;e.adjustment=0;e.journalState='Not proposed';e.acceptance=false;e.terms=false;e.planning=false;e.sourceAccepted=false;e.mappingApproved=false;e.supplements=false;e.releases=[];e.archive=null;e.eqrRequired=false;e.reviews=[];e.workpapers=e.workpapers.map(w=>({...w,status:'Planned',version:1,conclusion:''}));if(service!=='External audit')e.workpapers=[{id:'WP-P1',title:'Service plan & deliverable review',objective:'Define service-specific work and review the contracted deliverable.',assertion:'Service-specific criteria',risk:'Scope and deliverable mismatch',version:1,status:'Planned',preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:''}];e.reconciliations=e.reconciliations.map(r=>({...r,status:'Not started'}));e.pbc=e.pbc.map(p=>({...p,status:'Requested',file:'',version:0}));e.questionnaire={answers:{},status:'Not started'};return e;}
+function blankEng(id,client,service,year){const e=newEng(id,client,service,'Onboarding');e.year=year;e.period=`01 Jan – 31 Dec ${year}`;e.rows=[];e.sourceVersion=0;e.generation=1;e.packageRevision=0;e.builtGeneration=0;e.adjustment=0;e.journalState='Not proposed';e.acceptance=false;e.terms=false;e.planning=false;e.sourceAccepted=false;e.mappingApproved=false;e.supplements=false;e.releases=[];e.archive=null;e.eqrRequired=false;e.reviews=[];e.workpapers=e.workpapers.map(w=>({...w,status:'Planned',version:1,conclusion:'',workingPaper:null,supportingEvidence:[],clearance:null,clearanceHistory:[]}));if(service!=='External audit')e.workpapers=[{id:'WP-P1',title:'Service plan & deliverable review',objective:'Define service-specific work and review the contracted deliverable.',assertion:'Service-specific criteria',risk:'Scope and deliverable mismatch',version:1,status:'Planned',applicable:true,preparer:'Adam Khan',reviewer:'Sara Malik',conclusion:'',guidelines:defaultGuidelines('WP-P1'),template:defaultTemplate('WP-P1'),workingPaper:null,supportingEvidence:[],clearance:null,clearanceHistory:[]}];e.reconciliations=e.reconciliations.map(r=>({...r,status:'Not started'}));e.pbc=e.pbc.map(p=>({...p,status:'Requested',file:'',version:0}));e.questionnaire={answers:{},status:'Not started'};return e;}
 function nextEngId(year){return `ENG-${String(year).slice(-2)}${String(state.engagements.length+1).padStart(3,'0')}`;}
-function sourceInvalidation(reason){const e=E();changed(reason);e.supplements=false;e.workpapers.forEach(w=>{w.status='Changes required';});e.reviews.forEach(r=>{r.history.push({status:r.status,response:r.response,version:r.version});r.status='Open';r.response='';});e.reconciliations.forEach(r=>r.status='Review required');save();}
+function sourceInvalidation(reason){const e=E();changed(reason);e.supplements=false;e.workpapers.forEach(w=>{if(w.clearance){w.clearanceHistory=w.clearanceHistory||[];w.clearanceHistory.push({...w.clearance,invalidatedAt:new Date().toISOString(),invalidationReason:reason});w.clearance=null;}if(w.applicable!==false)w.status='Changes required';});e.reviews.forEach(r=>{r.history.push({status:r.status,response:r.response,version:r.version});r.status='Open';r.response='';});e.reconciliations.forEach(r=>r.status='Review required');log('Working paper clearances invalidated by source update: '+reason,e.id,'alert');save();}
 function sourceModal(section){const s=PRD.sections.find(s=>s.id===Number(section));if(!s)return;openModal(s.title,`<p class="caption">Read-only text extracted from STE-PRD-001, revision 1.0. Source requirements are not implementation claims.</p>${sourceBlocks(s.blocks)}`,btn('Close','close-modal'),true);}
-function workpaperModal(id){const e=E(),w=e.workpapers.find(w=>w.id===id);if(!w)return;const notes=e.reviews.filter(r=>r.wp===w.id);openModal(w.id+' · '+w.title,`${note('An illustrative working-paper record. No real procedures, confirmations or professional conclusions have been performed.')}<div class="between">${badge(w.status)}<span class="mono">Revision ${w.version} · generation ${e.generation}</span></div><div class="info-grid mt20"><div><label>Objective</label><span>${esc(w.objective)}</span></div><div><label>Assertions / criteria</label><span>${esc(w.assertion)}</span></div><div><label>Risk</label><span>${esc(w.risk)}</span></div></div><div class="field mt20"><label for="wp-conclusion">Work performed, evidence and conclusion</label><textarea class="input" id="wp-conclusion">${esc(w.conclusion)}</textarea></div><div class="attachment-list"><span class="attachment-chip">${icon('file')}Sample source TB-v${e.sourceVersion}</span><span class="attachment-chip">${icon('file')}Illustrative supporting schedule</span></div><div class="mt20"><h4>Linked review points</h4>${notes.length?notes.map(n=>`<div class="list-item"><span class="small">${n.id} · ${esc(n.title)}</span>${badge(n.status)}</div>`).join(''):'<p class="sub">No open note. Independent working-paper review is still required.</p>'}</div><p class="role-note">Preparer submits a revision; Senior reviewer clears it only after related review points are cleared.</p>`,`${btn('Submit as preparer','submit-wp','',`data-id="${id}"`)}${btn('Clear as reviewer','clear-wp','primary',`data-id="${id}"`)}`,true);}
+let currentWpTab = {};
+function workpaperModal(id, activeTab){
+ const e=E(), w=e.workpapers.find(w=>w.id===id);
+ if(!w)return;
+ normalizeWorkpaper(w, e);
+ if(!activeTab) activeTab = currentWpTab[id] || 'overview';
+ currentWpTab[id] = activeTab;
+
+ const notes = e.reviews.filter(r=>r.wp===w.id);
+ const openNotes = notes.filter(n=>n.status!=='Cleared');
+ const curClr = isCurrentWorkpaperClearance(w, e);
+
+ const tabItems = [
+  ['overview', 'Overview & Scope'],
+  ['guidelines', 'Audit Guidelines'],
+  ['workbook', `Working Paper / Template ${w.workingPaper ? '✓' : ''}`],
+  ['evidence', `Supporting Evidence (${w.supportingEvidence.length})`],
+  ['clearance', `Review & Clearance ${openNotes.length ? `<span class="count">${openNotes.length}</span>` : curClr ? '✓' : ''}`],
+  ['history', 'Version & Clearance History']
+ ];
+
+ const tabsHtml = `<div class="modal-tabs" role="tablist">
+  ${tabItems.map(([tId, label]) => `
+    <button class="modal-tab ${activeTab===tId?'active':''}" data-action="wp-tab" data-id="${w.id}" data-tab="${tId}" role="tab" aria-selected="${activeTab===tId}">
+      ${label}
+    </button>
+  `).join('')}
+ </div>`;
+
+ let bodyHtml = '';
+
+ if(activeTab === 'overview'){
+  bodyHtml = `
+   <div class="between align-center mb16">
+     <div class="row gap8 align-center">
+       ${badge(w.applicable === false ? 'Not applicable' : curClr ? 'Cleared' : w.status === 'Cleared' ? 'Clearance stale' : w.status)}
+       <span class="mono">Revision v${w.version} · input generation ${e.generation} · TB-v${e.sourceVersion}</span>
+     </div>
+     <div class="row gap8">
+       ${btn(w.applicable === false ? 'Mark as Applicable' : 'Mark Not Applicable', 'toggle-wp-applicable', 'soft sm', `data-id="${w.id}"`)}
+     </div>
+   </div>
+   <div class="info-grid">
+     <div><label>Audit Area Reference</label><span class="bold">${w.id} · ${esc(w.title)}</span></div>
+     <div><label>Engagement / Client</label><span>${esc(C().name)} (FY ${e.year})</span></div>
+     <div><label>Primary Assertions Focus</label><span>${esc(w.assertion)}</span></div>
+     <div><label>Inherent / Identified Risk</label><span>${esc(w.risk)}</span></div>
+     <div><label>Assigned Preparer</label><span>${esc(w.preparer || 'Adam Khan')}</span></div>
+     <div><label>Independent Reviewer</label><span>${esc(w.reviewer || 'Sara Malik')}</span></div>
+   </div>
+   <div class="panel panel-pad mt20">
+     <h4>Audit Area Objective</h4>
+     <p class="sub mt8">${esc(w.objective)}</p>
+   </div>
+   <div class="grid3 mt20">
+     <div class="borderbox">
+       <div class="caption">WORKBOOK STATUS</div>
+       <div class="mt8"><b>${w.workingPaper ? 'Workbook Attached' : 'No Workbook'}</b></div>
+       <small class="muted">${w.workingPaper ? esc(w.workingPaper.file) : 'Upload completed schedule'}</small>
+       <div class="mt12">${btn('Manage workbook', 'wp-tab', 'ghost sm', `data-id="${w.id}" data-tab="workbook"`)}</div>
+     </div>
+     <div class="borderbox">
+       <div class="caption">SUPPORTING EVIDENCE</div>
+       <div class="mt8"><b>${w.supportingEvidence.length} Linked Item${w.supportingEvidence.length===1?'':'s'}</b></div>
+       <small class="muted">${w.supportingEvidence.some(ev=>ev.pbcId==='PBC-02') ? 'PBC-02 bank statement attached' : 'External records & statements'}</small>
+       <div class="mt12">${btn('View evidence', 'wp-tab', 'ghost sm', `data-id="${w.id}" data-tab="evidence"`)}</div>
+     </div>
+     <div class="borderbox">
+       <div class="caption">REVIEW & CLEARANCE</div>
+       <div class="mt8"><b>${curClr ? 'Cleared' : openNotes.length ? `${openNotes.length} Open Notes` : 'Pending Clearance'}</b></div>
+       <small class="muted">${curClr ? `Cleared by ${esc(w.clearance.clearedBy)}` : 'Senior review required'}</small>
+       <div class="mt12">${btn('Review workspace', 'wp-tab', 'ghost sm', `data-id="${w.id}" data-tab="clearance"`)}</div>
+     </div>
+   </div>
+  `;
+ } else if(activeTab === 'guidelines'){
+  bodyHtml = `
+   <div class="guideline-card mandatory mb16">
+     <div class="caption">MANDATORY AUDIT METHODOLOGY</div>
+     <h3 class="mt4">${esc(w.guidelines.methodology)}</h3>
+     <p class="sub mt8"><b>Primary Assertions Focus:</b> ${esc(w.guidelines.assertionsFocus)}</p>
+   </div>
+   <div class="panel panel-pad">
+     <h4>Approved Substantive Audit Procedures</h4>
+     <p class="sub mt4">The preparer must execute and document evidence for each required procedure:</p>
+     <div class="guideline-steps mt16">
+       ${w.guidelines.procedures.map((p, i) => `
+         <div class="guideline-step-item">
+           <span class="step-num">${i+1}</span>
+           <div class="step-text"><b>Procedure ${i+1}:</b> ${esc(p)}</div>
+         </div>
+       `).join('')}
+     </div>
+   </div>
+   <div class="panel panel-pad mt20">
+     <h4>Mandatory Working Paper & Evidence Documentation</h4>
+     <p class="sub mt4">Before independent senior clearance, the working paper file must include:</p>
+     <ul class="guideline-docs mt12">
+       ${w.guidelines.documentationRequired.map(d => `
+         <li><span class="doc-icon">${icon('checkcircle', 'teal')}</span><span>${esc(d)}</span></li>
+       `).join('')}
+     </ul>
+   </div>
+  `;
+ } else if(activeTab === 'workbook'){
+  bodyHtml = `
+   <div class="panel panel-pad mb20">
+     <div class="between align-center">
+       <div>
+         <span class="eyebrow">${esc(w.template.ref)}</span>
+         <h3 class="mt4">${esc(w.template.name)}</h3>
+         <p class="sub mt4">${esc(w.template.instructions)}</p>
+       </div>
+       <div class="row gap8 wrap">
+         ${btn('Download CSV template', 'download-wp-template', 'soft sm', `data-id="${w.id}"`, 'download')}
+         <a href="templates/${w.id}_Cash_and_Bank_Audit_Template.xlsx" download="${w.id}_Cash_and_Bank_Audit_Template.xlsx" class="btn soft sm" style="text-decoration:none">${icon('download')}Download Excel (.xlsx)</a>
+       </div>
+     </div>
+     <div class="notice-box mt16">
+       <span class="caption text-muted">${icon('info')} Downloading an audit template does not mark this workpaper complete. The completed schedule must be uploaded and reviewed.</span>
+     </div>
+   </div>
+   <div class="panel panel-pad">
+     <h4>Completed Audit Working Paper</h4>
+     <p class="sub mt4">Upload the completed and signed working paper workbook (Excel, CSV, Word, or PDF, max 5 MiB):</p>
+     <div class="dropzone mt16">
+       ${icon('upload')}
+       <p class="bold mt8">${w.workingPaper ? esc(w.workingPaper.file) : 'Drag and drop or select completed working paper'}</p>
+       <small class="muted">Excel (.xlsx), CSV, Word (.docx), PDF · Evaluated with browser SHA-256 digest</small>
+       <div class="row gap8 mt16 justify-center">
+         ${btn(w.workingPaper ? 'Replace local workbook' : 'Choose local workbook file', 'wp-pick-workbook', 'soft sm', `data-id="${w.id}"`, 'upload')}
+         ${btn('Load completed sample schedule', 'upload-wp-sample', 'sm', `data-id="${w.id}"`, 'file')}
+       </div>
+     </div>
+     ${w.workingPaper ? `
+       <div class="borderbox mt20">
+         <div class="between align-center">
+           <div>
+             <b>${esc(w.workingPaper.name)}</b>
+             <div class="cell-sub">Revision v${w.workingPaper.version} · ${(w.workingPaper.size/1024).toFixed(1)} KB · Uploaded by ${esc(w.workingPaper.uploadedBy)}</div>
+           </div>
+           ${badge('Workbook active', 'green')}
+         </div>
+         <div class="hash mt12">SHA-256: ${w.workingPaper.sha}</div>
+         <div class="caption text-muted mt8">${w.workingPaper.local ? 'Uploaded file metadata and SHA-256 stored in browser local state.' : 'Pre-seeded sample audit schedule.'}</div>
+       </div>
+     ` : ''}
+   </div>
+  `;
+ } else if(activeTab === 'evidence'){
+  bodyHtml = `
+   <div class="between align-center mb16">
+     <div>
+       <h3>Supporting Audit Evidence</h3>
+       <p class="sub">Corroborative bank statements, confirmation letters, and schedules attached to ${w.id}.</p>
+     </div>
+     <div class="row gap8">
+       ${btn('Link PBC request', 'wp-link-pbc-modal', 'soft sm', `data-id="${w.id}"`, 'link')}
+       ${btn('Upload evidence file', 'wp-pick-evidence', 'soft sm', `data-id="${w.id}"`, 'upload')}
+       ${btn('Attach sample confirmation', 'wp-sample-evidence', 'sm', `data-id="${w.id}"`, 'plus')}
+     </div>
+   </div>
+   <div class="evidence-list">
+     ${w.supportingEvidence.length ? w.supportingEvidence.map(ev => `
+       <div class="evidence-card">
+         <div class="between align-center" style="width:100%">
+           <div class="row gap12 align-center">
+             <div class="document-icon ${ev.file?.endsWith('.pdf')?'pdf':''}">${ev.file?.endsWith('.pdf')?'PDF':'DOC'}</div>
+             <div>
+               <b>${esc(ev.title)}</b>
+               <div class="evidence-meta">
+                 ${esc(ev.file || 'Synthetic document')} · Source: <b>${esc(ev.source || ev.pbcId || 'Direct upload')}</b>
+                 ${ev.linkedAt ? ` · Attached ${shortDate(ev.linkedAt.split('T')[0])}` : ''}
+               </div>
+               ${ev.sha ? `<div class="hash mt4">SHA-256: ${ev.sha}</div>` : ''}
+             </div>
+           </div>
+           <div class="row gap8 align-center">
+             ${badge(ev.status || 'Accepted')}
+             ${btn('Unlink', 'wp-unlink-evidence', 'ghost sm', `data-wpid="${w.id}" data-evid="${ev.id}"`)}
+           </div>
+         </div>
+       </div>
+     `).join('') : '<div class="empty">No supporting evidence attached to this audit area yet. Link a client PBC document or attach evidence above.</div>'}
+   </div>
+  `;
+ } else if(activeTab === 'clearance'){
+  bodyHtml = `
+   <div class="panel panel-pad mb20">
+     <h4>Preparer Conclusion & Testing Summary</h4>
+     <p class="sub mt4">Document testing performed, tie-out results, reconciling differences, and audit conclusion on assertions:</p>
+     <div class="field mt12">
+       <textarea class="input" id="wp-conclusion" style="min-height:110px" placeholder="State substantive procedures executed, confirmations received, cut-off testing results, and professional conclusion...">${esc(w.conclusion || '')}</textarea>
+     </div>
+     <div class="row gap8 mt8">
+       ${btn('Save conclusion draft', 'save-wp', 'ghost sm', `data-id="${w.id}"`)}
+     </div>
+   </div>
+
+   <div class="panel panel-pad mb20">
+     <div class="between align-center">
+       <div>
+         <h4>Linked Review Points</h4>
+         <p class="sub">Review points raised on ${w.id}. Independent reviewer clearance requires 0 open points.</p>
+       </div>
+       ${btn('Raise Review Point', 'wp-add-note', 'soft sm', `data-id="${w.id}"`, 'plus')}
+     </div>
+     <div class="mt16">
+       ${notes.length ? notes.map(n => `
+         <div class="borderbox mb12">
+           <div class="between align-center">
+             <div class="row gap8 align-center">
+               <span class="mono bold">${n.id}</span>
+               ${badge(n.severity, n.severity==='High'?'red':'amber')}
+               ${badge(n.status)}
+             </div>
+             <span class="caption">Raised by ${esc(n.raisedBy)} · Due ${shortDate(n.due)}</span>
+           </div>
+           <h4 class="mt8">${esc(n.title)}</h4>
+           <p class="small mt4">${esc(n.body)}</p>
+           ${n.response ? `
+             <div class="comment mt12">
+               <div class="between">
+                 <b>Preparer response:</b>
+                 <span class="caption">${esc(n.respondedBy || 'Preparer')}</span>
+               </div>
+               <p class="small mt4">${esc(n.response)}</p>
+             </div>
+           ` : ''}
+           ${n.status !== 'Cleared' ? `
+             <div class="mt12 pt12" style="border-top:1px solid var(--line)">
+               <label class="caption bold">Record Preparer Response:</label>
+               <div class="row gap8 mt4">
+                 <input class="input sm" id="resp-${n.id}" placeholder="Explain corrective procedure or provide link to updated evidence..." value="${esc(n.response||'')}">
+                 ${btn('Submit response', 'wp-respond-note', 'sm soft', `data-id="${n.id}" data-wpid="${w.id}"`)}
+                 ${state.role === 'reviewer' ? btn('Clear point', 'clear-note', 'sm primary', `data-id="${n.id}"`) : ''}
+               </div>
+             </div>
+           ` : ''}
+         </div>
+       `).join('') : '<p class="sub">No open review points linked to this audit area.</p>'}
+     </div>
+   </div>
+
+   <div class="clearance-stamp ${curClr ? 'cleared' : w.clearance ? 'stale' : 'pending'}">
+     <div class="stamp-icon">${icon(curClr ? 'checkcircle' : w.clearance ? 'alert' : 'clock')}</div>
+     <div>
+       <h4>${curClr ? 'INDEPENDENT SENIOR REVIEWER CLEARANCE RECORDED' : w.clearance ? 'CLEARANCE STALE / INVALIDATED' : 'AWAITING SENIOR REVIEWER CLEARANCE'}</h4>
+       ${curClr ? `
+         <p class="sub">Cleared by <b>${esc(w.clearance.clearedBy)}</b> on ${new Date(w.clearance.clearedAt).toLocaleString('en-GB')}</p>
+         <div class="cell-sub mt4">Cleared Revision: v${w.clearance.version} · Source: TB-v${w.clearance.sourceVersion} · Input Generation: ${w.clearance.generation}</div>
+         <p class="small mt8 text-muted">${esc(w.clearance.notes)}</p>
+       ` : w.clearance ? `
+         <p class="sub">Clearance at revision v${w.clearance.version} / TB-v${w.clearance.sourceVersion} was invalidated by subsequent changes. Current state: revision v${w.version} / TB-v${e.sourceVersion}. Re-review required.</p>
+       ` : `
+         <p class="sub">Requirements for clearance: (1) Submitted working paper, (2) Documented conclusion, (3) Completed workbook attached, (4) Zero open review points.</p>
+       `}
+     </div>
+   </div>
+  `;
+ } else if(activeTab === 'history'){
+  bodyHtml = `
+   <div class="panel panel-pad">
+     <h4>Revision & Clearance History</h4>
+     <p class="sub mt4">Full immutable audit trail of working paper submissions, reviewer clearances, and source invalidations:</p>
+     <div class="timeline-list mt16">
+       ${curClr ? `
+         <div class="timeline-item">
+           <div class="timeline-dot">${icon('check')}</div>
+           <div class="timeline-content">
+             <div class="between">
+               <b>Independent clearance recorded by ${esc(w.clearance.clearedBy)}</b>
+               <span class="caption">${shortDate(w.clearance.clearedAt.split('T')[0])}</span>
+             </div>
+             <p class="small mt4">${esc(w.clearance.notes)}</p>
+             <div class="cell-sub">Revision v${w.clearance.version} · Source TB-v${w.clearance.sourceVersion} · Generation ${w.clearance.generation}</div>
+           </div>
+         </div>
+       ` : ''}
+       ${w.clearanceHistory.map((h, i) => `
+         <div class="timeline-item">
+           <div class="timeline-dot" style="background:#fff2f0;color:#c93b2b">${icon('alert')}</div>
+           <div class="timeline-content">
+             <div class="between">
+               <b>Clearance invalidated: ${esc(h.invalidationReason || 'Source change')}</b>
+               <span class="caption">${h.invalidatedAt ? shortDate(h.invalidatedAt.split('T')[0]) : ''}</span>
+             </div>
+             <p class="small mt4">Prior clearance by ${esc(h.clearedBy)} at revision v${h.version} / TB-v${h.sourceVersion} is no longer applicable.</p>
+           </div>
+         </div>
+       `).join('')}
+       ${w.workingPaper ? `
+         <div class="timeline-item">
+           <div class="timeline-dot">${icon('upload')}</div>
+           <div class="timeline-content">
+             <div class="between">
+               <b>Workbook uploaded: ${esc(w.workingPaper.file)}</b>
+               <span class="caption">${shortDate(w.workingPaper.uploadedAt.split('T')[0])}</span>
+             </div>
+             <p class="small mt4">Uploaded by ${esc(w.workingPaper.uploadedBy)} as revision v${w.workingPaper.version}</p>
+             <div class="hash mt4">SHA-256: ${w.workingPaper.sha}</div>
+           </div>
+         </div>
+       ` : ''}
+       <div class="timeline-item">
+         <div class="timeline-dot">${icon('brief')}</div>
+         <div class="timeline-content">
+           <div class="between">
+             <b>Audit area planned: ${w.id} · ${esc(w.title)}</b>
+             <span class="caption">Engagement initiation</span>
+           </div>
+           <p class="small mt4">Assigned to ${esc(w.preparer || 'Adam Khan')} (preparer) and ${esc(w.reviewer || 'Sara Malik')} (reviewer).</p>
+         </div>
+       </div>
+     </div>
+   </div>
+  `;
+ }
+
+ const footHtml = `
+   <div class="row gap8 between" style="width:100%">
+     <div class="row gap8">
+       ${btn('Close', 'close-modal', 'ghost')}
+     </div>
+     <div class="row gap8">
+       ${btn('Save draft', 'save-wp', 'soft', `data-id="${w.id}"`)}
+       ${btn('Submit as preparer', 'submit-wp', w.status==='Submitted'?'soft':'primary', `data-id="${w.id}"`)}
+       ${btn('Clear as reviewer', 'clear-wp', curClr?'soft':'primary', `data-id="${w.id}"`)}
+       ${w.status==='Submitted'?btn('Return for changes', 'return-wp', 'ghost', `data-id="${w.id}"`):''}
+     </div>
+   </div>
+ `;
+
+ openModal(w.id + ' · ' + w.title, tabsHtml + bodyHtml, footHtml, 'xlarge');
+}
 function pbcModal(id){const p=E().pbc.find(p=>p.id===id);if(!p)return;const clientPreview=ui.route==='portal';openModal(p.id+' · '+p.title,`<div class="between">${badge(p.status)}<span class="caption">Due ${shortDate(p.due)} · ${esc(p.owner)}</span></div><p class="sub mt16">Please supply the correct entity, period and supporting information. Uploading is not acceptance by the engagement team.</p><div class="dropzone mt20">${icon('upload')}<p>${p.file?esc(p.file):'Choose a synthetic file to demonstrate upload'}</p><small>PDF, DOCX, XLSX, CSV, TXT or image · max 5 MiB</small><small>Metadata and SHA-256 only. File bytes are not stored or sent to a provider.</small><div class="mt16">${btn(p.file?'Replace local file':'Choose local file','pick-document','soft sm',`data-id="${p.id}"`,'upload')}${btn('Use built-in sample','sample-upload','sm',`data-id="${p.id}"`)}</div></div>${p.file?`<div class="info-grid mt20"><div><label>Filename</label><span>${esc(p.file)}</span></div><div><label>Version</label><span>v${p.version}</span></div><div><label>Storage</label><span>Local metadata only</span></div></div>${p.sha?`<div class="hash mt12">SHA-256: ${p.sha}</div>`:''}<p class="sub mt12">${p.local?'The uploaded bytes are not available after this dialog; only metadata remains.':'This named sample is a visual reference, not a stored PDF or Office document.'}</p>`:''}${p.message?`<div class="comment"><h4>Request clarification</h4><p>${esc(p.message)}</p></div>`:''}`,clientPreview?btn('Close','close-modal'):`${btn('Request clarification','pbc-clarify','',`data-id="${id}"`)}${btn('Accept for request','pbc-accept','primary',`data-id="${id}"`)}`);}
 function approvalPrecheck(key){const e=E();if(e.builtGeneration!==e.generation)throw Error('Rebuild the current financial package before approval.');if(!e.sourceAccepted||!e.mappingApproved||totals(e).balance!==0)throw Error('Resolve source and mapping checks first.');if(!e.supplements)throw Error('Review the missing supplemental information first.');if(!allNotesClear()||!allWorkClear())throw Error('Independently clear review points and working papers first.');if(key!=='manager'&&!isCurrent('manager'))throw Error('Current manager review must be recorded first.');if(['partner','eqr'].includes(key)&&!isCurrent('client'))throw Error('Current management approval must be recorded first.');if(key==='eqr'&&!e.eqrRequired)throw Error('EQR is not required for this sample profile.');}
 function newLeadModal(){openModal('New inquiry',`<div class="field-grid"><div class="field full"><label for="lead-name">Organization name *</label><input id="lead-name" class="input" placeholder="Synthetic organization"></div><div class="field"><label for="lead-contact">Contact name *</label><input id="lead-contact" class="input" placeholder="Demo contact"></div><div class="field"><label for="lead-service">Service interest *</label><select id="lead-service" class="input">${['External audit','Annual accounts','Internal audit','Business valuation','Management consulting'].map(t=>`<option>${t}</option>`).join('')}</select></div><div class="field"><label for="lead-value">Illustrative fee estimate (QAR) *</label><input id="lead-value" type="number" min="0" step="0.01" class="input" value="5000"></div><div class="field"><label>Source</label><span class="input">Manual demo inquiry</span></div></div><p class="sub mt20">This adds a local synthetic opportunity only. It does not accept a client, send a proposal or create an invoice.</p>`,`${btn('Cancel','close-modal')}${btn('Create inquiry','save-lead','primary')}`);}
@@ -255,8 +793,22 @@ const actions={
  'reconciliation':d=>{const r=E().reconciliations[Number(d.id)];openModal(r.name+' · '+r.ref,`${note('This schedule is a visual demonstration. No automatic bank matching or independent verification is performed.')}<div class="info-grid"><div><label>Source</label><span>TB-v${E().sourceVersion}</span></div><div><label>Supporting basis</label><span>${r.evidence}</span></div><div><label>Status</label>${badge(r.status)}</div></div><div class="field mt20"><label for="rec-conclusion">Reviewer conclusion *</label><textarea id="rec-conclusion" class="input" placeholder="Describe the demonstration tie-out, evidence and treatment of differences."></textarea></div>`,`${btn('Cancel','close-modal')}${btn('Record demo clearance','clear-rec','primary',`data-id="${d.id}"`)}`);},
  'clear-rec':d=>{if(!roleAllowed('reviewer'))return;const txt=required('rec-conclusion','Reviewer conclusion');const r=E().reconciliations[Number(d.id)];r.status='Cleared';r.conclusion=txt;log('Sample reconciliation cleared: '+r.ref);closeModal();render();},
  'workpaper':d=>workpaperModal(d.id),
- 'submit-wp':d=>{if(!roleAllowed('preparer'))return;const txt=required('wp-conclusion','Conclusion');const w=E().workpapers.find(w=>w.id===d.id);w.conclusion=txt;w.version++;w.status='Submitted';changed('Workpaper '+w.id+' submitted as revision '+w.version);closeModal();render();toast('Submitted for independent review; package re-approval may be required.');},
- 'clear-wp':d=>{if(!roleAllowed('reviewer'))return;const w=E().workpapers.find(w=>w.id===d.id);if(E().reviews.some(r=>r.wp===w.id&&r.status!=='Cleared'))throw Error('Clear the linked review points first.');if(!w.conclusion?.trim())throw Error('A preparer must submit a conclusion first.');w.status='Cleared';log('Independent demo review cleared '+w.id);closeModal();render();toast('Working-paper demo review recorded.');},
+ 'wp-tab':d=>workpaperModal(d.id,d.tab),
+ 'download-wp-template':d=>{const w=E().workpapers.find(x=>x.id===d.id);if(w?.template?.csv){download(w.template.csv,`${w.id}_Audit_Template.csv`,'text/csv');toast(`Downloaded approved audit template for ${w.id}. Status remains ${w.status}.`);}else{toast('No approved template configured for this audit area.','warn');}},
+ 'upload-wp-sample':d=>{if(!roleAllowed('preparer'))return;const w=E().workpapers.find(x=>x.id===d.id);if(!w)return;if(w.clearance){w.clearanceHistory=w.clearanceHistory||[];w.clearanceHistory.push({...w.clearance,invalidatedAt:new Date().toISOString(),invalidationReason:'New completed sample schedule loaded'});w.clearance=null;}w.version++;w.workingPaper={file:`${w.id}_Cash_and_Bank_Audit_Schedule.xlsx`,name:`${w.id}_Cash_and_Bank_Audit_Schedule.xlsx`,size:45200,sha:'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',version:w.version,uploadedAt:new Date().toISOString(),uploadedBy:actor().name,local:false};w.status='In progress';if(!w.conclusion||w.conclusion.length<20){w.conclusion=`Agreed all bank balances to general ledger and trial balance (TB-v${E().sourceVersion}). Reconciled statements and inspected direct bank confirmations. Tested cut-off transactions with no exceptions noted.`;}changed(`Sample completed schedule loaded for ${w.id} v${w.version}`);workpaperModal(d.id,'workbook');render();toast(`Loaded completed sample schedule for ${w.id}. Revision bumped to v${w.version}.`);},
+ 'wp-pick-workbook':d=>{uploadTarget={eng:E().id,wp:d.id,type:'wp-workbook'};const p=document.getElementById('document-picker');p.value='';p.click();},
+ 'wp-pick-evidence':d=>{uploadTarget={eng:E().id,wp:d.id,type:'wp-evidence'};const p=document.getElementById('document-picker');p.value='';p.click();},
+ 'wp-sample-evidence':d=>{if(!roleAllowed('preparer'))return;const w=E().workpapers.find(x=>x.id===d.id);if(!w)return;const nextNum=w.supportingEvidence.length+1;w.supportingEvidence.push({id:`EVD-${w.id.replace('WP-','')}-${String(nextNum).padStart(2,'0')}`,pbcId:null,title:'Direct Bank Confirmation Letter - Commercial Bank of Qatar',file:'Bank_Confirmation_CommercialBank.pdf',size:284000,sha:'b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8',source:'Direct Confirmation (ISA 505)',status:'Accepted',linkedAt:new Date().toISOString()});save();workpaperModal(d.id,'evidence');render();toast('Attached sample direct bank confirmation letter.');},
+ 'wp-unlink-evidence':d=>{if(!roleAllowed('preparer'))return;const w=E().workpapers.find(x=>x.id===d.wpid);if(!w)return;w.supportingEvidence=w.supportingEvidence.filter(ev=>ev.id!==d.evid);save();workpaperModal(d.wpid,'evidence');render();toast('Supporting evidence unlinked.');},
+ 'wp-link-pbc-modal':d=>{const e=E(),w=e.workpapers.find(x=>x.id===d.id);if(!w)return;openModal(`Link Client Evidence to ${w.id}`,`<p class="sub mb16">Select from existing engagement PBC evidence requests to link directly to this audit area:</p><div class="panel-list">${e.pbc.map(p=>{const isLinked=w.supportingEvidence.some(ev=>ev.pbcId===p.id);return `<div class="list-item"><div class="row gap12 align-center"><div class="document-icon ${p.file?.endsWith('.pdf')?'pdf':''}">${p.file?.endsWith('.pdf')?'PDF':'DOC'}</div><div><b>${esc(p.title)}</b><div class="cell-sub">${p.id} · ${p.file?esc(p.file):'No file'} · Due ${shortDate(p.due)}</div></div></div><div>${isLinked?badge('Already linked','green'):btn('Link to workpaper','wp-link-pbc-confirm','sm primary',`data-wpid="${w.id}" data-pbcid="${p.id}"`)}</div></div>`;}).join('')}</div>`,btn('Close','close-modal'));},
+ 'wp-link-pbc-confirm':d=>{const e=E(),w=e.workpapers.find(x=>x.id===d.wpid),p=e.pbc.find(x=>x.id===d.pbcid);if(!w||!p)return;if(w.supportingEvidence.some(ev=>ev.pbcId===p.id)){toast('This request is already linked.');return;}w.supportingEvidence.push({id:`EVD-${w.id.replace('WP-','')}-${String(w.supportingEvidence.length+1).padStart(2,'0')}`,pbcId:p.id,title:p.title,file:p.file||`${p.id}_evidence.pdf`,size:p.size||35000,sha:p.sha||'9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b',source:p.id,status:p.status,linkedAt:new Date().toISOString()});save();closeModal();workpaperModal(d.wpid,'evidence');render();toast(`Linked ${p.id} to ${w.id}.`);},
+ 'save-wp':d=>{const w=E().workpapers.find(w=>w.id===d.id);if(!w)return;const c=val('wp-conclusion');if(c!==undefined)w.conclusion=c;save();toast(`Workpaper draft saved for ${w.id}.`);},
+ 'submit-wp':d=>{if(!roleAllowed('preparer'))return;const e=E(),w=e.workpapers.find(w=>w.id===d.id);if(!w)return;const conclusion=val('wp-conclusion')||w.conclusion;if(!w.workingPaper)throw Error('A completed working paper workbook must be uploaded before submitting.');if(!conclusion?.trim())throw Error('A documented conclusion on work performed must be recorded before submitting.');w.conclusion=conclusion;w.status='Submitted';if(w.clearance){w.clearanceHistory=w.clearanceHistory||[];w.clearanceHistory.push({...w.clearance,invalidatedAt:new Date().toISOString(),invalidationReason:'Resubmitted by preparer'});w.clearance=null;}changed(`Workpaper ${w.id} submitted as revision ${w.version}`);workpaperModal(d.id,'clearance');render();toast(`Submitted ${w.id} v${w.version} for independent reviewer clearance.`);},
+ 'clear-wp':d=>{if(!roleAllowed('reviewer'))return;const e=E(),w=e.workpapers.find(w=>w.id===d.id);if(!w)return;if(w.status!=='Submitted'&&w.status!=='Cleared')throw Error('The workpaper must be submitted by the preparer before independent clearance.');if(!w.workingPaper)throw Error('A completed working paper workbook is required before clearance.');if(!w.conclusion?.trim())throw Error('A documented conclusion on work performed is required before clearance.');const openNotes=e.reviews.filter(r=>r.wp===w.id&&r.status!=='Cleared');if(openNotes.length>0)throw Error(`Clear all linked review points first (${openNotes.length} open).`);w.status='Cleared';w.clearance={clearedBy:actor().name,clearedAt:new Date().toISOString(),sourceVersion:e.sourceVersion,generation:e.generation,version:w.version,notes:'Independent substantive procedures, reconciliation tie-out, and evidence clearance verified.'};log(`Senior reviewer independently cleared ${w.id} at revision ${w.version}`,w.id,'checkcircle');workpaperModal(d.id,'clearance');render();toast(`Working paper ${w.id} independently cleared at revision ${w.version}.`);},
+ 'return-wp':d=>{if(!roleAllowed('reviewer'))return;const w=E().workpapers.find(w=>w.id===d.id);if(!w)return;w.status='Changes required';if(w.clearance){w.clearanceHistory=w.clearanceHistory||[];w.clearanceHistory.push({...w.clearance,invalidatedAt:new Date().toISOString(),invalidationReason:'Returned by reviewer for changes'});w.clearance=null;}changed(`Reviewer returned workpaper ${w.id} for changes`);workpaperModal(d.id,'clearance');render();toast(`Returned ${w.id} to preparer for revision.`,'warn');},
+ 'toggle-wp-applicable':d=>{if(!roleAllowed(['preparer','reviewer']))return;const e=E(),w=e.workpapers.find(w=>w.id===d.id);if(!w)return;w.applicable=!w.applicable;if(!w.applicable){w.status='Not applicable';}else{w.status=(w.clearance&&isCurrentWorkpaperClearance(w,e))?'Cleared':'Planned';}changed(`Toggled applicability for ${w.id} to ${w.applicable?'Applicable':'Not applicable'}`);workpaperModal(d.id,'overview');render();toast(w.applicable?`Marked ${w.id} as applicable.`:`Marked ${w.id} as not applicable.`);},
+ 'wp-add-note':d=>{if(!roleAllowed(['reviewer','manager']))return;openModal('New review point',`<div class="field-grid"><div class="field full"><label for="rn-title">Review point title *</label><input id="rn-title" class="input"></div><div class="field"><label for="rn-wp">Working paper *</label><select class="input" id="rn-wp">${E().workpapers.map(w=>`<option value="${w.id}" ${w.id===d.id?'selected':''}>${w.id} · ${esc(w.title)}</option>`).join('')}</select></div><div class="field"><label for="rn-severity">Severity</label><select id="rn-severity" class="input"><option>High</option><option selected>Medium</option><option>Low</option></select></div><div class="field full"><label for="rn-body">Issue and required action *</label><textarea id="rn-body" class="input"></textarea></div></div>`,`${btn('Cancel','close-modal')}${btn('Create point','save-note','primary')}`);},
+ 'wp-respond-note':d=>{if(!roleAllowed('preparer'))return;const respInput=document.getElementById(`resp-${d.id}`);const text=respInput?.value?.trim();if(!text)throw Error('Enter a response to this review point.');const r=E().reviews.find(r=>r.id===d.id);if(!r)return;if(r.status==='Cleared')throw Error('A reviewer must reopen this point before a new response.');r.history=r.history||[];r.history.push({status:r.status,response:r.response,version:r.version});r.response=text;r.respondedBy=actor().name;r.status='Responded';const w=E().workpapers.find(w=>w.id===r.wp);if(w){w.version++;w.status='Submitted';w.conclusion=text;r.version=w.version;}changed(`Response submitted for ${r.id}; workpaper revision bumped to v${w?.version||''}`);workpaperModal(d.wpid,'clearance');render();toast('Response saved. Switch to Senior reviewer for independent clearance.');},
  'planning':()=>openModal('Strategy & materiality preview',`${note('Materiality percentages are an illustration of workflow, not a recommended or validated audit method.')}<div class="info-grid"><div><label>Scope</label><span>${esc(E().service)}</span></div><div><label>Entity / period</label><span>${esc(C().name)} / FY ${E().year}</span></div><div><label>Methodology</label><span>Approved professional methodology required</span></div></div><div class="field-grid mt20"><div class="field"><label for="mat-benchmark">Illustrative benchmark (QAR)</label><input id="mat-benchmark" class="input" value="1000000" type="number" min="1"></div><div class="field"><label for="mat-percent">Illustrative percentage</label><input id="mat-percent" class="input" value="5" type="number" min="0.01" max="100" step="0.01"></div><div class="field full"><label for="plan-rationale">Scope and selection rationale *</label><textarea id="plan-rationale" class="input" placeholder="Describe the demo planning rationale; production requires professional methodology and evidence."></textarea></div></div><p class="sub mt16">The action records a local planning illustration. It does not select a real audit materiality threshold or issue an audit strategy.</p>`,`${btn('Cancel','close-modal')}${btn('Record demo plan','save-planning','primary')}`,true),
  'save-planning':()=>{if(!roleAllowed('partner'))return;const rationale=required('plan-rationale','Rationale'),b=cents(required('mat-benchmark','Benchmark')),p=Number(required('mat-percent','Percentage'));if(b<=0||!Number.isFinite(p)||p<=0||p>100)throw Error('Use a positive benchmark and percentage from 0 to 100.');E().planning=true;E().materiality={benchmark:b,percent:p,amount:Math.round(b*p/100),rationale};changed('Partner recorded an illustrative planning revision');closeModal();render();toast('Demo planning value: '+cash(E().materiality.amount)+'. Not a recommended method.');},
  'sample-result':()=>openModal('Illustrative sample test',`<div class="field"><label for="sample-result">Work performed and limitation *</label><textarea id="sample-result" class="input" placeholder="Record the inspected demonstration item, evidence and exception. No projection to untested items."></textarea></div>`,`${btn('Cancel','close-modal')}${btn('Save local test note','save-sample','primary')}`),
@@ -266,7 +818,7 @@ const actions={
  'report-memo':()=>openModal('Report / service conclusion',`${note('No real audit report or opinion is issued here. The partner must make and support any professional conclusion in the production workflow.','amber')}<h3>Required report components</h3><div class="reference-block"><p>Entity, period, reporting framework, engagement type, conclusion and supporting basis, appropriate report sections, management and practitioner responsibilities, signatory and exact statement-package version.</p><p>The selected service is <b>${esc(E().service)}</b>. ${isAudit()?'External-audit reporting requires its own methodology and completion checks.':'Do not attach an external-audit opinion automatically to this service.'}</p></div>`,`${btn('Read source','source','','data-section="11"')}${btn('Close','close-modal')}`),
  'select-review':d=>{ui.selectedReview=d.id;render();},
  'respond-note':d=>{if(!roleAllowed('preparer'))return;const text=required('review-response','Response');const r=E().reviews.find(r=>r.id===d.id);if(r.status==='Cleared')throw Error('A reviewer must reopen this point before a new response.');r.history.push({status:r.status,response:r.response,version:r.version});r.response=text;r.respondedBy=actor().name;r.status='Responded';const w=E().workpapers.find(w=>w.id===r.wp);if(w){w.version++;w.status='Submitted';w.conclusion=text;r.version=w.version;}changed('Response submitted for '+r.id+'; new workpaper revision requires review');render();toast('Response saved. Switch to Senior reviewer for independent clearance.');},
- 'clear-note':d=>{if(!roleAllowed('reviewer'))return;const r=E().reviews.find(r=>r.id===d.id);if(r.status!=='Responded')throw Error('A preparer response is required before clearance.');if(r.respondedBy===actor().name)throw Error('The responder cannot clear the same point.');r.status='Cleared';r.clearedBy=actor().name;const w=E().workpapers.find(w=>w.id===r.wp);if(w&&E().reviews.filter(n=>n.wp===w.id).every(n=>n.status==='Cleared'))w.status='Cleared';log('Reviewer independently cleared '+r.id+' at workpaper v'+r.version,r.id,'checkcircle');render();toast('Review point cleared for the submitted revision.');},
+ 'clear-note':d=>{if(!roleAllowed('reviewer'))return;const r=E().reviews.find(r=>r.id===d.id);if(r.status!=='Responded')throw Error('A preparer response is required before clearance.');if(r.respondedBy===actor().name)throw Error('The responder cannot clear the same point.');r.status='Cleared';r.clearedBy=actor().name;const w=E().workpapers.find(w=>w.id===r.wp);if(w&&E().reviews.filter(n=>n.wp===w.id).every(n=>n.status==='Cleared')){w.status='Cleared';w.clearance={clearedBy:actor().name,clearedAt:new Date().toISOString(),sourceVersion:E().sourceVersion,generation:E().generation,version:w.version,notes:'All linked review points independently cleared.'};}log('Reviewer independently cleared '+r.id+' at workpaper v'+r.version,r.id,'checkcircle');render();toast('Review point cleared for the submitted revision.');},
  'reopen-note':d=>{if(!roleAllowed(['reviewer','manager']))return;const r=E().reviews.find(r=>r.id===d.id);r.history.push({status:r.status,response:r.response,version:r.version});r.status='Open';r.response='';const w=E().workpapers.find(w=>w.id===r.wp);if(w)w.status='Changes required';changed('Review point '+r.id+' reopened');render();},
  'add-note':()=>openModal('New review point',`<div class="field-grid"><div class="field full"><label for="rn-title">Review point title *</label><input id="rn-title" class="input"></div><div class="field"><label for="rn-wp">Working paper *</label><select class="input" id="rn-wp">${E().workpapers.map(w=>`<option value="${w.id}">${w.id} · ${esc(w.title)}</option>`).join('')}</select></div><div class="field"><label for="rn-severity">Severity</label><select id="rn-severity" class="input"><option>High</option><option>Medium</option><option>Low</option></select></div><div class="field full"><label for="rn-body">Issue and required action *</label><textarea id="rn-body" class="input"></textarea></div></div>`,`${btn('Cancel','close-modal')}${btn('Create point','save-note','primary')}`),
  'save-note':()=>{if(!roleAllowed(['reviewer','manager']))return;const title=required('rn-title','Title'),body=required('rn-body','Required action'),wp=required('rn-wp','Working paper'),w=E().workpapers.find(w=>w.id===wp);const r={id:'RN-'+String(E().reviews.length+1).padStart(3,'0'),wp,title,body,severity:val('rn-severity'),status:'Open',raisedBy:actor().name,assigned:'Adam Khan',due:'2026-09-28',response:'',version:w.version,history:[]};E().reviews.push(r);w.status='Changes required';ui.selectedReview=r.id;changed('New review point '+r.id+' raised');closeModal();render();},
@@ -317,7 +869,7 @@ document.addEventListener('input',event=>{const t=event.target;if(t.id==='global
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeModal();document.getElementById('sidebar')?.classList.remove('open');document.getElementById('mobile-overlay')?.classList.remove('open');}if(event.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){event.preventDefault();searchModal();}if(event.key==='Tab'&&ui.modal){const focusable=[...document.querySelectorAll('.modal button:not(:disabled), .modal input:not(:disabled), .modal select:not(:disabled), .modal textarea:not(:disabled), .modal a[href], .modal summary')].filter(x=>x.offsetParent!==null);const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});
 window.addEventListener('hashchange',()=>{const r=location.hash.slice(1);if(knownRoutes.includes(r)&&r!==ui.route){ui.route=r;render();}});
 window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY){try{const updated=JSON.parse(event.newValue);if(updated?.schema===SCHEMA){state=updated;closeModal();render();toast('Demo state changed in another tab; view refreshed.','warn');}}catch{}}});
-document.getElementById('document-picker').addEventListener('change',async event=>{const file=event.target.files?.[0],target=uploadTarget,requestRole=state.role;if(!file||!target)return;try{if(file.size>5*1024*1024)throw Error('Choose a synthetic file smaller than 5 MiB.');if(!/\.(pdf|docx|xlsx|csv|txt|png|jpe?g)$/i.test(file.name))throw Error('Unsupported demonstration file type.');const bytes=await file.arrayBuffer(),sha=await sha256(bytes);if(state.role!==requestRole||!authorizedEng(target.eng))throw Error('Upload context changed; submit again in the authorized role.');const e=state.engagements.find(e=>e.id===target.eng),p=e?.pbc.find(p=>p.id===target.pbc);if(!p)throw Error('The request is no longer available.');p.history=p.history||[];if(p.file)p.history.push({file:p.file,version:p.version,status:p.status,sha:p.sha});p.file=file.name;p.size=file.size;p.sha=sha;p.version++;p.status='Received';p.local=true;e.generation++;e.candidate=null;state.selected=e.id;log('Local file metadata received for '+p.id,p.id,'folder');pbcModal(p.id);render();toast('Metadata and hash recorded locally. No file bytes uploaded or persisted.');}catch(error){toast(error.message,'error');}});
+document.getElementById('document-picker').addEventListener('change',async event=>{const file=event.target.files?.[0],target=uploadTarget,requestRole=state.role;if(!file||!target)return;try{if(file.size>5*1024*1024)throw Error('Choose a synthetic file smaller than 5 MiB.');if(!/\.(pdf|docx|xlsx|csv|txt|png|jpe?g)$/i.test(file.name))throw Error('Unsupported demonstration file type.');const bytes=await file.arrayBuffer(),sha=await sha256(bytes);if(state.role!==requestRole||!authorizedEng(target.eng))throw Error('Upload context changed; submit again in the authorized role.');if(target.type==='wp-workbook'){const e=state.engagements.find(e=>e.id===target.eng),w=e?.workpapers?.find(w=>w.id===target.wp);if(!w)throw Error('Workpaper no longer exists.');if(w.clearance){w.clearanceHistory=w.clearanceHistory||[];w.clearanceHistory.push({...w.clearance,invalidatedAt:new Date().toISOString(),invalidationReason:'New completed workbook uploaded'});w.clearance=null;}w.version=(w.version||1)+1;w.workingPaper={file:file.name,name:file.name,size:file.size,sha:sha,version:w.version,uploadedAt:new Date().toISOString(),uploadedBy:actor().name,local:true};if(/\.csv$/i.test(file.name)){try{const text=new TextDecoder('utf-8',{fatal:false}).decode(bytes);const raw=parseCsv(text);if(raw.length>1){w.schedule={filename:file.name,updatedAt:new Date().toISOString(),columns:raw[0].map(c=>c.trim()),rows:raw.slice(1).map(r=>r.map(c=>c.trim()))};}}catch(err){console.warn('Could not parse CSV schedule',err);}}w.status='In progress';changed('Updated completed audit workbook for '+w.id);workpaperModal(w.id,'workbook');render();toast('Working paper workbook updated (v'+w.version+'). Prior clearance invalidated.');return;}if(target.type==='wp-evidence'){const e=state.engagements.find(e=>e.id===target.eng),w=e?.workpapers?.find(w=>w.id===target.wp);if(!w)throw Error('Workpaper no longer exists.');w.supportingEvidence=w.supportingEvidence||[];w.supportingEvidence.push({id:`EVD-${w.id.replace('WP-','')}-${String(w.supportingEvidence.length+1).padStart(2,'0')}`,pbcId:null,title:file.name.replace(/\.[^/.]+$/,'').replace(/[_.-]/g,' '),file:file.name,size:file.size,sha:sha,source:'Direct upload ('+state.role+')',status:'Received',linkedAt:new Date().toISOString()});changed('Attached supporting evidence to '+w.id);workpaperModal(w.id,'evidence');render();toast('Supporting evidence attached.');return;}const e=state.engagements.find(e=>e.id===target.eng),p=e?.pbc.find(p=>p.id===target.pbc);if(!p)throw Error('The request is no longer available.');p.history=p.history||[];if(p.file)p.history.push({file:p.file,version:p.version,status:p.status,sha:p.sha});p.file=file.name;p.size=file.size;p.sha=sha;p.version++;p.status='Received';p.local=true;e.generation++;e.candidate=null;state.selected=e.id;log('Local file metadata received for '+p.id,p.id,'folder');pbcModal(p.id);render();toast('Metadata and hash recorded locally. No file bytes uploaded or persisted.');}catch(error){toast(error.message,'error');}});
 function parseCsv(text){text=text.replace(/^\uFEFF/,'');const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell='';}else cell+=c;}if(quoted)throw Error('CSV has an unclosed quoted field.');row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows;}
 document.getElementById('tb-picker').addEventListener('change',async event=>{const file=event.target.files?.[0],target=uploadTarget,requestRole=state.role;if(!file||!target)return;try{if(file.size>1024*1024)throw Error('CSV must be smaller than 1 MiB in this prototype.');const bytes=await file.arrayBuffer();const raw=parseCsv(new TextDecoder('utf-8',{fatal:true}).decode(bytes));const headers=raw.shift()?.map(x=>x.trim().toLowerCase())||[];for(const key of ['code','account','type','balance'])if(!headers.includes(key))throw Error('CSV must include Code,Account,Type,Balance headers.');if(!raw.length||raw.length>2000)throw Error('CSV must have 1–2,000 data rows.');const idx=Object.fromEntries(headers.map((h,i)=>[h,i]));const codes=new Set();const rows=raw.map((r,i)=>{if(r.length!==headers.length)throw Error('Wrong column count on row '+(i+2));const code=r[idx.code].trim(),name=r[idx.account].trim(),type=r[idx.type].trim().toLowerCase(),balance=cents(r[idx.balance].trim());if(!code||!name||code.length>40||name.length>160)throw Error('Invalid account identity on row '+(i+2));if(codes.has(code))throw Error('Duplicate code in this single-entity demo: '+code);codes.add(code);if(!['asset','liability','equity','revenue','expense'].includes(type))throw Error('Unsupported Type on row '+(i+2));return {code,name,type,balance};});if(rows.reduce((s,r)=>s+r.balance,0)!==0)throw Error('Rejected: debit-positive balances must sum to zero. No partial import was stored.');if(state.role!==requestRole||!authorizedEng(target.eng))throw Error('Import context changed; submit again.');const e=state.engagements.find(e=>e.id===target.eng);if(!e)throw Error('Engagement not found.');const sha=await sha256(bytes);if(state.role!==requestRole||!authorizedEng(target.eng))throw Error('Import context changed; submit again.');state.selected=e.id;if(e.receipt?.sha===sha){toast('Identical file already imported; no duplicate source version created.');return;}e.sourceHistory=e.sourceHistory||[];e.sourceHistory.push({version:e.sourceVersion,rows:clone(e.rows),receipt:e.receipt||null});e.rows=rows;e.sourceVersion++;e.sourceAccepted=true;e.mappingApproved=false;e.adjustment=0;e.journalState='Not proposed';e.sourceReflection=false;e.receipt={name:file.name,sha,size:file.size};sourceInvalidation('Synthetic CSV imported as a new source candidate');closeModal();ui.accountTab='mapping';go('accounting');toast('CSV imported locally. Reviewer mapping and source-dependent work must be reconsidered.');}catch(error){toast(error.message||'CSV import failed.','error');}});
 
@@ -601,10 +1153,11 @@ const BASE_ACTION_RULES={
  'new-pbc':'pbc.clarify','save-pbc':'pbc.clarify','pick-document':'pbc.upload','sample-upload':'pbc.upload','pbc-accept':'pbc.accept','pbc-clarify':'pbc.clarify','save-pbc-clarification':'pbc.clarify',
  'import-tb':'tb.import','pick-tb':'tb.import','source-change':'tb.import','replace-tb':'tb.import','approve-mapping':'mapping.approve','revise-adjustment':'journal.propose','save-aj':'journal.propose','apply-adjustment':'journal.consent',
  'build-package':'workpaper.write','confirm-supplements':'workpaper.write','clear-rec':'workpaper.review','submit-wp':'workpaper.write','clear-wp':'workpaper.review','save-planning':'partner.approve','save-sample':'workpaper.write',
+ 'upload-wp-sample':'workpaper.write','wp-pick-workbook':'workpaper.write','wp-pick-evidence':'workpaper.write','wp-sample-evidence':'workpaper.write','wp-unlink-evidence':'workpaper.write','wp-link-pbc-modal':'workpaper.write','wp-link-pbc-confirm':'workpaper.write','save-wp':'workpaper.write','return-wp':'workpaper.review','toggle-wp-applicable':'workpaper.write','wp-add-note':'review.raise','wp-respond-note':'review.respond',
  'respond-note':'review.respond','clear-note':'review.clear','reopen-note':'review.clear','add-note':'review.raise','save-note':'review.raise','portal-approve':'management.approve','record-terms':'management.approve',
  'prepare-release':'release.issue','issue-release':'release.issue','demo-deliver':'release.dispatch','archive':'archive.assemble','invoice-issue':'invoice.issue','invoice-receipt':'receipt.record','log-time':'time.record','save-time':'time.record','continue-client':'continuance.decide','roll-forward':'continuance.decide',
  'r-intake-open':'intake.write','r-compliance-open':'compliance.decide','r-partner-case':'acceptance.decide','r-task-open':'team.assign','r-time-review':'time.review','r-pbc-assign':'pbc.assign','r-client-terms':'management.approve','r-journal-review':'journal.review','r-journal-consent':'journal.consent','r-management-approve':'management.approve','r-representation':'management.approve','r-eqr-eligibility':'eqr.complete','r-eqr-add':'eqr.complete','r-eqr-concern':'eqr.complete','r-eqr-complete':'eqr.complete','r-eqr-response':'manager.approve','r-contact-new':'client.nominate','r-invitation-new':'intake.write','r-new-invoice':'invoice.draft','r-invoice-submit':'invoice.draft','r-review-invoice':'invoice.review','r-commercial-new':'invoice.draft','r-proposal-new':'proposal.submit','r-review-proposal':'proposal.review','r-record-open':'archive.assemble','r-hold-open':'hold.record','r-handover-new':'handover.request','r-user-open':'access.execute','r-access-verify':'access.execute','r-config-new':'system.configure','r-config-detail':'system.configure'};
-const GENERIC_ACTIONS=new Set(['menu','close-modal','search','activity','about','reset','confirm-reset','source','service-detail','lifecycle-detail','r-role-directory','r-my-privileges','r-filter-group','r-switch-role','r-role-detail','r-export-catalog','r-export-permissions','tour','tour-requirements']);
+const GENERIC_ACTIONS=new Set(['menu','close-modal','search','activity','about','reset','confirm-reset','source','service-detail','lifecycle-detail','r-role-directory','r-my-privileges','r-filter-group','r-switch-role','r-role-detail','r-export-catalog','r-export-permissions','tour','tour-requirements','wp-tab','download-wp-template']);
 function allowedAction(name,d={}){
  if(GENERIC_ACTIONS.has(name))return true;
  if(!roleEnabled())return false;
@@ -650,7 +1203,7 @@ render=function(){initRoleState();ensureContext();if(!routeAllowed(ui.route)){ui
 // It does not protect HTML/localStorage from a user with developer tools.
 for(const [name,fn] of Object.entries(actions)){actions[name]=async function(d={}){if(!allowedAction(name,d))throw Error('This action is not permitted for the selected demo role.');if(d.eng&&!authorizedEng(d.eng)&&state.role!=='admin')throw Error('The requested record is unavailable.');return fn(d);};}
 document.addEventListener('click',event=>{const target=event.target.closest('[data-action]');if(target&&!allowedAction(target.dataset.action,target.dataset)){event.preventDefault();event.stopImmediatePropagation();toast('This action is not permitted for this role.','warn');}},true);
-document.addEventListener('change',event=>{const t=event.target;if(t.id==='role-select'){event.stopImmediatePropagation();switchRole(t.value);return;}if(t.id==='eng-select'&&!authorizedEng(t.value)){event.stopImmediatePropagation();render();toast('The requested context is unavailable.','warn');return;}if(t.id==='document-picker'&&!permission('pbc.upload')||t.id==='tb-picker'&&!permission('tb.import')){event.stopImmediatePropagation();toast('This upload action is outside the selected role.','warn');return;}if(t.dataset.change==='mapping'&&!permission('mapping.write')||t.dataset.change==='assessment-item'&&!permission('intake.write')||t.dataset.change==='annual'&&state.role!=='partner'){event.stopImmediatePropagation();render();toast('This edit is outside the selected role.','warn');}},true);
+document.addEventListener('change',event=>{const t=event.target;if(t.id==='role-select'){event.stopImmediatePropagation();switchRole(t.value);return;}if(t.id==='eng-select'&&!authorizedEng(t.value)){event.stopImmediatePropagation();render();toast('The requested context is unavailable.','warn');return;}if(t.id==='document-picker'&&(typeof uploadTarget!=='undefined'&&uploadTarget?.type?!permission('workpaper.write'):!permission('pbc.upload'))||t.id==='tb-picker'&&!permission('tb.import')){event.stopImmediatePropagation();toast('This upload action is outside the selected role.','warn');return;}if(t.dataset.change==='mapping'&&!permission('mapping.write')||t.dataset.change==='assessment-item'&&!permission('intake.write')||t.dataset.change==='annual'&&state.role!=='partner'){event.stopImmediatePropagation();render();toast('This edit is outside the selected role.','warn');}},true);
 const resetAction=actions['confirm-reset'];actions['confirm-reset']=async d=>{await resetAction(d);initRoleState();state.role='manager';render();save();};
 // No v1 state is migrated or deleted; v2 uses its own localStorage key.
 initRoleState();ensureContext();render();save();
