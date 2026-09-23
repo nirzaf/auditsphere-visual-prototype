@@ -54,9 +54,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   completion and that reassignment changes the real assignee with a retained
   reason and no authority grant. Job cancellation and the full edit/status/filter
   matrix remain unverified.
-- **AT-13 — job templates:** Chrome authors a Draft, publishes it, creates one
-  fresh job/tree, then retires the template without changing that job. Editing
-  a published revision and duplicate-click recovery remain unverified.
+- **AT-13 — job templates:** Chrome authors and publishes a Draft, applies it
+  to a fresh job/tree, then creates and publishes a separate edited revision.
+  The existing job and prior published template remain unchanged, and jobs pin
+  the exact source revision. Unit coverage verifies same-operation retry
+  idempotency; a rapid browser double-click is not separately simulated.
 
 - **VP-050 — audit fieldwork:** Chrome records work performed against PRC-01,
   submits it with a linked current adequate evidence revision, denies preparer
@@ -153,7 +155,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 117/117 unit checks and 41/41 E2E checks passed. E2E
+Latest recorded run: 118/118 unit checks and 41/41 E2E checks passed. E2E
 includes five static checks and 36 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the

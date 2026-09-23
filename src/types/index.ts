@@ -375,6 +375,8 @@ export interface JobRecord {
   status: 'Not started' | 'In progress' | 'Blocked' | 'Completed' | 'Cancelled';
   blockedReason?: string;
   fromTemplateId?: string;
+  fromTemplateRevision?: number;
+  templateOperationId?: string;
   createdAt: string;
 }
 
@@ -387,6 +389,8 @@ export interface JobTemplateItem {
   defaultJobTitle: string;
   status: 'Draft' | 'Published' | 'Retired';
   revision: number;
+  revisionOfId?: string;
+  rootTemplateId?: string;
   tasks: Array<{
     title: string;
     description?: string;

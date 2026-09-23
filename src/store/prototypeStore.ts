@@ -700,6 +700,22 @@ class PrototypeStore {
     this.notify();
   }
 
+  public createJobTemplateRevision(sourceId: string, edits: Pick<JobTemplateItem, 'name' | 'service' | 'description' | 'defaultJobTitle' | 'tasks'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'revise job templates');
+    const source = this.state.jobTemplates.find(template => template.id === sourceId);
+    if (!source || source.status !== 'Published') throw new GuardError('INVALID_STATE', 'Only a published template can be revised.');
+    if (!edits.name.trim() || !edits.defaultJobTitle.trim() || edits.tasks.length === 0 || edits.tasks.some(task => !task.title.trim() || (task.subtasks || []).some(subtask => !subtask.trim()))) throw new GuardError('INVALID_STATE', 'A revision requires a name, default job title, and titled phases/subtasks.');
+    const rootTemplateId = source.rootTemplateId || source.id;
+    const revision = Math.max(...this.state.jobTemplates.filter(template => (template.rootTemplateId || template.id) === rootTemplateId).map(template => template.revision)) + 1;
+    const next: JobTemplateItem = { ...edits, id: `${rootTemplateId}-R${revision}`, status: 'Draft', revision, revisionOfId: source.id, rootTemplateId, tasks: structuredClone(edits.tasks) };
+    if (this.state.jobTemplates.some(template => template.id === next.id)) throw new GuardError('INVALID_STATE', 'That template revision already exists.');
+    this.state.jobTemplates.push(next);
+    this.logEvent(`Job template revision ${revision} drafted from ${source.id}: ${next.name}`, next.id);
+    this.notify();
+    return next;
+  }
+
   public publishJobTemplate(templateId: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'publish job templates');
@@ -720,12 +736,19 @@ class PrototypeStore {
     this.notify();
   }
 
-  public applyJobTemplate(templateId: string, engagementId: string, jobTitle: string, dueDate: string, owner: string) {
+  public applyJobTemplate(templateId: string, engagementId: string, jobTitle: string, dueDate: string, owner: string, operationId?: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'apply job templates');
     requireEngagementScope(this.state, engagementId);
     const tpl = this.state.jobTemplates.find(t => t.id === templateId);
     if (!tpl) throw new GuardError('INVALID_STATE', 'Template was not found.');
+    if (operationId) {
+      const prior = this.state.jobs.find(job => job.templateOperationId === operationId);
+      if (prior) {
+        if (prior.fromTemplateId !== templateId || prior.engagementId !== engagementId || prior.title !== jobTitle || prior.dueDate !== dueDate || prior.owner !== owner) throw new GuardError('INVALID_STATE', 'Template operation ID was already used for different job details.');
+        return prior;
+      }
+    }
     if (tpl.status !== 'Published') {
       throw new GuardError('INVALID_STATE', 'Only Published templates can be applied to create jobs (VP-015).');
     }
@@ -745,6 +768,8 @@ class PrototypeStore {
       dueDate,
       status: 'Not started',
       fromTemplateId: tpl.id,
+      fromTemplateRevision: tpl.revision,
+      ...(operationId ? { templateOperationId: operationId } : {}),
       createdAt: new Date().toISOString()
     };
     this.state.jobs.push(newJob);

@@ -15,6 +15,8 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(state.jobTemplates[0]?.id || '');
   const [showInstantiateModal, setShowInstantiateModal] = useState(false);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
+  const [revisionSourceId, setRevisionSourceId] = useState<string | null>(null);
+  const [templateOperationId, setTemplateOperationId] = useState('');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Instantiation form
@@ -48,7 +50,8 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
         targetEngId,
         jobTitle || selectedTemplate.defaultJobTitle,
         dueDate,
-        owner
+        owner,
+        templateOperationId
       );
       setShowInstantiateModal(false);
       onNavigate('jobs');
@@ -84,26 +87,28 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
       .map(l => l.trim())
       .filter(l => l.length > 0);
 
-    const newTemplateId = `TPL-00${templates.length + 1}`;
-    const newTemplate: JobTemplateItem = {
-      id: newTemplateId,
+    const revisionSource = templates.find(template => template.id === revisionSourceId);
+    const templateFields = {
       name: newTplName.trim(),
       service: newTplService,
       description: newTplDescription.trim() || 'Custom practice workflow template.',
       defaultJobTitle: newTplDefaultJobTitle.trim() || newTplName.trim(),
-      status: 'Draft',
-      revision: 1,
-      tasks: taskLines.map(t => ({
-        title: t,
-        roleSuggestion: 'Engagement Associate',
-        subtasks: ['Review prior documentation', 'Perform detailed substantive test', 'Assemble working paper evidence']
+      tasks: taskLines.map((t, index) => ({
+        ...(revisionSource?.tasks[index] || { roleSuggestion: 'Engagement Associate', subtasks: ['Review prior documentation', 'Perform detailed substantive test', 'Assemble working paper evidence'] }),
+        title: t
       }))
     };
 
     try {
-      prototypeStore.addJobTemplate(newTemplate);
-      setSelectedTemplateId(newTemplateId);
+      let newTemplate: JobTemplateItem;
+      if (revisionSource) newTemplate = prototypeStore.createJobTemplateRevision(revisionSource.id, templateFields);
+      else {
+        newTemplate = { ...templateFields, id: `TPL-${crypto.randomUUID()}`, status: 'Draft', revision: 1 };
+        prototypeStore.addJobTemplate(newTemplate);
+      }
+      setSelectedTemplateId(newTemplate.id);
       setShowNewTemplateModal(false);
+      setRevisionSourceId(null);
       setNewTplName('');
       setNewTplDescription('');
       setNewTplDefaultJobTitle('');
@@ -121,7 +126,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
           <p>Reusable workflow structures with defined phases and substantive subtasks.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={() => setShowNewTemplateModal(true)}>
+          <button className="btn primary sm" onClick={() => { setRevisionSourceId(null); setNewTplName(''); setNewTplDescription(''); setNewTplDefaultJobTitle(''); setNewTplTasksText('Planning & Risk Assessment\nSubstantive Fieldwork Procedures\nReporting & Final Deliverables'); setShowNewTemplateModal(true); }}>
             <Icon name="plus" /> Author New Template
           </button>
         </div>
@@ -200,6 +205,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                             }
                             setSelectedTemplateId(tpl.id);
                             setJobTitle(tpl.defaultJobTitle);
+                            setTemplateOperationId(crypto.randomUUID());
                             setShowInstantiateModal(true);
                           }}
                         >
@@ -239,11 +245,13 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                         className="btn primary sm"
                         onClick={() => {
                           setJobTitle(selectedTemplate.defaultJobTitle);
+                          setTemplateOperationId(crypto.randomUUID());
                           setShowInstantiateModal(true);
                         }}
                       >
                         <Icon name="plus" /> Create Job from Template
                       </button>
+                      <button className="btn sm ghost" onClick={() => { setRevisionSourceId(selectedTemplate.id); setNewTplName(selectedTemplate.name); setNewTplService(selectedTemplate.service); setNewTplDescription(selectedTemplate.description); setNewTplDefaultJobTitle(selectedTemplate.defaultJobTitle); setNewTplTasksText(selectedTemplate.tasks.map(task => task.title).join('\n')); setShowNewTemplateModal(true); }}>Create New Revision</button>
                       <button
                         className="btn sm ghost"
                         onClick={() => handleRetireTemplate(selectedTemplate.id)}
@@ -365,7 +373,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
         <div className="modal-backdrop" onClick={() => setShowNewTemplateModal(false)}>
           <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Author New Job Template</h2>
+              <h2>{revisionSourceId ? `Revise ${templates.find(template => template.id === revisionSourceId)?.name}` : 'Author New Job Template'}</h2>
               <button className="icon-btn" onClick={() => setShowNewTemplateModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateTemplateSubmit}>
@@ -433,7 +441,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowNewTemplateModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Create Draft Template</button>
+                <button type="submit" className="btn primary sm">{revisionSourceId ? 'Save Draft Revision' : 'Create Draft Template'}</button>
               </div>
             </form>
           </div>

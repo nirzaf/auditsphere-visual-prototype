@@ -761,6 +761,23 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const beforeCount = (prototypeStore as any).state.jobs.length;
     prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman');
     assert.strictEqual((prototypeStore as any).state.jobs.length, beforeCount + 1);
+    const sourceJob = (prototypeStore as any).state.jobs.at(-1);
+    assert.equal(sourceJob.fromTemplateRevision, 1);
+    const originalTasks = structuredClone(draftTpl.tasks);
+    const revision = prototypeStore.createJobTemplateRevision(draftTpl.id, { name: 'Revised Template', service: draftTpl.service, description: draftTpl.description, defaultJobTitle: 'Revised Job', tasks: [{ title: 'Revised Phase', subtasks: ['New Subtask'] }] });
+    assert.equal(revision.revision, 2);
+    assert.equal(revision.status, 'Draft');
+    assert.equal(revision.revisionOfId, draftTpl.id);
+    assert.equal(draftTpl.status, 'Published');
+    assert.deepEqual(draftTpl.tasks, originalTasks);
+    prototypeStore.publishJobTemplate(revision.id);
+    const idempotencyKey = 'VP015-RETRY-TEST';
+    const jobsBeforeRetry = (prototypeStore as any).state.jobs.length;
+    prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Revised Job', '2026-11-01', 'Layla Rahman', idempotencyKey);
+    prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Revised Job', '2026-11-01', 'Layla Rahman', idempotencyKey);
+    assert.equal((prototypeStore as any).state.jobs.length, jobsBeforeRetry + 1);
+    assert.equal((prototypeStore as any).state.jobs.at(-1).fromTemplateRevision, 2);
+    assert.throws(() => prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Changed Job', '2026-11-01', 'Layla Rahman', idempotencyKey), /already used for different job details/);
 
     // Retire template
     prototypeStore.retireJobTemplate(draftTpl.id);
