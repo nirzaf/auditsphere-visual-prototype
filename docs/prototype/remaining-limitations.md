@@ -13,6 +13,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.
+- **VP-061 — global search:** Chrome verifies the client persona cannot find an
+  internal communication and can find a shared document; unit coverage checks
+  document-name grant scoping. Other client/person grant combinations, result
+  cross-links and search types still need direct journey coverage.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted

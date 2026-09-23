@@ -834,6 +834,27 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-50/VP-061: client search excludes internal activity and finds shared documents', async () => {
+    const clientUserId = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.users.find(u=>u.label==='Management approver').id;})()`);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientUserId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole==="client"'), true, 'client persona must be active before search');
+    assert.equal(await waitForBrowser(`document.querySelector('#role-select')?.value===${JSON.stringify(clientUserId)}`), true);
+    const search = async (query: string) => {
+      await browserTab!.evaluate(`document.querySelector('.search-trigger')?.click()`);
+      assert.equal(await waitForBrowser('!!document.querySelector(".modal-backdrop input")'), true, 'search dialog should open for the active client persona');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(query)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return browserTab!.evaluate<string>('document.querySelector(".modal-backdrop .modal-body")?.innerText || ""');
+    };
+    const internal = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.find(c=>c.visibility==='Internal').summary`);
+    assert.match(await search(internal), /No matching records found/);
+    const sharedName = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(d=>d.visibility==='Client shared'&&d.name.includes('Draft_Financial_Statements')).name`);
+    const shared = await search(sharedName);
+    assert.ok(shared.includes(sharedName));
+    assert.match(shared, /Shared document/);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
