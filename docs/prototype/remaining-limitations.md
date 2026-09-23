@@ -201,12 +201,12 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.09 MB,
-  590.63 kB gzip in the latest build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.14 MB,
+  600.11 kB gzip in the latest build).
 
 ## Verification snapshot
 
-Latest recorded run: 131/131 unit checks and 56/56 E2E checks passed. E2E
+Latest recorded run: 132/132 unit checks and 56/56 E2E checks passed. E2E
 includes five static checks and 51 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
 because full criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
