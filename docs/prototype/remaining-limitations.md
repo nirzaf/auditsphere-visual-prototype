@@ -13,9 +13,9 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   decisions need a reason, and approval blocks unexplained residuals, missing
   evidence and unlinked proposed corrections. Unit coverage verifies a saved
   approved revision is retained and TB or referenced-document replacement
-  stales the live schedule; Chrome verifies draft creation. The complete
-  browser approval/rework journey and remaining item/scope edge cases need
-  direct evidence.
+  stales the live schedule; Chrome verifies draft creation, self-approval
+  denial and independent approval. Browser return/rework and the full
+  evidence-to-source lifecycle need direct evidence.
 - **AT-20 — document replacement:** Chrome verifies a replacement revision is
   registered separately, preserves the prior document and evidence pin, and
   shows reviewers that a newer version exists. The replacement creates a new

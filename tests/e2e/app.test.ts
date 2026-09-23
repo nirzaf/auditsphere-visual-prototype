@@ -2233,6 +2233,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(saved.status, 'Draft');
       assert.equal(saved.sourceVersion, await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).sourceVersion`));
       assert.equal(saved.glBalance, 1000000);
+      await clickButton('Approve schedule');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /manager cannot review their reconciliation schedule/);
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Approve schedule');
+      const approved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
+      assert.equal(approved.status, 'Approved');
+      assert.equal(approved.reviewedByUserId, 'reviewer');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
