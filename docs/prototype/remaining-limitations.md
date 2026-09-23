@@ -80,8 +80,10 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
 
 - **VP-053 — shared evidence:** evidence links now preserve link/unlink actor,
   time and reason; new links require an adequate current source revision. A
-  reasoned unlink or adequacy change stales linked cleared/submitted procedures,
-  moves linked workpaper clearance to history and requires a fresh submission.
+  reasoned unlink stales its linked procedure; an adequacy change stales linked
+  cleared/submitted procedures and workpapers, moves prior clearance to history
+  and requires a fresh submission. The separate workpaper document pin remains
+  intact when only a procedure relation is removed.
   Unit checks cover stale-link rejection and dependent invalidation; Chrome covers
   the unlink flow. Client projection isolation for internal evidence tags and
   issued-package provenance after unlink still need a full journey.

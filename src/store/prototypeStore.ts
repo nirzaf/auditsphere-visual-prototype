@@ -2260,6 +2260,7 @@ class PrototypeStore {
       }
       for (const engagement of this.state.engagements) for (const workpaper of engagement.workpapers) {
         if (!workpaper.evidenceRefs?.includes(ev.documentId)) continue;
+        if (!workpaper.clearance && !workpaper.submittedVersion && workpaper.status !== 'Cleared' && workpaper.status !== 'Submitted') continue;
         if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
         workpaper.clearance = null;
         workpaper.submittedBy = undefined;
@@ -2312,6 +2313,7 @@ class PrototypeStore {
     requireEngagementScope(this.state, engagement.id);
     if (document.clientId) requireClientScope(this.state, document.clientId);
     if (document.engagementId && document.engagementId !== engagement.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
+    if (document.clientId !== engagement.client) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same client.');
     evidence.linkedProcedures = evidence.linkedProcedures.filter(id => id !== procedureId);
     evidence.linkedProcedureHistory ||= [];
     evidence.linkedProcedureHistory.push({ procedureId, action: 'Unlinked', actorId: this.state.currentUserId, reason: reason.trim(), at: new Date().toISOString() });
@@ -2321,14 +2323,6 @@ class PrototypeStore {
     if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
     procedure.reviewedByUserId = undefined;
     procedure.reviewedAt = undefined;
-    for (const workpaper of engagement.workpapers) if (workpaper.evidenceRefs?.includes(evidence.documentId)) {
-      if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
-      workpaper.clearance = null;
-      workpaper.submittedBy = undefined;
-      workpaper.submittedVersion = undefined;
-      workpaper.version++;
-      workpaper.status = 'Changes required';
-    }
     this.invalidateReleaseBasis(engagement);
     this.logEvent(`Evidence ${evidenceId} unlinked from procedure ${procedureId}: ${reason.trim()}`, evidenceId);
     this.notify();

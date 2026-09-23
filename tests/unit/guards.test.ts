@@ -565,6 +565,8 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const state = createInitialState();
     (prototypeStore as any).state = state;
+    const workpaper = state.engagements.find(item => item.id === 'ENG-26001')!.workpapers.find(item => item.id === 'WP-A1')!;
+    const priorWorkpaperVersion = workpaper.version;
     const procedure = state.auditPrograms.flatMap(program => program.procedures).find(item => item.id === 'PRC-01')!;
     procedure.status = 'Cleared';
     procedure.reviewedByUserId = 'reviewer';
@@ -578,6 +580,7 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     assert.equal(procedure.status, 'In progress');
     assert.equal(procedure.evidenceReassessmentRequired, true);
     assert.equal(procedure.reviewedAt, undefined);
+    assert.equal(workpaper.version, priorWorkpaperVersion, 'removing a procedure relation does not mutate the separate workpaper pin');
   });
 
   it('links evidence to a current adequate revision and retains link history', async () => {

@@ -957,12 +957,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('VP-053: records reasoned evidence unlink history and keeps affected work stale', async () => {
+  it('VP-053: records reasoned evidence unlink history and keeps the linked procedure stale', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
     await clickButton('Evidence Catalogue');
     assert.equal(await waitForBrowser('document.querySelector("h1")?.innerText==="Evidence Catalogue"'), true);
-    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Workpaper now relies on the superseding bank statement.';const b=document.querySelector('button[aria-label="Unlink PRC-02 from EVD-01"]');if(!b)throw Error('Expected scoped evidence unlink control');b.click();})()`);
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Workpaper now relies on the superseding bank statement.';const b=document.querySelector('button[aria-label="Unlink PRC-02 from EVD-01"]');if(!b)throw Error('Expected scoped evidence unlink control: '+[...document.querySelectorAll('button')].map(x=>x.getAttribute('aria-label')||x.innerText).join('|'));b.click();})()`);
     assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const ev=s.evidenceCatalogue.find(x=>x.id==='EVD-01');const proc=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-02');return !ev.linkedProcedures.includes('PRC-02')&&ev.linkedProcedureHistory.at(-1).action==='Unlinked'&&ev.linkedProcedureHistory.at(-1).reason.includes('superseding')&&proc.evidenceReassessmentRequired;})()`), true, 'unlink preserves actor/reason history and requires fieldwork reassessment');
     assert.equal(await waitForBrowser('document.body.innerText.includes("prior link retained in history")'), true, 'the evidence catalogue explains the version history and stale dependent');
     assert.deepEqual(browserTab!.exceptions, []);
