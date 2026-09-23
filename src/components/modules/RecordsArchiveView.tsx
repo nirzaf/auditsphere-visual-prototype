@@ -7,6 +7,7 @@ import { RouteKey, ArchiveRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { visibleEngagementIds } from '../../services/guards';
+import { copyReleaseArtifactsToArchive, downloadVerifiedArtifact } from '../../services/artifactStore';
 
 interface RecordsArchiveViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -50,7 +51,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
 
   const archive = selectedEng.archive;
 
-  const handleArchiveEngagement = (engId = selectedEng.id) => {
+  const handleArchiveEngagement = async (engId = selectedEng.id) => {
     const targetEng = state.engagements.find(e => e.id === engId);
     if (!targetEng) return;
     if (targetEng.releases.length === 0) {
@@ -59,13 +60,17 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
     }
 
     try {
+      const release = targetEng.releases.at(-1)!;
+      const artifactCopies = await copyReleaseArtifactsToArchive(targetEng.id, release.id, release.manifest, targetEng.packageHistory || []);
       prototypeStore.archiveEngagement(
         targetEng.id,
-        targetEng.releases.at(-1)!.id,
+        release.id,
         retentionYear,
-        false
+        false,
+        undefined,
+        artifactCopies
       );
-      triggerNotice('success', `Local archive index recorded for ${targetEng.id}. Source bytes and immutability are not represented.`);
+      triggerNotice('success', `Archived ${artifactCopies.length} verified artifact copies for ${targetEng.id} in this browser.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -144,7 +149,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
       <div className="panel panel-pad" style={{ background: '#f8fafc' }}>
         <b>Logical Practice Repository Architecture Notice (VP-059):</b>
         <p className="sub mt4">
-          This browser stores a local metadata index only and has no Purview connection or lock. Original file bytes, retention enforcement, and archive checksum calculation are not provided.
+          Released artifacts are copied under separate browser-local IDs and checked against their SHA-256 identities. No remote archive, retention enforcement, or Purview lock is provided.
         </p>
       </div>
 
@@ -198,6 +203,16 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 </div>
               )}
 
+              <div className="panel mt16">
+                <div className="panel-head"><h3>Verified Archived Artifacts ({archive.artifacts?.length || 0})</h3></div>
+                <div className="tablewrap"><table><thead><tr><th>Artifact</th><th>Type</th><th>Size</th><th>SHA-256</th><th>Action</th></tr></thead>
+                  <tbody>{(archive.artifacts || []).map(artifact => <tr key={artifact.id}>
+                    <td>{artifact.name}</td><td>{artifact.kind}</td><td>{artifact.size.toLocaleString()} bytes</td><td className="mono">{artifact.sha256}</td>
+                    <td><button className="btn sm ghost" onClick={() => downloadVerifiedArtifact(artifact).catch(err => triggerNotice('error', err.message))}>Download archived copy</button></td>
+                  </tr>)}</tbody>
+                </table></div>
+              </div>
+
               <div className="row mt8" style={{ gap: 10 }}>
                 <button
                   className={`btn sm ${archive.onApplicationHold ? 'ghost' : 'danger'}`}
@@ -220,7 +235,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
             <div className="borderbox mt20" style={{ padding: 16, background: '#f8fafc' }}>
               <h4>Archive Engagement File</h4>
               <p className="sub mt8">
-                Create an index linked to an existing local release record. This does not copy files or make records immutable.
+                Copy each verified released artifact into browser-local archive storage and record its exact identity. This does not create a remote or tamper-proof archive.
               </p>
 
               <div className="grid2 mt16">
@@ -254,7 +269,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
           <div className="panel-head between">
             <div>
               <h3>Practice-Wide Records &amp; Archive Register</h3>
-              <span className="caption">Local metadata register across accessible engagements</span>
+              <span className="caption">Local archive records and artifact copies across accessible engagements</span>
             </div>
           </div>
           <div className="tablewrap">

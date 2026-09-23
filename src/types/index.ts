@@ -209,6 +209,10 @@ export interface GeneratedArtifactRecord {
   sha256: string;
 }
 
+export interface ArchivedArtifactRecord extends GeneratedArtifactRecord {
+  sourceArtifactId: string;
+}
+
 export interface FinancialPackageRevision {
   id: string;
   engagementId: string;
@@ -295,6 +299,7 @@ export interface EngagementRecord {
     archivedBy: string;
     releaseId: string;
     manifest: string[];
+    artifacts?: ArchivedArtifactRecord[];
     retentionUntil?: string;
     onApplicationHold?: boolean;
     holdReason?: string;
@@ -1027,6 +1032,7 @@ export interface ArchiveRecord {
   handoverNotes?: string;
   manifestCount: number;
   manifest?: string[];
+  artifacts?: ArchivedArtifactRecord[];
 }
 
 // Whole Prototype State

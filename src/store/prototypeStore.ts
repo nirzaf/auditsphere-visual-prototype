@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -1723,7 +1723,7 @@ class PrototypeStore {
     this.notify();
   }
 
-  public archiveEngagement(engId: string, releaseId: string, retentionUntil?: string, onHold = false, holdReason?: string) {
+  public archiveEngagement(engId: string, releaseId: string, retentionUntil?: string, onHold = false, holdReason?: string, artifactCopies?: ArchivedArtifactRecord[]) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['records', 'manager', 'partner'], 'create or update local archive metadata');
     requireEngagementScope(this.state, engId);
@@ -1740,14 +1740,19 @@ class PrototypeStore {
     const normalizedRetentionUntil = retentionUntil?.trim() || undefined;
     if (normalizedRetentionUntil && (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedRetentionUntil) || Number.isNaN(Date.parse(normalizedRetentionUntil)) || new Date(`${normalizedRetentionUntil}T00:00:00Z`).toISOString().slice(0, 10) !== normalizedRetentionUntil)) throw new GuardError('INVALID_STATE', 'Enter a valid retention date.');
     if (onHold && !holdReason?.trim()) throw new GuardError('INVALID_STATE', 'An application hold requires a reason.');
-    const archiveManifest = release.manifest.map(m => `${m.id} · ${m.name} · ${m.sourceId || eng.id} · rev ${m.sourceRevision ?? 'unknown'}`);
     if (!this.state.archives) this.state.archives = [];
     const existing = this.state.archives.find(a => a.engagementId === eng.id && a.releaseId === releaseId);
+    const archiveArtifacts = existing?.artifacts || artifactCopies;
+    if (!archiveArtifacts || archiveArtifacts.length !== release.manifest.length || release.manifest.some(m => !archiveArtifacts.some(a => a.sourceArtifactId === m.artifactId && a.sha256 === m.sha))) {
+      throw new GuardError('INVALID_STATE', 'Cannot archive until exact release artifact bytes are copied and verified.');
+    }
+    const archiveManifest = release.manifest.map(m => `${m.id} · ${m.name} · SHA-256 ${m.sha}`);
     const archiveData = {
       archivedAt: existing?.archivedAt || new Date().toISOString(),
       archivedBy: existing?.archivedBy || this.state.currentPerson,
       releaseId,
       manifest: archiveManifest,
+      artifacts: archiveArtifacts,
       retentionUntil: normalizedRetentionUntil,
       onApplicationHold: onHold,
       holdReason
@@ -1765,6 +1770,7 @@ class PrototypeStore {
       archivedAt: archiveData.archivedAt,
       archivedBy: archiveData.archivedBy,
       manifest: archiveManifest,
+      artifacts: archiveArtifacts,
       manifestCount: archiveManifest.length,
       retentionUntil: archiveData.retentionUntil,
       onHold,
@@ -1774,7 +1780,7 @@ class PrototypeStore {
     if (existing) Object.assign(existing, archiveRecord, { handoverRequested: existing.handoverRequested, handoverRequester: existing.handoverRequester, handoverNotes: existing.handoverNotes });
     else this.state.archives.push(archiveRecord);
 
-    this.logEvent(`Engagement ${eng.id} archived in logical repository`, eng.id);
+    this.logEvent(`Engagement ${eng.id} archived with ${archiveArtifacts.length} verified artifact copies`, eng.id);
     this.notify();
   }
 

@@ -1,4 +1,4 @@
-import { GeneratedArtifactRecord } from '../types';
+import { ArchivedArtifactRecord, FinancialPackageRevision, GeneratedArtifactRecord } from '../types';
 import { downloadBlob } from './exportService';
 
 const DB_NAME = 'ste-auditsphere-generated-artifacts';
@@ -50,4 +50,22 @@ export async function loadVerifiedArtifact(record: GeneratedArtifactRecord): Pro
 
 export async function downloadVerifiedArtifact(record: GeneratedArtifactRecord): Promise<void> {
   downloadBlob(await loadVerifiedArtifact(record), record.name);
+}
+
+export async function copyReleaseArtifactsToArchive(
+  engagementId: string,
+  releaseId: string,
+  manifest: Array<{ artifactId?: string; sha?: string }>,
+  packageHistory: FinancialPackageRevision[]
+): Promise<ArchivedArtifactRecord[]> {
+  const artifacts = new Map(packageHistory.flatMap(revision => revision.artifacts).map(artifact => [artifact.id, artifact]));
+  if (!manifest.length || manifest.some(item => !item.artifactId || !item.sha || artifacts.get(item.artifactId)?.sha256 !== item.sha)) {
+    throw new Error('The release does not reference a complete set of verified generated artifacts.');
+  }
+  return Promise.all(manifest.map(async item => {
+    const source = artifacts.get(item.artifactId!)!;
+    const copy: ArchivedArtifactRecord = { ...source, id: `archive:${engagementId}:${releaseId}:${source.id}`, sourceArtifactId: source.id };
+    await persistArtifact(copy, await loadVerifiedArtifact(source));
+    return copy;
+  }));
 }

@@ -572,9 +572,22 @@ describe('actual Chrome browser acceptance', () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Retention Until \(Optional\)/);
     assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /10 Years Statutory Retention/);
     await clickButton('Create Local Archive Index');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Archived 3 verified artifact copies")'), true);
     const archive = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').archive`);
     assert.equal(archive.retentionUntil, undefined, 'archive retention date remains optional');
-    assert.ok(archive.manifest.length > 0);
+    assert.equal(archive.artifacts.length, 3);
+    assert.equal(archive.manifest.length, archive.artifacts.length);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Verified Archived Artifacts \(3\)/);
+    const archiveBytes = await browserTab!.evaluate<any>(`(async () => {
+      const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').archive;
+      const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+      const copies=await Promise.all(a.artifacts.map(async x=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(x.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error);});const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');return {id:x.id,size:blob.size,mime:blob.type,sha,expected:x.sha256};}));db.close();return copies;
+    })()`);
+    for (const copy of archiveBytes) {
+      assert.match(copy.id, /^archive:ENG-26002:/);
+      assert.ok(copy.size > 0);
+      assert.equal(copy.sha, copy.expected, 'archived copy must retain exact released bytes');
+    }
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Not specified/);
     assert.deepEqual(browserTab!.exceptions, []);
   });

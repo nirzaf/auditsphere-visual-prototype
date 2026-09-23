@@ -28,9 +28,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Invitation/access history, AML/KYC evidence, procedures/sampling, report data
   reconciliation and other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
-- **R14 — archive integrity:** release metadata indexes and handover records are
-  available, but source bytes are not preserved as an immutable archive. Retention
-  dates are optional metadata; there is no physical archive lock.
+- **R14 — archive integrity:** archive creation now copies every released package
+  artifact into a separate IndexedDB record and verifies size, MIME type and
+  SHA-256 before recording the archive. The copies remain browser-local and can
+  be cleared or altered outside the app; there is no server-side immutable archive
+  or physical retention lock. Retention dates remain optional metadata.
 - **Cross-cutting:** Chrome network observation covers the exercised journeys only;
   no formal all-state egress policy is established. This is a browser-local,
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,

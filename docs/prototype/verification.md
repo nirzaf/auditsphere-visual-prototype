@@ -26,7 +26,8 @@ journeys. Static excluded-surface scans and this sample do not establish a forma
 network policy for every possible UI state. The AT-41/42/48 browser journey now
 also exercises manager, management and partner approvals, exact artifact-bound
 release, amendment generation reset, predecessor manifest preservation, and
-archive indexing with an unspecified optional retention date.
+archive artifact copies with rechecked bytes and an unspecified optional
+retention date.
 The AT-49/60 report journey checks every catalogue entry and exported CSV
 structure, with explicit cross-client leakage checks on a filtered export.
 The AT-43/44/45 journey checks the configured group perimeter, local currency
@@ -45,7 +46,7 @@ and workflow invariants only.
 Outstanding review gaps include the full consolidation suite against
 reordered/missing components (R09); complete adjustment/reporting acceptance
 journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
-source-byte immutable archives and physical retention locks (R14); and remaining
+server-side immutable archives and physical retention locks (R14); and remaining
 end-to-end acceptance journeys across the modules (R12). The
 current checks cover schema migrations 0–8 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
