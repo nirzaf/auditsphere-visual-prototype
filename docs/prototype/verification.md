@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `d68f7bd` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `9fe38681` (`https://9fe38681.steaudit-prototype.pages.dev`). The release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-CzRSn7CZ.js` (2,172,969 bytes, SHA-256 `340fe778117a0f13fc788fdb89b9f48c2c628d6eb97860dd2d803fe1b3946e84`), matching local `dist/`; application bundle is unchanged from the previous release, with this deploy carrying updated prototype acceptance documentation. |
 | 2026-09-23 | VP-040 comparative-staleness follow-up | `npm run test:unit` | PASS — 136/136 | A comparative mapping revision stales a reviewed statement set, and another review attempt is rejected with the revision remaining stale. |
 | 2026-09-23 | VP-040 comparative-staleness follow-up | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. AT-37 revises the approved comparative period mapping after statement review, reloads and verifies the current-period statement remains Stale with no review action. Broader layout, disclosure and cash-flow acceptance remains open. |
 | 2026-09-23 | VP-040 comparative-staleness follow-up | `npm run build` | PASS | TypeScript and Vite production build passed with the existing >500 kB main-chunk advisory. |
