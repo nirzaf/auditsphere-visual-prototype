@@ -1102,6 +1102,34 @@ export function createInitialState(): PrototypeState {
       { path: '/Clients/CL-001/2026/05_Correspondence/', label: '05 Client Communications', clientId: 'CL-001' }
     ]
   };
+  for (const client of state.clients) {
+    const engagements = state.engagements.filter(engagement => engagement.client === client.id);
+    const chartRows = new Map(engagements.flatMap(engagement => engagement.rows).map(row => [row.code, row]));
+    client.accountingProfile = {
+      revision: 1,
+      chartRevision: 1,
+      legalEntityName: client.name,
+      reportingBasis: 'IFRS',
+      baseCurrency: 'QAR',
+      accounts: [...chartRows.values()].map(row => ({ code: row.code, name: row.name, type: row.type, posting: true, active: true })),
+      periodBooks: engagements.map(engagement => ({
+        id: `PB-${engagement.id}`,
+        name: engagement.period,
+        bookName: engagement.mode,
+        startDate: `${engagement.year}-01-01`,
+        endDate: `${engagement.year}-12-31`,
+        ownerEngagementId: engagement.id,
+        status: 'Open' as const
+      })),
+      dimensions: [{ id: `DIM-DEPT-${client.id}`, name: 'Department', values: [...new Set(engagements.flatMap(engagement => engagement.rows.map(row => row.dimensionDept).filter((value): value is string => Boolean(value))))], active: true }],
+      history: []
+    };
+    for (const engagement of engagements) {
+      engagement.accountingPeriodBookId = `PB-${engagement.id}`;
+      engagement.accountingProfileRevision = 1;
+      engagement.accountingChartRevision = 1;
+    }
+  }
   for (const engagement of state.engagements) {
     engagement.packageHistory = [];
     engagement.sourceHistory = engagement.rows.length ? [{
@@ -1110,7 +1138,10 @@ export function createInitialState(): PrototypeState {
       importedAt: state.asOfDate,
       importedBy: 'Synthetic baseline fixture',
       fileName: `seed-${engagement.id}.csv`,
-      format: 'Legacy'
+      format: 'Legacy',
+      accountingProfileRevision: engagement.accountingProfileRevision,
+      accountingChartRevision: engagement.accountingChartRevision,
+      periodBookId: engagement.accountingPeriodBookId
     }] : [];
   }
 

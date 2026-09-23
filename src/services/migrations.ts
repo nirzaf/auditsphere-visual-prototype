@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 19;
+export const CURRENT_SCHEMA = 20;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -242,6 +242,34 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     warnings.push('Added attributable finding disposition histories (v18).');
   }
   if (from < 19) warnings.push('Added saved and independently reviewed statement-set revisions (v19).');
+  if (from < 20) {
+    for (const client of state.clients) {
+      const engagements = state.engagements.filter(engagement => engagement.client === client.id);
+      if (!client.accountingProfile) {
+        const rows = new Map(engagements.flatMap(engagement => engagement.rows).map(row => [row.code, row]));
+        client.accountingProfile = {
+          revision: 1,
+          chartRevision: 1,
+          legalEntityName: client.name,
+          reportingBasis: 'IFRS',
+          baseCurrency: engagements[0]?.currency || 'QAR',
+          accounts: [...rows.values()].map(row => ({ code: row.code, name: row.name, type: row.type, posting: true, active: true })),
+          periodBooks: engagements.map(engagement => ({ id: `PB-${engagement.id}`, name: engagement.period, bookName: engagement.mode, startDate: `${engagement.year}-01-01`, endDate: `${engagement.year}-12-31`, ownerEngagementId: engagement.id, status: 'Open' as const })),
+          dimensions: [{ id: `DIM-DEPT-${client.id}`, name: 'Department', values: [...new Set(engagements.flatMap(engagement => engagement.rows.map(row => row.dimensionDept).filter((value): value is string => Boolean(value))))], active: true }],
+          history: []
+        };
+      }
+      for (const engagement of engagements) {
+        const profile = client.accountingProfile;
+        const periodBook = profile.periodBooks.find(item => item.ownerEngagementId === engagement.id) || { id: `PB-${engagement.id}`, name: engagement.period, bookName: engagement.mode, startDate: `${engagement.year}-01-01`, endDate: `${engagement.year}-12-31`, ownerEngagementId: engagement.id, status: 'Open' as const };
+        if (!profile.periodBooks.some(item => item.id === periodBook.id)) profile.periodBooks.push(periodBook);
+        engagement.accountingPeriodBookId ||= periodBook.id;
+        engagement.accountingProfileRevision ||= profile.revision;
+        engagement.accountingChartRevision ||= profile.chartRevision;
+      }
+    }
+    warnings.push('Added client accounting profiles and period/book context from existing engagement metadata; legacy source imports remain unpinned to that context until re-imported (v20).');
+  }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];
     evidence.adequacyHistory ||= [];

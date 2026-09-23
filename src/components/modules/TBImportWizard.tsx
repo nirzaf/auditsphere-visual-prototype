@@ -114,7 +114,11 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const [errors, setErrors] = useState<string[]>([]);
   const [format, setFormat] = useState<'XLSX' | 'CSV' | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const sourceHistory = prototypeStore.getSnapshot().engagements.find(e => e.id === engagementId)?.sourceHistory || [];
+  const storeSnapshot = prototypeStore.getSnapshot();
+  const currentEngagement = storeSnapshot.engagements.find(e => e.id === engagementId);
+  const sourceHistory = currentEngagement?.sourceHistory || [];
+  const accountingProfile = storeSnapshot.clients.find(c => c.id === currentEngagement?.client)?.accountingProfile;
+  const accountingBook = accountingProfile?.periodBooks.find(book => book.id === currentEngagement?.accountingPeriodBookId);
 
   const handleFile = async (f: File | undefined) => {
     setPreview(null); setErrors([]); setFormat(null); setFileError(null);
@@ -198,6 +202,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
         </div>
         {format && <span className="tag blue">Detected format: {format}</span>}
       </div>
+      <p className="caption" aria-label="Active accounting context">Import context: {accountingProfile?.legalEntityName || 'Setup required'} · {accountingProfile?.reportingBasis || 'No basis'} · {accountingProfile?.baseCurrency || currentEngagement?.currency || 'No currency'} · {accountingBook ? `${accountingBook.name} / ${accountingBook.bookName}` : 'No period book'} · Profile Rev {currentEngagement?.accountingProfileRevision || 0} / Chart Rev {currentEngagement?.accountingChartRevision || 0}</p>
 
       <details>
         <summary className="caption">Trial-balance source history ({sourceHistory.length} revisions)</summary>

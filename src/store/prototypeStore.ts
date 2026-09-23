@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -147,6 +147,22 @@ class PrototypeStore {
     eng.approvals.eqr = null;
   }
 
+  private assignAccountingPeriod(engagement: EngagementRecord) {
+    const client = this.state.clients.find(item => item.id === engagement.client);
+    if (!client) return;
+    const profile = client.accountingProfile ||= { legalEntityName: client.name, reportingBasis: 'Not selected', baseCurrency: engagement.currency || 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
+    const period = profile.periodBooks.find(book => book.ownerEngagementId === engagement.id);
+    if (period) { engagement.accountingPeriodBookId = period.id; engagement.accountingProfileRevision = profile.revision; engagement.accountingChartRevision = profile.chartRevision; return; }
+    const dates = engagement.period.match(/(\d{4})/g) || [String(engagement.year)];
+    const startYear = dates[0], endYear = dates.at(-1) || startYear;
+    const id = `PB-${engagement.id}`;
+    if (profile.revision) profile.history.push({ legalEntityName: profile.legalEntityName, reportingBasis: profile.reportingBasis, baseCurrency: profile.baseCurrency, accounts: structuredClone(profile.accounts), periodBooks: structuredClone(profile.periodBooks), dimensions: structuredClone(profile.dimensions), revision: profile.revision, chartRevision: profile.chartRevision, savedAt: new Date().toISOString(), savedByUserId: this.state.currentUserId });
+    profile.periodBooks.push({ id, name: engagement.period, bookName: engagement.mode || 'General ledger', startDate: `${startYear}-01-01`, endDate: `${endYear}-12-31`, ownerEngagementId: engagement.id, status: 'Open' });
+    profile.revision++;
+    for (const existing of this.state.engagements.filter(item => item.client === engagement.client)) { existing.accountingProfileRevision = profile.revision; existing.accountingChartRevision = profile.chartRevision; }
+    engagement.accountingPeriodBookId = id; engagement.accountingProfileRevision = profile.revision; engagement.accountingChartRevision = profile.chartRevision;
+  }
+
   private hasNewerDocumentRevision(documentId: string) {
     return this.state.documents.some(document => document.supersedesDocumentId === documentId);
   }
@@ -233,6 +249,7 @@ class PrototypeStore {
     if (this.state.clients.some(c => c.code.trim().toUpperCase() === normalized)) {
       throw new GuardError('INVALID_STATE', `Duplicate client code "${client.code}". Review the similar-name warning instead of merging distinct legal entities.`);
     }
+    client.accountingProfile ||= { legalEntityName: client.name.trim(), reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
     this.state.clients.push(client);
     this.logEvent(`New client profile created: ${client.name}`, client.id);
     this.notify();
@@ -803,6 +820,7 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', 'Engagements without an accepted proposal require recorded acceptance and terms.');
     }
     if (this.state.engagements.some(e => e.id === eng.id)) throw new GuardError('INVALID_STATE', `Engagement "${eng.id}" already exists.`);
+    this.assignAccountingPeriod(eng);
     this.state.engagements.push(eng);
     this.state.selectedEngagement = eng.id;
     this.logEvent(`New engagement created: ${eng.service} FY${eng.year}`, eng.id);
@@ -1630,6 +1648,44 @@ class PrototypeStore {
   }
 
   // --- Accounting & TB (VP-035, VP-036, VP-038) ---
+  public saveAccountingProfile(clientId: string, input: Omit<ClientAccountingProfile, 'revision' | 'chartRevision' | 'history'>, engagementId: string, periodBookId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'edit accounting setup');
+    requireClientScope(this.state, clientId);
+    const client = this.state.clients.find(item => item.id === clientId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId && item.client === clientId);
+    if (!client || !engagement) throw new GuardError('INVALID_STATE', 'Accounting setup requires an engagement belonging to this client.');
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    const codes = input.accounts.map(account => account.code.trim());
+    if (!input.legalEntityName.trim() || input.reportingBasis === 'Not selected' || !/^[A-Z]{3}$/.test(input.baseCurrency) || !input.accounts.length || new Set(codes).size !== codes.length || input.accounts.some(account => !account.code.trim() || !account.name.trim() || !['asset', 'liability', 'equity', 'revenue', 'expense'].includes(account.type))) throw new GuardError('INVALID_STATE', 'Setup requires a legal entity, reporting basis, three-letter currency and uniquely coded, named chart accounts.');
+    const byCode = new Map(input.accounts.map(account => [account.code, account]));
+    for (const account of input.accounts) {
+      if (account.parentCode && (!byCode.has(account.parentCode) || account.parentCode === account.code || byCode.get(account.parentCode)?.posting)) throw new GuardError('INVALID_STATE', `Invalid chart parent for account ${account.code}.`);
+      let parent = account.parentCode; const seen = new Set([account.code]);
+      while (parent) { if (seen.has(parent)) throw new GuardError('INVALID_STATE', 'Chart hierarchy contains a cycle.'); seen.add(parent); parent = byCode.get(parent)?.parentCode; }
+    }
+    const ids = input.periodBooks.map(book => book.id);
+    if (new Set(ids).size !== ids.length || input.periodBooks.some(book => !book.name.trim() || !book.bookName.trim() || !validDate(book.startDate) || !validDate(book.endDate) || book.startDate > book.endDate || !this.state.engagements.some(item => item.id === book.ownerEngagementId && item.client === clientId))) throw new GuardError('INVALID_STATE', 'Period books need unique IDs, valid ranges and an owner engagement for this client.');
+    const selected = input.periodBooks.find(book => book.id === periodBookId && book.ownerEngagementId === engagementId);
+    if (!selected || selected.status !== 'Open' || input.dimensions.some(d => !d.values.length || new Set(d.values.map(value => value.trim().toLowerCase())).size !== d.values.length || d.values.some(value => !value.trim()))) throw new GuardError('INVALID_STATE', 'Select an open period book for this engagement and use non-empty, unique dimension values.');
+    const previous = client.accountingProfile || { legalEntityName: client.name, reportingBasis: 'Not selected' as const, baseCurrency: engagement.currency || 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
+    if (previous.revision && (engagement.accountingProfileRevision !== previous.revision || engagement.accountingChartRevision !== previous.chartRevision)) throw new GuardError('STALE_REVISION', 'Accounting setup changed; reload before saving.');
+    const chartChanged = JSON.stringify(previous.accounts) !== JSON.stringify(input.accounts);
+    const history = structuredClone(previous.history);
+    if (previous.revision) history.push({ legalEntityName: previous.legalEntityName, reportingBasis: previous.reportingBasis, baseCurrency: previous.baseCurrency, accounts: structuredClone(previous.accounts), periodBooks: structuredClone(previous.periodBooks), dimensions: structuredClone(previous.dimensions), revision: previous.revision, chartRevision: previous.chartRevision, savedAt: new Date().toISOString(), savedByUserId: this.state.currentUserId });
+    const profile: ClientAccountingProfile = { ...structuredClone(input), revision: previous.revision + 1, chartRevision: previous.chartRevision + Number(chartChanged), history };
+    client.accountingProfile = profile;
+    for (const item of this.state.engagements.filter(e => e.client === clientId)) {
+      item.accountingProfileRevision = profile.revision; item.accountingChartRevision = profile.chartRevision;
+      const book = profile.periodBooks.find(b => b.ownerEngagementId === item.id && b.id === (item.id === engagementId ? periodBookId : item.accountingPeriodBookId));
+      if (book) item.accountingPeriodBookId = book.id;
+      if (chartChanged && item.mappingApproved) { item.mappingApproved = false; for (const mapping of this.state.accountMappingRevisions || []) if (mapping.engagementId === item.id && mapping.status === 'Approved') mapping.status = 'Draft'; }
+      this.staleStatementSetRevisions(item.id); this.invalidateReleaseBasis(item);
+    }
+    this.logEvent(`Accounting setup for ${client.name} saved as Rev ${profile.revision}${chartChanged ? ` (chart Rev ${profile.chartRevision})` : ''}`, engagementId);
+    this.notify(); return profile.revision;
+  }
+
   public updateTrialBalanceRows(
     engId: string,
     rows: PrototypeState['engagements'][0]['rows'],
@@ -1640,6 +1696,11 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
+    const client = this.state.clients.find(item => item.id === eng.client);
+    const profile = client?.accountingProfile;
+    const periodBook = profile?.periodBooks.find(book => book.id === eng.accountingPeriodBookId && book.ownerEngagementId === engId);
+    if (source && (!profile || profile.reportingBasis === 'Not selected' || !periodBook || eng.accountingProfileRevision !== profile.revision || eng.accountingChartRevision !== profile.chartRevision)) throw new GuardError('INVALID_STATE', 'Complete or reload the client accounting setup and select this engagement’s period book before importing a trial balance.');
+    if (source && rows.some(row => !profile?.accounts.some(account => account.code === row.code && account.active && account.posting))) throw new GuardError('INVALID_STATE', 'Imported accounts must exist as active posting accounts in the selected chart.');
     if (!Array.isArray(rows) || rows.some(r => !r.code.trim() || !r.name.trim() || !Number.isFinite(r.balance)) || new Set(rows.map(r => r.code.trim())).size !== rows.length) throw new GuardError('INVALID_STATE', 'Trial balance rows require unique account codes, names, and finite balances.');
     if (source && (!source.fileName.trim() || !/^[0-9a-f]{64}$/i.test(source.sha256))) throw new GuardError('INVALID_STATE', 'Imported source requires a file name and SHA-256 digest.');
     if (!eng.sourceHistory) eng.sourceHistory = eng.rows.length ? [{ version: eng.sourceVersion || 1, rows: structuredClone(eng.rows), importedAt: this.state.asOfDate, importedBy: 'Legacy source; import metadata unavailable', format: 'Legacy' }] : [];
@@ -1655,7 +1716,10 @@ class PrototypeStore {
       format: source?.format || 'Manual',
       sha256: source?.sha256,
       mapping: source ? { ...source.mapping } : undefined,
-      predecessorVersion
+      predecessorVersion,
+      accountingProfileRevision: profile?.revision,
+      accountingChartRevision: profile?.chartRevision,
+      periodBookId: periodBook?.id
     });
     for (const rec of eng.reconciliations || []) {
       this.staleReconciliation(rec);
@@ -3499,6 +3563,7 @@ class PrototypeStore {
       questionnaire: { answers: {}, status: 'Not started' },
       events: [{ text: `Fresh period draft linked to ${prior.id}; changed facts recorded`, ref: id, time: new Date().toISOString(), type: 'history' }]
     };
+    this.assignAccountingPeriod(draft);
     this.state.engagements.push(draft);
     caseRecord.changedFacts = changedFacts.trim();
     caseRecord.continuedToEngagementId = id;

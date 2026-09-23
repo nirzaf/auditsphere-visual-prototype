@@ -2345,13 +2345,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
-  it('AT-34: inspects the selected chart, period and currency configuration', async () => {
+  it('AT-34: configures and persists the selected accounting context', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
       await clickButton('Accounting Workbench');
-      const text = await browserTab!.evaluate<string>('document.body.innerText');
-      assert.match(text, /Trial Balance & Intake/);
-      assert.match(text, /QAR/);
+      await clickButton('Accounting Setup');
+      let text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Client accounting context/);
+      assert.match(text, /Chart of accounts/);
+      assert.match(text, /Periods and books/);
+      assert.match(text, /Department/);
+      const before = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).client).accountingProfile.revision`);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('form input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(input,input.value+' AT34');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save Accounting Setup');
+      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);const c=s.clients.find(c=>c.id===e.client);return {profile:c.accountingProfile,engagement:e}})()`);
+      assert.equal(saved.profile.revision, before + 1);
+      assert.equal(saved.profile.history.at(-1).revision, before);
+      assert.match(saved.profile.legalEntityName, /AT34$/);
+      assert.equal(saved.engagement.accountingProfileRevision, saved.profile.revision);
+      assert.ok(saved.profile.periodBooks.some((book: any) => book.id === saved.engagement.accountingPeriodBookId));
+      text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Profile Rev/);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

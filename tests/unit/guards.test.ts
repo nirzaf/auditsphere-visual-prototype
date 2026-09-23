@@ -52,6 +52,31 @@ describe('scope guards (AT-18)', () => {
   });
 });
 
+describe('accounting setup guards (AT-34)', () => {
+  it('versions setup, pins engagement context, and rejects invalid hierarchy and period ranges', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const current = (prototypeStore as any).state as PrototypeState;
+    setPersona(current, 'Layla Rahman');
+    const engagement = current.engagements[0];
+    const client = current.clients.find(item => item.id === engagement.client)!;
+    const profile = structuredClone(client.accountingProfile!);
+    profile.legalEntityName = `${client.name} Holdings`;
+    profile.accounts.push({ code: '9900', name: 'New account', type: 'asset', posting: true, active: true });
+    const book = profile.periodBooks.find(item => item.id === engagement.accountingPeriodBookId)!;
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, periodBooks: profile.periodBooks.map(item => item.id === book.id ? { ...item, endDate: '2025-12-31' } : item) }, engagement.id, book.id), /valid ranges/);
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: profile.accounts.map(item => item.code === '9900' ? { ...item, parentCode: '9900' } : item) }, engagement.id, book.id), /Invalid chart parent|cycle/);
+    const revision = prototypeStore.saveAccountingProfile(client.id, profile, engagement.id, book.id);
+    assert.equal(revision, 2);
+    assert.equal(client.accountingProfile!.history.at(-1)?.revision, 1);
+    assert.equal(engagement.accountingProfileRevision, 2);
+    assert.equal(engagement.accountingChartRevision, 2);
+    const before = engagement.sourceVersion;
+    assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, [{ ...engagement.rows[0], code: '8888' }], { fileName: 'bad.csv', format: 'CSV', sha256: 'b'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net' } }), /active posting accounts/);
+    assert.equal(engagement.sourceVersion, before);
+  });
+});
+
 describe('reconciliation schedules (VP-039)', () => {
   it('pins drafts to the TB source, requires independent review, preserves revisions and stales on source change', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
@@ -125,7 +150,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 19);
+    assert.equal(migrated.schema, 20);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -144,9 +169,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v19 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v20 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 18; version++) {
+    for (let version = 0; version <= 19; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -165,12 +190,17 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 16) delete legacy.workpaperTemplates;
       if (version < 17) legacy.evidenceCatalogue.forEach((item: any) => { delete item.linkedProcedureHistory; delete item.adequacyHistory; });
       if (version < 18) legacy.findings.forEach((item: any) => delete item.dispositionHistory);
+      if (version < 20) {
+        legacy.clients.forEach((client: any) => delete client.accountingProfile);
+        legacy.engagements.forEach((engagement: any) => { delete engagement.accountingPeriodBookId; delete engagement.accountingProfileRevision; delete engagement.accountingChartRevision; engagement.sourceHistory?.forEach((item: any) => { delete item.accountingProfileRevision; delete item.accountingChartRevision; delete item.periodBookId; }); });
+      }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 19, `schema ${version} should reach v19`);
+      assert.equal(migrated.schema, 20, `schema ${version} should reach v20`);
       assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
+      assert.ok(migrated.clients.every(client => Boolean(client.accountingProfile)));
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
       assert.deepEqual(migrated.engagements[0].releases.map(r => r.id), seed.engagements[0].releases.map(r => r.id));
@@ -1534,6 +1564,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(draft.year, prior.year + 1);
     assert.equal(draft.continuanceFromEngagementId, prior.id);
     assert.equal(draft.continuanceNotes, 'Ownership changed; new ERP deployed.');
+    assert.ok(state.clients.find((client: any) => client.id === prior.client).accountingProfile.periodBooks.some((book: any) => book.id === draft.accountingPeriodBookId));
+    assert.equal(draft.accountingProfileRevision, state.clients.find((client: any) => client.id === prior.client).accountingProfile.revision);
     assert.equal(draft.acceptance, false);
     assert.equal(draft.terms, false);
     assert.equal(draft.rows.length, 0);

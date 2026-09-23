@@ -2,11 +2,33 @@
 // 5 Tabs: Trial Balance, General Ledger, Mappings, Adjustments, Reconciliations
 
 import React, { useState } from 'react';
-import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule } from '../../types';
+import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule, ClientAccountingProfile } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
 import { TBImportWizard } from './TBImportWizard';
+
+const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profile?: ClientAccountingProfile }> = ({ clientId, engagementId, profile }) => {
+  const seed: ClientAccountingProfile = profile || { legalEntityName: '', reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
+  const [draft, setDraft] = useState(structuredClone(seed));
+  const [periodId, setPeriodId] = useState(seed.periodBooks.find(book => book.ownerEngagementId === engagementId)?.id || '');
+  const [notice, setNotice] = useState('');
+  const set = (key: keyof ClientAccountingProfile, value: any) => setDraft(current => ({ ...current, [key]: value }));
+  const updateAccount = (index: number, field: string, value: any) => set('accounts', draft.accounts.map((account, i) => i === index ? { ...account, [field]: value } : account));
+  const updateBook = (index: number, field: string, value: any) => set('periodBooks', draft.periodBooks.map((book, i) => i === index ? { ...book, [field]: value } : book));
+  const save = (event: React.FormEvent) => { event.preventDefault(); try { const revision = prototypeStore.saveAccountingProfile(clientId, draft, engagementId, periodId); setNotice(`Accounting setup saved as Rev ${revision}. Dependent mappings and approvals may need review.`); } catch (error) { setNotice(error instanceof Error ? error.message : 'Setup could not be saved.'); } };
+  return <form className="panel panel-pad stack" onSubmit={save}>
+    <div className="between"><div><h3>Client accounting context</h3><p className="sub">Profile Rev {seed.revision} · Chart Rev {seed.chartRevision} · Changes are versioned.</p></div><button className="btn primary sm" type="submit">Save Accounting Setup</button></div>
+    {notice && <p role="status" className="tag blue">{notice}</p>}
+    <div className="grid grid-3"><label>Legal entity<input required value={draft.legalEntityName} onChange={e => set('legalEntityName', e.target.value)} /></label><label>Reporting basis<select value={draft.reportingBasis} onChange={e => set('reportingBasis', e.target.value)}><option>Not selected</option><option>IFRS</option><option>Local GAAP</option><option>Other</option></select></label><label>Base currency<input required maxLength={3} value={draft.baseCurrency} onChange={e => set('baseCurrency', e.target.value.toUpperCase())} /></label></div>
+    <section><div className="between"><h3>Periods and books</h3><button className="btn sm" type="button" onClick={() => { const id = `PB-${crypto.randomUUID()}`; set('periodBooks', [...draft.periodBooks, { id, name: `FY${new Date().getFullYear()}`, bookName: 'General ledger', startDate: `${new Date().getFullYear()}-01-01`, endDate: `${new Date().getFullYear()}-12-31`, ownerEngagementId: engagementId, status: 'Open' }]); setPeriodId(id); }}>Add period/book</button></div>
+      {draft.periodBooks.map((book, i) => <div className="row" key={book.id}><input aria-label="Period name" value={book.name} onChange={e => updateBook(i, 'name', e.target.value)} /><input aria-label="Book name" value={book.bookName} onChange={e => updateBook(i, 'bookName', e.target.value)} /><input aria-label="Period start" type="date" value={book.startDate} onChange={e => updateBook(i, 'startDate', e.target.value)} /><input aria-label="Period end" type="date" value={book.endDate} onChange={e => updateBook(i, 'endDate', e.target.value)} /><select aria-label="Import period book" value={periodId} onChange={e => setPeriodId(e.target.value)}><option value="">Select book</option><option value={book.id}>{book.name} · {book.bookName}</option></select><select aria-label="Period status" value={book.status} onChange={e => updateBook(i, 'status', e.target.value)}><option>Open</option><option>Closed</option></select></div>)}
+    </section>
+    <section><div className="between"><h3>Chart of accounts</h3><button className="btn sm" type="button" onClick={() => set('accounts', [...draft.accounts, { code: '', name: '', type: 'asset', posting: true, active: true }])}>Add account</button></div><div className="tablewrap"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Parent</th><th>Posting</th><th>Active</th></tr></thead><tbody>{draft.accounts.map((account, i) => <tr key={`${account.code}-${i}`}><td><input aria-label="Account code" value={account.code} onChange={e => updateAccount(i, 'code', e.target.value)} /></td><td><input aria-label="Account name" value={account.name} onChange={e => updateAccount(i, 'name', e.target.value)} /></td><td><select aria-label="Account type" value={account.type} onChange={e => updateAccount(i, 'type', e.target.value)}>{['asset','liability','equity','revenue','expense'].map(type => <option key={type}>{type}</option>)}</select></td><td><select aria-label="Account parent" value={account.parentCode || ''} onChange={e => updateAccount(i, 'parentCode', e.target.value || undefined)}><option value="">None</option>{draft.accounts.filter(item => item.code !== account.code).map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></td><td><input aria-label="Posting account" type="checkbox" checked={account.posting} onChange={e => updateAccount(i, 'posting', e.target.checked)} /></td><td><input aria-label="Active account" type="checkbox" checked={account.active} onChange={e => updateAccount(i, 'active', e.target.checked)} /></td></tr>)}</tbody></table></div></section>
+    <section><h3>Dimensions</h3>{(['Department','Cost centre','Project'] as const).map(name => { const dimension = draft.dimensions.find(item => item.name === name); return <label key={name} className="block">{name}<input aria-label={`${name} values`} value={dimension?.values.join(', ') || ''} placeholder="Optional values, comma separated" onChange={e => { const dimensions = draft.dimensions.filter(item => item.name !== name); if (e.target.value.trim()) dimensions.push({ id: name.toLowerCase().replace(' ', '-'), name, values: e.target.value.split(',').map(value => value.trim()).filter(Boolean), active: true }); set('dimensions', dimensions); }} /></label>; })}</section>
+    {seed.history.length > 0 && <details><summary>Previous revisions ({seed.history.length})</summary>{seed.history.map(history => <p key={`${history.revision}-${history.savedAt}`}>Rev {history.revision} · Chart Rev {history.chartRevision} · {history.savedAt}</p>)}</details>}
+  </form>;
+};
 
 interface AccountingWorkbenchViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -14,7 +36,7 @@ interface AccountingWorkbenchViewProps {
 
 export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations'>('tb');
+  const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations' | 'setup'>('tb');
   const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
   const [recDraft, setRecDraft] = useState<ReconciliationSchedule | null>(null);
   const [recNotice, setRecNotice] = useState('');
@@ -131,7 +153,10 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         <button className={`tab-btn ${activeTab === 'reconciliations' ? 'active' : ''}`} onClick={() => setActiveTab('reconciliations')}>
           Reconciliations ({selectedEng.reconciliations.length})
         </button>
+        <button className={`tab-btn ${activeTab === 'setup' ? 'active' : ''}`} onClick={() => setActiveTab('setup')}>Accounting Setup</button>
       </div>
+
+      {activeTab === 'setup' && <AccountingSetup key={`${client?.id}-${selectedEng.id}`} clientId={selectedEng.client} engagementId={selectedEng.id} profile={client?.accountingProfile} />}
 
       {/* Tab 1: Trial Balance */}
       {activeTab === 'tb' && (

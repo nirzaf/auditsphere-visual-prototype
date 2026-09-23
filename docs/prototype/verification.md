@@ -363,3 +363,15 @@ URL and `https://prototype.steaudit.com` returned HTTP 200 and served
 `a286b81a60b3dcbd5f1d89a90c0c5a083c64b1c9591f8a9664a24fb59e69edcd`), containing
 the engagement details editor. Overall acceptance remains Partial: 36 modules
 and 61 stories still require complete criterion-by-criterion evidence.
+VP-034 implementation follow-up: added client accounting profiles and guarded
+versioned setup for legal entity, reporting basis, currency, chart hierarchy,
+open/closed period books and bounded dimensions. Engagements pin profile/chart
+revisions and period books; continuance and new engagement paths get a period
+record. Chart edits clear mapping approval and invalidate dependent statement
+and release state. The import wizard displays context, and imported account
+codes must be active posting accounts in the selected open book. Schema v20
+migrates legacy TB rows into chart and period records and leaves legacy history
+explicitly unpinned. Unit checks passed 139/139; full build and Chrome acceptance
+passed 58/58, including AT-34 edit/save/reload and version history. The existing
+large-bundle advisory remains. This slice does not complete the other accounting
+mapping/statement journey criteria; Module 20 remains Partial.

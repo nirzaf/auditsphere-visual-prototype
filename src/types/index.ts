@@ -155,6 +155,48 @@ export interface ClientRecord {
   notes?: string;
   customFields?: Record<string, string | number>;
   relationshipGroupId?: string;
+  accountingProfile?: ClientAccountingProfile;
+}
+
+export interface AccountingChartAccount {
+  code: string;
+  name: string;
+  type: TrialBalanceRow['type'];
+  parentCode?: string;
+  posting: boolean;
+  active: boolean;
+}
+
+export interface AccountingPeriodBook {
+  id: string;
+  name: string;
+  bookName: string;
+  startDate: string;
+  endDate: string;
+  ownerEngagementId: string;
+  status: 'Open' | 'Closed';
+}
+
+export interface AccountingDimension {
+  id: string;
+  name: 'Department' | 'Cost centre' | 'Project';
+  values: string[];
+  active: boolean;
+}
+
+export interface AccountingProfileSnapshot {
+  legalEntityName: string;
+  reportingBasis: 'Not selected' | 'IFRS' | 'Local GAAP' | 'Other';
+  baseCurrency: string;
+  accounts: AccountingChartAccount[];
+  periodBooks: AccountingPeriodBook[];
+  dimensions: AccountingDimension[];
+}
+
+export interface ClientAccountingProfile extends AccountingProfileSnapshot {
+  revision: number;
+  chartRevision: number;
+  history: Array<AccountingProfileSnapshot & { revision: number; chartRevision: number; savedAt: string; savedByUserId: string }>;
 }
 
 // Module 03: Leads & Opportunities
@@ -293,6 +335,9 @@ export interface EngagementRecord {
   continuanceCaseId?: string;
   continuanceNotes?: string;
   client: string;
+  accountingPeriodBookId?: string;
+  accountingProfileRevision?: number;
+  accountingChartRevision?: number;
   service: string;
   stage: string;
   lifecycleStatus?: 'Active' | 'Suspended' | 'Cancelled' | 'Closed';
@@ -326,6 +371,9 @@ export interface EngagementRecord {
     sha256?: string;
     mapping?: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit' };
     predecessorVersion?: number;
+    accountingProfileRevision?: number;
+    accountingChartRevision?: number;
+    periodBookId?: string;
   }>;
   packageHistory?: FinancialPackageRevision[];
   eqrRequired: boolean;
