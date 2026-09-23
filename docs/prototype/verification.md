@@ -40,6 +40,8 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 106/106, 25 suites | AT-14 rejects a client persona as a job mention recipient and records an eligible staff mention locally. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 27/27 | AT-14 saves and displays an internal job note to staff, then switches to the client portal and confirms the note is absent. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 28/28 | AT-27 records a manually received meeting note as Internal and verifies it is absent from the scoped client portal messages. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 106/106, 25 suites | No unit behavior changed in this increment. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 29/29 | Five static checks and 24 actual Chrome checks. AT-26 resolves client/contact/request/date placeholders, records each selected accepted/failed/unknown outcome once, and detects no external HTTP(S) mail request. |
 | 2026-09-23 | `8eed12e` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `dd704f82-1a24-40b3-90f0-6cd5dfe02ca5`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-C0d5PfYS.js`. |
 | 2026-09-23 | `cabe09a` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `8af7da76-b424-4d46-9ca5-822de6748697`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-Bk0-Z_4X.js` with scoped internal notes and mentions. |
 | 2026-09-23 | `6f9441d` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `b045b304-3f94-4c23-b065-cdc6d546e6e0`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-vTNLMhnj.js`. |
@@ -71,6 +73,11 @@ accepted replacements retain predecessor rows and source identities.
 The AT-23/24 journey creates and presents a request, hides its draft from the
 client, records two client-file versions around a client-visible clarification,
 then accepts the replacement separately.
+The AT-26 journey selects the PBC request template and confirms all placeholders
+resolve in the subject/body. It records accepted, failed and unknown outcomes
+as separate local communication records and confirms the sends create no
+external HTTP(S) request. Acceptance remains simulation only; actual delivery,
+recipient validation and retry policy remain outside this verified slice.
 
 ## Acceptance status
 

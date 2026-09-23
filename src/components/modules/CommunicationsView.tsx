@@ -210,7 +210,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                     value={simulationOutcome}
                     onChange={e => setSimulationOutcome(e.target.value as any)}
                   >
-                    <option value="Simulated accepted">Simulated accepted (Delivered to inbox)</option>
+                    <option value="Simulated accepted">Simulated accepted (delivery not verified)</option>
                     <option value="Simulated failed">Simulated failed (Mailbox full / bounce)</option>
                     <option value="Outcome unknown">Outcome unknown (Pending queue)</option>
                   </select>

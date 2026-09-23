@@ -645,6 +645,28 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-26: resolves a mail template and records accepted, failed, and unknown outcomes locally', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Team & Client Comms'));if(!b)throw Error('Missing communications route');b.click();})()`);
+    const initialCount = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`);
+    for (const [outcome, expected] of [['Simulated accepted', 'Simulated accepted'], ['Simulated failed', 'Simulated failed'], ['Outcome unknown', 'Outcome unknown']] as const) {
+      await clickButton('Compose Simulated Email');
+      await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Email Template'));const select=label.parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'TPL-EM-01');select.dispatchEvent(new Event('change',{bubbles:true}));const outcome=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Simulated Delivery Outcome')).parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(outcome,${JSON.stringify(outcome)});outcome.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const rendered = await browserTab!.evaluate<any>(`(() => {const m=document.querySelector('.modal-backdrop');return {subject:m.querySelector('input[type=text]').value,body:m.querySelector('textarea').value};})()`);
+      assert.match(rendered.subject, /Example Trading Entity/, 'client placeholder resolves in subject');
+      assert.match(rendered.body, /Omar Nasser/, 'contact placeholder resolves in body');
+      assert.doesNotMatch(`${rendered.subject}\n${rendered.body}`, /\{client_name\}|\{client_contact\}|\{request_title\}|\{due_date\}/, 'no unresolved template placeholders');
+      await clickButton('Simulate Send');
+    }
+    const saved = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.slice(0,3)`);
+    assert.equal(saved.length, 3);
+    assert.deepEqual(saved.map((item: any) => item.status).sort(), ['Outcome unknown', 'Simulated accepted', 'Simulated failed']);
+    assert.equal(new Set(saved.map((item: any) => item.id)).size, 3, 'each explicit simulation has one unique record');
+    assert.ok(saved.every((item: any) => item.direction === 'Outbound' && item.visibility === 'Client visible'));
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount + 3, 'no automatic retry or duplicate record');
+    assert.deepEqual(browserTab!.requests.filter(url => /^https?:/.test(url) && !url.startsWith(baseUrl)), [], 'simulated send makes no external mail request');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
