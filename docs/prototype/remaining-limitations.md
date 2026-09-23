@@ -14,9 +14,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
-  billable time at its pinned rate, and the store reserves each time source once
-  to prevent duplicate billing. Fixed-service source/milestone billing and the
-  related acceptance paths remain incomplete.
+  billable time at its pinned rate and accepted fixed-fee proposal balance. Time
+  sources are reserved once, and fixed-fee invoices cannot exceed the accepted
+  contract balance. Fixed-fee caps are proposal-level; per-service milestone
+  allocation remains unmodeled.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
   authorized staff mention stay absent from the client portal. Comment editing,
   moderation and recipient-specific notification browsing remain incomplete.
@@ -108,9 +109,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 108/108 unit checks and 34/34 E2E checks passed. E2E
+Latest recorded run: 109/109 unit checks and 34/34 E2E checks passed. E2E
 includes five static checks and 29 actual Chrome checks. It exercises the
-approved-time invoice source path alongside selected workflow journeys; the
+approved-time and accepted fixed-fee invoice source paths alongside selected
+workflow journeys; the
 full AT-01–AT-54 suite has not run, and route rendering is not full workflow
 acceptance. See `verification.md`; earlier counts in this repository are
 historical.

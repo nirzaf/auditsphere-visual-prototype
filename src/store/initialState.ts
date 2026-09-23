@@ -808,7 +808,7 @@ export function createInitialState(): PrototypeState {
         issueDate: '2026-09-01',
         preparedBy: 'Leila Hassan',
         lines: [
-          { id: 'IL-01', description: 'Statutory audit kickoff and interim procedures', quantity: 1, rate: 300000, amount: 300000, sourceType: 'Fixed service' }
+          { id: 'IL-01', description: 'Statutory audit kickoff and interim procedures', quantity: 1, rate: 300000, amount: 300000, sourceType: 'Fixed service', sourceId: 'PROP-001:PI-01:r2' }
         ],
         commercialApproval: { by: 'Layla Rahman', at: '2026-08-30', basis: 'Contractual agreed milestone' }
       },
@@ -826,7 +826,7 @@ export function createInitialState(): PrototypeState {
         issueDate: '2026-08-01',
         preparedBy: 'Leila Hassan',
         lines: [
-          { id: 'IL-02', description: 'Fieldwork completion and draft reporting candidate', quantity: 1, rate: 200000, amount: 200000, sourceType: 'Fixed service' }
+          { id: 'IL-02', description: 'Fieldwork completion and draft reporting candidate', quantity: 1, rate: 200000, amount: 200000, sourceType: 'Fixed service', sourceId: 'PROP-001:PI-01:r2' }
         ],
         commercialApproval: { by: 'Layla Rahman', at: '2026-07-31', basis: 'Approved milestone' }
       },

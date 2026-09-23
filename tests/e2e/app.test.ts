@@ -780,6 +780,17 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(result.time.billedInvoiceId, result.invoice.id);
     await clickButton('Draft New Invoice');
     assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('.modal-backdrop label')].some(x=>x.innerText.includes('Bank reconciliations & circularisations'))`), false, 'reserved time source must disappear from future draft choices');
+    const fixedSelected = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Accepted fixed-fee services'));const input=label?.querySelector('input[type=checkbox]');if(!input)return false;input.click();return input.checked;})()`);
+    assert.equal(fixedSelected, true, 'remaining accepted proposal service balance should be selectable');
+    assert.equal(await waitForBrowser('document.querySelector(".modal-backdrop input[type=number]")?.value === "100000"'), true, `historical source invoices should reduce the fixed-fee balance to QAR 100,000; state=${await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.proposals.find(x=>x.id==='PROP-001');return JSON.stringify({proposal:p?.items.filter(i=>i.feeModel==='Fixed').reduce((a,i)=>a+i.amount,0),fixed:s.invoices.filter(i=>i.clientId==='CL-001'&&(i.engagementId||i.eng)==='ENG-26001'&&i.status!=='Cancelled').flatMap(i=>i.lines).filter(l=>l.sourceType==='Fixed service').map(l=>l.amount),invoiceAmounts:s.invoices.map(i=>[i.invoiceNumber,i.amount,i.status])});})()` )}`);
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=text]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'INV-AT30S');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Create Draft');
+    const fixed = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.invoiceNumber==='INV-AT30S')`);
+    assert.equal(fixed.amount, 100000);
+    assert.equal(fixed.lines[0].sourceType, 'Fixed service');
+    assert.equal(fixed.lines[0].sourceId, 'proposal:PROP-001:r2');
+    await clickButton('Draft New Invoice');
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('.modal-backdrop label')].some(x=>x.innerText.includes('Accepted fixed-fee services'))`), false, 'fully consumed accepted proposal balance must disappear from future draft choices');
     await clickButton('Cancel');
     assert.deepEqual(browserTab!.exceptions, []);
   });

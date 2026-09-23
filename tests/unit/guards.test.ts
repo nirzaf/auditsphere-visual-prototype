@@ -409,6 +409,19 @@ describe('money guards (AT-30/31/32)', () => {
     assert.equal(source.billedInvoiceId, invoice.id, 'a duplicate attempt cannot move the reservation');
   });
 
+  it('VP-030 caps fixed-service billing at the unbilled accepted proposal balance', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    setPersona(isolated, 'Leila Hassan');
+    isolated.currentRole = 'billing';
+    const line = { id: 'LINE-FIXED-01', description: 'Accepted proposal fixed-fee services', quantity: 1, rate: 100000, amount: 100000, sourceType: 'Fixed service' as const, sourceId: 'proposal:PROP-001:r2' };
+    const invoice = { id: 'INV-FIXED-01', clientId: 'CL-001', eng: 'ENG-26001', engagementId: 'ENG-26001', invoiceNumber: 'INV-FIXED-01', description: 'Remaining accepted fee', amount: 100000, paid: 0, currency: 'QAR', status: 'Draft' as const, due: '2026-10-31', preparedBy: 'Leila Hassan', lines: [line] };
+    prototypeStore.addInvoice(invoice);
+    assert.equal(isolated.invoices.find(item => item.id === invoice.id)?.lines[0].sourceId, 'proposal:PROP-001:r2');
+    assert.throws(() => prototypeStore.addInvoice({ ...invoice, id: 'INV-FIXED-02', invoiceNumber: 'INV-FIXED-02' }), /remaining accepted proposal balance of 0/);
+  });
+
   it('rejects over-allocation and cross-client allocation atomically', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();

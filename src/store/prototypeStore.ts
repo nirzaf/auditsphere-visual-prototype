@@ -954,6 +954,19 @@ class PrototypeStore {
       if (this.state.invoices.some(existing => existing.lines.some(existingLine => existingLine.sourceType === 'Time entry' && existingLine.sourceId === time.id))) throw new GuardError('INVALID_STATE', `Time source "${time.id}" has already been consumed by an invoice.`);
       return time;
     });
+    const fixedLines = inv.lines.filter(line => line.sourceType === 'Fixed service');
+    const fixedSourceIds = fixedLines.map(line => line.sourceId);
+    if (fixedSourceIds.some(id => !id) || new Set(fixedSourceIds).size > 1) throw new GuardError('INVALID_STATE', 'Fixed-service invoice lines must reference one accepted proposal revision.');
+    if (fixedLines.length) {
+      const sourceId = fixedSourceIds[0]!;
+      const proposal = this.state.proposals.find(p => sourceId === `proposal:${p.id}:r${p.revision}` && p.state === 'Accepted' && p.items.some(item => item.feeModel === 'Fixed'));
+      const engagement = this.state.engagements.find(e => e.id === (inv.engagementId || inv.eng) && e.proposalId === proposal?.id && e.client === inv.clientId && e.acceptance && e.terms);
+      if (!proposal || !engagement || proposal.currency !== inv.currency) throw new GuardError('FORBIDDEN_SCOPE', 'Fixed-service billing must match an accepted proposal revision, engagement, client and currency.');
+      const contracted = proposal.items.filter(item => item.feeModel === 'Fixed').reduce((sum, item) => sum + item.amount, 0);
+      const previouslyBilled = this.state.invoices.filter(existing => existing.id !== inv.id && (existing.engagementId || existing.eng) === engagement.id && existing.clientId === inv.clientId && existing.status !== 'Cancelled').flatMap(existing => existing.lines).filter(line => line.sourceType === 'Fixed service').reduce((sum, line) => sum + line.amount, 0);
+      const requested = fixedLines.reduce((sum, line) => sum + line.amount, 0);
+      if (fixedLines.some(line => !isValidMoney(line.amount)) || previouslyBilled + requested > contracted + 0.005) throw new GuardError('INVALID_STATE', `Fixed-service billing exceeds the remaining accepted proposal balance of ${Math.max(0, contracted - previouslyBilled)} ${proposal.currency}.`);
+    }
     this.state.invoices.push(inv);
     timeSources.forEach(time => { time.billedInvoiceId = inv.id; });
     this.logEvent(`Invoice draft created: ${inv.invoiceNumber}`, inv.id);

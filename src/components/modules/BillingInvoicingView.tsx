@@ -1,6 +1,6 @@
 // Module 14: Invoicing, Billing & Credit Notes (VP-030, VP-031)
 import React, { useState } from 'react';
-import { RouteKey, InvoiceRecord, CreditNoteRecord } from '../../types';
+import { RouteKey, InvoiceRecord, InvoiceLineItem, CreditNoteRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
@@ -14,6 +14,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const state = prototypeStore.getSnapshot();
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedTimeSourceIds, setSelectedTimeSourceIds] = useState<string[]>([]);
+  const [selectedFixedServiceSource, setSelectedFixedServiceSource] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -38,13 +39,20 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     time.currency === selectedEngagement?.currency && Number.isFinite(time.billingRatePerHour) && (time.billingRatePerHour || 0) > 0 &&
     !invoices.some(invoice => invoice.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === time.id))
   );
+  const acceptedProposal = state.proposals.find(proposal => proposal.id === selectedEngagement?.proposalId && proposal.state === 'Accepted' && proposal.items.some(item => item.feeModel === 'Fixed'));
+  const fixedServiceTotal = acceptedProposal?.items.filter(item => item.feeModel === 'Fixed').reduce((sum, item) => sum + item.amount, 0) || 0;
+  const fixedServiceBilled = invoices.filter(invoice => invoice.clientId === client?.id && (invoice.engagementId || invoice.eng) === selectedEngagement?.id && invoice.status !== 'Cancelled').flatMap(invoice => invoice.lines).filter(line => line.sourceType === 'Fixed service').reduce((sum, line) => sum + line.amount, 0);
+  const fixedServiceRemaining = Math.max(0, fixedServiceTotal - fixedServiceBilled);
+  const fixedServiceSourceId = acceptedProposal ? `proposal:${acceptedProposal.id}:r${acceptedProposal.revision}` : '';
   const selectedTimeSources = availableTimeSources.filter(time => selectedTimeSourceIds.includes(time.id));
-  const sourcedTotal = Math.round(selectedTimeSources.reduce((sum, time) => sum + time.durationMinutes / 60 * (time.billingRatePerHour || 0), 0) * 100) / 100;
+  const selectedFixedService = selectedFixedServiceSource && fixedServiceRemaining > 0;
+  const sourcedTotal = Math.round((selectedTimeSources.reduce((sum, time) => sum + time.durationMinutes / 60 * (time.billingRatePerHour || 0), 0) + (selectedFixedService ? fixedServiceRemaining : 0)) * 100) / 100;
+  const hasSources = selectedTimeSources.length > 0 || selectedFixedService;
 
   const handleCreateDraft = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const lines = selectedTimeSources.length
+    const lines: InvoiceLineItem[] = selectedTimeSources.length
       ? selectedTimeSources.map(time => ({
         id: `LINE-${time.id}`,
         description: `${time.date} · ${time.taskTitle} · ${time.person}`,
@@ -54,7 +62,17 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
         sourceType: 'Time entry' as const,
         sourceId: time.id
       }))
-      : [{ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' as const }];
+      : [];
+    if (selectedFixedService && acceptedProposal) lines.push({
+      id: `LINE-${fixedServiceSourceId}`,
+      description: `Accepted fixed-fee services · ${acceptedProposal.items.filter(item => item.feeModel === 'Fixed').map(item => item.serviceName).join(', ')}`,
+      quantity: 1,
+      rate: fixedServiceRemaining,
+      amount: fixedServiceRemaining,
+      sourceType: 'Fixed service' as const,
+      sourceId: fixedServiceSourceId
+    });
+    if (lines.length === 0) lines.push({ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' as const });
 
     const newInv: InvoiceRecord = {
       id: `INV-${Date.now().toString().slice(-4)}`,
@@ -62,8 +80,8 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       eng: state.selectedEngagement,
       engagementId: state.selectedEngagement,
       invoiceNumber: invNumber,
-      description: selectedTimeSources.length ? `Approved time billing · ${selectedTimeSources.length} entries` : description,
-      amount: selectedTimeSources.length ? sourcedTotal : amount,
+      description: hasSources ? `Approved source billing · ${lines.length} lines` : description,
+      amount: hasSources ? sourcedTotal : amount,
       paid: 0,
       creditsApplied: 0,
       currency,
@@ -77,6 +95,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     try {
       prototypeStore.addInvoice(newInv);
       setSelectedTimeSourceIds([]);
+      setSelectedFixedServiceSource(false);
       setShowDraftModal(false);
     } catch (err: any) {
       setNotice({ type: 'error', text: err.message });
@@ -315,7 +334,11 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                       <b>{formatCurrency(time.durationMinutes / 60 * (time.billingRatePerHour || 0), time.currency || 'QAR')}</b>
                     </label>
                   ))}
-                  {selectedTimeSources.length > 0 && <div className="caption">Selected sources will be reserved by this draft and cannot be billed twice. Total: <b>{formatCurrency(sourcedTotal, selectedTimeSources[0].currency || 'QAR')}</b></div>}
+                  {acceptedProposal && fixedServiceRemaining > 0 && <label className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+                    <span><input type="checkbox" checked={selectedFixedService} onChange={e => setSelectedFixedServiceSource(e.target.checked)} /> Accepted fixed-fee services · proposal {acceptedProposal.id} v{acceptedProposal.revision}</span>
+                    <b>{formatCurrency(fixedServiceRemaining, acceptedProposal.currency)}</b>
+                  </label>}
+                  {hasSources && <div className="caption">Sources are pinned to this draft; duplicate or over-contract billing is rejected. Total: <b>{formatCurrency(sourcedTotal, selectedTimeSources[0]?.currency || acceptedProposal?.currency || currency)}</b></div>}
                 </fieldset>
                 <div className="grid2">
                   <div>
@@ -354,9 +377,9 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   <input
                     type="number"
                     className="input"
-                    value={selectedTimeSources.length ? sourcedTotal : amount}
+                    value={hasSources ? sourcedTotal : amount}
                     onChange={e => setAmount(Number(e.target.value))}
-                    readOnly={selectedTimeSources.length > 0}
+                    readOnly={hasSources}
                     required
                   />
                 </div>
