@@ -520,6 +520,17 @@ export function calculateConsolidatedBalanceSheet(
   subRows: TrialBalanceRow[],
   eliminations: any[]
 ) {
+  // Carry each component's current-period result into equity for the
+  // consolidated balance sheet; income-statement balances stay untouched.
+  const includeCurrentPeriodResult = (rows: TrialBalanceRow[]) => {
+    const result = rows.filter(row => row.type === 'revenue' || row.type === 'expense')
+      .reduce((sum, row) => sum + row.balance, 0);
+    return rows.some(row => row.type === 'revenue' || row.type === 'expense')
+      ? [...rows, { code: 'CURRENT_PERIOD_RESULT', name: 'Current period result', type: 'equity' as const, balance: result }]
+      : rows;
+  };
+  parentRows = includeCurrentPeriodResult(parentRows);
+  subRows = includeCurrentPeriodResult(subRows);
   const allCodes = Array.from(new Set([...parentRows.map(r => r.code), ...subRows.map(r => r.code)]));
 
   let parentAssets = 0;

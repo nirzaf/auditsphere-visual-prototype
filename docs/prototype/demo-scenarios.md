@@ -51,6 +51,8 @@ visible, never plugged (unit-tested).
 3. These presenter steps are not all automated or fully accepted journeys.
    The current Chrome suite directly exercises shell/scope, M365 setup and
    recovery, identity mapping vs grant separation, staff route rendering, fresh
-   annual continuance, generated financial package persistence, reporting
-   catalogue and browser storage recovery. It does not establish completion of
-   the remaining journeys in §8 of `Gap_Closure_User_Stories.md`.
+   annual continuance, generated package/release/amendment/archive, all 16 report
+   views and their CSV headers, filtered report export scoping, the configured
+   consolidation perimeter/elimination/balance, and browser storage recovery.
+   It does not establish completion of the remaining journeys in §8 of
+   `Gap_Closure_User_Stories.md`.

@@ -156,6 +156,22 @@ describe('consolidation fixed example (AT-42)', () => {
     assert.equal(parent[0].balance, 5000);
     assert.equal(sub[0].balance, 1000);
   });
+
+  it('includes component current-period results in consolidated equity without changing source rows', () => {
+    const parent: TrialBalanceRow[] = [
+      { code: '1000', name: 'Cash', type: 'asset', balance: 1000 },
+      { code: '2000', name: 'Payables', type: 'liability', balance: -200 },
+      { code: '3000', name: 'Equity', type: 'equity', balance: -500 },
+      { code: '4000', name: 'Revenue', type: 'revenue', balance: -400 },
+      { code: '5000', name: 'Expenses', type: 'expense', balance: 100 }
+    ];
+    const sourceBefore = structuredClone(parent);
+    const out = calculateConsolidatedBalanceSheet(parent, [], []);
+    assert.equal(out.totalAssets, 1000);
+    assert.equal(out.totalLiabilities + out.totalEquity, 1000);
+    assert.equal(out.isBalanced, true);
+    assert.deepEqual(parent, sourceBefore);
+  });
 });
 
 describe('materiality math (AT-44)', () => {

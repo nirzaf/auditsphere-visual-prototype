@@ -13,17 +13,21 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   duplicate-delivery and all release edge paths remain unverified.
 - **R08 — accounting history:** imported trial-balance snapshots and mapping/source
   metadata are retained by revision. The complete adjustment-to-report pipeline
-  and all reporting acceptance journeys remain unverified.
+  remains unverified. Chrome now opens all 16 practice reports and inspects CSV
+  structure, with a filtered client export checked for cross-client leakage.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
-  full group workflows against reordered and missing components have not been run.
+  Chrome now verifies the configured group, approved elimination, balanced output
+  and source-TB immutability. Perimeter edits, missing-component recovery, and
+  non-base-currency translation workflows remain unverified.
 - **R10 — migration/recovery:** migrations from schema versions 0–8 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
-  package persistence/release/amendment/archive, reporting catalogue and storage recovery journeys. Complete
-  AT-01–AT-54 have not been executed. Invitation/access history, AML/KYC evidence,
-  procedures/sampling, report behavior and other full acceptance paths still need
-  direct evidence. Package sections, ordering and notes now persist by revision.
+  package persistence/release/amendment/archive, the full report catalogue and
+  storage recovery journeys. Complete AT-01–AT-54 have not been executed.
+  Invitation/access history, AML/KYC evidence, procedures/sampling, report data
+  reconciliation and other full acceptance paths still need direct evidence.
+  Package sections, ordering and notes now persist by revision.
 - **R14 — archive integrity:** release metadata indexes and handover records are
   available, but source bytes are not preserved as an immutable archive. Retention
   dates are optional metadata; there is no physical archive lock.
@@ -37,8 +41,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 96/96 unit checks and 14/14 E2E checks passed. E2E is five
-static checks plus nine actual Chrome checks, including rendering all 31 staff
+Latest recorded run: 97/97 unit checks and 15/15 E2E checks passed. E2E is five
+static checks plus ten actual Chrome checks, including rendering all 31 staff
 navigation routes and selected workflow journeys. Route rendering is not full
 workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.

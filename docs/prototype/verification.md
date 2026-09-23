@@ -17,9 +17,9 @@ This working-tree change has not yet been committed or deployed.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | working tree based on `5ec7cd9` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (557 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | working tree based on `5ec7cd9` | `npm run test:unit` | PASS — 96/96, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions and artifact/package checks. These verify selected deterministic rules, not all UI journeys. |
-| 2026-09-23 | working tree based on `5ec7cd9` | `npm run test:e2e` | PASS — 14/14 | Five static checks and nine real Chrome checks. Chrome exercised M365 configuration, recovery and workspace setup; identity mapping vs scoped grants; persona scoping; all staff routes; partner-approved annual continuance into a clean draft; generated package bytes and digests across reload; scoped reporting; storage conflict preservation and quota failure messaging. |
+| 2026-09-23 | working tree based on `53bf67c` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (557 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | working tree based on `53bf67c` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
+| 2026-09-23 | working tree based on `53bf67c` | `npm run test:e2e` | PASS — 15/15 | Five static checks and ten real Chrome checks. Reporting opens all 16 views, checks tables/CSV headers and client export scoping. Consolidation checks pinned snapshots, approved QAR 50,000 elimination, balanced totals and unchanged source TB. Other paths exercise M365 setup/recovery, scoped grants, staff routes, annual continuance, artifact-bound release/amendment/archive, and storage conflict/quota behavior. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
@@ -27,6 +27,11 @@ network policy for every possible UI state. The AT-41/42/48 browser journey now
 also exercises manager, management and partner approvals, exact artifact-bound
 release, amendment generation reset, predecessor manifest preservation, and
 archive indexing with an unspecified optional retention date.
+The AT-49/60 report journey checks every catalogue entry and exported CSV
+structure, with explicit cross-client leakage checks on a filtered export.
+The AT-43/44/45 journey checks the configured group perimeter, local currency
+rates, approved elimination, balanced output and source-TB immutability. It does
+not cover perimeter edits, missing-component recovery or non-base-currency rates.
 
 ## Acceptance status
 

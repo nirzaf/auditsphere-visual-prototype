@@ -579,20 +579,68 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('AT-49: exposes the scoped report catalogue and as-of report context', async () => {
+  it('AT-49/60: validates every practice report, client scoping, and exported CSV rows', async () => {
     await clickButton('Report Centre');
     assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
-    const labels = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("#practice-report option")].map(o => o.textContent.trim())');
-    for (const report of ['Clients and engagements', 'Jobs by status and due date', 'Tasks by status and overdue', 'Outstanding PBC', 'Approved time by person and billing class', 'Budget variance', 'Invoice register', 'Credit register', 'Receipt register', 'Accounts receivable aging', 'Audit findings', 'Review-point status', 'Package readiness']) assert.ok(labels.includes(report), `report catalogue is missing ${report}`);
-    const changed = await browserTab!.evaluate<boolean>(`(() => {
+    await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; })()`);
+    const reports = await browserTab!.evaluate<Array<{ value: string; label: string }>>('[...document.querySelectorAll("#practice-report option")].map(o => ({ value: o.value, label: o.textContent.trim() }))');
+    assert.equal(reports.length, 16, 'VP-060 report catalogue count');
+    for (const report of reports) {
+      await browserTab!.evaluate(`(() => {
       const select = document.querySelector('#practice-report');
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'ar');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(report.value)});
       select.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     })()`);
-    assert.equal(changed, true);
-    assert.equal(await waitForBrowser('document.body.innerText.includes("Accounts receivable aging") && document.body.innerText.includes("As of 2026-09-23")'), true);
+      assert.equal(await waitForBrowser(`document.querySelector('#practice-report')?.value === ${JSON.stringify(report.value)}`), true);
+      const visible = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.ok(visible.includes(report.label), `report view is not visible: ${report.label}`);
+      const headers = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("table thead th")].map(x => x.innerText.trim())');
+      assert.ok(headers.length >= 4, `${report.label} should render a populated report table`);
+      if (report.value === 'ar') assert.match(visible, /As of 2026-09-23/);
+      await clickButton('Export Active Report (CSV)');
+      const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
+      assert.ok(csv.split('\n')[0].split(',').length >= 4, `${report.label} export should include report columns`);
+    }
+
+    await browserTab!.evaluate(`(() => {
+      const client = document.querySelector('#report-client-filter');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
+      client.dispatchEvent(new Event('change', { bubbles: true }));
+      const report = document.querySelector('#practice-report');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(report, 'clients');
+      report.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services")'), true);
+    const rows = await browserTab!.evaluate<string[]>('[...document.querySelectorAll(".tablewrap tbody tr")].map(r => r.innerText)');
+    assert.ok(rows.length > 0);
+    assert.ok(rows.every(row => row.includes('CL-002') || row.includes('Northstar Services')), `client filter leaked another entity: ${rows.join(' | ')}`);
+    await clickButton('Export Active Report (CSV)');
+    const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
+    assert.match(csv, /Northstar Services/);
+    assert.doesNotMatch(csv, /Example Trading Entity|Meridian Manufacturing/);
     assert.equal(browserTab!.exceptions.length, 0);
+  });
+
+  it('AT-43/44/45: reviews pinned consolidation snapshots and approved eliminations without changing source TBs', async () => {
+    const sourceBefore = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
+    await clickButton('Group Consolidation');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
+    await clickButton('Group Perimeter & Pinned Packages (2)');
+    const perimeter = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(perimeter, /Example Trading Entity/);
+    assert.match(perimeter, /Northstar Services/);
+    assert.match(perimeter, /Pinned snapshot/);
+    await clickButton('Intercompany Eliminations (1)');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Elimination of Intercompany Management Fee/);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /50,000/);
+    await clickButton('Consolidated Balance Sheet Grid');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Equation Satisfied \(Net Zero\)/);
+    await clickButton('Currency Translation (FX)');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Stored group rates translate the pinned component snapshots/);
+    const sourceAfter = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
+    assert.equal(sourceAfter, sourceBefore, 'consolidation review must not mutate component trial balances');
+    assert.deepEqual(browserTab!.exceptions, []);
   });
 
   it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
