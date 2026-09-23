@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `a2f533a` is deployed as Pages release
-`0e493061-2811-4879-a7c6-09d652c0787e` in the existing `steaudit-prototype`
+acceptance assertions. Commit `a4d2584` is deployed as Pages release
+`21b32296-a1d0-4b5d-b7ff-b142b3f738be` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -34,6 +34,7 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | `a2f533a` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `0e493061-2811-4879-a7c6-09d652c0787e`; cache-busted custom domain and release URLs returned HTTP 200 and referenced `assets/index-C9PHq3kX.js`, including current proposal acceptance coverage notes. |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 105/105, 24 suites | AT-10 checks proposal/client matching, one engagement per accepted proposal, evidence-gated partner activation and proposal revision lineage. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 24/24 | Five static checks and nineteen actual Chrome checks. AT-10 creates an accepted-proposal draft once, confirms terms/acceptance remain pending, then activates with partner evidence. |
+| 2026-09-23 | `a4d2584` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `21b32296-a1d0-4b5d-b7ff-b142b3f738be`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 with `assets/index-CfbE3If6.js`, including accepted-proposal draft and partner activation flow. |
 | 2026-09-23 | `4245121` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `e2cd611f-30fd-4888-8a63-958a693c42de`; both `prototype.steaudit.com` and the release URL returned HTTP 200 and referenced `assets/index-r25pgxPf.js`, which includes the AT-07/08 proposal workflow. |
 | 2026-09-23 | `7f9420f` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, release `66f5c1f5-5123-4bdf-b8f8-3fae08f93ee4`; cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-Dikuk21g.js`, which includes the client custom-field editor, relationship group flow and scope guards. |
 | 2026-09-23 | `3831163` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, release `89b2434a-aa9b-46f3-b4dd-4cb83290b976`; cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-5Js-qCHe.js`, which includes the PBC contributor and acceptance-version guards. |
