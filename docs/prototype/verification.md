@@ -272,4 +272,9 @@ the 2025 period, and reconciled current/prior assets at QAR 2,250,000 and QAR
 800,000. Full verification passed: 131/131 unit checks and 56/56 E2E checks
 (five static checks and 51 Chrome journeys); build passed with the existing
 large-bundle advisory. Comparative detail exports and persisted/reviewed
-statement-output versions remain open. Production deployment evidence follows.
+statement-output versions remain open. Commit `e6e538d` was pushed to `main`
+and deployed to the existing `steaudit-prototype` production Pages project as
+release `1504e96b-a71e-4bc8-bb02-661231aa7b68`. A no-cache request to both the
+release URL and `https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-BsAZniN0.js`, which contains the comparative-period selection and
+unavailable-state behavior.
