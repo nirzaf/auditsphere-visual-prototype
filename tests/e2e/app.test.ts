@@ -1373,6 +1373,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setRole('manager');
     await clickButton('Financial Packages');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Financial Reporting Packages")'), true);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /assess disclosure applicability and enter the prepared note/);
+    await browserTab!.evaluate(`(() => {const applicability=document.querySelector('[aria-label="Disclosure note applicability"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(applicability,'Applicable');applicability.dispatchEvent(new Event('change',{bubbles:true}));const notes=document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(notes,'E2E fixture: applicable disclosure note reviewed.');notes.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('+ Assemble New Revision (Rev 2)');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 2 saved with exact XLSX, DOCX and PDF files.")'), true, 'package should persist genuine artifacts');
     const persisted = await browserTab!.evaluate<any>(`(async () => {
@@ -1386,11 +1388,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256 };
       }));
       db.close();
-      return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
+      return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, noteApplicability: pack.noteApplicability, notes: pack.notes, files };
     })()`);
     assert.equal(persisted.revision, 2);
     assert.equal(persisted.mappingRevision, 1, 'mapping revision remains independent of source version 1');
     assert.equal(persisted.validation, true);
+    assert.equal(persisted.noteApplicability, 'Applicable');
+    assert.match(persisted.notes, /E2E fixture: applicable disclosure note reviewed/);
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
     for (const file of persisted.files) {
       assert.ok(file.size > 0);
@@ -1885,8 +1889,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Financial Packages');
     const assembleLabel = await browserTab!.evaluate<string>(`[...document.querySelectorAll('button')].find(b=>b.innerText.includes('Assemble New Revision'))?.innerText.trim()||''`);
     assert.ok(assembleLabel, 'package revision action should be available');
+    await browserTab!.evaluate(`(() => {const applicability=document.querySelector('[aria-label="Disclosure note applicability"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(applicability,'Applicable');applicability.dispatchEvent(new Event('change',{bubbles:true}));const notes=document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(notes,'E2E fixture: applicable disclosure note reviewed.');notes.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton(assembleLabel);
-    assert.equal(await waitForBrowser('document.body.innerText.includes("saved with exact XLSX, DOCX and PDF files")'), true);
+    const assembled = await waitForBrowser('document.body.innerText.includes("saved with exact XLSX, DOCX and PDF files")');
+    assert.equal(assembled, true, await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').packageHistory.map(x=>({revision:x.revision,passed:x.validation.passed,noteApplicability:x.noteApplicability,notes:x.notes}))`));
     const packageFile = await browserTab!.evaluate<string>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const p=e.packageHistory.find(x=>x.revision===e.packageRevision);const a=p.artifacts.find(x=>x.kind==='XLSX');const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result.blob);r.onerror=()=>reject(r.error)});const bytes=new Uint8Array(await blob.arrayBuffer());let bin='';for(const b of bytes)bin+=String.fromCharCode(b);db.close();return btoa(bin)})()`);
     const workbook = XLSX.read(Buffer.from(packageFile, 'base64'), { type: 'buffer' });
     const packageRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1, raw: true });

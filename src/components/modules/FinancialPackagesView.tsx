@@ -31,7 +31,8 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const savedPackage = selectedEng?.packageHistory?.find(p => p.revision === selectedEng.packageRevision);
 
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || 'Standard statutory disclosures and IFRS accounting policies included.');
+  const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || '');
+  const [noteApplicability, setNoteApplicability] = useState<NonNullable<FinancialPackageRevision['noteApplicability']>>(savedPackage?.noteApplicability || 'Not assessed');
   const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc, enabled })) || DEFAULT_SECTIONS);
   const [assembling, setAssembling] = useState(false);
 
@@ -70,7 +71,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const unmappedAccounts = selectedEng.rows.filter(row => !currentMapping?.mappings.some(mapping => mapping.accountCode === row.code));
   const mappingsReady = Boolean(currentMapping?.status === 'Approved' && unmappedAccounts.length === 0);
 
-  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady;
+  const disclosureRequired = sections.some(section => section.id === 'notes' && section.enabled);
+  const disclosuresReady = !disclosureRequired || noteApplicability !== 'Not assessed' && Boolean(packageNotes.trim());
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady;
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -114,7 +117,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Included accepted unreflected adjustments: ${adjustmentResult.applied.join(', ') || 'None'}`,
     '', 'TABLE OF CONTENTS (ORDERED SECTIONS):',
     ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
-    '', `Disclosures & Management Notes: ${packageNotes}`
+    '', `Disclosure applicability: ${noteApplicability}`, `Disclosures & Management Notes: ${packageNotes || 'No disclosure note or applicability rationale entered.'}`
   ];
 
   const handleAssembleNewRevision = async () => {
@@ -153,6 +156,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         sourceVersion: selectedEng.sourceVersion,
         mappingRevision: currentMapping?.revision || 0,
         notes: packageNotes,
+        noteApplicability,
         noteRevision: revision,
         sections: sections.map((s, order) => ({ ...s, order: order + 1 })),
         validation: { passed: allValid, trialBalanceNet: tbSum, pendingWorkpapers: selectedEng.workpapers.filter(w => w.applicable && w.status !== 'Cleared' && w.status !== 'Not applicable').length, openReviews: selectedEng.reviews.filter(r => r.status !== 'Cleared').length, materialFindings: state.findings.filter(f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)).length },
@@ -260,6 +264,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           </span>
         </div>
         {!mappingsReady && <div role="alert" className="badge danger mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: account mappings must be independently approved and cover every trial balance account. Unmapped: {unmappedAccounts.map(row => row.code).join(', ') || 'none'}.</div>}
+        {!disclosuresReady && <div role="alert" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: assess disclosure applicability and enter the prepared note or not-applicable rationale before including disclosures.</div>}
 
         <div className="grid4 mt16" style={{ gap: 12 }}>
           <div className="borderbox" style={{ padding: 12 }}>
@@ -367,12 +372,19 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         </div>
 
         <div className="panel-pad">
-          <label className="caption">Disclosures &amp; Management Representation Notes</label>
+          <label className="caption" htmlFor="disclosure-applicability">Disclosure applicability</label>
+          <select id="disclosure-applicability" aria-label="Disclosure note applicability" className="input mt4" value={noteApplicability} onChange={e => setNoteApplicability(e.target.value as NonNullable<FinancialPackageRevision['noteApplicability']>)}>
+            <option>Not assessed</option><option>Applicable</option><option>Not applicable</option>
+          </select>
+          <label className="caption mt8" htmlFor="disclosure-notes">Prepared disclosure note or not-applicable rationale</label>
           <textarea
+            id="disclosure-notes"
+            aria-label="Prepared disclosure note or not-applicable rationale"
             className="input mt4"
             rows={2}
             value={packageNotes}
             onChange={e => setPackageNotes(e.target.value)}
+            placeholder="Enter the prepared note or rationale supporting not-applicable."
           />
         </div>
       </div>

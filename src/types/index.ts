@@ -255,6 +255,7 @@ export interface FinancialPackageRevision {
   sourceVersion: number;
   mappingRevision: number;
   notes: string;
+  noteApplicability?: 'Not assessed' | 'Applicable' | 'Not applicable';
   noteRevision: number;
   sections: Array<{ id: string; title: string; desc: string; enabled: boolean; order: number }>;
   validation: { passed: boolean; trialBalanceNet: number; pendingWorkpapers: number; openReviews: number; materialFindings: number };

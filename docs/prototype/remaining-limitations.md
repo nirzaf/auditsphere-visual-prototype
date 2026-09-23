@@ -186,7 +186,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   The cash-flow tab now explicitly reports unavailable because classified
   operating, investing and financing movements are not stored; it no longer
   displays unsupported sample amounts. Full cash-flow source-data, layout and
-  disclosure acceptance remains incomplete.
+  disclosure acceptance remains incomplete. Package preparation also requires
+  an applicability decision and prepared note or not-applicable rationale;
+  this package-level check does not replace a per-note accounting-standard
+  checklist.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
