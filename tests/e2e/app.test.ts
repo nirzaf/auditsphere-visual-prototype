@@ -154,6 +154,15 @@ async function clickButton(label: string): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 
+async function clickButtonStartingWith(label: string): Promise<void> {
+  const found = await browserTab!.evaluate<boolean>(`(() => {
+    const b = [...document.querySelectorAll("button")].find(x => x.innerText.trim().startsWith(${JSON.stringify(label)}));
+    if (!b) return false; b.click(); return true;
+  })()`);
+  assert.equal(found, true, `button not found starting with: ${label}`);
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
 async function clickPanelButton(heading: string, label: string): Promise<void> {
   const found = await browserTab!.evaluate<boolean>(`(() => {
     const title = [...document.querySelectorAll('h3')].find(x => x.innerText.toLowerCase().includes(${JSON.stringify(heading.toLowerCase())}));
@@ -1867,6 +1876,156 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const apply = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.borderbox')].find(e=>e.innerText.includes('Verify recorded revenue'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Apply to engagement');if(!b)return false;b.click();return true;})()`);
       assert.equal(apply, true);
       assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPrograms.find(p=>p.sourceTemplateId===${JSON.stringify(templateId)});return !!p&&p.sourceTemplateVersion===1&&p.procedures.length===1&&p.procedures[0].title==='Verify recorded revenue'&&p.procedures[0].status==='Not started'&&!p.procedures[0].workPerformed&&!p.procedures[0].conclusion;})()`), true, 'application pins the published template and starts with empty execution state');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-19: prepares the same client workspace twice idempotently', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButtonStartingWith('Documents & SharePoint');
+      await clickButton('Verify Client Workspace');
+      const afterFirst = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(f=>f.path==='/Clients/EXP-TRAD/').length`);
+      await clickButton('Verify Client Workspace');
+      const afterSecond = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(f=>f.path==='/Clients/EXP-TRAD/').length`);
+      assert.equal(afterFirst, 1);
+      assert.equal(afterSecond, afterFirst, 'repeated preparation leaves exactly one canonical root');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-34: inspects the selected chart, period and currency configuration', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButton('Accounting Workbench');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Trial Balance & Intake/);
+      assert.match(text, /QAR/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-36: renders general ledger completeness status', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButton('Accounting Workbench');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('General Ledger & Completeness'));if(!b)return false;b.click();return true;})()`), true);
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /General Ledger Completeness Verification/);
+      assert.match(text, /GL Fully Reconciled to TB|Discrepancies/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-39: renders reconciliation timing and variance totals', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButton('Accounting Workbench');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Reconciliations'));if(!b)return false;b.click();return true;})()`), true);
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Total Timing Adjustments/);
+      assert.match(text, /Unexplained Variance/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-46: opens workpaper, evidence and finding views', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButtonStartingWith('Audit Workpapers');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Workpapers|Status|Evidence|Clearance/);
+      await clickButton('Evidence Catalogue');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Evidence/);
+      await clickButtonStartingWith('Findings & Differences');
+      const findingText = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(findingText, /Findings|Misstatement|Severity/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-47: opens the sign-offs and EQR workspace', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButton('Sign-offs & EQR');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Sign-offs|EQR|Partner|Manager/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-51: saves a new rate version without rewriting issued invoices', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    if (!original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    try {
+      const issuedBefore = await browserTab!.evaluate<any[]>(`(() => {
+        const s = JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+        return s.invoices.filter(i => i.status === 'Issued').map(i => ({ id: i.id, amount: i.amount }));
+      })()`);
+      assert.ok(issuedBefore.length > 0, 'issued invoices exist');
+      await clickButton('Budgets & Variances');
+      await clickButton('Author New Budget Version');
+      const previousRate = await browserTab!.evaluate<number>(`Number(document.querySelector('.modal-card input[type=\"number\"]').value)`);
+      assert.ok(Number.isFinite(previousRate));
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-card input[type=\"number\"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,String(${previousRate + 10}));input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      const nextVersion = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).budgets.find(b=>b.engagementId===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).version+1`);
+      await clickButton(`Save Version ${nextVersion}`);
+      const issuedAfter = await browserTab!.evaluate<any[]>(`(() => {
+        const s = JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+        return s.invoices.filter(i => i.status === 'Issued').map(i => ({ id: i.id, amount: i.amount }));
+      })()`);
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).budgets.find(b=>b.engagementId===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).version===${nextVersion}`), true, 'budget version advanced');
+      assert.deepEqual(issuedBefore, issuedAfter, 'issued invoices remain immutable');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-52: opens the client portfolio and renders client data', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButtonStartingWith('Client Portfolio');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Client Portfolio|Active|Relationship/);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

@@ -163,12 +163,12 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
 - **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.08 MB,
-  587.24 kB gzip in the latest build).
+  587.46 kB gzip in the latest build).
 
 ## Verification snapshot
 
-Latest recorded run: 120/120 unit checks and 44/44 E2E checks passed. E2E
-includes five static checks and 39 actual Chrome journeys. It exercises the
+Latest recorded run: 120/120 unit checks and 52/52 E2E checks passed. E2E
+includes five static checks and 47 actual Chrome journeys. It exercises the
 listed workflows; 64 stories and 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
