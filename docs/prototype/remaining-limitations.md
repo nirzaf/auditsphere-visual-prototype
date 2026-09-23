@@ -166,8 +166,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.08 MB,
-  588.46 kB gzip in the latest build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.09 MB,
+  588.60 kB gzip in the latest build).
 
 ## Verification snapshot
 

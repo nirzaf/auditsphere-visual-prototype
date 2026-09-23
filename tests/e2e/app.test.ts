@@ -1308,123 +1308,127 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('AT-49/AT-60: validates every practice report, client scoping, and exported CSV rows', async t => {
+  it('AT-49/AT-60: validates every practice report, client scoping, and exported CSV rows', async () => {
     const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
-    t.after(async () => {
-      const restore = priorState ?? JSON.stringify(createInitialState());
-      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(restore)})`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
       await browserTab!.command('Page.reload');
-      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
-    });
-    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
-    await browserTab!.command('Page.reload');
-    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'report fixture reloads from a deterministic manager state');
-    await clickButton('Report Centre');
-    assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
-    await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; })()`);
-    const reports = await browserTab!.evaluate<Array<{ value: string; label: string }>>('[...document.querySelectorAll("#practice-report option")].map(o => ({ value: o.value, label: o.textContent.trim() }))');
-    assert.equal(reports.length, 16, 'VP-060 report catalogue count');
-    for (const report of reports) {
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'report fixture reloads from a deterministic manager state');
+      await clickButton('Report Centre');
+      assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
+      await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; })()`);
+      const reports = await browserTab!.evaluate<Array<{ value: string; label: string }>>('[...document.querySelectorAll("#practice-report option")].map(o => ({ value: o.value, label: o.textContent.trim() }))');
+      assert.equal(reports.length, 16, 'VP-060 report catalogue count');
+      for (const report of reports) {
+        await browserTab!.evaluate(`(() => {
+        const select = document.querySelector('#practice-report');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(report.value)});
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`);
+        assert.equal(await waitForBrowser(`document.querySelector('#practice-report')?.value === ${JSON.stringify(report.value)}`), true);
+        const visible = await browserTab!.evaluate<string>('document.body.innerText');
+        assert.ok(visible.includes(report.label), `report view is not visible: ${report.label}`);
+        const headers = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("table thead th")].map(x => x.innerText.trim())');
+        assert.ok(headers.length >= 4, `${report.label} should render a populated report table`);
+        if (report.value === 'ar') assert.match(visible, /As of 2026-09-23/);
+        await clickButton('Export Active Report (CSV)');
+        const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
+        const csvRows = parseCsv(csv);
+        assert.ok(csvRows[0].length >= 4, `${report.label} export should include report columns`);
+        const sourceState = await browserTab!.evaluate<any>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2"))');
+        const visibleClients = visibleClientIds(sourceState);
+        const visibleEngagements = visibleEngagementIds(sourceState);
+        const clients = sourceState.clients.filter((item: any) => visibleClients === 'ALL' || visibleClients.includes(item.id));
+        const engagements = sourceState.engagements.filter((item: any) => (visibleEngagements === 'ALL' || visibleEngagements.includes(item.id)) && (visibleClients === 'ALL' || visibleClients.includes(item.client)));
+        const engagementIds = new Set(engagements.map((item: any) => item.id));
+        const jobs = sourceState.jobs.filter((item: any) => engagementIds.has(item.engagementId));
+        const jobIds = new Set(jobs.map((item: any) => item.id));
+        const invoices = sourceState.invoices.filter((item: any) => item.engagementId && engagementIds.has(item.engagementId));
+        const invoiceIds = new Set(invoices.map((item: any) => item.id));
+        const clientIds = new Set(clients.map((item: any) => item.id));
+        const credits = sourceState.creditNotes.filter((item: any) => invoiceIds.has(item.invoiceId) && clientIds.has(item.clientId));
+        const receipts = sourceState.receipts.filter((item: any) => clientIds.has(item.clientId));
+        const aging = calculateReceivablesAging(invoices, credits, receipts, sourceState.asOfDate);
+        const valueRows: Record<string, string[][]> = {};
+        const wip = engagements.map((engagement: any) => {
+          const approved = sourceState.times.filter((time: any) => time.engagementId === engagement.id && time.status === 'Approved');
+          const recorded = calculateRecordedWipValue(approved);
+          const billed = sourceState.invoices.filter((invoice: any) => invoice.engagementId === engagement.id && ['Issued', 'Paid'].includes(invoice.status)).reduce((sum: number, invoice: any) => sum + invoice.amount, 0);
+          const unbilled = recorded === null ? null : Math.max(0, recorded - billed);
+          return { engagement, client: sourceState.clients.find((item: any) => item.id === engagement.client), approved, recorded, billed, unbilled };
+        });
+        const singleWipCurrency = new Set(wip.map((item: any) => item.engagement.currency)).size <= 1;
+        const totalWip = singleWipCurrency && wip.every((item: any) => item.recorded !== null) ? wip.reduce((sum: number, item: any) => sum + item.recorded, 0) : null;
+        const totalBilled = singleWipCurrency ? wip.reduce((sum: number, item: any) => sum + item.billed, 0) : null;
+        const totalUnbilled = singleWipCurrency && wip.every((item: any) => item.unbilled !== null) ? wip.reduce((sum: number, item: any) => sum + item.unbilled, 0) : null;
+        valueRows.wip = [
+          ...wip.map((item: any) => [item.client?.name || item.engagement.client, item.engagement.id, item.engagement.service, item.engagement.currency, formatMinutesToHours(item.approved.reduce((sum: number, time: any) => sum + time.durationMinutes, 0)), item.recorded === null ? 'Unknown' : String(item.recorded), String(item.billed), item.unbilled === null ? 'Unknown' : String(item.unbilled)]),
+          ['Filtered totals', '', '', singleWipCurrency ? wip[0]?.engagement.currency || 'QAR' : 'Mixed', formatMinutesToHours(wip.reduce((sum: number, item: any) => sum + item.approved.reduce((mins: number, time: any) => mins + time.durationMinutes, 0), 0)), totalWip === null ? 'Unknown' : String(totalWip), totalBilled === null ? 'Unknown' : String(totalBilled), totalUnbilled === null ? 'Unknown' : String(totalUnbilled)]
+        ];
+        valueRows.utilization = sourceState.users.filter((user: any) => user.group === 'Professional').map((user: any) => {
+          const times = sourceState.times.filter((time: any) => time.person === user.name && time.status === 'Approved' && engagementIds.has(time.engagementId));
+          const billable = times.filter((time: any) => time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
+          const nonBillable = times.filter((time: any) => !time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
+          const target = user.role === 'partner' ? 50 : user.role === 'manager' ? 75 : 85;
+          return [user.name, user.label, String(Math.round(billable / 60)), String(Math.round(nonBillable / 60)), `${target}%`, `${times.length ? Math.round(billable / (billable + nonBillable) * 100) : 0}%`];
+        });
+        valueRows.compliance = engagements.map((engagement: any) => [engagement.id, sourceState.clients.find((item: any) => item.id === engagement.client)?.name || engagement.client, engagement.service, String(engagement.year), engagement.due, engagement.stage, engagement.partner]);
+        const expectedRows: Record<string, number> = {
+          wip: engagements.length + 1,
+          utilization: sourceState.users.filter((item: any) => item.group === 'Professional').length,
+          compliance: engagements.length,
+          clients: engagements.length,
+          jobs: jobs.length,
+          tasks: sourceState.jobTasks.filter((item: any) => jobIds.has(item.jobId)).length,
+          pbc: engagements.flatMap((item: any) => item.pbc.filter((p: any) => !['Accepted', 'Cancelled'].includes(p.status))).length,
+          time: sourceState.times.filter((item: any) => item.status === 'Approved' && engagementIds.has(item.engagementId)).length,
+          budget: sourceState.budgets.filter((item: any) => engagementIds.has(item.engagementId)).length,
+          invoices: invoices.filter((item: any) => clientIds.has(item.clientId)).length,
+          credits: credits.length,
+          receipts: receipts.length,
+          ar: aging.invoiceBreakdown.length,
+          findings: sourceState.findings.filter((item: any) => engagementIds.has(item.engagementId)).length,
+          reviews: engagements.reduce((sum: number, item: any) => sum + item.reviews.length, 0),
+          packages: engagements.length
+        };
+        assert.equal(csvRows.length - 1, expectedRows[report.value], `${report.label} CSV row count should reconcile to current source records`);
+        if (valueRows[report.value]) {
+          assert.deepEqual(csvRows.slice(1), valueRows[report.value], `${report.label} values should match independently recalculated source values`);
+        } else {
+          const displayed = await browserTab!.evaluate<{ headers: string[]; rows: string[][] }>(`(() => {const heading=[...document.querySelectorAll('h3')].find(x=>x.textContent.trim()===${JSON.stringify(report.label)});const table=heading?.closest('.panel')?.querySelector('table');if(!table)throw Error('Report table missing: '+${JSON.stringify(report.label)});return {headers:[...table.querySelectorAll('thead th')].map(x=>x.textContent.trim()).slice(0,-1),rows:[...table.querySelectorAll('tbody tr')].map(row=>[...row.querySelectorAll('td')].map(x=>x.textContent.trim()).slice(0,-1))};})()`);
+          assert.deepEqual(csvRows[0], displayed.headers, `${report.label} CSV headers should match the on-screen report`);
+          const displayedRows = displayed.rows.map((row, rowIndex) => row.map((cell, cellIndex) => csvRows[rowIndex + 1][cellIndex] === '' && cell === '—' ? '' : cell));
+          assert.deepEqual(csvRows.slice(1), displayedRows, `${report.label} CSV values should match the on-screen report row by row`);
+        }
+      }
+
       await browserTab!.evaluate(`(() => {
-      const select = document.querySelector('#practice-report');
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(report.value)});
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    })()`);
-      assert.equal(await waitForBrowser(`document.querySelector('#practice-report')?.value === ${JSON.stringify(report.value)}`), true);
-      const visible = await browserTab!.evaluate<string>('document.body.innerText');
-      assert.ok(visible.includes(report.label), `report view is not visible: ${report.label}`);
-      const headers = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("table thead th")].map(x => x.innerText.trim())');
-      assert.ok(headers.length >= 4, `${report.label} should render a populated report table`);
-      if (report.value === 'ar') assert.match(visible, /As of 2026-09-23/);
+        const client = document.querySelector('#report-client-filter');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
+        client.dispatchEvent(new Event('change', { bubbles: true }));
+        const report = document.querySelector('#practice-report');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(report, 'clients');
+        report.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services")'), true);
+      const rows = await browserTab!.evaluate<string[]>('[...document.querySelectorAll(".tablewrap tbody tr")].map(r => r.innerText)');
+      assert.ok(rows.length > 0);
+      assert.ok(rows.every(row => row.includes('CL-002') || row.includes('Northstar Services')), `client filter leaked another entity: ${rows.join(' | ')}`);
       await clickButton('Export Active Report (CSV)');
       const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
-      const csvRows = parseCsv(csv);
-      assert.ok(csvRows[0].length >= 4, `${report.label} export should include report columns`);
-      const sourceState = await browserTab!.evaluate<any>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2"))');
-      const visibleClients = visibleClientIds(sourceState);
-      const visibleEngagements = visibleEngagementIds(sourceState);
-      const clients = sourceState.clients.filter((item: any) => visibleClients === 'ALL' || visibleClients.includes(item.id));
-      const engagements = sourceState.engagements.filter((item: any) => (visibleEngagements === 'ALL' || visibleEngagements.includes(item.id)) && (visibleClients === 'ALL' || visibleClients.includes(item.client)));
-      const engagementIds = new Set(engagements.map((item: any) => item.id));
-      const jobs = sourceState.jobs.filter((item: any) => engagementIds.has(item.engagementId));
-      const jobIds = new Set(jobs.map((item: any) => item.id));
-      const invoices = sourceState.invoices.filter((item: any) => item.engagementId && engagementIds.has(item.engagementId));
-      const invoiceIds = new Set(invoices.map((item: any) => item.id));
-      const clientIds = new Set(clients.map((item: any) => item.id));
-      const credits = sourceState.creditNotes.filter((item: any) => invoiceIds.has(item.invoiceId) && clientIds.has(item.clientId));
-      const receipts = sourceState.receipts.filter((item: any) => clientIds.has(item.clientId));
-      const aging = calculateReceivablesAging(invoices, credits, receipts, sourceState.asOfDate);
-      const valueRows: Record<string, string[][]> = {};
-      const wip = engagements.map((engagement: any) => {
-        const approved = sourceState.times.filter((time: any) => time.engagementId === engagement.id && time.status === 'Approved');
-        const recorded = calculateRecordedWipValue(approved);
-        const billed = sourceState.invoices.filter((invoice: any) => invoice.engagementId === engagement.id && ['Issued', 'Paid'].includes(invoice.status)).reduce((sum: number, invoice: any) => sum + invoice.amount, 0);
-        const unbilled = recorded === null ? null : Math.max(0, recorded - billed);
-        return { engagement, client: sourceState.clients.find((item: any) => item.id === engagement.client), approved, recorded, billed, unbilled };
-      });
-      const singleWipCurrency = new Set(wip.map((item: any) => item.engagement.currency)).size <= 1;
-      const totalWip = singleWipCurrency && wip.every((item: any) => item.recorded !== null) ? wip.reduce((sum: number, item: any) => sum + item.recorded, 0) : null;
-      const totalBilled = singleWipCurrency ? wip.reduce((sum: number, item: any) => sum + item.billed, 0) : null;
-      const totalUnbilled = singleWipCurrency && wip.every((item: any) => item.unbilled !== null) ? wip.reduce((sum: number, item: any) => sum + item.unbilled, 0) : null;
-      valueRows.wip = [
-        ...wip.map((item: any) => [item.client?.name || item.engagement.client, item.engagement.id, item.engagement.service, item.engagement.currency, formatMinutesToHours(item.approved.reduce((sum: number, time: any) => sum + time.durationMinutes, 0)), item.recorded === null ? 'Unknown' : String(item.recorded), String(item.billed), item.unbilled === null ? 'Unknown' : String(item.unbilled)]),
-        ['Filtered totals', '', '', singleWipCurrency ? wip[0]?.engagement.currency || 'QAR' : 'Mixed', formatMinutesToHours(wip.reduce((sum: number, item: any) => sum + item.approved.reduce((mins: number, time: any) => mins + time.durationMinutes, 0), 0)), totalWip === null ? 'Unknown' : String(totalWip), totalBilled === null ? 'Unknown' : String(totalBilled), totalUnbilled === null ? 'Unknown' : String(totalUnbilled)]
-      ];
-      valueRows.utilization = sourceState.users.filter((user: any) => user.group === 'Professional').map((user: any) => {
-        const times = sourceState.times.filter((time: any) => time.person === user.name && time.status === 'Approved' && engagementIds.has(time.engagementId));
-        const billable = times.filter((time: any) => time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
-        const nonBillable = times.filter((time: any) => !time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
-        const target = user.role === 'partner' ? 50 : user.role === 'manager' ? 75 : 85;
-        return [user.name, user.label, String(Math.round(billable / 60)), String(Math.round(nonBillable / 60)), `${target}%`, `${times.length ? Math.round(billable / (billable + nonBillable) * 100) : 0}%`];
-      });
-      valueRows.compliance = engagements.map((engagement: any) => [engagement.id, sourceState.clients.find((item: any) => item.id === engagement.client)?.name || engagement.client, engagement.service, String(engagement.year), engagement.due, engagement.stage, engagement.partner]);
-      const expectedRows: Record<string, number> = {
-        wip: engagements.length + 1,
-        utilization: sourceState.users.filter((item: any) => item.group === 'Professional').length,
-        compliance: engagements.length,
-        clients: engagements.length,
-        jobs: jobs.length,
-        tasks: sourceState.jobTasks.filter((item: any) => jobIds.has(item.jobId)).length,
-        pbc: engagements.flatMap((item: any) => item.pbc.filter((p: any) => !['Accepted', 'Cancelled'].includes(p.status))).length,
-        time: sourceState.times.filter((item: any) => item.status === 'Approved' && engagementIds.has(item.engagementId)).length,
-        budget: sourceState.budgets.filter((item: any) => engagementIds.has(item.engagementId)).length,
-        invoices: invoices.filter((item: any) => clientIds.has(item.clientId)).length,
-        credits: credits.length,
-        receipts: receipts.length,
-        ar: aging.invoiceBreakdown.length,
-        findings: sourceState.findings.filter((item: any) => engagementIds.has(item.engagementId)).length,
-        reviews: engagements.reduce((sum: number, item: any) => sum + item.reviews.length, 0),
-        packages: engagements.length
-      };
-      assert.equal(csvRows.length - 1, expectedRows[report.value], `${report.label} CSV row count should reconcile to current source records`);
-      if (valueRows[report.value]) {
-        assert.deepEqual(csvRows.slice(1), valueRows[report.value], `${report.label} values should match independently recalculated source values`);
+      assert.match(csv, /Northstar Services/);
+      assert.doesNotMatch(csv, /Example Trading Entity|Meridian Manufacturing/);
+      assert.equal(browserTab!.exceptions.length, 0);
+    } finally {
+      if (priorState) {
+        await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(priorState)})`);
       } else {
-        const displayed = await browserTab!.evaluate<{ headers: string[]; rows: string[][] }>(`(() => {const heading=[...document.querySelectorAll('h3')].find(x=>x.textContent.trim()===${JSON.stringify(report.label)});const table=heading?.closest('.panel')?.querySelector('table');if(!table)throw Error('Report table missing: '+${JSON.stringify(report.label)});return {headers:[...table.querySelectorAll('thead th')].map(x=>x.textContent.trim()).slice(0,-1),rows:[...table.querySelectorAll('tbody tr')].map(row=>[...row.querySelectorAll('td')].map(x=>x.textContent.trim()).slice(0,-1))};})()`);
-        assert.deepEqual(csvRows[0], displayed.headers, `${report.label} CSV headers should match the on-screen report`);
-        const displayedRows = displayed.rows.map((row, rowIndex) => row.map((cell, cellIndex) => csvRows[rowIndex + 1][cellIndex] === '' && cell === '—' ? '' : cell));
-        assert.deepEqual(csvRows.slice(1), displayedRows, `${report.label} CSV values should match the on-screen report row by row`);
+        await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
       }
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
-
-    await browserTab!.evaluate(`(() => {
-      const client = document.querySelector('#report-client-filter');
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
-      client.dispatchEvent(new Event('change', { bubbles: true }));
-      const report = document.querySelector('#practice-report');
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(report, 'clients');
-      report.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`);
-    assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services")'), true);
-    const rows = await browserTab!.evaluate<string[]>('[...document.querySelectorAll(".tablewrap tbody tr")].map(r => r.innerText)');
-    assert.ok(rows.length > 0);
-    assert.ok(rows.every(row => row.includes('CL-002') || row.includes('Northstar Services')), `client filter leaked another entity: ${rows.join(' | ')}`);
-    await clickButton('Export Active Report (CSV)');
-    const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
-    assert.match(csv, /Northstar Services/);
-    assert.doesNotMatch(csv, /Example Trading Entity|Meridian Manufacturing/);
-    assert.equal(browserTab!.exceptions.length, 0);
   });
 
   it('AT-43/AT-44/AT-45: reviews pinned consolidation snapshots and approved eliminations without changing source TBs', async () => {
