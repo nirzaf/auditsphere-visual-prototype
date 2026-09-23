@@ -794,9 +794,33 @@ export interface AuditProgramItem {
   procedures: AuditProcedureItem[];
 }
 
+export interface SamplePopulationRow {
+  id: string;
+  itemRef: string;
+  identifier?: string;
+  date: string;
+  counterparty: string;
+  amount: number;
+  recordedAmount?: number;
+  auditedAmount?: number;
+  difference?: number;
+  description?: string;
+  findingId?: string;
+  tested: boolean;
+  result: 'Satisfactory' | 'Exception noted' | 'Untested' | 'Exception';
+  notes?: string;
+  evidenceDoc?: string;
+  selected?: boolean;
+}
+
 export interface SamplePopulationItem {
   id: string;
   engagementId?: string;
+  sourceRevision?: number;
+  sourceFileName?: string;
+  sourceSha256?: string;
+  sourceComplete?: boolean;
+  sourceHistory?: Array<{ revision: number; fileName: string; sha256: string; importedAt: string; importedBy: string; totalPopulationCount: number; totalPopulationValue: number; items: SamplePopulationRow[] }>;
   area: string;
   name?: string;
   accountCode?: string;
@@ -806,24 +830,7 @@ export interface SamplePopulationItem {
   totalPopulationValue: number;
   selectedCount: number;
   selectedValue: number;
-  items: Array<{
-    id: string;
-    itemRef: string;
-    identifier?: string;
-    date: string;
-    counterparty: string;
-    amount: number;
-    recordedAmount?: number;
-    auditedAmount?: number;
-    difference?: number;
-    description?: string;
-    findingId?: string;
-    tested: boolean;
-    result: 'Satisfactory' | 'Exception noted' | 'Untested' | 'Exception';
-    notes?: string;
-    evidenceDoc?: string;
-    selected?: boolean;
-  }>;
+  items: SamplePopulationRow[];
 }
 
 export type SamplePopulationRecord = SamplePopulationItem;

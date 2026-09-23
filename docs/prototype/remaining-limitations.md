@@ -62,9 +62,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   change/rework matrix remain incomplete.
 
 - **VP-051 — substantive sampling:** populations are engagement-scoped; Chrome
-  selects an item, recalculates selected count/value, records an audited amount
-  and notes, and verifies the exception after reload. Full source-population
-  import, replacement history, and reselection after replacement remain partial.
+  imports CSV population rows with SHA-256 identity, recalculates source totals,
+  preserves predecessor rows and results, and resets selections after replacement.
+  Chrome rejects duplicate references without changing the active revision and
+  verifies the new source identity after reload. Full-frame reconciliation,
+  browser-level XLSX import, and assurance inference remain incomplete/out of scope.
 
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
@@ -99,7 +101,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. Perimeter edits, missing-component recovery, and
   non-base-currency translation workflows remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–9 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–10 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -109,8 +111,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   creation/contact/custom-field/relationship-group and Client 360 navigation
   journeys (AT-05/06). Complete
   AT-01–AT-54 have not been executed.
-  Invitation/access history, AML/KYC evidence, full source-driven sampling, report data
-  reconciliation and other full acceptance paths still need direct evidence.
+  Invitation/access history, AML/KYC evidence, report data reconciliation and
+  other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
   only the named contributor can upload, acceptance records actor/time/version,
@@ -130,12 +132,12 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 1.92 MB,
-  549 kB gzip in the latest build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.03 MB,
+  575.17 kB gzip in the latest build).
 
 ## Verification snapshot
 
-Latest recorded run: 111/111 unit checks and 40/40 E2E checks passed. E2E
+Latest recorded run: 113/113 unit checks and 40/40 E2E checks passed. E2E
 includes five static checks and 35 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the

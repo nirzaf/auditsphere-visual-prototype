@@ -1000,6 +1000,10 @@ export function createInitialState(): PrototypeState {
       {
         id: 'POP-01',
         engagementId: 'ENG-26001',
+        sourceRevision: 1,
+        sourceFileName: 'Seeded population excerpt',
+        sourceComplete: false,
+        sourceHistory: [],
         area: 'Trade Receivables Sampling',
         description: 'Customer balances outstanding as of 31 Dec 2026',
         totalPopulationCount: 45,

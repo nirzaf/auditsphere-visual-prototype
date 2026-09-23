@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 10;
+export const CURRENT_SCHEMA = 11;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -197,6 +197,15 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       for (const item of population.items || []) item.selected ??= true;
     }
     warnings.push('Scoped legacy sample populations to an engagement and retained existing sample selection (v10).');
+  }
+  if (from < 11) {
+    for (const population of state.samplePopulations || []) {
+      population.sourceRevision ||= 1;
+      population.sourceFileName ||= 'Legacy sample population';
+      population.sourceComplete ??= false;
+      population.sourceHistory ||= [];
+    }
+    warnings.push('Added source identity and predecessor history for sample population replacements (v11).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

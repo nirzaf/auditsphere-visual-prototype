@@ -1880,6 +1880,7 @@ class PrototypeStore {
     const population = this.state.samplePopulations.find(item => item.id === populationId);
     if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
     requireEngagementScope(this.state, population.engagementId);
+    if (!population.sourceComplete) throw new GuardError('INVALID_STATE', 'Import the complete population source before selecting sample items.');
     const item = population.items.find(candidate => candidate.id === itemId);
     if (!item) throw new GuardError('INVALID_STATE', 'Sample item was not found in this population.');
     item.selected = selected;
@@ -1897,6 +1898,7 @@ class PrototypeStore {
     const population = this.state.samplePopulations.find(item => item.id === populationId);
     if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
     requireEngagementScope(this.state, population.engagementId);
+    if (!population.sourceComplete) throw new GuardError('INVALID_STATE', 'Import the complete population source before recording sample tests.');
     const item = population.items.find(candidate => candidate.id === itemId);
     if (!item?.selected) throw new GuardError('INVALID_STATE', 'Select the population item before recording test results.');
     if (!Number.isFinite(auditedAmount) || auditedAmount < 0 || !notes.trim()) throw new GuardError('INVALID_STATE', 'Audited amount must be non-negative and testing notes are required.');
@@ -1908,6 +1910,41 @@ class PrototypeStore {
     const engagement = this.state.engagements.find(candidate => candidate.id === population.engagementId);
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Sample item ${itemId} test recorded: ${item.result}`, populationId);
+    this.notify();
+  }
+
+  public replaceSamplePopulationSource(populationId: string, fileName: string, sha256: string, rows: import('../types').SamplePopulationRow[]) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer'], 'replace a sample population source');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
+    requireEngagementScope(this.state, population.engagementId);
+    if (!fileName.trim() || fileName.length > 255 || !/^[a-f0-9]{64}$/.test(sha256) || !rows.length) throw new GuardError('INVALID_STATE', 'A named source file, SHA-256 digest, and at least one valid population row are required.');
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (rows.length > 20000 || !Number.isFinite(rows.reduce((sum, row) => sum + row.amount, 0)) || new Set(rows.map(row => row.itemRef)).size !== rows.length || new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => !row.id.trim() || !row.itemRef.trim() || !validDate(row.date) || !row.counterparty.trim() || !Number.isFinite(row.amount) || row.selected || row.tested || row.result !== 'Untested')) throw new GuardError('INVALID_STATE', 'Population rows must be unique, dated, numeric, and unselected/untested before replacement.');
+    population.sourceHistory ||= [];
+    population.sourceHistory.push({
+      revision: population.sourceRevision || 1,
+      fileName: population.sourceFileName || 'Legacy sample population',
+      sha256: population.sourceSha256 || '',
+      importedAt: new Date().toISOString(),
+      importedBy: this.state.currentUserId,
+      totalPopulationCount: population.totalPopulationCount,
+      totalPopulationValue: population.totalPopulationValue,
+      items: structuredClone(population.items)
+    });
+    population.sourceRevision = (population.sourceRevision || 1) + 1;
+    population.sourceFileName = fileName.trim();
+    population.sourceSha256 = sha256;
+    population.sourceComplete = true;
+    population.items = structuredClone(rows).map(row => ({ ...row, selected: false, tested: false, result: 'Untested', notes: undefined, auditedAmount: undefined, difference: undefined, findingId: undefined }));
+    population.totalPopulationCount = rows.length;
+    population.totalPopulationValue = rows.reduce((sum, row) => sum + row.amount, 0);
+    population.selectedCount = 0;
+    population.selectedValue = 0;
+    const engagement = this.state.engagements.find(item => item.id === population.engagementId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Population ${populationId} source replaced with revision ${population.sourceRevision}`, populationId);
     this.notify();
   }
 
