@@ -998,7 +998,16 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('AT-32/VP-032: records, allocates and reverses an offline receipt with a reason', async () => {
+  it('AT-32/VP-032: splits one offline receipt across invoices and reverses one allocation with a reason', async t => {
+    const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    t.after(async () => {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(priorState ?? JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#role-select")');
+    });
+    await browserTab!.evaluate(`(() => {const s=${JSON.stringify(createInitialState())};const invoice={...s.invoices.find(i=>i.id==='INV-26002'),id:'INV-AT32-SECOND',invoiceNumber:'INV-AT32-SECOND',paid:0,status:'Issued'};s.invoices.push(invoice);localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'),true);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'billing');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Receivables & Receipts'));if(!b)throw Error('Receivables navigation is missing');b.click();})()`);
     await clickButton('Record Offline Receipt');
     await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing receipt field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Receipt Number','RCP-AT32');set('Amount (QAR)','50000');set('Bank Reference / Cheque No.','AT32-BANK-REF');})()`);
@@ -1006,22 +1015,37 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).receipts.some(r=>r.receiptNumber==='RCP-AT32'&&r.allocatedAmount===0)`), true);
     const openAllocation = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('RCP-AT32'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Allocate to Invoice');if(!b)return false;b.click();return true;})()`);
     assert.equal(openAllocation,true);
-    const invoiceBefore = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const select=document.querySelector('.modal-backdrop select');const invoice=s.invoices.find(i=>i.id===select.value);const allocated=s.receipts.flatMap(r=>r.allocations).filter(a=>a.invoiceId===invoice.id&&!a.reversed).reduce((sum,a)=>sum+a.amount,0);return Math.max(invoice.paid||0,allocated);})()`);
+    const invoiceBefore = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const select=document.querySelector('.modal-backdrop select');const invoice=s.invoices.find(i=>i.id===select.value);const allocated=s.receipts.flatMap(r=>r.allocations).filter(a=>a.invoiceId===invoice.id&&!a.reversed).reduce((sum,a)=>sum+a.amount,0);return {id:invoice.id, paid:Math.max(invoice.paid||0,allocated)};})()`);
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type="number"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'20000');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Apply Allocation');
-    const afterAllocation = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0];return {receipt:r,allocation:a,invoice:s.invoices.find(x=>x.id===a.invoiceId)};})()`);
-    assert.equal(afterAllocation.allocation.amount,50000);
-    assert.equal(afterAllocation.receipt.allocatedAmount,50000);
-    assert.equal(afterAllocation.invoice.paid,invoiceBefore+50000);
+    const firstAllocation = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0];return {receipt:r,allocation:a,invoice:s.invoices.find(x=>x.id===a.invoiceId)};})()`);
+    assert.equal(firstAllocation.allocation.amount,20000);
+    assert.equal(firstAllocation.receipt.allocatedAmount,20000);
+    assert.equal(firstAllocation.invoice.paid,invoiceBefore.paid+20000);
+
+    const secondInvoice = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {match:s.invoices.find(i=>i.clientId===${JSON.stringify(firstAllocation.invoice.clientId)}&&i.id!==${JSON.stringify(firstAllocation.invoice.id)}&&i.paid<i.amount),invoices:s.invoices.map(i=>({id:i.id,clientId:i.clientId,paid:i.paid,amount:i.amount,status:i.status}))};})()`);
+    const secondInvoiceId = secondInvoice.match?.id ?? '';
+    assert.ok(secondInvoiceId, `fixture should have a second outstanding invoice: ${JSON.stringify(secondInvoice.invoices)}`);
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('RCP-AT32'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Allocate to Invoice');if(!b)return false;b.click();return true;})()`), true);
+    await browserTab!.evaluate(`(() => {const modal=document.querySelector('.modal-backdrop');const select=modal?.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(secondInvoiceId)});select.dispatchEvent(new Event('change',{bubbles:true}));const input=modal?.querySelector('input[type="number"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'30000');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Apply Allocation');
+    const twoAllocations = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');return {receipt:r, allocations:r.allocations.map(a=>({ ...a, paid:s.invoices.find(i=>i.id===a.invoiceId).paid}))};})()`);
+    assert.equal(twoAllocations.receipt.allocatedAmount,50000);
+    assert.equal(twoAllocations.allocations.length,2);
+    assert.deepEqual(twoAllocations.allocations.map((a: any)=>a.amount),[20000,30000]);
 
     const beginReverse = browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Reverse Allocation');if(!b)return false;b.click();return true;})()`);
     await new Promise(resolve=>setTimeout(resolve,50));
     await browserTab!.command('Page.handleJavaScriptDialog',{accept:true,promptText:'AT32 bank allocation correction'});
     assert.equal(await beginReverse,true);
-    const reversed = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0];return {receipt:r,allocation:a,invoice:s.invoices.find(x=>x.id===a.invoiceId)};})()`);
+    const reversed = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0], b=r.allocations[1];return {receipt:r,allocation:a,other:b,invoice:s.invoices.find(x=>x.id===a.invoiceId),otherInvoice:s.invoices.find(x=>x.id===b.invoiceId)};})()`);
     assert.equal(reversed.allocation.reversed,true);
     assert.equal(reversed.allocation.reversalReason,'AT32 bank allocation correction');
-    assert.equal(reversed.receipt.allocatedAmount,0);
-    assert.equal(reversed.invoice.paid,invoiceBefore);
+    assert.equal(reversed.invoice.paid,invoiceBefore.paid);
+    assert.equal(Boolean(reversed.other.reversed),false);
+    assert.equal(reversed.other.amount,30000);
+    assert.equal(reversed.otherInvoice.paid,twoAllocations.allocations[1].paid);
+    assert.equal(reversed.receipt.allocatedAmount,30000);
     assert.deepEqual(browserTab!.exceptions,[]);
   });
 

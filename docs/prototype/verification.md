@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree (VP-032 multi-invoice journey) | `npm run test:e2e` | PASS — 41/41 | AT-32 applies one receipt across two issued invoices, reverses the first allocation with a reason, and verifies the second invoice settlement remains intact. The second invoice is an isolated synthetic browser fixture. |
 | 2026-09-23 | current working tree (VP-060 CSV reconciliation) | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks. AT-49/60 compares every exported cell for 13 table-backed reports with the rendered table, independently recomputes all rows for WIP, utilization and compliance, and checks client scoping. |
 | 2026-09-23 | current working tree (AT-20 dependency invalidation) | `npm run test:unit` | PASS — 118/118 | Replacement creates a Pending verification evidence reference, stales linked procedures, blocks clearance/submission without current evidence, and records then invalidates direct workpaper clearance pins. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks; AT-20 verifies the old evidence pin stays exact while PRC-01/02 become stale and WP-A1 clearance moves to history. |

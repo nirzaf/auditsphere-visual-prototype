@@ -28,10 +28,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Independent source mapping for all fields in the remaining reports remains
   incomplete.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
-  to an issued invoice and reverses it with a reason while preserving prior
-  settlements. Unit coverage verifies multi-invoice allocation and reverses one
-  allocation without changing the other invoice. The browser journey and full
-  statement workflow remain partial; the integration is offline-only.
+  across two issued invoices and reverses one allocation with a reason while
+  preserving the other invoice settlement. The full statement workflow remains
+  partial; the integration is offline-only.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted
