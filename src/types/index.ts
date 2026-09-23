@@ -416,6 +416,9 @@ export interface PbcRequestItem {
   file?: string;
   responseDocId?: string;
   version: number;
+  acceptedBy?: string;
+  acceptedAt?: string;
+  acceptedVersion?: number;
   contributor?: string;
   requestedBy?: string;
   requestedAt?: string;

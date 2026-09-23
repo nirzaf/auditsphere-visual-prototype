@@ -38,6 +38,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Invitation/access history, AML/KYC evidence, procedures/sampling, report data
   reconciliation and other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
+- **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
+  only the named contributor can upload, acceptance records actor/time/version,
+  and accepted submissions cannot be overwritten. The browser-local prototype
+  retains file metadata rather than original uploaded bytes; other evidence and
+  workpaper dependency workflows remain incomplete.
 - **R14 — archive integrity:** archive creation now copies every released package
   artifact into a separate IndexedDB record and verifies size, MIME type and
   SHA-256 before recording the archive. The copies remain browser-local and can
@@ -53,8 +58,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 100/100 unit checks and 20/20 E2E checks passed. AT-28 and
-AT-38/40 now have unit and actual Chrome coverage for time correction and
-adjustment review/reporting. E2E is five static checks plus sixteen actual Chrome checks, including rendering all 31 staff navigation
+Latest recorded run: 100/100 unit checks and 20/20 E2E checks passed. AT-23/24,
+AT-28 and AT-38/40 have actual Chrome workflow coverage. E2E includes five static
+checks and fifteen Chrome checks, including rendering all 31 staff navigation
 routes and selected workflow journeys. Route rendering is not full workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.

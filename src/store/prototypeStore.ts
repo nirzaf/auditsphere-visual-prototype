@@ -1360,8 +1360,9 @@ class PrototypeStore {
     const req = eng.pbc.find(r => r.id === requestId);
     if (!req) throw new GuardError('INVALID_STATE', 'PBC request not found.');
     if (!file.name || !file.name.trim() || !Number.isFinite(file.size) || (file.size || 0) < 1) throw new GuardError('INVALID_STATE', 'Choose a non-empty local file.');
-    if (file.sha256 && !/^[a-f0-9]{64}$/i.test(file.sha256)) throw new GuardError('INVALID_STATE', 'File digest must be a SHA-256 hex value.');
-    if (!['Requested', 'Needs clarification', 'Received', 'Accepted'].includes(req.status)) throw new GuardError('INVALID_STATE', `A response cannot be uploaded while the request is ${req.status}.`);
+    if (!file.sha256 || !/^[a-f0-9]{64}$/i.test(file.sha256)) throw new GuardError('INVALID_STATE', 'A SHA-256 digest of the selected file is required.');
+    if (req.contributor !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the named client contributor can submit this PBC response.');
+    if (!['Requested', 'Needs clarification', 'Received'].includes(req.status)) throw new GuardError('INVALID_STATE', `A response cannot be uploaded while the request is ${req.status}.`);
 
     const docId = `DOC-PBC-${Date.now().toString().slice(-4)}`;
     const uploadedAt = new Date().toISOString();
@@ -1412,6 +1413,9 @@ class PrototypeStore {
     req.file = file.name;
     req.version = uploadVersion;
     req.status = 'Received';
+    req.acceptedBy = undefined;
+    req.acceptedAt = undefined;
+    req.acceptedVersion = undefined;
     this.invalidateReleaseBasis(eng);
     this.logEvent(`PBC response file uploaded by ${this.state.currentPerson}: ${file.name}`, req.id);
     this.notify();
@@ -1477,6 +1481,9 @@ class PrototypeStore {
       requireIndependentActor(lastUploadBy, this.state.currentPerson, 'accept this PBC response', this.state);
     }
     req.status = 'Accepted';
+    req.acceptedBy = this.state.currentPerson;
+    req.acceptedAt = new Date().toISOString();
+    req.acceptedVersion = req.version;
     this.invalidateReleaseBasis(eng);
     this.logEvent(`PBC response accepted: ${req.title}`, req.id);
     this.notify();

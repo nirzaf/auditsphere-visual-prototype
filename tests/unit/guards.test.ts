@@ -496,13 +496,16 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
   it('PBC response upload sets status to Received (not Accepted) and registers document (VP-023 / F05)', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    setPersona((prototypeStore as any).state, 'Omar Nasser');
-    (prototypeStore as any).state.currentRole = 'client';
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
 
     const eng = (prototypeStore as any).state.engagements[0];
-    const req = eng.pbc[0];
+    const req = eng.pbc.find((item: any) => item.id === 'PBC-03');
 
-    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4.pdf', size: 102400 });
+    setPersona((prototypeStore as any).state, 'Omar Nasser');
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'wrong-user.pdf', size: 100, sha256: 'a'.repeat(64) }), /named client contributor/);
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'missing-digest.pdf', size: 100 }), /SHA-256/);
+    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4.pdf', size: 102400, sha256: 'a'.repeat(64) });
 
     assert.strictEqual(req.status, 'Received');
     assert.notStrictEqual(req.status, 'Accepted');
@@ -516,14 +519,18 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.throws(() => prototypeStore.requestPbcClarification(eng.id, req.id, '  '), /Clarification details are required/);
     prototypeStore.requestPbcClarification(eng.id, req.id, 'Please provide a signed final statement.');
     assert.strictEqual(req.status, 'Needs clarification');
-    setPersona((prototypeStore as any).state, 'Omar Nasser');
-    (prototypeStore as any).state.currentRole = 'client';
-    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4_v2.pdf', size: 2048 });
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
+    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4_v2.pdf', size: 2048, sha256: 'b'.repeat(64) });
     assert.strictEqual(req.status, 'Received');
     setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     prototypeStore.acceptPbcResponse(eng.id, req.id);
     assert.strictEqual(req.status, 'Accepted');
+    assert.strictEqual(req.acceptedVersion, 2);
+    assert.strictEqual(req.acceptedBy, 'Layla Rahman');
+    assert.ok(req.acceptedAt);
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'late-change.pdf', size: 10, sha256: 'c'.repeat(64) }), /cannot be uploaded while the request is Accepted/);
     assert.deepEqual(req.sharedFiles?.map((file: any) => file.version), [1, 2]);
     assert.ok(req.thread?.some((message: any) => message.kind === 'clarification' && message.clientVisible));
   });

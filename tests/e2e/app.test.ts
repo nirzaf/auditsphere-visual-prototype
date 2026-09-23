@@ -785,6 +785,9 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(accept, true);
     const accepted = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}))()`);
     assert.equal(accepted.status, 'Accepted');
+    assert.equal(accepted.acceptedVersion, 2);
+    assert.equal(accepted.acceptedBy, 'Layla Rahman');
+    assert.ok(accepted.acceptedAt);
     assert.deepEqual(accepted.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2]]);
     assert.ok(accepted.thread.some((m: any) => m.kind==='clarification' && m.clientVisible));
     assert.deepEqual(browserTab!.exceptions, []);
