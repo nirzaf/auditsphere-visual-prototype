@@ -1269,6 +1269,21 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       return true;
     })()`);
     assert.equal(selected, true);
+    const setRole = async (role: string) => browserTab!.evaluate(`(() => { const s=document.querySelector('#role-select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(role)}); s.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await setRole('preparer');
+    await clickButton('Accounting Workbench');
+    await clickButton('Statement Mappings');
+    await browserTab!.evaluate(`(() => {
+      const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+      const engagement=state.engagements.find(e=>e.id===state.selectedEngagement);
+      const targets={asset:'Cash and cash equivalents',liability:'Trade payables',equity:'Share capital and reserves',revenue:'Revenue',expense:'Operating expenses'};
+      for(const row of engagement.rows){const select=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,targets[row.type]);select.dispatchEvent(new Event('change',{bubbles:true}));}
+    })()`);
+    await clickButton('Save New Revision');
+    await setRole('reviewer');
+    const approvedMapping = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Approve Revision v'));if(!b)return false;b.click();return true;})()`);
+    assert.equal(approvedMapping, true, 'independent reviewer approves package mapping');
+    await setRole('manager');
     await clickButton('Financial Packages');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Financial Reporting Packages")'), true);
     await clickButton('+ Assemble New Revision (Rev 2)');
@@ -1284,10 +1299,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256 };
       }));
       db.close();
-      return { revision: pack.revision, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
+      return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
     })()`);
     assert.equal(persisted.revision, 2);
-    assert.equal(persisted.mappingRevision, 0, 'ENG-26002 has no saved mapping history; its mapping revision remains independent of source version 1');
+    assert.equal(persisted.mappingRevision, 1, 'mapping revision remains independent of source version 1');
     assert.equal(persisted.validation, true);
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
     for (const file of persisted.files) {
@@ -1311,7 +1326,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services") && JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).selectedEngagement === "ENG-26002"'), true, 'explicitly granted client identity opens its own portal and engagement');
     await clickButton('Management Approvals');
     await clickButton('Record Representation Receipt');
-    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals.client?.generation === 2`), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals.client?.generation === ${persisted.generation}`), true);
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
       const option = [...role.options].find(o => o.textContent.includes('Engagement partner'));
@@ -1322,12 +1337,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Sign-offs & EQR');
     await clickButton('Approve as Lead Partner (Daniel James)');
     const approvals = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals`);
-    assert.equal(approvals.manager.generation, persisted.revision);
-    assert.equal(approvals.client.generation, persisted.revision);
-    assert.equal(approvals.partner.generation, persisted.revision);
+    assert.equal(approvals.manager.generation, persisted.generation);
+    assert.equal(approvals.client.generation, persisted.generation);
+    assert.equal(approvals.partner.generation, persisted.generation);
 
     await clickButton('Release & Completion');
-    await clickButton('Freeze Release Candidate (Generation 2)');
+    await clickButton(`Freeze Release Candidate (Generation ${persisted.generation})`);
     assert.equal(await waitForBrowser('!!JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).engagements.find(e=>e.id==="ENG-26002").candidate'), true);
     const releaseText = await browserTab!.evaluate<boolean>(`(() => {
       const labels=[...document.querySelectorAll('label')];
@@ -1351,7 +1366,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.command('Input.insertText', { text: 'Correct subsequent-event disclosure before final issue.' });
     await clickButton('Confirm Amendment');
     const reopened = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {generation:e.generation,packageRevision:e.packageRevision,candidate:e.candidate,approvals:e.approvals,release:e.releases[0]};})()`);
-    assert.equal(reopened.generation, 3);
+    assert.equal(reopened.generation, persisted.generation + 1);
     assert.equal(reopened.packageRevision, 3);
     assert.equal(reopened.candidate, null);
     assert.equal(reopened.approvals.partner, null, 'amendment requires new generation-bound partner review');
@@ -1914,6 +1929,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const setRole = async (role: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(role)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     try {
       await setRole('preparer');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26002');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Financial Statements');
+      const unmappedStatement = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(unmappedStatement, /Statement generation is blocked until the latest mapping revision is independently approved/);
+      assert.match(unmappedStatement, /Unmapped: 1000/);
+      assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(b=>b.innerText.includes('Export XLSX'))?.disabled`), true, 'unmapped balances cannot be exported as statements');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       await clickButton('Accounting Workbench');
       await clickButton('Statement Mappings');
       await browserTab!.evaluate(`(() => {

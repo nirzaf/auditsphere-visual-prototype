@@ -143,6 +143,12 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   and remaining downstream lineage workflows are still incomplete. Chrome also
   opens all 16 reports and checks CSV structure/client scoping; TB import retains
   predecessor rows and source hashes for balanced CSV and actual XLSX.
+- **VP-037 — account mapping:** every account now requires an explicit mapping in
+  a current independently approved revision before statements can be exported or
+  a package can validate. Unmapped accounts are listed rather than silently
+  treated as legacy classifications. The AT-37 Chrome journey verifies blocking
+  and an approved mapping path; the remaining chart/period/dimension and
+  downstream rework matrix remains open.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-

@@ -175,8 +175,7 @@ Latest focused unit run: `npm run test:unit` passed 122/122. A new VP-032 unit
 journey allocates one receipt over two issued invoices and reverses one allocation
 without disturbing the second invoice. The browser suite is 41/41;
 AT-49/60 now checks every CSV cell against the displayed values for 13 reports
-and independently computes all rows for three formula reports. Broader source
-mapping and the complete statement workflow remain unverified. All AT-01–AT-54 identifiers now appear in automated test source. That traceability
+and independently computes all rows for three formula reports. All AT-01–AT-54 identifiers now appear in automated test source. That traceability
 does not mean every acceptance criterion has been executed end to end.
 
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
@@ -192,7 +191,7 @@ journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
 remaining end-to-end acceptance journeys across the modules (R12); and browser
 storage limits on the explicitly local archive scope (R14). Purview/provider
 retention locks and physical deletion controls are excluded acceptance scope. The
-current checks cover schema migrations 0–15 and browser storage conflict/quota
+current checks cover schema migrations 0–18 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to
 source/bundle probes and exercised Chrome journeys. The prototype remains
@@ -230,3 +229,16 @@ on `production` as release `6a7ecd3a-9b9c-4c88-8d87-6ea2fe768394`.
 `prototype.steaudit.com` returned HTTP 200 and served
 `assets/index-BgHw1Ss-.js`, including the legacy-review notice and required
 screening-reference controls. Overall acceptance remains **Partial**.
+
+VP-037 follow-up: financial statements and packages now require a current,
+independently approved mapping that covers every trial-balance account. An
+engagement without a mapping shows its unmapped accounts and cannot export
+statements or pass package validation. Generated XLSX/DOCX/PDF package content
+now reports the persisted mapping revision independently of the TB source
+revision. `npm run test:unit` passed 131/131 and `npm run test:e2e` passed 56/56
+(five static checks and 51 Chrome journeys); Chrome verifies unmapped statement
+exports are disabled, an independently reviewed mapping unlocks statements,
+and the generated package is approved/released against its mapping revision.
+Build passes with the existing large-bundle advisory. Module 20 remains Partial
+until the complete chart, period, dimension and dependent-output acceptance
+matrix is executed. Production deployment evidence is recorded after release.

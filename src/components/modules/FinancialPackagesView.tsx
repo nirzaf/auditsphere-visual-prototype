@@ -67,8 +67,8 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   ).length === 0;
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
   const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
-  const unmappedAccounts = currentMapping?.mappings ? selectedEng.rows.filter(row => !currentMapping.mappings.some(mapping => mapping.accountCode === row.code)) : [];
-  const mappingsReady = !currentMapping || (currentMapping.status === 'Approved' && unmappedAccounts.length === 0);
+  const unmappedAccounts = selectedEng.rows.filter(row => !currentMapping?.mappings.some(mapping => mapping.accountCode === row.code));
+  const mappingsReady = Boolean(currentMapping?.status === 'Approved' && unmappedAccounts.length === 0);
 
   const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady;
 
@@ -106,7 +106,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Quality Reviewer: ${selectedEng.eqrRequired ? 'Dr. Tariq Al-Sayed (EQR)' : 'N/A (EQR not required)'}`,
     `Package Revision: Version ${revision}`,
     `Source Revision: TB v${selectedEng.sourceVersion}`,
-    `Mapping Revision: v${selectedEng.sourceVersion}`,
+    `Mapping Revision: v${currentMapping?.revision || 0}`,
     `Auditor Opinion: ${selectedEng.opinion}`,
     `Signed trial-balance total: ${tbSum.toFixed(2)} ${selectedEng.currency}`,
     `Total assets: ${packageRows.filter(r => r.type === 'asset').reduce((sum, r) => sum + r.balance, 0).toFixed(2)} ${selectedEng.currency}`,
@@ -131,7 +131,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         ...packageRows.map(r => [r.code, r.name, r.type, r.balance]),
         ['Total', '', '', tbSum],
         ['Source revision', '', '', selectedEng.sourceVersion],
-        ['Mapping revision', '', '', selectedEng.sourceVersion],
+        ['Mapping revision', '', '', currentMapping?.revision || 0],
         ['Package revision', '', '', revision]
       ];
       const blobs = [

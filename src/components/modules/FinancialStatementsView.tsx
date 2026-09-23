@@ -36,8 +36,8 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
   const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
   const mappedAccounts = currentMapping?.mappings || [];
-  const unmappedRows = currentMapping ? selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code)) : [];
-  const mappingReady = !currentMapping || (currentMapping.status === 'Approved' && !unmappedRows.length);
+  const unmappedRows = selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code));
+  const mappingReady = Boolean(currentMapping?.status === 'Approved' && !unmappedRows.length);
   const mapRow = (row: TrialBalanceRow): TrialBalanceRow[] => {
     const targets = mappedAccounts.find(mapping => mapping.accountCode === row.code)?.targets || [];
     let allocatedCents = 0;
@@ -54,7 +54,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       };
     });
   };
-  const statementRows: TrialBalanceRow[] = currentMapping?.status === 'Approved' && !unmappedRows.length
+  const statementRows: TrialBalanceRow[] = mappingReady
     ? adjustmentResult.rows.flatMap(mapRow)
     : adjustmentResult.rows;
   const bs = calculateBalanceSheet(statementRows);
