@@ -29,9 +29,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   completion and that reassignment changes the real assignee with a retained
   reason and no authority grant. Job cancellation and the full edit/status/filter
   matrix remain unverified.
-- **AT-13 — job templates:** Chrome applies one published template into a fresh
-  job/task tree and confirms prior completion state is not copied. Template
-  authoring/revision and duplicate-click recovery remain unverified.
+- **AT-13 — job templates:** Chrome authors a Draft, publishes it, creates one
+  fresh job/tree, then retires the template without changing that job. Editing
+  a published revision and duplicate-click recovery remain unverified.
 
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,

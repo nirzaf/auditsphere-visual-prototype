@@ -87,6 +87,10 @@ The AT-20 journey selects a local replacement, retains the prior document row,
 adds a separately identified v2 with SHA-256 metadata and leaves EVD-01 pinned
 to DOC-002 v1. The evidence catalogue flags that a newer version is available;
 it does not automatically re-clear dependent procedures or workpapers.
+The AT-13 journey also authors a two-phase Draft in Chrome, publishes it,
+instantiates one clean job and task tree, then retires the template while the
+created job remains unchanged. Published-revision editing and retry recovery
+remain unverified.
 The AT-26 journey selects the PBC request template and confirms all placeholders
 resolve in the subject/body. It records accepted, failed and unknown outcomes
 as separate local communication records and confirms the sends create no

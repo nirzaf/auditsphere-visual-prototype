@@ -608,6 +608,28 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(after.tree.length, before.template.tasks.reduce((n: number, t: any) => n + 1 + (t.subtasks?.length || 0), 0));
     assert.ok(after.tree.every((task: any) => task.status === 'Not started'), 'template application does not copy prior task state');
     assert.ok(after.tree.every((task: any) => task.jobId === after.job.id && task.id !== 'TSK-103'), 'template application assigns a fresh job/task tree');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));if(!b)throw Error('Missing job templates route');b.click();})()`);
+    await clickButton('Author New Template');
+    await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const field=l?.parentElement?.querySelector('input,textarea');if(!field)throw Error('Missing template field '+label);const p=field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));};set('Template Name','AT13 Lifecycle Template');set('Default Job Title','AT13 Lifecycle Job');set('Template Description','Lifecycle acceptance fixture');set('Standard Phases','Planning\\nReview');})()`);
+    await clickButton('Create Draft Template');
+    const authored = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTemplates.find(t=>t.name==='AT13 Lifecycle Template')`);
+    assert.equal(authored.status, 'Draft');
+    assert.deepEqual(authored.tasks.map((task: any) => task.title), ['Planning', 'Review']);
+    const jobsBeforeLifecycle = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`);
+    await clickButton('Publish Template');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTemplates.find(t=>t.id===${JSON.stringify(authored.id)}).status==='Published'`), true);
+    await clickButton('Create Job from Template');
+    await clickButton('Instantiate Job');
+    const lifecycleJob = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.fromTemplateId===${JSON.stringify(authored.id)})`);
+    assert.ok(lifecycleJob);
+    assert.equal(lifecycleJob.status, 'Not started');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), jobsBeforeLifecycle + 1);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));b.click();})()`);
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(authored.id)}));if(!row)throw Error('Authored template row missing');row.click();})()`);
+    await clickButton('Retire Template');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTemplates.find(t=>t.id===${JSON.stringify(authored.id)}).status==='Retired'`), true);
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id===${JSON.stringify(lifecycleJob.id)}).status`), 'Not started', 'retirement preserves the created job');
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(authored.id)})).querySelector('button').disabled`), true, 'retired template cannot be instantiated');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
