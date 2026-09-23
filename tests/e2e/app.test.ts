@@ -851,6 +851,31 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-38/40: includes an accepted unreflected adjustment in the financial statements', async () => {
+    const selected = await browserTab!.evaluate<boolean>(`(() => {const s=[...document.querySelectorAll('select')].find(x=>[...x.options].some(o=>o.value==='ENG-26001'));if(!s)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'ENG-26001');s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    assert.equal(selected, true, 'engagement selector should include the fixture engagement');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
+    const expectedNet = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const raw=e.rows;const revenue=raw.filter(x=>x.type==='revenue').reduce((n,x)=>n+Math.abs(x.balance),0);const expense=raw.filter(x=>x.type==='expense');const cost=expense.filter(x=>x.name.toLowerCase().includes('cost')||x.code.startsWith('50')).reduce((n,x)=>n+x.balance,0);const opex=expense.filter(x=>!x.name.toLowerCase().includes('cost')&&!x.code.startsWith('50')).reduce((n,x)=>n+x.balance,0);const adj=s.adjustmentJournals.find(x=>x.engagementId===e.id&&x.id==='AJ-01');if(!adj||adj.status!=='Management accepted'||adj.reflectionStatus!=='Not reflected')throw Error('accepted unreflected adjustment fixture missing');const expected=revenue-cost-opex-50000;return 'QAR '+expected.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});})()`);
+    await clickButton('Financial Statements');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Accepted, unreflected adjustments included: AJ-01/);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Balance Sheet Equation Balanced/);
+    await clickButton('Statement of Comprehensive Income (P&L)');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), new RegExp(expectedNet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    await clickButton('Financial Packages');
+    const assembleLabel = await browserTab!.evaluate<string>(`[...document.querySelectorAll('button')].find(b=>b.innerText.includes('Assemble New Revision'))?.innerText.trim()||''`);
+    assert.ok(assembleLabel, 'package revision action should be available');
+    await clickButton(assembleLabel);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("saved with exact XLSX, DOCX and PDF files")'), true);
+    const packageFile = await browserTab!.evaluate<string>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const p=e.packageHistory.find(x=>x.revision===e.packageRevision);const a=p.artifacts.find(x=>x.kind==='XLSX');const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result.blob);r.onerror=()=>reject(r.error)});const bytes=new Uint8Array(await blob.arrayBuffer());let bin='';for(const b of bytes)bin+=String.fromCharCode(b);db.close();return btoa(bin)})()`);
+    const workbook = XLSX.read(Buffer.from(packageFile, 'base64'), { type: 'buffer' });
+    const packageRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1, raw: true });
+    assert.equal(packageRows.find(row => row[0] === '5000')?.[3], 350000, 'XLSX package contains approved depreciation debit');
+    assert.equal(packageRows.find(row => row[0] === '1500')?.[3], 750000, 'XLSX package contains approved depreciation credit');
+    const sourceAfter = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
+    assert.equal(sourceAfter.find((row: any) => row.code === '5000').balance, 300000, 'package adjustment must not rewrite imported source rows');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
     const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
     assert.equal(targetResponse.ok, true);

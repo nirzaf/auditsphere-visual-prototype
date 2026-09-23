@@ -3,6 +3,7 @@
 
 import {
   InvoiceRecord,
+  AdjustmentJournalItem,
   ReceiptRecord,
   CreditNoteRecord,
   TrialBalanceRow,
@@ -24,6 +25,31 @@ export function formatCurrency(amount: number, currency = 'QAR'): string {
 export function formatMinutesToHours(minutes: number): string {
   const hrs = minutes / 60;
   return `${hrs.toFixed(1)} hrs`;
+}
+
+export function applyReportingAdjustments(rows: TrialBalanceRow[], journals: AdjustmentJournalItem[]) {
+  const adjustedRows = structuredClone(rows);
+  const applied: string[] = [];
+  const unapplied: Array<{ journalId: string; reason: string }> = [];
+  for (const journal of journals) {
+    if (journal.status !== 'Management accepted' && journal.status !== 'Reporting included') continue;
+    if (journal.reflectedInClientBooks || journal.reflectionStatus === 'Reflected in TB') continue;
+    if (journal.reflectionStatus !== 'Not reflected') {
+      unapplied.push({ journalId: journal.id, reason: `Reflection status is ${journal.reflectionStatus || 'unknown'}.` });
+      continue;
+    }
+    const missing = journal.lines.filter(line => !adjustedRows.some(row => row.code === line.accountCode));
+    if (missing.length) {
+      unapplied.push({ journalId: journal.id, reason: `Account codes are missing from the current trial balance: ${missing.map(line => line.accountCode).join(', ')}.` });
+      continue;
+    }
+    for (const line of journal.lines) {
+      const row = adjustedRows.find(item => item.code === line.accountCode)!;
+      row.balance += line.type === 'debit' ? line.amount : -line.amount;
+    }
+    applied.push(journal.id);
+  }
+  return { rows: adjustedRows, applied, unapplied };
 }
 
 // Module 15: Receivables Aging Calculation (VP-033)
@@ -474,10 +500,11 @@ export function calculateBalanceSheet(rows: TrialBalanceRow[]) {
   const assets = rows.filter(r => r.type === 'asset');
   const liabilities = rows.filter(r => r.type === 'liability');
   const equity = rows.filter(r => r.type === 'equity');
+  const currentPeriodResult = calculateIncomeStatement(rows).netProfit;
 
   const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = liabilities.reduce((s, l) => s + Math.abs(l.balance), 0);
-  const totalEquity = equity.reduce((s, e) => s + Math.abs(e.balance), 0);
+  const totalEquity = equity.reduce((s, e) => s + Math.abs(e.balance), 0) + currentPeriodResult;
 
   const difference = Math.abs(totalAssets - (totalLiabilities + totalEquity));
   const isBalanced = difference === 0;
@@ -489,6 +516,7 @@ export function calculateBalanceSheet(rows: TrialBalanceRow[]) {
     totalAssets,
     totalLiabilities,
     totalEquity,
+    currentPeriodResult,
     difference,
     isBalanced
   };

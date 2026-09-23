@@ -12,11 +12,16 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   release, amendment reset, and predecessor-manifest preservation. Dispatch,
   duplicate-delivery and all release edge paths remain unverified.
 - **R08 — accounting history:** imported trial-balance snapshots and mapping/source
-  metadata are retained by revision. The complete adjustment-to-report pipeline
-  remains unverified. Chrome now opens all 16 practice reports and inspects CSV
-  structure, with a filtered client export checked for cross-client leakage. The
-  TB UI rejects unbalanced CSV, commits balanced CSV and actual XLSX, and retains
-  predecessor rows and source hashes; full GL and adjustment workflows remain.
+  metadata are retained by revision. Financial statements and package artifacts
+  now include accepted, unreflected adjustments exactly once; reflected or
+  reflection-uncertain entries are excluded, missing account codes block output,
+  and source rows remain unchanged. Unit and Chrome checks cover AJ-01 through
+  statements and current-period equity; Chrome parses the generated package XLSX
+  and checks both accepted adjustment lines in the exact account rows. Full
+  adjustment approval/reflection,
+  general-ledger and downstream lineage workflows remain unverified. Chrome also
+  opens all 16 reports and checks CSV structure/client scoping; TB import retains
+  predecessor rows and source hashes for balanced CSV and actual XLSX.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. Perimeter edits, missing-component recovery, and
@@ -47,9 +52,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 98/98 unit checks and 18/18 E2E checks passed. The AT-28
-workflow now has unit and actual Chrome coverage for return, resubmission,
-approval and correction revisions. E2E is five static checks plus thirteen
-actual Chrome checks, including rendering all 31 staff navigation routes and
-selected workflow journeys. Route rendering is not full workflow acceptance. See
+Latest recorded run: 99/99 unit checks and 19/19 E2E checks passed. AT-28 and
+AT-38/40 now have unit and actual Chrome coverage for time correction and
+accepted adjustments in financial statements. E2E is five static checks plus
+fourteen actual Chrome checks, including rendering all 31 staff navigation
+routes and selected workflow journeys. Route rendering is not full workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.

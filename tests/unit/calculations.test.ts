@@ -7,7 +7,9 @@ import {
   calculateBudgetVsActual,
   calculateReceivablesAging,
   calculateConsolidatedBalanceSheet,
-  calculateMateriality
+  calculateMateriality,
+  calculateBalanceSheet,
+  applyReportingAdjustments
 } from '../../src/services/calculations.js';
 import type { TrialBalanceRow } from '../../src/types/index.js';
 
@@ -40,17 +42,43 @@ describe('accounting fixed example (AT-38/40)', () => {
     assert.equal(t.assets, 22500);
     assert.equal(t.profit, 2500);
     assert.equal(t.isBalanced, true);
+    const statement = calculateBalanceSheet(adjusted);
+    assert.equal(statement.currentPeriodResult, 2500);
+    assert.equal(statement.totalEquity, 12500);
+    assert.equal(statement.isBalanced, true, 'current-period result completes the adjusted statement of financial position');
   });
 
   it('does not double-charge a replacement source already containing the adjustment', () => {
-    const withAdj = TB_8.map(r =>
-      r.code === '5000' ? { ...r, balance: r.balance + 500 } :
-      r.code === '1500' ? { ...r, balance: r.balance - 500 } : r);
-    // Marking the journal reflected must zero its additional effect: simulate by
-    // asserting the already-adjusted source still nets to the same totals.
-    const t = calculateTrialBalanceTotals(withAdj);
-    assert.equal(t.assets, 22500);
-    assert.equal(t.profit, 2500);
+    const journal: any = { id: 'AJ-TEST', status: 'Management accepted', reflectionStatus: 'Reflected in TB', lines: [
+      { accountCode: '5000', type: 'debit', amount: 500 }, { accountCode: '1500', type: 'credit', amount: 500 }
+    ] };
+    const result = applyReportingAdjustments(TB_8, [journal]);
+    assert.deepEqual(result.rows, TB_8);
+    assert.deepEqual(result.unapplied, []);
+  });
+
+  it('applies only accepted, unreflected journals and blocks incomplete or uncertain journals', () => {
+    const journal: any = {
+      id: 'AJ-TEST', status: 'Management accepted', reflectionStatus: 'Not reflected',
+      lines: [
+        { accountCode: '5000', type: 'debit', amount: 500 },
+        { accountCode: '1500', type: 'credit', amount: 500 }
+      ]
+    };
+    const applied = applyReportingAdjustments(TB_8, [journal]);
+    assert.equal(applied.rows.find(row => row.code === '5000')?.balance, 3500);
+    assert.equal(applied.rows.find(row => row.code === '1500')?.balance, 7500);
+    assert.deepEqual(applied.unapplied, []);
+    assert.equal(TB_8.find(row => row.code === '5000')?.balance, 3000, 'applying a journal must not mutate the source TB');
+
+    const reflected = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Reflected in TB' } as any]);
+    assert.deepEqual(reflected.rows, TB_8, 'reflected journal is not counted twice');
+    const missing = applyReportingAdjustments(TB_8, [{ ...journal, lines: [...journal.lines, { accountCode: '9999', type: 'debit', amount: 1 }] } as any]);
+    assert.deepEqual(missing.rows, TB_8, 'an incomplete journal is excluded atomically');
+    assert.equal(missing.unapplied[0].journalId, 'AJ-TEST');
+    const uncertain = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Unknown' } as any]);
+    assert.deepEqual(uncertain.rows, TB_8, 'unknown reflection is not silently double counted');
+    assert.equal(uncertain.unapplied[0].journalId, 'AJ-TEST');
   });
 });
 

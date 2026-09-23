@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
+import { applyReportingAdjustments, calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 
 interface FinancialStatementsViewProps {
@@ -32,8 +32,10 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     );
   }
 
-  const bs = calculateBalanceSheet(selectedEng.rows);
-  const is = calculateIncomeStatement(selectedEng.rows);
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id));
+  const statementRows = adjustmentResult.rows;
+  const bs = calculateBalanceSheet(statementRows);
+  const is = calculateIncomeStatement(statementRows);
 
   const handleExportXLSX = () => {
     const data = [
@@ -43,6 +45,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       ...bs.liabilities.map((l: TrialBalanceRow) => ({ LineItem: `  ${l.name} (${l.code})`, Amount: Math.abs(l.balance) })),
       { LineItem: 'Equity', Amount: bs.totalEquity },
       ...bs.equity.map((e: TrialBalanceRow) => ({ LineItem: `  ${e.name} (${e.code})`, Amount: Math.abs(e.balance) })),
+      { LineItem: '  Current-period profit / (loss)', Amount: bs.currentPeriodResult },
       { LineItem: 'Revenue', Amount: is.revenue },
       { LineItem: 'Cost of Sales', Amount: is.costOfSales },
       { LineItem: 'Gross Profit', Amount: is.grossProfit },
@@ -100,6 +103,11 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
           </button>
         </div>
       </div>
+
+      {adjustmentResult.unapplied.length > 0 && <div role="status" className="badge danger" style={{ display: 'block', padding: 12 }}>
+        Some management-accepted adjustments were excluded because their source reflection or account mapping needs review: {adjustmentResult.unapplied.map(item => `${item.journalId}: ${item.reason}`).join(' ')}
+      </div>}
+      <div className="caption">Accepted, unreflected adjustments included: {adjustmentResult.applied.join(', ') || 'None'}. Reflected or unapproved journals are excluded.</div>
 
       {/* Statement Select Tabs */}
       <div className="tabs">
@@ -179,6 +187,11 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
                       <td style={{ textAlign: 'right' }}>{formatCurrency(Math.abs(e.balance))}</td>
                     </tr>
                   ))}
+                  <tr>
+                    <td style={{ paddingLeft: 24 }}>Current-period profit / (loss)</td>
+                    <td>—</td>
+                    <td style={{ textAlign: 'right' }}>{formatCurrency(bs.currentPeriodResult)}</td>
+                  </tr>
                   <tr>
                     <td colSpan={2}><b>Total Equity</b></td>
                     <td style={{ textAlign: 'right' }}><b>{formatCurrency(bs.totalEquity)}</b></td>

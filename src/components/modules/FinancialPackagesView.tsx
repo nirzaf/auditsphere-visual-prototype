@@ -7,6 +7,7 @@ import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { exportService } from '../../services/exportService';
+import { applyReportingAdjustments } from '../../services/calculations';
 import { artifactSha256, downloadVerifiedArtifact, persistArtifact } from '../../services/artifactStore';
 import { FinancialPackageRevision, GeneratedArtifactRecord } from '../../types';
 
@@ -55,7 +56,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   }
 
   // Pre-release validation summary gates
-  const tbSum = selectedEng.rows.reduce((sum, r) => sum + r.balance, 0);
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id));
+  const packageRows = adjustmentResult.rows;
+  const tbSum = packageRows.reduce((sum, r) => sum + r.balance, 0);
   const tbBalanced = Math.abs(tbSum) < 1;
   const workpapersCleared = selectedEng.workpapers.every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
   const reviewNotesCleared = selectedEng.reviews.every(r => r.status === 'Cleared');
@@ -63,7 +66,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)
   ).length === 0;
 
-  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial;
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0;
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -102,8 +105,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Mapping Revision: v${selectedEng.sourceVersion}`,
     `Auditor Opinion: ${selectedEng.opinion}`,
     `Signed trial-balance total: ${tbSum.toFixed(2)} ${selectedEng.currency}`,
-    `Total assets: ${selectedEng.rows.filter(r => r.type === 'asset').reduce((sum, r) => sum + r.balance, 0).toFixed(2)} ${selectedEng.currency}`,
-    `Total liabilities: ${Math.abs(selectedEng.rows.filter(r => r.type === 'liability').reduce((sum, r) => sum + r.balance, 0)).toFixed(2)} ${selectedEng.currency}`,
+    `Total assets: ${packageRows.filter(r => r.type === 'asset').reduce((sum, r) => sum + r.balance, 0).toFixed(2)} ${selectedEng.currency}`,
+    `Total liabilities: ${Math.abs(packageRows.filter(r => r.type === 'liability').reduce((sum, r) => sum + r.balance, 0)).toFixed(2)} ${selectedEng.currency}`,
+    `Included accepted unreflected adjustments: ${adjustmentResult.applied.join(', ') || 'None'}`,
     '', 'TABLE OF CONTENTS (ORDERED SECTIONS):',
     ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
     '', `Disclosures & Management Notes: ${packageNotes}`
@@ -120,7 +124,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
       const fileBase = `Financial_Report_Package_${client?.code || 'CL001'}_v${revision}`;
       const rows = [
         ['Account code', 'Account name', 'Type', `Signed balance (${selectedEng.currency})`],
-        ...selectedEng.rows.map(r => [r.code, r.name, r.type, r.balance]),
+        ...packageRows.map(r => [r.code, r.name, r.type, r.balance]),
         ['Total', '', '', tbSum],
         ['Source revision', '', '', selectedEng.sourceVersion],
         ['Mapping revision', '', '', selectedEng.sourceVersion],
@@ -260,6 +264,14 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
                 {tbBalanced ? 'Balanced (Net 0)' : `Unbalanced (${tbSum})`}
               </span>
             </div>
+          </div>
+
+          <div className="borderbox" style={{ padding: 12 }}>
+            <span className="caption">Accepted Adjustments</span>
+            <div className="mt4"><span className={`badge ${adjustmentResult.unapplied.length ? 'red' : 'green'}`}>
+              {adjustmentResult.unapplied.length ? `${adjustmentResult.unapplied.length} require resolution` : `${adjustmentResult.applied.length} included once`}
+            </span></div>
+            {adjustmentResult.unapplied.map(item => <div className="caption mt4" key={item.journalId}>{item.journalId}: {item.reason}</div>)}
           </div>
 
           <div className="borderbox" style={{ padding: 12 }}>
