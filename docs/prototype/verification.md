@@ -17,6 +17,7 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree after `b4543d5` | `npm run test:e2e` | PASS — 37/37 | Five static checks and 32 actual Chrome checks. AT-29 versions budget rates while retaining the old approved-time rate snapshot; AT-32 verifies receipt entry, allocation and reasoned reversal; AT-50 verifies client search scope. |
 | 2026-09-23 | current working tree after `9024ff8` | `npm run test:e2e` | PASS — 36/36 | Five static checks and 31 actual Chrome checks. AT-50 verifies client-scoped search; AT-32 records, allocates and reverses an offline receipt while preserving the prior settled balance. Multi-invoice allocation and other search grants/cross-links remain incomplete. |
 | 2026-09-23 | `9e28d5a` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (570.89 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `9e28d5a` | `npm run test:unit` | PASS — 109/109, 25 suites | VP-030 validates approved-time source and pinned rate, exact-once reservation, accepted proposal revision matching, and fixed-fee contract cap; prior accounting, scope, migration, package, reporting and workflow checks remain included. |

@@ -882,6 +882,21 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions,[]);
   });
 
+  it('AT-29/VP-029: versions a budget without rewriting approved time rates', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Budgets & Variances'));if(!b)throw Error('Budget navigation is missing');b.click();})()`);
+    await clickButton('Author New Budget Version');
+    await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('.modal-overlay label')].find(x=>x.innerText.trim()==='Billing Rate (/hr)');const input=label?.parentElement?.querySelector('input');if(!input)throw Error('Budget billing rate input missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'300');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save Version 2');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).budgets.find(b=>b.engagementId==='ENG-26001').version===2`),true);
+    const snapshot = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const b=s.budgets.find(x=>x.engagementId==='ENG-26001');const t=s.times.find(x=>x.id==='TIME-01');return {version:b.version,rate:b.lines.find(x=>x.roleOrActivity==='Audit fieldwork').billingRatePerHour,history:b.history,timeRate:t.billingRatePerHour,timeBudgetVersion:t.budgetVersion};})()`);
+    assert.equal(snapshot.version,2);
+    assert.equal(snapshot.rate,300);
+    assert.equal(snapshot.history[0].version,1);
+    assert.equal(snapshot.timeRate,200,'approved time retains its original pinned billing rate');
+    assert.equal(snapshot.timeBudgetVersion,1);
+    assert.deepEqual(browserTab!.exceptions,[]);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
