@@ -17,7 +17,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
 | 2026-09-23 | `0cc8f53` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` project; production release `bec7bc33` (`https://bec7bc33.steaudit-prototype.pages.dev`). The release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-BLc-uQV0.js` (2,172,828 bytes, SHA-256 `e608d7f73af898470f5c2244dacd81d09820395161078f1eefd32ecd63a41f4d`), matching local `dist/`. |
-| 2026-09-23 | working tree after `b8bed7f` | `npm run test:unit` + `npm run test:e2e` | PASS — 136/136 unit, 57/57 E2E | Five static checks and 52 actual Chrome journeys. Sampling (AT-51), workpapers (AT-52), annual continuance, exact package artifacts, reports, consolidation, trial-balance replacement and all staff routes passed. Coverage ledger reconciled: VP-009, VP-051, VP-052 / Modules 03, 31, 32 Verified; 61/64 stories and 36/39 modules remain Partial. |
+| 2026-09-23 | working tree after `b8bed7f` | `npm run test:unit` + `npm run test:e2e` | PASS — 136/136 unit, 57/57 E2E | Five static checks and 52 actual Chrome journeys. AT-17/18, AT-37, AT-51/52, annual continuance, exact package artifacts, reports, consolidation, trial-balance replacement and all staff routes passed. Coverage ledger reconciled: VP-009, VP-018, VP-037, VP-051, VP-052 / Modules 03, 31, 32 Verified; 59/64 stories and 36/39 modules remain Partial. |
 | 2026-09-23 | `cbd9ad6` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `62a3110b` (`https://62a3110b.steaudit-prototype.pages.dev`). Release and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-BlMfR5dl.js` (2,172,573 bytes, SHA-256 `3c78de8e936106be6e0020cf7f561abc57a644ddd5854e70e97d8c1f8e2fd01b`), matching local `dist/`; bundle contains disclosure applicability controls and no longer seeds an unsupported IFRS inclusion claim. |
 | 2026-09-23 | VP-041 disclosure applicability follow-up | `npm run test:unit` | PASS — 136/136 | Unit suite remains green; disclosure applicability is validated in Chrome package assembly. |
 | 2026-09-23 | VP-041 disclosure applicability follow-up | `npm run test:e2e` | PASS — 57/57 | AT-41 verifies an enabled disclosure section starts unassessed and blocks package validation, then persists an Applicable decision and entered note in the exact package revision. AT-38 package artifact journey also passes. This is package-level applicability, not a per-note accounting-standard checklist. |
@@ -212,8 +212,8 @@ AT-49/60 now checks every CSV cell against the displayed values for 13 reports
 and independently computes all rows for three formula reports. All AT-01–AT-54 identifiers now appear in automated test source. That traceability
 does not mean every acceptance criterion has been executed end to end.
 
-The acceptance ledger remains Partial overall: 36 of 39 modules and 61 of 64
-stories remain Partial (VP-009, VP-051 and VP-052 are Verified). The Chrome suite checks
+At this verification point, 36 of 39 modules and 59 of 64 stories remain
+Partial (VP-009, VP-018, VP-037, VP-051 and VP-052 are Verified). The Chrome suite checks
 major workflows and route rendering; it does not execute and verify every
 acceptance criterion. In particular, the route
 smoke test does not prove create/edit/review/rework behavior on each route.

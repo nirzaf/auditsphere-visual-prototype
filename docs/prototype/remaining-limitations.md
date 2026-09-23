@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Remaining Limitations
 
 Updated 2026-09-23. Selected R01–R14 defects received code and regression
-coverage, but that does not constitute full acceptance. VP-009, VP-051 and
-VP-052 are Verified. VP-053 gained reasoned unlink history and adequacy-driven
+coverage, but that does not constitute full acceptance. VP-009, VP-018, VP-037,
+VP-051 and VP-052 are Verified. VP-053 gained reasoned unlink history and adequacy-driven
 invalidation, but its full projection/provenance matrix remains open; 36 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
 `verification.md` for exact executed checks.
 
@@ -235,7 +235,7 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 ## Verification snapshot
 
 Latest recorded run: 136/136 unit checks and 57/57 E2E checks passed. E2E
-includes five static checks and 52 Chrome journeys. VP-009, VP-051 and VP-052
-are Verified; 61 of 64 stories and 36 of 39 modules remain Partial because full
+includes five static checks and 52 Chrome journeys. VP-009, VP-018, VP-037,
+VP-051 and VP-052 are Verified; 59 of 64 stories and 36 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
