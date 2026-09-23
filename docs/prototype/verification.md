@@ -16,7 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 114/114 | Schema v12 migrations initialize access history without inventing legacy events; grants/revocations preserve actor, scope, time and reason. Sampling parser/store checks remain green. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 115/115 | Schema v13 adds acceptance evidence references; the report WIP check uses approved-time pinned rates and returns unknown when a rate is missing. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 40/40 | Five static checks and 35 actual Chrome checks. VP-019 verifies scoped grant and reasoned revocation in browser-visible durable history; VP-051 imports/replaces CSV source and retains tested predecessors. |
 | 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.03 MB (575.64 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `b086b99` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `06cf7853-08e5-4e7d-b01e-2ebbc70bfa8d`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-DWvk2a2d.js`. Served bundle contains durable grant/revocation history. |
@@ -164,3 +164,13 @@ The release URL and `https://prototype.steaudit.com` returned HTTP 200 and serve
 five screening reference inputs. Live screening and identity verification remain
 out of scope. The overall 64 story and 39 module acceptance ledger remains
 **Partial** pending full execution of the remaining criteria.
+
+The VP-060 report follow-up fixes WIP calculation to use each approved time
+entry's pinned rate rather than the current budget. Missing pinned rates remain
+unknown. `npm run test:unit` passed 115/115, `npm run test:e2e` passed 40/40 in
+Chrome, and `npm run build` passed with the existing large-bundle advisory.
+Commit `c62ed7d` is deployed to the existing `steaudit-prototype` Pages project
+on `production` as release `88464b68-b541-44c7-8c63-7cb4798f02ec`. The release
+and `prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-BQWlY3JI.js`. The full 16-report source reconciliation is still
+incomplete; the 64-story and 39-module ledger remains **Partial**.

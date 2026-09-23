@@ -111,7 +111,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. Perimeter edits, missing-component recovery, and
   non-base-currency translation workflows remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–11 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–12 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -147,7 +147,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 114/114 unit checks and 40/40 E2E checks passed. E2E
+Latest recorded run: 115/115 unit checks and 40/40 E2E checks passed. E2E
 includes five static checks and 35 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
