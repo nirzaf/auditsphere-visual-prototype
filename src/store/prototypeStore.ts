@@ -700,6 +700,20 @@ class PrototypeStore {
     this.notify();
   }
 
+  public resubmitReturnedTime(entryId: string, correction: Pick<TimeEntryItem, 'taskTitle' | 'durationMinutes' | 'activity' | 'narrative' | 'billable'>) {
+    requireActiveIdentity(this.state);
+    const entry = this.state.times.find(t => t.id === entryId);
+    if (!entry || entry.status !== 'Returned') throw new GuardError('INVALID_STATE', 'Only returned time entries can be resubmitted.');
+    requireEngagementScope(this.state, entry.engagementId);
+    if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original time owner can resubmit a returned entry.');
+    if (!correction.taskTitle.trim() || !correction.activity.trim() || !Number.isInteger(correction.durationMinutes) || correction.durationMinutes <= 0) throw new GuardError('INVALID_STATE', 'Corrected time requires a task, activity and positive whole-minute duration.');
+    entry.status = 'Superseded';
+    const revision = (entry.correctionRevision || 0) + 1;
+    this.state.times.unshift({ ...entry, ...correction, id: `${entry.id}-R${revision}`, status: 'Submitted', correctionRevision: revision, supersedesId: entry.id, reviewedBy: undefined, reviewedAt: undefined, returnReason: undefined, billingRatePerHour: undefined, costRatePerHour: undefined, budgetVersion: undefined });
+    this.logEvent(`Returned time entry resubmitted as revision ${revision}: ${entry.id}`, entry.id);
+    this.notify();
+  }
+
   // --- Budgets (VP-029) ---
   public updateBudget(budget: PrototypeState['budgets'][0]) {
     requireActiveIdentity(this.state);
@@ -1449,6 +1463,7 @@ class PrototypeStore {
       durationMinutes: correctedMinutes,
       status: 'Submitted',
       correctionRevision: (entry.correctionRevision || 0) + 1,
+      supersedesId: entry.id,
       reviewedBy: undefined,
       reviewedAt: undefined,
       returnReason: `Correction of ${entry.id}: ${reason}`

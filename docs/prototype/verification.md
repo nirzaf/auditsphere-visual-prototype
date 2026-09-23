@@ -1,9 +1,9 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `5ec7cd9` was deployed to the existing
-`steaudit-prototype` Pages project and verified at `prototype.steaudit.com`.
-This working-tree change has not yet been committed or deployed.
+acceptance assertions. Commit `56a59bf` is the current deployed baseline in the
+existing `steaudit-prototype` Pages project at `prototype.steaudit.com`. The
+time-correction change below has passed local checks; deployment is pending.
 
 ## Commands
 
@@ -20,6 +20,8 @@ This working-tree change has not yet been committed or deployed.
 | 2026-09-23 | working tree based on `d6a226d` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.96 MB (559 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks, PBC clarification/replacement/acceptance, and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
+| 2026-09-23 | working tree after `56a59bf` | `npm run test:unit` | PASS — 98/98, 21 suites | Added AT-28 lifecycle evidence: manager return, owner resubmission, independent approval, approved-time correction and retained superseded revisions. |
+| 2026-09-23 | working tree after `56a59bf` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve actual Chrome checks; no new browser journey was added for the time correction UI. Existing executed journey coverage and limits are unchanged. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal

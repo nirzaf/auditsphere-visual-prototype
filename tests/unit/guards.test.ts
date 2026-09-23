@@ -150,6 +150,35 @@ describe('separation of duties (AT-24/31/47)', () => {
   });
 });
 
+describe('time correction lifecycle (AT-28)', () => {
+  it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const storeState = (prototypeStore as any).state;
+    setPersona(storeState, 'Adam Khan');
+    const entry = storeState.times.find((t: any) => t.id === 'TIME-01');
+    entry.status = 'Submitted';
+    setPersona(storeState, 'Layla Rahman');
+    prototypeStore.reviewTimeEntry(entry.id, 'Returned', 'Correct task detail');
+    setPersona(storeState, 'Adam Khan');
+    prototypeStore.resubmitReturnedTime(entry.id, { taskTitle: entry.taskTitle, durationMinutes: 75, activity: entry.activity, narrative: 'Corrected detail', billable: entry.billable });
+    const firstRevision = storeState.times.find((t: any) => t.supersedesId === entry.id);
+    assert.equal(entry.status, 'Superseded');
+    assert.equal(firstRevision.status, 'Submitted');
+    assert.equal(firstRevision.durationMinutes, 75);
+    setPersona(storeState, 'Layla Rahman');
+    prototypeStore.reviewTimeEntry(firstRevision.id, 'Approved');
+    prototypeStore.correctApprovedTime(firstRevision.id, 60, 'Timer rounding correction');
+    const correction = storeState.times.find((t: any) => t.supersedesId === firstRevision.id);
+    assert.equal(firstRevision.status, 'Superseded');
+    assert.equal(correction.status, 'Submitted');
+    assert.equal(correction.durationMinutes, 60);
+    prototypeStore.reviewTimeEntry(correction.id, 'Approved');
+    assert.equal(correction.status, 'Approved');
+    assert.equal(storeState.times.filter((t: any) => t.status === 'Approved' && (t.id === correction.id || t.supersedesId)).reduce((sum: number, t: any) => sum + t.durationMinutes, 0), 60);
+  });
+});
+
 describe('evidence adequacy (AT-20/46)', () => {
   it('persists attributable adequacy and requires rationale for deficiency', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

@@ -523,6 +523,7 @@ export interface TimeEntryItem {
   reviewedAt?: string;
   returnReason?: string;
   correctionRevision?: number;
+  supersedesId?: string;
   billedInvoiceId?: string;
 }
 

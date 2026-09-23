@@ -14,6 +14,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [entryToReturn, setEntryToReturn] = useState<TimeEntryItem | null>(null);
+  const [entryToRevise, setEntryToRevise] = useState<{ entry: TimeEntryItem; mode: 'returned' | 'approved' } | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -30,23 +31,48 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
   const handleAddTime = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newEntry: TimeEntryItem = {
-      id: `TIME-00${times.length + 1}`,
-      person,
-      clientId: state.engagements[0]?.client || 'CL-001',
-      engagementId: state.selectedEngagement,
-      taskTitle,
-      date: new Date().toISOString().split('T')[0],
-      durationMinutes: minutes,
-      billable,
-      activity,
-      narrative,
-      status: 'Submitted'
-    };
+    try {
+      if (entryToRevise?.mode === 'returned') {
+        prototypeStore.resubmitReturnedTime(entryToRevise.entry.id, { taskTitle, durationMinutes: minutes, activity, narrative, billable });
+      } else if (entryToRevise?.mode === 'approved') {
+        prototypeStore.correctApprovedTime(entryToRevise.entry.id, minutes, narrative);
+      } else {
+        const newEntry: TimeEntryItem = {
+          id: `TIME-00${times.length + 1}`,
+          person,
+          clientId: state.engagements[0]?.client || 'CL-001',
+          engagementId: state.selectedEngagement,
+          taskTitle,
+          date: new Date().toISOString().split('T')[0],
+          durationMinutes: minutes,
+          billable,
+          activity,
+          narrative,
+          status: 'Submitted'
+        };
+        prototypeStore.addTimeEntry(newEntry);
+      }
 
-    prototypeStore.addTimeEntry(newEntry);
-    setShowAddModal(false);
-    setNarrative('');
+      setShowAddModal(false);
+      setEntryToRevise(null);
+      setNarrative('');
+      setNotice({ type: 'success', text: entryToRevise ? 'Time correction submitted for review.' : 'Time entry submitted for review.' });
+      setTimeout(() => setNotice(null), 4000);
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
+    }
+  };
+
+  const openRevision = (entry: TimeEntryItem, mode: 'returned' | 'approved') => {
+    setEntryToRevise({ entry, mode });
+    setTaskTitle(entry.taskTitle);
+    setMinutes(entry.durationMinutes);
+    setActivity(entry.activity);
+    setNarrative(mode === 'returned' ? entry.narrative || '' : '');
+    setBillable(entry.billable);
+    setPerson(entry.person);
+    setShowAddModal(true);
   };
 
   const handleApprove = (entry: TimeEntryItem) => {
@@ -137,6 +163,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                     <b>{t.taskTitle}</b>
                     {t.narrative && <div className="cell-sub">{t.narrative}</div>}
                     {t.returnReason && <div className="cell-sub" style={{ color: 'red' }}>Returned: {t.returnReason}</div>}
+                    {t.supersedesId && <div className="cell-sub">Revision of {t.supersedesId}</div>}
                   </td>
                   <td>{t.activity}</td>
                   <td>
@@ -174,8 +201,12 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                       </div>
                     )}
                     {t.status === 'Approved' && (
-                      <span className="caption">By {t.reviewedBy}</span>
+                      <div className="stack" style={{ gap: 4 }}>
+                        <span className="caption">By {t.reviewedBy}</span>
+                        {(t.person === state.currentPerson || ['manager', 'partner'].includes(state.currentRole)) && <button className="btn sm ghost" onClick={() => openRevision(t, 'approved')}>Correct approved time</button>}
+                      </div>
                     )}
+                    {t.status === 'Returned' && t.person === state.currentPerson && <button className="btn sm ghost" onClick={() => openRevision(t, 'returned')}>Resubmit correction</button>}
                   </td>
                 </tr>
               ))}
@@ -189,7 +220,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Record Time Entry</h2>
+              <h2>{entryToRevise?.mode === 'approved' ? 'Correct Approved Time' : entryToRevise ? 'Resubmit Returned Time' : 'Record Time Entry'}</h2>
               <button className="icon-btn" onClick={() => setShowAddModal(false)}>✕</button>
             </div>
             <form onSubmit={handleAddTime}>
@@ -201,6 +232,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                       className="input"
                       value={person}
                       onChange={e => setPerson(e.target.value)}
+                      disabled={!!entryToRevise}
                     >
                       {state.users.map(u => (
                         <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
@@ -243,13 +275,14 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                   />
                 </div>
                 <div>
-                  <label className="caption">Work Narrative & Findings</label>
+                  <label className="caption">{entryToRevise?.mode === 'approved' ? 'Correction Reason (Required)' : 'Work Narrative & Findings'}</label>
                   <textarea
                     className="input"
                     rows={3}
                     placeholder="Describe specific testing performed, workpaper references, or queries raised..."
                     value={narrative}
                     onChange={e => setNarrative(e.target.value)}
+                    required={entryToRevise?.mode === 'approved'}
                   />
                 </div>
                 <label className="checkbox">
@@ -263,7 +296,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowAddModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Submit Time Entry</button>
+                <button type="submit" className="btn primary sm">{entryToRevise ? 'Submit Correction' : 'Submit Time Entry'}</button>
               </div>
             </form>
           </div>

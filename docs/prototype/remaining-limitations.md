@@ -47,8 +47,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 97/97 unit checks and 17/17 E2E checks passed. E2E is five
-static checks plus twelve actual Chrome checks, including rendering all 31 staff
-navigation routes and selected workflow journeys. Route rendering is not full
-workflow acceptance. See
+Latest recorded run: 98/98 unit checks and 17/17 E2E checks passed. The unit
+suite now exercises the AT-28 return, resubmission, approval and correction
+revision lifecycle. E2E is five static checks plus twelve actual Chrome checks,
+including rendering all 31 staff navigation routes and selected workflow
+journeys. Route rendering is not full workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.
