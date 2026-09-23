@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree (VP-060 CSV reconciliation) | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks. AT-49/60 compares every exported cell for 13 table-backed reports with the rendered table, independently recomputes all rows for WIP, utilization and compliance, and checks client scoping. |
 | 2026-09-23 | current working tree (AT-20 dependency invalidation) | `npm run test:unit` | PASS — 118/118 | Replacement creates a Pending verification evidence reference, stales linked procedures, blocks clearance/submission without current evidence, and records then invalidates direct workpaper clearance pins. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks; AT-20 verifies the old evidence pin stays exact while PRC-01/02 become stale and WP-A1 clearance moves to history. |
 | 2026-09-23 | `75947c7` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` project, production branch, release `f544c79e.steaudit-prototype.pages.dev`; fresh custom-domain and release requests returned HTTP 200 and served `assets/index-B0DaNhf0.js` with matching SHA-256 `fef3032dbc8c465808b8b9c6402a895e3dc88f73f12d41272bdb0a5886fd607a`. |
@@ -102,8 +103,10 @@ also exercises manager, management and partner approvals, exact artifact-bound
 release, amendment generation reset, predecessor manifest preservation, and
 archive artifact copies with rechecked bytes and an unspecified optional
 retention date.
-The AT-49/60 report journey checks every catalogue entry and exported CSV
-structure, with explicit cross-client leakage checks on a filtered export.
+The AT-49/60 report journey checks every catalogue entry and exported CSV.
+For 13 table-backed reports it compares each exported cell with the rendered
+table; for WIP, utilization and compliance it independently computes every
+expected row from the source registers. It also checks cross-client leakage.
 The AT-43/44/45 journey checks the configured group perimeter, local currency
 rates, approved elimination, balanced output and source-TB immutability. It does
 not cover perimeter edits, missing-component recovery or non-base-currency rates.
@@ -119,8 +122,9 @@ sample. The resulting metadata remains in the canonical SharePoint engagement
 folder; this does not represent a real OneDrive download or SharePoint upload.
 The AT-20 journey selects a local replacement, retains the prior document row,
 adds a separately identified v2 with SHA-256 metadata and leaves EVD-01 pinned
-to DOC-002 v1. The evidence catalogue flags that a newer version is available;
-it does not automatically re-clear dependent procedures or workpapers.
+to DOC-002 v1. It marks dependent procedures and workpaper clearances for
+reassessment; new evidence still requires manual verification and independent
+review before clearance.
 The AT-13 journey also authors a two-phase Draft in Chrome, publishes and
 instantiates it, then creates an edited Draft revision without changing the
 published source or existing job. It publishes and applies the new revision;
@@ -147,9 +151,10 @@ recipient validation and retry policy remain outside this verified slice.
 Latest focused unit run: `npm run test:unit` passed 118/118. A new VP-032 unit
 journey allocates one receipt over two issued invoices and reverses one allocation
 without disturbing the second invoice. The browser suite is 41/41;
-AT-49/60 checks source row counts for all 16 reports, while full value-level
-report reconciliation, multi-invoice UI journey and statement workflow remain
-unverified. The full AT-01–AT-54 contract has not been executed end to end.
+AT-49/60 now checks every CSV cell against the displayed values for 13 reports
+and independently computes all rows for three formula reports. Broader source
+mapping, multi-invoice UI journey and statement workflow remain unverified. The
+full AT-01–AT-54 contract has not been executed end to end.
 
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
 shell behavior and route rendering; it does not execute and verify every

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
-import { calculateReceivablesAging } from '../../src/services/calculations.js';
+import { calculateRecordedWipValue, calculateReceivablesAging, formatMinutesToHours } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
 
@@ -164,6 +164,23 @@ async function clickPanelButton(heading: string, label: string): Promise<void> {
   })()`);
   assert.equal(found, true, `panel button not found or disabled: ${heading} / ${label}`);
   await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted && ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+    else if (ch === '"') quoted = !quoted;
+    else if (!quoted && ch === ',') { row.push(field); field = ''; }
+    else if (!quoted && (ch === '\n' || ch === '\r')) {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += ch;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
 }
 
 describe('vite build serves locally', () => {
@@ -1231,7 +1248,17 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('AT-49/60: validates every practice report, client scoping, and exported CSV rows', async () => {
+  it('AT-49/60: validates every practice report, client scoping, and exported CSV rows', async t => {
+    const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    t.after(async () => {
+      const restore = priorState ?? JSON.stringify(createInitialState());
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(restore)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    });
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'report fixture reloads from a deterministic manager state');
     await clickButton('Report Centre');
     assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
     await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; })()`);
@@ -1252,7 +1279,8 @@ describe('actual Chrome browser acceptance', () => {
       if (report.value === 'ar') assert.match(visible, /As of 2026-09-23/);
       await clickButton('Export Active Report (CSV)');
       const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
-      assert.ok(csv.split('\n')[0].split(',').length >= 4, `${report.label} export should include report columns`);
+      const csvRows = parseCsv(csv);
+      assert.ok(csvRows[0].length >= 4, `${report.label} export should include report columns`);
       const sourceState = await browserTab!.evaluate<any>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2"))');
       const visibleClients = visibleClientIds(sourceState);
       const visibleEngagements = visibleEngagementIds(sourceState);
@@ -1267,6 +1295,30 @@ describe('actual Chrome browser acceptance', () => {
       const credits = sourceState.creditNotes.filter((item: any) => invoiceIds.has(item.invoiceId) && clientIds.has(item.clientId));
       const receipts = sourceState.receipts.filter((item: any) => clientIds.has(item.clientId));
       const aging = calculateReceivablesAging(invoices, credits, receipts, sourceState.asOfDate);
+      const valueRows: Record<string, string[][]> = {};
+      const wip = engagements.map((engagement: any) => {
+        const approved = sourceState.times.filter((time: any) => time.engagementId === engagement.id && time.status === 'Approved');
+        const recorded = calculateRecordedWipValue(approved);
+        const billed = sourceState.invoices.filter((invoice: any) => invoice.engagementId === engagement.id && ['Issued', 'Paid'].includes(invoice.status)).reduce((sum: number, invoice: any) => sum + invoice.amount, 0);
+        const unbilled = recorded === null ? null : Math.max(0, recorded - billed);
+        return { engagement, client: sourceState.clients.find((item: any) => item.id === engagement.client), approved, recorded, billed, unbilled };
+      });
+      const singleWipCurrency = new Set(wip.map((item: any) => item.engagement.currency)).size <= 1;
+      const totalWip = singleWipCurrency && wip.every((item: any) => item.recorded !== null) ? wip.reduce((sum: number, item: any) => sum + item.recorded, 0) : null;
+      const totalBilled = singleWipCurrency ? wip.reduce((sum: number, item: any) => sum + item.billed, 0) : null;
+      const totalUnbilled = singleWipCurrency && wip.every((item: any) => item.unbilled !== null) ? wip.reduce((sum: number, item: any) => sum + item.unbilled, 0) : null;
+      valueRows.wip = [
+        ...wip.map((item: any) => [item.client?.name || item.engagement.client, item.engagement.id, item.engagement.service, item.engagement.currency, formatMinutesToHours(item.approved.reduce((sum: number, time: any) => sum + time.durationMinutes, 0)), item.recorded === null ? 'Unknown' : String(item.recorded), String(item.billed), item.unbilled === null ? 'Unknown' : String(item.unbilled)]),
+        ['Filtered totals', '', '', singleWipCurrency ? wip[0]?.engagement.currency || 'QAR' : 'Mixed', formatMinutesToHours(wip.reduce((sum: number, item: any) => sum + item.approved.reduce((mins: number, time: any) => mins + time.durationMinutes, 0), 0)), totalWip === null ? 'Unknown' : String(totalWip), totalBilled === null ? 'Unknown' : String(totalBilled), totalUnbilled === null ? 'Unknown' : String(totalUnbilled)]
+      ];
+      valueRows.utilization = sourceState.users.filter((user: any) => user.group === 'Professional').map((user: any) => {
+        const times = sourceState.times.filter((time: any) => time.person === user.name && time.status === 'Approved' && engagementIds.has(time.engagementId));
+        const billable = times.filter((time: any) => time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
+        const nonBillable = times.filter((time: any) => !time.billable).reduce((sum: number, time: any) => sum + time.durationMinutes, 0);
+        const target = user.role === 'partner' ? 50 : user.role === 'manager' ? 75 : 85;
+        return [user.name, user.label, String(Math.round(billable / 60)), String(Math.round(nonBillable / 60)), `${target}%`, `${times.length ? Math.round(billable / (billable + nonBillable) * 100) : 0}%`];
+      });
+      valueRows.compliance = engagements.map((engagement: any) => [engagement.id, sourceState.clients.find((item: any) => item.id === engagement.client)?.name || engagement.client, engagement.service, String(engagement.year), engagement.due, engagement.stage, engagement.partner]);
       const expectedRows: Record<string, number> = {
         wip: engagements.length + 1,
         utilization: sourceState.users.filter((item: any) => item.group === 'Professional').length,
@@ -1285,14 +1337,15 @@ describe('actual Chrome browser acceptance', () => {
         reviews: engagements.reduce((sum: number, item: any) => sum + item.reviews.length, 0),
         packages: engagements.length
       };
-      let records = 1;
-      let quoted = false;
-      for (let i = 0; i < csv.length; i++) {
-        if (csv[i] === '"' && csv[i + 1] === '"' && quoted) { i++; continue; }
-        if (csv[i] === '"') quoted = !quoted;
-        else if (csv[i] === '\n' && !quoted) records++;
+      assert.equal(csvRows.length - 1, expectedRows[report.value], `${report.label} CSV row count should reconcile to current source records`);
+      if (valueRows[report.value]) {
+        assert.deepEqual(csvRows.slice(1), valueRows[report.value], `${report.label} values should match independently recalculated source values`);
+      } else {
+        const displayed = await browserTab!.evaluate<{ headers: string[]; rows: string[][] }>(`(() => {const heading=[...document.querySelectorAll('h3')].find(x=>x.textContent.trim()===${JSON.stringify(report.label)});const table=heading?.closest('.panel')?.querySelector('table');if(!table)throw Error('Report table missing: '+${JSON.stringify(report.label)});return {headers:[...table.querySelectorAll('thead th')].map(x=>x.textContent.trim()).slice(0,-1),rows:[...table.querySelectorAll('tbody tr')].map(row=>[...row.querySelectorAll('td')].map(x=>x.textContent.trim()).slice(0,-1))};})()`);
+        assert.deepEqual(csvRows[0], displayed.headers, `${report.label} CSV headers should match the on-screen report`);
+        const displayedRows = displayed.rows.map((row, rowIndex) => row.map((cell, cellIndex) => csvRows[rowIndex + 1][cellIndex] === '' && cell === '—' ? '' : cell));
+        assert.deepEqual(csvRows.slice(1), displayedRows, `${report.label} CSV values should match the on-screen report row by row`);
       }
-      assert.equal(records - 1, expectedRows[report.value], `${report.label} CSV row count should reconcile to current source records`);
     }
 
     await browserTab!.evaluate(`(() => {

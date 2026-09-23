@@ -23,8 +23,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **VP-060 — reporting:** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.
-  Chrome reconciles exported row counts for all 16 reports against their source
-  registers; value-level reconciliation for every field and report remains
+  Chrome compares every exported CSV cell with the visible table for 13 reports
+  and independently recomputes every row for WIP, utilization and compliance.
+  Independent source mapping for all fields in the remaining reports remains
   incomplete.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   to an issued invoice and reverses it with a reason while preserving prior
