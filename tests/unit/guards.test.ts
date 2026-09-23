@@ -69,11 +69,11 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 12);
+    assert.equal(migrated.schema, 13);
   });
-  it('upgrades each persisted schema revision through current v12 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v13 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 11; version++) {
+    for (let version = 0; version <= 12; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -87,8 +87,9 @@ describe('fixture integrity (AT-02/54)', () => {
       if (version < 10) legacy.samplePopulations.forEach((population: any) => { delete population.engagementId; population.items.forEach((item: any) => delete item.selected); });
       if (version < 11) legacy.samplePopulations.forEach((population: any) => { delete population.sourceRevision; delete population.sourceFileName; delete population.sourceComplete; delete population.sourceHistory; });
       if (version < 12) delete legacy.roleGrantHistory;
+      if (version < 13) legacy.acceptanceCases?.forEach((item: any) => delete item.screeningEvidence);
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 12, `schema ${version} should reach v12`);
+      assert.equal(migrated.schema, 13, `schema ${version} should reach v13`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -630,13 +631,20 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const eng = current.engagements[0];
     eng.acceptance = false;
     setPersona(current, 'Hana Ali');
-    prototypeStore.saveAcceptanceCase({
+    assert.throws(() => prototypeStore.saveAcceptanceCase({
       id: `ACC-${eng.client}-${eng.year}`, clientId: eng.client, year: eng.year, service: eng.service,
       riskRating: 'Low', independenceConfirmed: true, amlKycCompleted: true, conflictsCleared: true,
       prohibitionsChecked: true, competenceConfirmed: true, conditions: [], recommendationBy: '',
       recommendationDate: '', recommendationNotes: 'Checks reviewed; recommend acceptance.', decisionStatus: 'Accepted'
+    }), /evidence reference/);
+    prototypeStore.saveAcceptanceCase({
+      id: `ACC-${eng.client}-${eng.year}`, clientId: eng.client, year: eng.year, service: eng.service,
+      riskRating: 'Low', independenceConfirmed: true, amlKycCompleted: true, conflictsCleared: true,
+      prohibitionsChecked: true, competenceConfirmed: true, screeningEvidence: { amlKyc: 'KYC-101', independence: 'IND-101', conflicts: 'COI-101', prohibitions: 'ROT-101', competence: 'COMP-101' }, conditions: [], recommendationBy: '',
+      recommendationDate: '', recommendationNotes: 'Checks reviewed; recommend acceptance.', decisionStatus: 'Accepted'
     });
     assert.equal(prototypeStore.getSnapshot().acceptanceCases?.[0].decisionStatus, 'Pending');
+    assert.equal(prototypeStore.getSnapshot().acceptanceCases?.[0].history?.[0].screeningEvidence?.amlKyc, 'KYC-101');
     setPersona(current, 'Daniel James');
     prototypeStore.decideAcceptanceCase(`ACC-${eng.client}-${eng.year}`, 'Accepted', 'Accepted after independent review.');
     assert.equal(eng.acceptance, true);
@@ -863,6 +871,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     state.acceptanceCases = [{
       id: 'ACC-CONT', clientId: prior.client, year: prior.year, service: prior.service,
       riskRating: 'Low', independenceConfirmed: true, amlKycCompleted: true,
+      screeningEvidence: { amlKyc: 'KYC-101', independence: 'IND-101', conflicts: 'COI-101', prohibitions: 'ROT-101', competence: 'COMP-101' },
       conflictsCleared: true, prohibitionsChecked: true, competenceConfirmed: true,
       conditions: [], recommendationBy: 'Layla Rahman', recommendationDate: '2026-09-20',
       recommendationNotes: 'Prior year continuance review.', decisionBy: prior.partner,

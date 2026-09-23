@@ -1002,6 +1002,11 @@ describe('actual Chrome browser acceptance', () => {
       for (const box of document.querySelectorAll('input[type=checkbox]')) {
         if (!box.checked) box.click();
       }
+      for (const [name, value] of Object.entries({ 'AML/KYC': 'KYC-CASE-26001', independence: 'IND-REVIEW-26001', conflicts: 'COI-CHECK-26001', prohibitions: 'ROTATION-26001', competence: 'TEAM-QUAL-26001' })) {
+        const input = document.querySelector('[aria-label="Evidence reference for ' + name + '"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       const rationale = document.querySelectorAll('textarea')[0];
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(rationale, 'Annual risk and independence screening completed.');
       rationale.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1048,10 +1053,11 @@ describe('actual Chrome browser acceptance', () => {
       const jobs = state.jobs.filter(j => j.engagementId === draft?.id);
       const jobIds = new Set(jobs.map(j => j.id));
       const documentIds = new Set(state.documents.filter(d => d.engagementId === draft?.id).map(d => d.id));
-      return { priorRows: prior?.rows?.length, continuedTo: priorCase?.continuedToEngagementId, draftId: draft?.id, acceptance: draft?.acceptance, terms: draft?.terms, rows: draft?.rows?.length, sourceHistory: draft?.sourceHistory?.length, jobs: jobs.length, tasks: state.jobTasks.filter(t => jobIds.has(t.jobId)).length, documents: documentIds.size, linkedEvidence: state.evidenceCatalogue.filter(e => documentIds.has(e.documentId)).length, findings: state.findings.filter(f => f.engagementId === draft?.id).length, workpapers: draft?.workpapers?.length, reviews: draft?.reviews?.length, packages: draft?.packageHistory?.length, releases: draft?.releases?.length, approvals: Object.values(draft?.approvals || {}).filter(Boolean).length, approvalHistory: draft?.approvalHistory?.length, reconciliations: draft?.reconciliations?.length, pbc: draft?.pbc?.length, events: draft?.events?.length };
+      return { priorRows: prior?.rows?.length, evidenceRefs: Object.keys(priorCase?.screeningEvidence || {}).length, continuedTo: priorCase?.continuedToEngagementId, draftId: draft?.id, acceptance: draft?.acceptance, terms: draft?.terms, rows: draft?.rows?.length, sourceHistory: draft?.sourceHistory?.length, jobs: jobs.length, tasks: state.jobTasks.filter(t => jobIds.has(t.jobId)).length, documents: documentIds.size, linkedEvidence: state.evidenceCatalogue.filter(e => documentIds.has(e.documentId)).length, findings: state.findings.filter(f => f.engagementId === draft?.id).length, workpapers: draft?.workpapers?.length, reviews: draft?.reviews?.length, packages: draft?.packageHistory?.length, releases: draft?.releases?.length, approvals: Object.values(draft?.approvals || {}).filter(Boolean).length, approvalHistory: draft?.approvalHistory?.length, reconciliations: draft?.reconciliations?.length, pbc: draft?.pbc?.length, events: draft?.events?.length };
     })()`);
     assert.ok(persisted.priorRows > 0, 'prior period source rows remain intact');
     assert.equal(persisted.continuedTo, 'ENG-CONT-CL-001-2027');
+    assert.equal(persisted.evidenceRefs, 5);
     assert.equal(persisted.draftId, 'ENG-CONT-CL-001-2027');
     assert.equal(persisted.acceptance, false);
     assert.equal(persisted.terms, false);

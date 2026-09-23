@@ -116,7 +116,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   creation/contact/custom-field/relationship-group and Client 360 navigation
   journeys (AT-05/06). Complete
   AT-01–AT-54 have not been executed.
-  External invitation and identity lifecycle, AML/KYC evidence, report data reconciliation and
+  External invitation and identity lifecycle, live AML/KYC screening (evidence references are manual), report data reconciliation and
   other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;

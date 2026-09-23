@@ -1005,6 +1005,7 @@ export interface AcceptanceCaseRecord {
   conflictsCleared: boolean;
   prohibitionsChecked: boolean;
   competenceConfirmed: boolean;
+  screeningEvidence?: Partial<Record<'amlKyc' | 'independence' | 'conflicts' | 'prohibitions' | 'competence', string>>;
   conditions: string[];
   recommendationBy: string;
   recommendationDate: string;
@@ -1015,7 +1016,7 @@ export interface AcceptanceCaseRecord {
   decisionNotes?: string;
   recommendationByUserId?: string;
   decisionByUserId?: string;
-  history?: Array<{ action: 'recommendation' | 'decision'; by: string; byUserId: string; at: string; notes: string; status: 'Pending' | 'Accepted' | 'Declined' }>;
+  history?: Array<{ action: 'recommendation' | 'decision'; by: string; byUserId: string; at: string; notes: string; status: 'Pending' | 'Accepted' | 'Declined'; screeningEvidence?: AcceptanceCaseRecord['screeningEvidence'] }>;
 }
 
 export interface AuditPlanRecord {

@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 12;
+export const CURRENT_SCHEMA = 13;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -210,6 +210,16 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   if (from < 12) {
     state.roleGrantHistory = Array.isArray(state.roleGrantHistory) ? state.roleGrantHistory : [];
     warnings.push('Initialized access grant history without inferring events from current grants (v12).');
+  }
+  if (from < 13) {
+    for (const record of state.acceptanceCases || []) {
+      record.screeningEvidence ||= {};
+      if (record.decisionStatus === 'Accepted') {
+        const engagement = state.engagements.find(item => item.id === record.engagementId || (item.client === record.clientId && item.year === record.year));
+        if (engagement) engagement.acceptance = false;
+      }
+    }
+    warnings.push('Added explicit acceptance screening evidence references; legacy approvals without references no longer authorize engagement work (v13).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

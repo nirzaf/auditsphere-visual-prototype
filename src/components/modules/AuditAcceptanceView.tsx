@@ -40,6 +40,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
   const [competenceConfirmed, setCompetenceConfirmed] = useState(
     existingCase?.competenceConfirmed || false
   );
+  const [screeningEvidence, setScreeningEvidence] = useState<NonNullable<AcceptanceCaseRecord['screeningEvidence']>>(existingCase?.screeningEvidence || {});
 
   const [conditions, setConditions] = useState<string[]>(
     existingCase?.conditions || []
@@ -102,6 +103,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
         conflictsCleared,
         prohibitionsChecked,
         competenceConfirmed,
+        screeningEvidence,
         conditions,
         recommendationBy: state.currentPerson,
         recommendationDate: new Date().toISOString(),
@@ -128,7 +130,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
     }
   };
 
-  const allChecksPass = riskRating !== 'Prohibited' && independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed;
+  const allChecksPass = riskRating !== 'Prohibited' && independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed && ['amlKyc', 'independence', 'conflicts', 'prohibitions', 'competence'].every(key => !!screeningEvidence[key as keyof typeof screeningEvidence]?.trim());
   const handleCreateContinuance = () => {
     try {
       const draft = prototypeStore.createContinuanceDraft(selectedEng.id, changedFacts);
@@ -199,6 +201,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <b>Beneficial Ownership &amp; Sanctions Screening (AML/KYC)</b>
               <div className="cell-sub">Passport, Commercial Registration, and national PEP database verification.</div>
+              <input className="input mt8" aria-label="Evidence reference for AML/KYC" placeholder="Evidence reference / case ID" value={screeningEvidence.amlKyc || ''} onChange={e => setScreeningEvidence(prev => ({ ...prev, amlKyc: e.target.value }))} onClick={e => e.stopPropagation()} />
             </div>
           </label>
 
@@ -211,6 +214,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <b>Firm &amp; Personal Independence Confirmation (IESBA)</b>
               <div className="cell-sub">No prohibited non-audit services, financial interests, or family relationships.</div>
+              <input className="input mt8" aria-label="Evidence reference for independence" placeholder="Evidence reference / case ID" value={screeningEvidence.independence || ''} onChange={e => setScreeningEvidence(prev => ({ ...prev, independence: e.target.value }))} onClick={e => e.stopPropagation()} />
             </div>
           </label>
 
@@ -223,6 +227,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <b>Commercial Conflict of Interest Clearance</b>
               <div className="cell-sub">Cross-checked against existing client registers and competitive relationships.</div>
+              <input className="input mt8" aria-label="Evidence reference for conflicts" placeholder="Evidence reference / case ID" value={screeningEvidence.conflicts || ''} onChange={e => setScreeningEvidence(prev => ({ ...prev, conflicts: e.target.value }))} onClick={e => e.stopPropagation()} />
             </div>
           </label>
 
@@ -235,6 +240,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <b>Statutory Auditor Rotation &amp; Term Prohibitions</b>
               <div className="cell-sub">Verified mandate tenure complies with local mandatory rotation laws.</div>
+              <input className="input mt8" aria-label="Evidence reference for prohibitions" placeholder="Evidence reference / case ID" value={screeningEvidence.prohibitions || ''} onChange={e => setScreeningEvidence(prev => ({ ...prev, prohibitions: e.target.value }))} onClick={e => e.stopPropagation()} />
             </div>
           </label>
 
@@ -247,6 +253,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <b>Technical Industry Competence &amp; Resource Availability</b>
               <div className="cell-sub">Team staffed with licensed statutory audit practitioners and sector specialists.</div>
+              <input className="input mt8" aria-label="Evidence reference for competence" placeholder="Evidence reference / case ID" value={screeningEvidence.competence || ''} onChange={e => setScreeningEvidence(prev => ({ ...prev, competence: e.target.value }))} onClick={e => e.stopPropagation()} />
             </div>
           </label>
         </div>

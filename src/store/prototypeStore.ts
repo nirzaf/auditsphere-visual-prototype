@@ -2275,6 +2275,8 @@ class PrototypeStore {
     requireRole(this.state, ['onboarding', 'compliance', 'manager', 'reviewer'], 'record an acceptance recommendation');
     requireClientScope(this.state, accCase.clientId);
     if (!this.state.clients.some(c => c.id === accCase.clientId) || !Number.isInteger(accCase.year) || !accCase.recommendationNotes.trim()) throw new GuardError('INVALID_STATE', 'Acceptance case needs an existing client, reporting year, and recommendation rationale.');
+    const requiredEvidence = { amlKyc: accCase.amlKycCompleted, independence: accCase.independenceConfirmed, conflicts: accCase.conflictsCleared, prohibitions: accCase.prohibitionsChecked, competence: accCase.competenceConfirmed };
+    if (Object.entries(requiredEvidence).some(([key, checked]) => checked && !accCase.screeningEvidence?.[key as keyof typeof requiredEvidence]?.trim())) throw new GuardError('INVALID_STATE', 'Every completed acceptance screening check needs an evidence reference.');
     if (!this.state.acceptanceCases) this.state.acceptanceCases = [];
     const idx = this.state.acceptanceCases.findIndex(c => c.id === accCase.id);
     const previous = idx >= 0 ? this.state.acceptanceCases[idx] : undefined;
@@ -2291,7 +2293,7 @@ class PrototypeStore {
       recommendationBy: this.state.currentPerson,
       recommendationByUserId: this.state.currentUserId,
       recommendationDate: at,
-      history: [...(previous?.history || []), { action: 'recommendation', by: this.state.currentPerson, byUserId: this.state.currentUserId, at, notes: accCase.recommendationNotes, status: 'Pending' }]
+      history: [...(previous?.history || []), { action: 'recommendation', by: this.state.currentPerson, byUserId: this.state.currentUserId, at, notes: accCase.recommendationNotes, status: 'Pending', screeningEvidence: structuredClone(accCase.screeningEvidence || {}) }]
     };
     if (idx >= 0) this.state.acceptanceCases[idx] = saved;
     else this.state.acceptanceCases.push(saved);
@@ -2317,7 +2319,7 @@ class PrototypeStore {
     const actor = this.state.users.find(u => u.id === this.state.currentUserId);
     if (!assignedPartner || !actor || (assignedPartner.personId || assignedPartner.id) !== (actor.personId || actor.id)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can decide this case.');
     if (!rationale.trim()) throw new GuardError('INVALID_STATE', 'Partner decision requires a rationale.');
-    if (decision === 'Accepted' && (record.riskRating === 'Prohibited' || !record.independenceConfirmed || !record.amlKycCompleted || !record.conflictsCleared || !record.prohibitionsChecked || !record.competenceConfirmed)) throw new GuardError('INVALID_STATE', 'Acceptance is blocked until all required checks pass and the mandate is not prohibited.');
+    if (decision === 'Accepted' && (record.riskRating === 'Prohibited' || !record.independenceConfirmed || !record.amlKycCompleted || !record.conflictsCleared || !record.prohibitionsChecked || !record.competenceConfirmed || ['amlKyc', 'independence', 'conflicts', 'prohibitions', 'competence'].some(key => !record.screeningEvidence?.[key as keyof NonNullable<AcceptanceCaseRecord['screeningEvidence']>]?.trim()))) throw new GuardError('INVALID_STATE', 'Acceptance is blocked until all required checks have evidence references and the mandate is not prohibited.');
     requireIndependentActor(record.recommendationByUserId || record.recommendationBy, this.state.currentUserId, 'decide a case they recommended', this.state);
     const at = new Date().toISOString();
     record.decisionStatus = decision;
