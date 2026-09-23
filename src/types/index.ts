@@ -758,11 +758,13 @@ export interface AuditRiskItem {
 
 export interface AuditProcedureItem {
   id: string;
+  engagementId?: string;
   ref?: string;
   title?: string;
   instructions?: string;
   assignee?: string;
   requiredEvidence?: string;
+  evidenceLimitation?: string;
   status: 'Not started' | 'In progress' | 'Submitted' | 'Cleared' | 'Exceptions noted' | 'Completed' | 'Exception noted';
   stepNumber?: number;
   text?: string;
@@ -775,10 +777,14 @@ export interface AuditProcedureItem {
   linkedWorkpaperId?: string;
   linkedFindingId?: string;
   workpaperRef?: string;
+  preparedByUserId?: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
 }
 
 export interface AuditProgramItem {
   id: string;
+  engagementId?: string;
   area: string;
   objective?: string;
   title?: string;

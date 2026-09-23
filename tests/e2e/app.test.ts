@@ -392,6 +392,39 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-050: persists procedure fieldwork and requires independent reviewer clearance', async () => {
+    const switchRole = async (label: string, role: string) => {
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === ${JSON.stringify(role)}`), true);
+    };
+    await switchRole('Audit preparer', 'preparer');
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement === 'ENG-26001'`), true);
+    await clickButton('Risks & Audit Programs');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Audit Risks & Substantive Programs")'), true);
+    await clickButton('Fixed Assets and Depreciation');
+    const exceptionVisible = await browserTab!.evaluate<boolean>(`(() => {const r=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-04'));return !!r&&r.innerText.includes('Exception recorded')&&r.innerText.includes('under-accrual');})()`);
+    assert.equal(exceptionVisible, true, 'existing fieldwork exceptions remain visible');
+    await clickButton('Cash and Bank Balances');
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const r=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const b=[...(r?.querySelectorAll('button')||[])].find(x=>x.innerText==='Record fieldwork');if(!b)return false;b.click();return true;})()`);
+    assert.equal(opened, true);
+    await browserTab!.evaluate(`(() => {const w=document.querySelector('[aria-label="Work performed for PRC-01"]');const c=document.querySelector('[aria-label="Conclusion for PRC-01"]');const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;set.call(w,'Reconfirmed both year-end bank balances to current independent confirmations.');w.dispatchEvent(new Event('input',{bubbles:true}));const setInput=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setInput.call(c,'No exceptions; balances agree to the ledger.');c.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save fieldwork');
+    const procedureRow = await browserTab!.evaluate<boolean>(`(() => {const r=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const s=r?.querySelector('select');const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(s,'In progress');s.dispatchEvent(new Event('change',{bubbles:true}));set.call(s,'Submitted');s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    assert.equal(procedureRow, true);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Submitted'&&p.preparedByUserId==='preparer'&&p.workPerformed.includes('independent confirmations');})()`), true, 'submitted fieldwork and preparer identity persist');
+    await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const s=r.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Cleared');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01').status === 'Submitted'`), true, 'preparer cannot clear their own submitted work');
+    await switchRole('Engagement manager', 'manager');
+    await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const s=r.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Cleared');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Cleared'&&p.reviewedByUserId==='manager'&&!!p.reviewedAt;})()`), true, 'independent manager clearance is recorded separately');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await clickButton('Risks & Audit Programs');
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr')].some(r=>r.innerText.includes('PRC-01')&&r.innerText.includes('Reviewed by Layla Rahman'))`), true, 'review attribution remains visible after reload');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-05/06: creates a client, primary contact, typed value and non-authorizing relationship group', async () => {
     const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));if(!o)throw Error('Missing persona '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const setLabeledField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.trim()==${JSON.stringify(label)});const e=l?.parentElement?.querySelector('input');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -1285,6 +1318,7 @@ describe('actual Chrome browser acceptance', () => {
     await openPortalRequests();
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Please include the original purchase dates and depreciation method/);
     await uploadResponse(created.id, 'fixed-assets-v2.txt');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Received'`), true);
     await switchPersona('Engagement manager', 'manager');
     await openNorthstarWorkspace();
     const accept = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Accept response');if(!b)return false;b.click();return true;})()`);

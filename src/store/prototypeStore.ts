@@ -1766,12 +1766,12 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner', 'eqr'], 'link evidence to a procedure');
     const ev = this.state.evidenceCatalogue.find(e => e.id === evidenceId);
     if (!ev) throw new GuardError('INVALID_STATE', 'Evidence record not found.');
-    if (!this.state.auditPrograms.some(p => p.procedures.some(proc => proc.id === procedureId))) throw new GuardError('INVALID_STATE', 'Procedure was not found.');
     const doc = this.state.documents.find(d => d.id === ev.documentId);
     if (!doc) throw new GuardError('INVALID_STATE', 'Evidence document was not found.');
     const eng = this.state.engagements.find(e => e.id === (doc?.engagementId || this.state.selectedEngagement));
     if (!eng) throw new GuardError('INVALID_STATE', 'Select an engagement for this evidence link.');
     requireEngagementScope(this.state, eng.id);
+    if (!this.state.auditPrograms.some(p => (p.engagementId === eng.id || (!p.engagementId && eng.id === this.state.engagements[0]?.id)) && p.procedures.some(proc => proc.id === procedureId))) throw new GuardError('INVALID_STATE', 'Procedure was not found in the selected engagement.');
     if (doc.clientId) requireClientScope(this.state, doc.clientId);
     if (doc.engagementId && doc.engagementId !== eng.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
     if (doc.clientId !== eng.client) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same client.');
@@ -1780,6 +1780,58 @@ class PrototypeStore {
       this.invalidateReleaseBasis(eng);
     }
     this.logEvent(`Evidence ${evidenceId} linked to procedure ${procedureId}`, evidenceId);
+    this.notify();
+  }
+
+  public updateAuditProcedureExecution(engId: string, procedureId: string, workPerformed: string, conclusion: string, evidenceLimitation: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager'], 'record procedure fieldwork');
+    requireEngagementScope(this.state, engId);
+    const procedure = this.state.auditPrograms.find(p => (p.engagementId === engId || (!p.engagementId && engId === this.state.engagements[0]?.id)) && p.procedures.some(item => item.id === procedureId))?.procedures.find(p => p.id === procedureId);
+    if (!procedure) throw new GuardError('INVALID_STATE', 'Procedure was not found in the selected engagement.');
+    if (!workPerformed.trim() || !conclusion.trim()) throw new GuardError('INVALID_STATE', 'Record work performed and a conclusion.');
+    procedure.workPerformed = workPerformed.trim();
+    procedure.conclusion = conclusion.trim();
+    procedure.evidenceLimitation = evidenceLimitation.trim() || undefined;
+    procedure.status = 'In progress';
+    procedure.reviewedByUserId = undefined;
+    procedure.reviewedAt = undefined;
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Procedure ${procedureId} fieldwork updated`, procedureId);
+    this.notify();
+  }
+
+  public updateAuditProcedureStatus(engId: string, procedureId: string, status: import('../types').AuditProcedureItem['status']) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer', 'partner', 'eqr'], 'update procedure fieldwork status');
+    requireEngagementScope(this.state, engId);
+    const procedure = this.state.auditPrograms.find(p => (p.engagementId === engId || (!p.engagementId && engId === this.state.engagements[0]?.id)) && p.procedures.some(item => item.id === procedureId))?.procedures.find(p => p.id === procedureId);
+    if (!procedure) throw new GuardError('INVALID_STATE', 'Procedure was not found in the selected engagement.');
+    if (status === 'Submitted') {
+      requireRole(this.state, ['preparer', 'manager'], 'submit procedure fieldwork');
+      if (!procedure.workPerformed?.trim() || !procedure.conclusion?.trim()) throw new GuardError('INVALID_STATE', 'Record work performed and a conclusion before submitting fieldwork.');
+      const hasCurrentEvidence = this.state.evidenceCatalogue.some(e => e.linkedProcedures.includes(procedureId) && e.adequacyStatus === 'Adequate' && this.state.documents.some(d => d.id === e.documentId && d.clientId === this.state.engagements.find(item => item.id === engId)?.client && (!d.engagementId || d.engagementId === engId) && d.version === e.version));
+      if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');
+      procedure.preparedByUserId = this.state.currentUserId;
+    }
+    if (status === 'Completed') throw new GuardError('INVALID_STATE', 'Use Submitted for preparer work and Cleared for independent review.');
+    if (status === 'Cleared' && procedure.status !== 'Cleared') {
+      requireRole(this.state, ['reviewer', 'manager', 'partner', 'eqr'], 'clear procedure fieldwork');
+      if (procedure.status !== 'Submitted' || !procedure.preparedByUserId) throw new GuardError('INVALID_STATE', 'Only submitted fieldwork with a recorded preparer can be cleared.');
+      requireIndependentActor(procedure.preparedByUserId, this.state.currentUserId, 'clear their own procedure fieldwork', this.state);
+      procedure.reviewedByUserId = this.state.currentUserId;
+      procedure.reviewedAt = new Date().toISOString();
+    }
+    if (status !== 'Cleared') {
+      procedure.reviewedByUserId = undefined;
+      procedure.reviewedAt = undefined;
+    }
+    if (status === 'Exceptions noted') procedure.hasExceptions = true;
+    procedure.status = status;
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Procedure ${procedureId} status changed to ${status}`, procedureId);
     this.notify();
   }
 

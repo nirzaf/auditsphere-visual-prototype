@@ -967,19 +967,21 @@ export function createInitialState(): PrototypeState {
     auditPrograms: [
       {
         id: 'PRG-01',
+        engagementId: 'ENG-26001',
         area: 'Cash and Bank Balances',
         objective: 'Substantive testing to substantiate existence and ownership of bank accounts.',
         procedures: [
-          { id: 'PRC-01', ref: 'P-1.1', title: 'Direct Bank Confirmation Circularisation', instructions: 'Send independent confirmation requests to all banks.', assignee: 'Adam Khan', requiredEvidence: 'Bank response letters', status: 'Cleared', workPerformed: 'Obtained standard confirmation from CBQ and QNB agreeing to trial balance.', conclusion: 'Satisfactory' },
-          { id: 'PRC-02', ref: 'P-1.2', title: 'Bank Reconciliation Testing & Cut-off', instructions: 'Sample cheques and deposits for 5 days pre/post year end.', assignee: 'Adam Khan', requiredEvidence: 'Bank statements and reconciliations', status: 'Cleared', workPerformed: 'Cleared reconciling items in January 2027 bank statement.', conclusion: 'Satisfactory' }
+          { id: 'PRC-01', engagementId: 'ENG-26001', ref: 'P-1.1', title: 'Direct Bank Confirmation Circularisation', instructions: 'Send independent confirmation requests to all banks.', assignee: 'Adam Khan', requiredEvidence: 'Bank response letters', status: 'Cleared', workPerformed: 'Obtained standard confirmation from CBQ and QNB agreeing to trial balance.', conclusion: 'Satisfactory' },
+          { id: 'PRC-02', engagementId: 'ENG-26001', ref: 'P-1.2', title: 'Bank Reconciliation Testing & Cut-off', instructions: 'Sample cheques and deposits for 5 days pre/post year end.', assignee: 'Adam Khan', requiredEvidence: 'Bank statements and reconciliations', status: 'Cleared', workPerformed: 'Cleared reconciling items in January 2027 bank statement.', conclusion: 'Satisfactory' }
         ]
       },
       {
         id: 'PRG-02',
+        engagementId: 'ENG-26001',
         area: 'Fixed Assets and Depreciation',
         objective: 'Substantiate equipment cost, additions and depreciation recalculation.',
         procedures: [
-          { id: 'PRC-04', ref: 'P-3.1', title: 'Depreciation Recalculation & Asset Register Tie-out', instructions: 'Recalculate depreciation expense and tie to ledger.', assignee: 'Adam Khan', requiredEvidence: 'Fixed asset register', status: 'Exceptions noted', workPerformed: 'Recalculated depreciation. Identified QAR 500 under-accrual. Proposed adjustment AJ-01.', hasExceptions: true, conclusion: 'Adjustment proposed' }
+          { id: 'PRC-04', engagementId: 'ENG-26001', ref: 'P-3.1', title: 'Depreciation Recalculation & Asset Register Tie-out', instructions: 'Recalculate depreciation expense and tie to ledger.', assignee: 'Adam Khan', requiredEvidence: 'Fixed asset register', status: 'Exceptions noted', workPerformed: 'Recalculated depreciation. Identified QAR 500 under-accrual. Proposed adjustment AJ-01.', hasExceptions: true, conclusion: 'Adjustment proposed' }
         ]
       }
     ],

@@ -49,6 +49,12 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   fresh job/tree, then retires the template without changing that job. Editing
   a published revision and duplicate-click recovery remain unverified.
 
+- **VP-050 — audit fieldwork:** Chrome records work performed against PRC-01,
+  submits it with a linked current adequate evidence revision, denies preparer
+  self-clearance, and retains independent manager clearance after reload. The
+  PRC-04 exception remains visible. Procedure template administration, detailed
+  edit history, and the full exception rework matrix remain incomplete.
+
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
   scoped proposal drafting, independent review and presentation.
@@ -118,8 +124,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 109/109 unit checks and 37/37 E2E checks passed. E2E
-includes five static checks and 32 actual Chrome checks. It exercises the
+Latest recorded run: 109/109 unit checks and 38/38 E2E checks passed. E2E
+includes five static checks and 33 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
 full AT-01–AT-54 suite has not run, and route rendering is not full workflow
