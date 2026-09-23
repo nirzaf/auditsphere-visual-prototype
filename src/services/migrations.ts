@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 18;
+export const CURRENT_SCHEMA = 19;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -241,12 +241,14 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   if (from < 18) {
     warnings.push('Added attributable finding disposition histories (v18).');
   }
+  if (from < 19) warnings.push('Added saved and independently reviewed statement-set revisions (v19).');
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];
     evidence.adequacyHistory ||= [];
   }
   for (const finding of state.findings || []) finding.dispositionHistory ||= [];
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
+  state.statementSetRevisions = Array.isArray(state.statementSetRevisions) ? state.statementSetRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];
   state.identityStatusHistory = Array.isArray(state.identityStatusHistory) ? state.identityStatusHistory : [];
   state.auditProgramTemplates = Array.isArray(state.auditProgramTemplates) ? state.auditProgramTemplates : [];

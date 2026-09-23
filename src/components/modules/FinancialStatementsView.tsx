@@ -14,6 +14,8 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const state = prototypeStore.getSnapshot();
   const [statementType, setStatementType] = useState<'bs' | 'is' | 'equity' | 'cashflow'>('bs');
   const [comparativeEngagementId, setComparativeEngagementId] = useState('');
+  const [, refreshRevisionHistory] = useState(0);
+  const [revisionError, setRevisionError] = useState('');
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -82,6 +84,22 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       priorSources: priorLineRows.map(row => row.code.split(' → ')[0]).join(', ')
     };
   });
+  const statementHistory = (state.statementSetRevisions || []).filter(item => item.engagementId === selectedEng.id).sort((a, b) => b.revision - a.revision);
+  const latestStatementRevision = statementHistory[0];
+  const currentStatementTotals = { assets: bs.totalAssets, liabilities: bs.totalLiabilities, equity: bs.totalEquity, revenue: is.revenue, netProfit: is.netProfit };
+  const comparativeStatementTotals = comparativeReady && priorBalanceSheet && priorIncomeStatement ? { assets: priorBalanceSheet.totalAssets, liabilities: priorBalanceSheet.totalLiabilities, equity: priorBalanceSheet.totalEquity, revenue: priorIncomeStatement.revenue, netProfit: priorIncomeStatement.netProfit } : undefined;
+  const revisionCurrent = Boolean(latestStatementRevision && latestStatementRevision.sourceVersion === selectedEng.sourceVersion && latestStatementRevision.mappingRevision === currentMapping?.revision && latestStatementRevision.comparativeEngagementId === (comparativeReady ? comparativeEngagement?.id : undefined) && latestStatementRevision.comparativeSourceVersion === (comparativeReady ? comparativeEngagement?.sourceVersion : undefined) && latestStatementRevision.comparativeMappingRevision === (comparativeReady ? priorMapping?.revision : undefined));
+  const saveStatementRevision = () => {
+    try {
+      setRevisionError('');
+      prototypeStore.saveStatementSetRevision({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, comparativeEngagementId: comparativeReady ? comparativeEngagement!.id : undefined, comparativeSourceVersion: comparativeReady ? comparativeEngagement!.sourceVersion : undefined, comparativeMappingRevision: comparativeReady ? priorMapping!.revision : undefined, layoutVersion: 1, totals: currentStatementTotals, comparativeTotals: comparativeStatementTotals, lines: comparisonLineRows.map(row => ({ line: row.line, current: row.current, comparative: comparativeReady ? row.prior : undefined, currentSources: row.currentSources.split(', ').filter(Boolean), comparativeSources: comparativeReady ? row.priorSources.split(', ').filter(Boolean) : [] })) });
+      refreshRevisionHistory(value => value + 1);
+    } catch (error) { setRevisionError(error instanceof Error ? error.message : String(error)); }
+  };
+  const reviewStatementRevision = () => {
+    try { setRevisionError(''); prototypeStore.reviewStatementSetRevision(selectedEng.id, latestStatementRevision!.revision); refreshRevisionHistory(value => value + 1); }
+    catch (error) { setRevisionError(error instanceof Error ? error.message : String(error)); refreshRevisionHistory(value => value + 1); }
+  };
 
   const handleExportXLSX = () => {
     const priorAmount = (value?: number) => comparativeReady ? value ?? 0 : 'Unavailable';
@@ -164,9 +182,21 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
 
       {!mappingReady && <div role="alert" className="badge danger" style={{ display: 'block', padding: 12 }}>Statement generation is blocked until the latest mapping revision is independently approved and covers all trial balance accounts. Unmapped: {unmappedRows.map(row => row.code).join(', ') || 'none'}.</div>}
 
+      <section className="panel panel-pad" aria-label="Statement revision review">
+        <div className="between"><div><h3>Statement Set Revisions</h3><p className="sub">Save this mapped statement set, then have an independent reviewer approve the saved revision.</p></div>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn sm ghost" disabled={!mappingReady} onClick={saveStatementRevision}>Save statement revision</button>
+            {latestStatementRevision?.status === 'Draft' && revisionCurrent && <button className="btn sm primary" onClick={reviewStatementRevision}>Review statement revision v{latestStatementRevision.revision}</button>}
+          </div>
+        </div>
+        {revisionError && <p role="alert" className="badge danger mt12">{revisionError}</p>}
+        {latestStatementRevision && <p role="status" className="mt12">Latest: v{latestStatementRevision.revision} · {revisionCurrent ? latestStatementRevision.status : 'Stale'} · prepared by {latestStatementRevision.preparedByUserId}{latestStatementRevision.reviewedByUserId ? ` · reviewed by ${latestStatementRevision.reviewedByUserId}` : ''}</p>}
+        <div className="caption mt8">{statementHistory.length ? statementHistory.map(item => `v${item.revision} ${item.status} · ${new Date(item.preparedAt).toLocaleString()}`).join(' | ') : 'No statement revisions saved.'}</div>
+      </section>
+
       <section className="panel panel-pad" aria-label="Comparative period summary">
         <div className="between"><div><h3>Comparative Period</h3><p className="sub">Choose an earlier source period for this client and currency. Missing or unmapped periods remain unavailable.</p></div>
-          <select className="input" aria-label="Comparative period" value={comparativeEngagement?.id || ''} onChange={e => setComparativeEngagementId(e.target.value)} style={{ maxWidth: 320 }}>
+          <select className="input" aria-label="Comparative period" value={comparativeEngagement?.id || ''} onChange={e => { prototypeStore.staleStatementRevisionsForComparativeChange(selectedEng.id, e.target.value); setComparativeEngagementId(e.target.value); }} style={{ maxWidth: 320 }}>
             {priorPeriods.length ? priorPeriods.map(eng => <option key={eng.id} value={eng.id}>{eng.year} · {eng.period}</option>) : <option value="">No prior period</option>}
           </select>
         </div>

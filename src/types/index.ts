@@ -262,6 +262,26 @@ export interface FinancialPackageRevision {
   createdByUserId: string;
 }
 
+export interface StatementSetRevision {
+  id: string;
+  engagementId: string;
+  revision: number;
+  sourceVersion: number;
+  mappingRevision: number;
+  comparativeEngagementId?: string;
+  comparativeSourceVersion?: number;
+  comparativeMappingRevision?: number;
+  layoutVersion: number;
+  totals: { assets: number; liabilities: number; equity: number; revenue: number; netProfit: number };
+  comparativeTotals?: StatementSetRevision['totals'];
+  lines: Array<{ line: string; current: number; comparative?: number; currentSources: string[]; comparativeSources: string[] }>;
+  status: 'Draft' | 'Reviewed' | 'Stale';
+  preparedByUserId: string;
+  preparedAt: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+}
+
 export interface EngagementRecord {
   id: string;
   continuanceFromEngagementId?: string;
@@ -1210,6 +1230,7 @@ export interface PrototypeState {
   receipts: ReceiptRecord[];
   glTransactions: GLTransactionItem[];
   accountMappingRevisions?: AccountMappingRevision[];
+  statementSetRevisions?: StatementSetRevision[];
   simulatedInvitations?: SimulatedInvitation[];
   identityStatusHistory?: IdentityStatusEvent[];
   auditProgramTemplates?: AuditProgramTemplate[];

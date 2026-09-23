@@ -157,16 +157,18 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   liability, equity, revenue and profit totals only when both mappings are
   independently approved. Missing or unmapped prior data is labeled unavailable,
   not zero. Chrome maps and approves both periods and reconciles the comparative
-  asset totals. XLSX/PDF exports now carry paired mapped statement lines, values
-  and source-account references; the statement-set revision/reviewer lifecycle
-  and full layout/disclosure/cash-flow matrix remain incomplete.
+  asset totals. XLSX/PDF exports carry paired mapped statement lines, values
+  and source-account references. Saved statement-set revisions now pin source,
+  current/prior mapping revisions, totals and line sources; independent review
+  is required and changed source/mapping selections display or persist as stale.
+  Full layout/disclosure/cash-flow acceptance remains incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
   currency closing rate, rejects zero, saves a dated rate revision and verifies
   source rows remain unchanged. Perimeter edits and missing-component recovery
   remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–17 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–18 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated

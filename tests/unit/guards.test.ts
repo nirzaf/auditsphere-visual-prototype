@@ -70,7 +70,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 18);
+    assert.equal(migrated.schema, 19);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -89,9 +89,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v18 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v19 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 17; version++) {
+    for (let version = 0; version <= 18; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -111,7 +111,8 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 17) legacy.evidenceCatalogue.forEach((item: any) => { delete item.linkedProcedureHistory; delete item.adequacyHistory; });
       if (version < 18) legacy.findings.forEach((item: any) => delete item.dispositionHistory);
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 18, `schema ${version} should reach v18`);
+      assert.equal(migrated.schema, 19, `schema ${version} should reach v19`);
+      assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
@@ -895,6 +896,36 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const history = prototypeStore.getSnapshot().accountMappingRevisions!;
     assert.deepEqual(history.map(item => [item.revision, item.status]), [[1, 'Approved'], [2, 'Draft']]);
     assert.equal(history[0].mappings[0].targets.reduce((sum, item) => sum + item.percentage, 0), 100);
+  });
+
+  it('saves statement revisions, requires an independent reviewer, then stales them on source change', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    const engagement = state.engagements.find((item: any) => item.id === 'ENG-26001');
+    state.accountMappingRevisions = [];
+    prototypeStore.setPersona('preparer');
+    const targets: Record<string, string> = { asset: 'Cash and cash equivalents', liability: 'Trade payables', equity: 'Share capital and reserves', revenue: 'Revenue', expense: 'Operating expenses' };
+    prototypeStore.saveAccountMappings(engagement.id, engagement.rows.map((row: any) => ({ accountCode: row.code, targets: [{ statementLine: targets[row.type], percentage: 100 }] })));
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.approveAccountMappings(engagement.id, 1);
+    prototypeStore.setPersona('preparer');
+    const input = { engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, layoutVersion: 1, totals: { assets: 10, liabilities: 4, equity: 6, revenue: 0, netProfit: 0 }, lines: [{ line: 'Cash and cash equivalents', current: 10, currentSources: ['1000'], comparativeSources: [] }] };
+    prototypeStore.saveStatementSetRevision(input);
+    const preparer = state.users.find((user: any) => user.id === 'preparer');
+    const samePersonReviewer = { ...state.users.find((user: any) => user.id === 'reviewer'), id: 'same-person-reviewer', personId: preparer.personId };
+    state.users.push(samePersonReviewer);
+    state.roleGrants.push({ userId: samePersonReviewer.id, role: 'reviewer', scopeKind: 'Global' });
+    prototypeStore.setPersona(samePersonReviewer.id);
+    assert.throws(() => prototypeStore.reviewStatementSetRevision(engagement.id, 1), /same person cannot review their own work/);
+    prototypeStore.setPersona('partner');
+    prototypeStore.reviewStatementSetRevision(engagement.id, 1);
+    assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Reviewed');
+    prototypeStore.staleStatementRevisionsForComparativeChange(engagement.id, 'ENG-26003');
+    assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
+    prototypeStore.setPersona('preparer');
+    prototypeStore.updateTrialBalanceRows(engagement.id, engagement.rows.map((row: any, index: number) => ({ ...row, balance: row.balance + (index === 0 ? 1 : 0) })));
+    assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
   });
 
   it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {

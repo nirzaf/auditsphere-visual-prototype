@@ -1992,6 +1992,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(cashLine?.[2], 800000);
       assert.equal(cashLine?.[3], '1000, 1100, 1500');
       assert.equal(cashLine?.[4], '1000, 1100');
+      await setRole('preparer');
+      await clickButton('Save statement revision');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Latest: v1 · Draft/);
+      await setRole('reviewer');
+      await clickButton('Review statement revision v1');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Latest: v1 · Reviewed · prepared by .* · reviewed by/);
+      const statementRevision = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.statementSetRevisions.find(x=>x.engagementId==='ENG-26001')})()`);
+      assert.equal(statementRevision.status, 'Reviewed');
+      assert.equal(statementRevision.comparativeEngagementId, 'ENG-26003');
+      assert.equal(statementRevision.totals.assets, 2250000);
+      assert.equal(statementRevision.comparativeTotals.assets, 800000);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

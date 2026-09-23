@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -144,6 +144,20 @@ class PrototypeStore {
     eng.approvals.client = null;
     eng.approvals.partner = null;
     eng.approvals.eqr = null;
+  }
+
+  private staleStatementSetRevisions(changedEngagementId: string) {
+    for (const revision of this.state.statementSetRevisions || []) {
+      if (revision.engagementId !== changedEngagementId && revision.comparativeEngagementId !== changedEngagementId) continue;
+      const engagement = this.state.engagements.find(item => item.id === revision.engagementId);
+      const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === revision.engagementId).map(item => item.revision));
+      const comparison = revision.comparativeEngagementId && this.state.engagements.find(item => item.id === revision.comparativeEngagementId);
+      const comparisonMappingRevision = comparison && Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === comparison.id).map(item => item.revision));
+      if (!engagement || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision ||
+          (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision))) {
+        revision.status = 'Stale';
+      }
+    }
   }
 
   public logEvent(text: string, ref: string, type = 'checkcircle') {
@@ -1526,6 +1540,7 @@ class PrototypeStore {
       mapping: source ? { ...source.mapping } : undefined,
       predecessorVersion
     });
+    this.staleStatementSetRevisions(engId);
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Trial balance updated for ${eng.id} (Source v${eng.sourceVersion})`, eng.id);
     this.notify();
@@ -1542,6 +1557,7 @@ class PrototypeStore {
     const history = this.state.accountMappingRevisions.filter(r => r.engagementId === engagementId);
     const revision = history.length ? Math.max(...history.map(r => r.revision)) + 1 : 1;
     this.state.accountMappingRevisions.push({ engagementId, revision, mappings: structuredClone(mappings), status: 'Draft', preparedBy: this.state.currentUserId });
+    this.staleStatementSetRevisions(engagementId);
     this.invalidateReleaseBasis(engagement);
     this.logEvent(`Account mappings saved for ${engagementId} (Mapping v${revision}); dependent output is stale`, engagementId);
     this.notify();
@@ -1557,8 +1573,76 @@ class PrototypeStore {
     requireIndependentActor(mapping.preparedBy, this.state.currentUserId, 'approve account mappings', this.state);
     mapping.status = 'Approved';
     mapping.reviewedBy = this.state.currentUserId;
+    this.staleStatementSetRevisions(engagementId);
     this.invalidateReleaseBasis(engagement);
     this.logEvent(`Account mappings v${revision} independently approved for ${engagementId}`, engagementId);
+    this.notify();
+  }
+
+  public saveStatementSetRevision(input: Omit<StatementSetRevision, 'id' | 'revision' | 'status' | 'preparedByUserId' | 'preparedAt' | 'reviewedByUserId' | 'reviewedAt'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'save financial statement revisions');
+    requireEngagementScope(this.state, input.engagementId);
+    const engagement = this.state.engagements.find(item => item.id === input.engagementId);
+    const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    const unmapped = engagement?.rows.filter(row => !mapping?.mappings.some(item => item.accountCode === row.code)) || [];
+    if (!engagement || !mapping || input.sourceVersion !== engagement.sourceVersion || input.mappingRevision !== mapping.revision || mapping.status !== 'Approved' || unmapped.length) throw new GuardError('STALE_REVISION', 'Statement revision requires a current, complete, approved account mapping and source.');
+    const numbers = Object.values(input.totals).concat(input.comparativeTotals ? Object.values(input.comparativeTotals) : []);
+    if (input.layoutVersion < 1 || numbers.some(value => !Number.isFinite(value)) || !Array.isArray(input.lines) || input.lines.some(line => !line.line.trim() || !Number.isFinite(line.current) || line.comparative !== undefined && !Number.isFinite(line.comparative) || !Array.isArray(line.currentSources) || !Array.isArray(line.comparativeSources))) throw new GuardError('INVALID_STATE', 'Statement revision totals and mapped source rows are invalid.');
+    if (input.comparativeEngagementId) {
+      const comparison = this.state.engagements.find(item => item.id === input.comparativeEngagementId);
+      const comparisonMapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.comparativeEngagementId)].sort((a, b) => b.revision - a.revision)[0];
+      if (!comparison || !comparisonMapping || comparison.client !== engagement.client || comparison.currency !== engagement.currency || comparison.year >= engagement.year || input.comparativeSourceVersion !== comparison.sourceVersion || input.comparativeMappingRevision !== comparisonMapping.revision || comparisonMapping.status !== 'Approved' || comparison.rows.some(row => !comparisonMapping.mappings.some(item => item.accountCode === row.code))) throw new GuardError('STALE_REVISION', 'Comparative statement source and approved mapping must match the selected earlier client period.');
+    } else if (input.comparativeTotals || input.lines.some(line => line.comparative !== undefined || line.comparativeSources.length)) {
+      throw new GuardError('INVALID_STATE', 'Comparative figures require a selected, approved comparative period.');
+    }
+    this.state.statementSetRevisions ||= [];
+    const history = this.state.statementSetRevisions.filter(item => item.engagementId === input.engagementId);
+    const revision = Math.max(0, ...history.map(item => item.revision)) + 1;
+    for (const prior of history) prior.status = 'Stale';
+    const record: StatementSetRevision = { ...structuredClone(input), id: `${input.engagementId}-STMT-${revision}`, revision, status: 'Draft', preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString() };
+    this.state.statementSetRevisions.push(record);
+    this.logEvent(`Financial statement set v${revision} saved for ${input.engagementId}`, input.engagementId);
+    this.notify();
+    return revision;
+  }
+
+  public staleStatementRevisionsForComparativeChange(engagementId: string, comparativeEngagementId: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engagementId);
+    for (const revision of this.state.statementSetRevisions || []) {
+      if (revision.engagementId === engagementId && revision.comparativeEngagementId !== (comparativeEngagementId || undefined)) revision.status = 'Stale';
+    }
+    this.notify();
+  }
+
+  public reviewStatementSetRevision(engagementId: string, revisionNumber: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'partner', 'eqr'], 'review financial statement revisions');
+    requireEngagementScope(this.state, engagementId);
+    const history = (this.state.statementSetRevisions || []).filter(item => item.engagementId === engagementId);
+    const revision = history.find(item => item.revision === revisionNumber);
+    const latestRevision = Math.max(0, ...history.map(item => item.revision));
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === engagementId).map(item => item.revision));
+    const comparison = revision?.comparativeEngagementId ? this.state.engagements.find(item => item.id === revision.comparativeEngagementId) : undefined;
+    const comparisonMappingRevision = comparison && Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === comparison.id).map(item => item.revision));
+    if (!revision || !engagement || revisionNumber !== latestRevision || revision.status !== 'Draft' || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision || (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision))) {
+      if (revision) revision.status = 'Stale';
+      this.notify();
+      throw new GuardError('STALE_REVISION', 'This statement revision is no longer current; prepare a new revision after source, mapping or comparative changes.');
+    }
+    const currentMapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    if (!currentMapping || currentMapping.status !== 'Approved' || engagement.rows.some(row => !currentMapping.mappings.some(item => item.accountCode === row.code))) throw new GuardError('STALE_REVISION', 'The current statement mapping is not complete and approved.');
+    if (revision.comparativeEngagementId) {
+      const compMapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === comparison!.id)].sort((a, b) => b.revision - a.revision)[0];
+      if (!compMapping || compMapping.status !== 'Approved' || comparison!.rows.some(row => !compMapping.mappings.some(item => item.accountCode === row.code))) throw new GuardError('STALE_REVISION', 'The comparative mapping is not complete and approved.');
+    }
+    requireIndependentActor(revision.preparedByUserId, this.state.currentUserId, 'review a statement set they prepared', this.state);
+    revision.status = 'Reviewed';
+    revision.reviewedByUserId = this.state.currentUserId;
+    revision.reviewedAt = new Date().toISOString();
+    this.logEvent(`Financial statement set v${revisionNumber} independently reviewed`, engagementId);
     this.notify();
   }
 
