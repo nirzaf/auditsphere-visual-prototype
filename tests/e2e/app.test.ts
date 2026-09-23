@@ -1981,6 +1981,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(comparative, /2026 current \(QAR\)/i);
       assert.match(comparative, /2025 comparative \(QAR\)/i);
       assert.match(comparative, /Total assets\s+QAR 2,250,000\.00\s+QAR 800,000\.00/i, 'comparative totals reconcile to the independently mapped periods');
+      await browserTab!.evaluate(`(() => {URL.createObjectURL=(blob)=>{window.__statementExport=blob;return 'blob:statement-export'};URL.revokeObjectURL=()=>{};})()`);
+      await clickButton('Export XLSX');
+      const exported = await browserTab!.evaluate<string>(`(async()=>{const blob=window.__statementExport;const bytes=new Uint8Array(await blob.arrayBuffer());let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin)})()`);
+      const statementWorkbook = XLSX.read(Buffer.from(exported, 'base64'), { type: 'buffer' });
+      const statementRows = XLSX.utils.sheet_to_json<any[]>(statementWorkbook.Sheets['Financial Data'], { header: 1, defval: '', range: 5 });
+      assert.ok(statementRows[0].includes('Current FY2026 (QAR)') && statementRows[0].includes('Comparative FY2025 (QAR)'), 'statement export includes both reporting columns');
+      const cashLine = statementRows.find((row: any[]) => row[0] === 'Cash and cash equivalents');
+      assert.equal(cashLine?.[1], 2250000);
+      assert.equal(cashLine?.[2], 800000);
+      assert.equal(cashLine?.[3], '1000, 1100, 1500');
+      assert.equal(cashLine?.[4], '1000, 1100');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

@@ -157,8 +157,9 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   liability, equity, revenue and profit totals only when both mappings are
   independently approved. Missing or unmapped prior data is labeled unavailable,
   not zero. Chrome maps and approves both periods and reconciles the comparative
-  asset totals. Detailed comparative statement exports and versioned/reviewed
-  statement-output revisions remain incomplete.
+  asset totals. XLSX/PDF exports now carry paired mapped statement lines, values
+  and source-account references; the statement-set revision/reviewer lifecycle
+  and full layout/disclosure/cash-flow matrix remain incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-

@@ -69,24 +69,42 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const priorRows = comparativeEngagement && priorMappingReady && priorAdjustmentResult ? mapRows(priorAdjustmentResult.rows, priorMapping!.mappings) : [];
   const priorBalanceSheet = priorRows.length ? calculateBalanceSheet(priorRows) : null;
   const priorIncomeStatement = priorRows.length ? calculateIncomeStatement(priorRows) : null;
+  const comparativeReady = Boolean(mappingReady && priorBalanceSheet && priorIncomeStatement && comparativeEngagement);
+  const comparisonAmount = (row: TrialBalanceRow) => row.type === 'asset' ? row.balance : Math.abs(row.balance);
+  const comparisonLineRows = [...new Set(statementRows.map(row => row.mappedStatementLine).filter((line): line is string => Boolean(line)))].sort().map(line => {
+    const currentRows = statementRows.filter(row => row.mappedStatementLine === line);
+    const priorLineRows = priorRows.filter(row => row.mappedStatementLine === line);
+    return {
+      line,
+      current: currentRows.reduce((sum, row) => sum + comparisonAmount(row), 0),
+      prior: priorLineRows.reduce((sum, row) => sum + comparisonAmount(row), 0),
+      currentSources: currentRows.map(row => row.code.split(' → ')[0]).join(', '),
+      priorSources: priorLineRows.map(row => row.code.split(' → ')[0]).join(', ')
+    };
+  });
 
   const handleExportXLSX = () => {
+    const priorAmount = (value?: number) => comparativeReady ? value ?? 0 : 'Unavailable';
+    const currentColumn = `Current FY${selectedEng.year} (${selectedEng.currency})`;
+    const priorColumn = `Comparative FY${comparativeEngagement?.year ?? 'unavailable'} (${selectedEng.currency})`;
+    const pairedRow = (line: string, current: number, prior?: number, currentSources = '', priorSources = '') => ({
+      LineItem: line,
+      [currentColumn]: current,
+      [priorColumn]: priorAmount(prior),
+      'Current source accounts': currentSources,
+      'Comparative source accounts': comparativeReady ? priorSources : 'Unavailable'
+    });
     const data = [
-      { LineItem: 'Assets', Amount: bs.totalAssets },
-      ...bs.assets.map((a: TrialBalanceRow) => ({ LineItem: `  ${a.name} · Source ${a.code.split(' → ')[0]} · Mapping ${a.mappedStatementLine || 'legacy'}`, Amount: a.balance })),
-      { LineItem: 'Liabilities', Amount: bs.totalLiabilities },
-      ...bs.liabilities.map((l: TrialBalanceRow) => ({ LineItem: `  ${l.name} · Source ${l.code.split(' → ')[0]} · Mapping ${l.mappedStatementLine || 'legacy'}`, Amount: Math.abs(l.balance) })),
-      { LineItem: 'Equity', Amount: bs.totalEquity },
-      ...bs.equity.map((e: TrialBalanceRow) => ({ LineItem: `  ${e.name} · Source ${e.code.split(' → ')[0]} · Mapping ${e.mappedStatementLine || 'legacy'}`, Amount: Math.abs(e.balance) })),
-      { LineItem: '  Current-period profit / (loss)', Amount: bs.currentPeriodResult },
-      { LineItem: 'Revenue', Amount: is.revenue },
-      ...statementRows.filter(row => row.type === 'revenue').map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
-      { LineItem: 'Cost of Sales', Amount: is.costOfSales },
-      ...statementRows.filter(row => row.type === 'expense' && (row.name.toLowerCase().includes('cost of sales') || row.name.toLowerCase().includes('cost of goods'))).map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
-      { LineItem: 'Gross Profit', Amount: is.grossProfit },
-      { LineItem: 'Operating Expenses', Amount: is.operatingExpenses },
-      ...statementRows.filter(row => row.type === 'expense' && !row.name.toLowerCase().includes('cost of sales') && !row.name.toLowerCase().includes('cost of goods')).map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
-      { LineItem: 'Net Profit', Amount: is.netProfit }
+      pairedRow('Total assets', bs.totalAssets, priorBalanceSheet?.totalAssets),
+      pairedRow('Total liabilities', bs.totalLiabilities, priorBalanceSheet?.totalLiabilities),
+      pairedRow('Total equity', bs.totalEquity, priorBalanceSheet?.totalEquity),
+      pairedRow('Current-period result', bs.currentPeriodResult, priorBalanceSheet?.currentPeriodResult),
+      ...comparisonLineRows.map(row => pairedRow(row.line, row.current, row.prior, row.currentSources, row.priorSources)),
+      pairedRow('Revenue', is.revenue, priorIncomeStatement?.revenue),
+      pairedRow('Cost of sales', is.costOfSales, priorIncomeStatement?.costOfSales),
+      pairedRow('Gross profit', is.grossProfit, priorIncomeStatement?.grossProfit),
+      pairedRow('Operating expenses', is.operatingExpenses, priorIncomeStatement?.operatingExpenses),
+      pairedRow('Net profit', is.netProfit, priorIncomeStatement?.netProfit)
     ];
 
     exportService.exportXLSX(
@@ -114,7 +132,10 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       `Cost of Sales: ${formatCurrency(is.costOfSales)}`,
       `Gross Profit: ${formatCurrency(is.grossProfit)}`,
       `Operating Expenses: ${formatCurrency(is.operatingExpenses)}`,
-      `Net Profit for the Year: ${formatCurrency(is.netProfit)}`
+      `Net Profit for the Year: ${formatCurrency(is.netProfit)}`,
+      '',
+      comparativeReady ? `COMPARATIVE DETAIL · FY ${comparativeEngagement!.year}` : 'COMPARATIVE PERIOD UNAVAILABLE',
+      ...(comparativeReady ? comparisonLineRows.map(row => `${row.line}: current ${formatCurrency(row.current)} [${row.currentSources}] · prior ${formatCurrency(row.prior)} [${row.priorSources}]`) : ['No comparative figures are substituted.'])
     ];
 
     exportService.exportPDF(

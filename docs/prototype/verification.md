@@ -278,3 +278,13 @@ release `1504e96b-a71e-4bc8-bb02-661231aa7b68`. A no-cache request to both the
 release URL and `https://prototype.steaudit.com` returned HTTP 200 and served
 `assets/index-BsAZniN0.js`, which contains the comparative-period selection and
 unavailable-state behavior.
+
+VP-040 export follow-up: statement XLSX/PDF output now pairs each mapped line
+and subtotal with current and comparative amounts plus source-account references.
+If the prior period is unavailable, the comparative column says unavailable
+instead of substituting zero. Chrome reads the downloaded XLSX bytes back and
+checks the QAR 2,250,000 current / QAR 800,000 comparative cash line and both
+source-account lists. Unit checks passed 131/131; E2E passed 56/56 (five static
+checks and 51 Chrome journeys); the build passed with the existing large-bundle
+advisory. Persisted statement revisions, independent statement review and
+stale-review behavior remain open; production deployment evidence follows.
