@@ -647,6 +647,28 @@ describe('internal collaboration scope (AT-14)', () => {
   });
 });
 
+describe('simulated mail attempts (AT-26)', () => {
+  it('accepts only an active client contact and requires unique local outcome evidence', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const makeAttempt = (id: string, recipientEmail: string, simulationReference: string) => ({
+      id, clientId: 'CL-001', engagementId: 'ENG-26001', direction: 'Outbound' as const, channel: 'Email' as const,
+      participants: `Layla Rahman -> ${recipientEmail}`, recipientEmail, summary: 'PBC request', body: 'Please review the request.',
+      author: 'Layla Rahman', date: new Date().toISOString(), visibility: 'Client visible' as const, status: 'Simulated accepted' as const,
+      simulationReference, simulationEvidence: 'Local simulation; no provider receipt.'
+    });
+    const initialCount = state.communications.length;
+    assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-BAD', 'not-an-email', 'MAIL-SIM-BAD')), /valid recipient email/);
+    assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-FOREIGN', 'aisha.saleh@northstar.demo', 'MAIL-SIM-FOREIGN')), /active contact for this client/);
+    const first = makeAttempt('COMM-26-1', 'OMAR.NASSER@EXAMPLE-TRADING.DEMO', 'MAIL-SIM-26-1');
+    prototypeStore.addCommunication(first);
+    assert.equal(first.recipientEmail, 'omar.nasser@example-trading.demo');
+    assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', first.simulationReference)), /unique reference/);
+    prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', 'MAIL-SIM-26-2'));
+    assert.equal(state.communications.length, initialCount + 2, 'a second explicit manual send is recorded once as a separate attempt');
+  });
+});
+
 describe('time correction lifecycle (AT-28)', () => {
   it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

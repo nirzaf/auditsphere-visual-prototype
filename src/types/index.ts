@@ -558,6 +558,9 @@ export interface CommunicationItem {
   visibility: 'Internal' | 'Client visible';
   status?: 'Simulated accepted' | 'Simulated failed' | 'Outcome unknown' | 'Recorded manually';
   relatedRequestId?: string;
+  recipientEmail?: string;
+  simulationReference?: string;
+  simulationEvidence?: string;
 }
 
 export interface EmailTemplateItem {

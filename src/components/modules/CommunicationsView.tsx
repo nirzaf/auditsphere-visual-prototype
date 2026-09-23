@@ -12,6 +12,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const state = prototypeStore.getSnapshot();
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [showLogNoteModal, setShowLogNoteModal] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   // Email form
   const [recipientEmail, setRecipientEmail] = useState('omar.nasser@example-trading.demo');
@@ -34,23 +35,30 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const normalizedRecipient = recipientEmail.trim().toLowerCase();
     const newComm: CommunicationItem = {
-      id: `COMM-${Date.now().toString().slice(-4)}`,
+      id: `COMM-${crypto.randomUUID()}`,
       clientId: client?.id || 'CL-001',
       engagementId: state.selectedEngagement,
       direction: 'Outbound',
       channel: 'Email',
-      participants: `${state.currentPerson} -> ${recipientEmail}`,
+      participants: `${state.currentPerson} -> ${normalizedRecipient}`,
+      recipientEmail: normalizedRecipient,
       summary: subject,
       body: emailBody,
       author: state.currentPerson,
       date: new Date().toISOString(),
       visibility: 'Client visible',
-      status: simulationOutcome
+      status: simulationOutcome,
+      simulationReference: `MAIL-SIM-${crypto.randomUUID()}`,
+      simulationEvidence: `Local simulation recorded ${simulationOutcome}; no provider receipt or external delivery confirmation exists.`
     };
 
-    prototypeStore.addCommunication(newComm);
-    setShowComposeModal(false);
+    try {
+      prototypeStore.addCommunication(newComm);
+      setEmailError('');
+      setShowComposeModal(false);
+    } catch (error) { setEmailError(error instanceof Error ? error.message : 'Simulated email could not be recorded.'); }
   };
 
   const handleLogNote = (e: React.FormEvent) => {
@@ -140,6 +148,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                   {comm.body}
                 </div>
               )}
+              {comm.simulationReference && <div className="cell-sub mt8">Simulation evidence · {comm.simulationReference} · {comm.simulationEvidence}</div>}
               <div className="cell-sub mt8">
                 Recorded by {comm.author} · {new Date(comm.date).toLocaleDateString('en-GB')}
               </div>
@@ -178,8 +187,9 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                   <input
                     type="email"
                     className="input"
+                    aria-label="Email recipient"
                     value={recipientEmail}
-                    onChange={e => setRecipientEmail(e.target.value)}
+                    onChange={e => { setRecipientEmail(e.target.value); setEmailError(''); }}
                     required
                   />
                 </div>
@@ -215,6 +225,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                     <option value="Outcome unknown">Outcome unknown (Pending queue)</option>
                   </select>
                 </div>
+                <p className="caption">Each click records a new manual simulation attempt; there are no automatic retries, and no message is sent or externally confirmed.</p>
+                {emailError && <div className="badge red" role="alert">{emailError}</div>}
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowComposeModal(false)}>Cancel</button>

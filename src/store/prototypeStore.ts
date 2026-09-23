@@ -1298,6 +1298,13 @@ class PrototypeStore {
       if (this.state.engagements.find(e => e.id === comm.engagementId)?.client !== comm.clientId) throw new GuardError('INVALID_STATE', 'Communication client and engagement must match.');
     }
     if (!comm.summary.trim()) throw new GuardError('INVALID_STATE', 'Communication summary is required.');
+    if (comm.direction === 'Outbound' && comm.channel === 'Email') {
+      const recipient = comm.recipientEmail?.trim().toLowerCase() || '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) || !comm.body?.trim()) throw new GuardError('INVALID_STATE', 'A valid recipient email and message body are required.');
+      if (!this.state.contacts.some(contact => contact.clientId === comm.clientId && contact.active && contact.email?.trim().toLowerCase() === recipient)) throw new GuardError('FORBIDDEN_SCOPE', 'Recipient must be an active contact for this client.');
+      if (!comm.simulationReference?.trim() || !comm.simulationEvidence?.trim() || this.state.communications.some(item => item.id === comm.id || item.simulationReference === comm.simulationReference)) throw new GuardError('INVALID_STATE', 'Each simulated send needs a unique reference and recorded outcome evidence.');
+      comm.recipientEmail = recipient;
+    }
     this.state.communications.unshift(comm);
     this.logEvent(`Communication logged: ${comm.channel} (${comm.direction}) - ${comm.summary}`, comm.id);
     this.notify();

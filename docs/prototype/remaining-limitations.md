@@ -56,8 +56,11 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   linking across communication/client/job views remains incomplete.
 - **AT-26 — simulated email:** Chrome resolves the request template and records
   accepted, failed and unknown outcomes locally without external mail requests.
-  Recipient validation, delivery evidence and retry/duplicate policy remain
-  incomplete.
+  Only active contacts for the client can be selected; each explicit send stores
+  a unique local simulation reference and states that no provider receipt or
+  external delivery confirmation exists. There are no automatic retries, and
+  another explicit send is a separate attempt. Real provider receipts remain
+  outside the local prototype.
 - **AT-21 — optional OneDrive:** Chrome verifies disabled-by-default gating,
   saved enablement, current simulated success and a selected local metadata
   import under the SharePoint canonical hierarchy. Real file transfer and

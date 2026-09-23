@@ -986,6 +986,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-26: resolves a mail template and records accepted, failed, and unknown outcomes locally', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Team & Client Comms'));if(!b)throw Error('Missing communications route');b.click();})()`);
     const initialCount = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`);
+    await clickButton('Compose Simulated Email');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Email recipient"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'aisha.saleh@northstar.demo');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Simulate Send');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Recipient must be an active contact for this client/);
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount, 'out-of-client recipient produces no attempt record');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Email recipient"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'omar.nasser@example-trading.demo');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Cancel');
     for (const [outcome, expected] of [['Simulated accepted', 'Simulated accepted'], ['Simulated failed', 'Simulated failed'], ['Outcome unknown', 'Outcome unknown']] as const) {
       await clickButton('Compose Simulated Email');
       await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Email Template'));const select=label.parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'TPL-EM-01');select.dispatchEvent(new Event('change',{bubbles:true}));const outcome=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Simulated Delivery Outcome')).parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(outcome,${JSON.stringify(outcome)});outcome.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -999,6 +1006,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(saved.length, 3);
     assert.deepEqual(saved.map((item: any) => item.status).sort(), ['Outcome unknown', 'Simulated accepted', 'Simulated failed']);
     assert.equal(new Set(saved.map((item: any) => item.id)).size, 3, 'each explicit simulation has one unique record');
+    assert.equal(new Set(saved.map((item: any) => item.simulationReference)).size, 3, 'each manual click records one unique simulation reference');
+    assert.ok(saved.every((item: any) => item.recipientEmail === 'omar.nasser@example-trading.demo' && item.simulationEvidence.includes('no provider receipt')));
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Simulation evidence · MAIL-SIM-/);
     assert.ok(saved.every((item: any) => item.direction === 'Outbound' && item.visibility === 'Client visible'));
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount + 3, 'no automatic retry or duplicate record');
     assert.deepEqual(browserTab!.requests.filter(url => /^https?:/.test(url) && !url.startsWith(baseUrl)), [], 'simulated send makes no external mail request');
