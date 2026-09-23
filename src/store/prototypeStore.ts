@@ -510,9 +510,9 @@ class PrototypeStore {
     if (!prop.clientId) throw new GuardError('INVALID_STATE', 'Proposal must be linked to a client before recording a response.');
     requireClientScope(this.state, prop.clientId);
     if (prop.state !== 'Presented' || !prop.commercialReview?.approved) throw new GuardError('INVALID_STATE', 'Only an approved, presented proposal can receive a client response.');
-    if (!prop.presentedSnapshot || prop.presentedSnapshot.revision !== prop.revision || !response.contact.trim() || !response.notes.trim()) throw new GuardError('INVALID_STATE', 'Response requires the current presented revision, an authorized contact, and an evidence reference or notes.');
+    if (!prop.presentedSnapshot || prop.presentedSnapshot.revision !== prop.revision || !response.contact.trim() || !response.evidenceRef?.trim() || !response.notes.trim()) throw new GuardError('INVALID_STATE', 'Response requires the current presented revision, an authorized contact, notes, and an evidence reference.');
     prop.clientResponse = response;
-    prop.state = response.responseType === 'Accepted' ? 'Accepted' : 'Declined';
+    prop.state = response.responseType;
     this.logEvent(`Proposal ${prop.id} client response: ${response.responseType} by ${response.contact}`, prop.id);
     this.notify();
   }

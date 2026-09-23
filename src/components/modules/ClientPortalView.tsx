@@ -17,12 +17,15 @@ interface ClientPortalViewProps {
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices' | 'approvals'>('home');
+  const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices' | 'approvals' | 'proposals'>('home');
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadPbcModal, setUploadPbcModal] = useState<PbcRequestItem | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [rejectingAdjustmentId, setRejectingAdjustmentId] = useState<string | null>(null);
   const [adjustmentRejectNote, setAdjustmentRejectNote] = useState('');
+  const [proposalContact, setProposalContact] = useState('');
+  const [proposalEvidenceRef, setProposalEvidenceRef] = useState('');
+  const [proposalResponseNotes, setProposalResponseNotes] = useState('');
 
   // Client resolution supporting multi-entity grants (VP-025)
   const allowedClientIds = visibleClientIds(state);
@@ -140,6 +143,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     }
   };
 
+  const handleProposalResponse = (proposalId: string, responseType: 'Accepted' | 'Declined' | 'Withdrawn') => {
+    try {
+      prototypeStore.recordProposalResponse(proposalId, { responseType, contact: proposalContact.trim(), date: new Date().toISOString().slice(0, 10), method: 'Email', notes: proposalResponseNotes.trim(), evidenceRef: proposalEvidenceRef.trim() });
+      setProposalContact(''); setProposalEvidenceRef(''); setProposalResponseNotes('');
+      triggerNotice(`Proposal ${proposalId} ${responseType.toLowerCase()} response recorded with evidence reference.`);
+    } catch (err) { triggerNotice(err instanceof Error ? err.message : 'Proposal response could not be recorded.'); }
+  };
+
   if (!client) {
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
@@ -223,7 +234,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             { key: 'messages', label: 'Messages & Mail' },
             { key: 'packages', label: 'Published Reports' },
             { key: 'invoices', label: 'Fee Invoices' },
-            ...(state.currentRole === 'client' ? [{ key: 'approvals', label: 'Management Approvals' }] : [])
+            ...(state.currentRole === 'client' ? [{ key: 'proposals', label: 'Proposals & Terms' }, { key: 'approvals', label: 'Management Approvals' }] : [])
           ].map(t => (
             <button
               key={t.key}
@@ -495,6 +506,29 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeSub === 'proposals' && state.currentRole === 'client' && (
+        <div className="panel panel-pad">
+          <h3>Proposals &amp; Engagement Terms</h3>
+          <p className="sub mt8">Review the exact revision formally presented to this client. A recorded response does not create an engagement or authorize work.</p>
+          {state.proposals.filter(item => item.clientId === client.id && ['Presented', 'Accepted', 'Declined', 'Withdrawn', 'Superseded'].includes(item.state)).length === 0 ? <p className="sub mt12">No presented proposals for this entity.</p> : state.proposals.filter(item => item.clientId === client.id && ['Presented', 'Accepted', 'Declined', 'Withdrawn', 'Superseded'].includes(item.state)).map(item => {
+            const snapshot = item.presentedSnapshot;
+            return <div className="borderbox mt12" key={item.id}>
+              <div className="between"><b>{snapshot?.title || item.title} · Rev {snapshot?.revision ?? item.revision}</b><span className="badge blue">{item.state}</span></div>
+              <div className="cell-sub mt4">{item.id} · {snapshot ? formatCurrency(snapshot.totalAmount, snapshot.currency) : 'No presentation snapshot'}</div>
+              {snapshot?.items.map(line => <div className="mt12" key={line.id}><b>{line.serviceName}</b><p className="sub mt4">Scope: {line.scope}</p><p className="sub">Exclusions: {line.exclusions || 'None stated'}</p><p className="sub">Deliverables: {line.deliverables}</p><p className="sub">Client responsibilities: {line.clientResponsibilities}</p></div>)}
+              {snapshot && <p className="sub mt8">Terms: {snapshot.terms}</p>}
+              {item.clientResponse && <div className="banner green mt12">{item.clientResponse.responseType} by {item.clientResponse.contact} · Evidence {item.clientResponse.evidenceRef}</div>}
+              {item.state === 'Presented' && snapshot && snapshot.revision === item.revision && <div className="stack mt12">
+                <label className="caption">Authorized signatory<input className="input" value={proposalContact} onChange={e => setProposalContact(e.target.value)} required /></label>
+                <label className="caption">Evidence reference (email, letter or meeting record)<input className="input" value={proposalEvidenceRef} onChange={e => setProposalEvidenceRef(e.target.value)} required /></label>
+                <label className="caption">Response notes<textarea className="input" rows={2} value={proposalResponseNotes} onChange={e => setProposalResponseNotes(e.target.value)} required /></label>
+                <div className="row"><button className="btn primary sm" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Accepted')}>Record Acceptance</button><button className="btn sm ghost" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Declined')}>Record Decline</button><button className="btn sm ghost" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Withdrawn')}>Record Withdrawal</button></div>
+              </div>}
+            </div>;
+          })}
         </div>
       )}
 

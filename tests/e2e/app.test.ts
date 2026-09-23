@@ -495,6 +495,25 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-09: client records a presented proposal response with evidence without auto-creating an engagement', async () => {
+    const before = await browserTab!.evaluate<any>(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));const p=s.proposals.find(x=>x.id==='PROP-001');p.state='Presented';p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Layla Rahman',presentedAt:'2026-09-23T10:00:00Z'};delete p.clientResponse;localStorage.setItem(key,JSON.stringify(s));return {engagements:s.engagements.length};})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    const changed = await browserTab!.evaluate<boolean>(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    assert.equal(changed, true);
+    await clickButton('Proposals & Terms');
+    const setLabel = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector('input,textarea');if(!e)throw Error('Missing '+${JSON.stringify(label)});const proto=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setLabel('Authorized signatory', 'Omar Nasser');
+    await setLabel('Evidence reference', 'MAIL-AT09-2026-09-23');
+    await setLabel('Response notes', 'Accepted the presented scope and fee.',);
+    await clickButton('Record Acceptance');
+    const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.proposals.find(x=>x.id==='PROP-001');return {state:p.state,response:p.clientResponse,engagements:s.engagements.length};})()`);
+    assert.equal(after.state, 'Accepted');
+    assert.equal(after.response.evidenceRef, 'MAIL-AT09-2026-09-23');
+    assert.equal(after.engagements, before.engagements);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

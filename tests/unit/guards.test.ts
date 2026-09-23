@@ -220,6 +220,23 @@ describe('opportunity and proposal lifecycle (AT-07/08)', () => {
     assert.equal(revision.state, 'Draft');
     assert.equal(revision.commercialReview, undefined);
   });
+
+  it('requires client response evidence and does not create an engagement', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    const prop = target.state.proposals.find((item: any) => item.id === 'PROP-001');
+    prop.state = 'Presented';
+    prop.presentedSnapshot = { revision: prop.revision, title: prop.title, currency: prop.currency, totalAmount: prop.totalAmount, items: structuredClone(prop.items), terms: prop.terms, presentedBy: 'Layla Rahman', presentedAt: '2026-09-23T10:00:00Z' };
+    const engagementCount = target.state.engagements.length;
+    setPersona(target.state, 'Omar Nasser');
+    const response = { responseType: 'Accepted', contact: 'Omar Nasser', date: '2026-09-23', method: 'Email', notes: 'Approved for acceptance.', evidenceRef: '' } as const;
+    assert.throws(() => target.recordProposalResponse(prop.id, response), /evidence reference/);
+    target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'MAIL-ACCEPT-2026-09-23' });
+    assert.equal(prop.state, 'Accepted');
+    assert.equal(prop.clientResponse.evidenceRef, 'MAIL-ACCEPT-2026-09-23');
+    assert.equal(target.state.engagements.length, engagementCount, 'accepted proposal does not itself create an engagement');
+  });
 });
 
 describe('time correction lifecycle (AT-28)', () => {
