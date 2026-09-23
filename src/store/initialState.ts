@@ -313,6 +313,7 @@ export function createInitialState(): PrototypeState {
             version: 2,
             status: 'Cleared',
             applicable: true,
+            evidenceRefs: ['DOC-002'],
             preparer: 'Adam Khan',
             reviewer: 'Sara Malik',
             conclusion: 'Agreed all bank balances to general ledger and trial balance. Reconciled statements and inspected direct bank confirmations. Tested cut-off transactions with no exceptions noted.',

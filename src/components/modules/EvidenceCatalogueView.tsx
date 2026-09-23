@@ -61,9 +61,10 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
         <b>Prototype note — evidence replacement impact.</b>
         <p className="sub mt4">
           Adequacy changes here are persisted and attributable. Flagging an evidence version as
-          deficient does not yet automatically mark dependent procedures, workpapers or reviews as
-          requiring reassessment; reviewers must open each linked subject and re-clear it explicitly.
-          Document-to-evidence version comparison is a manual side-by-side check in the library.
+          deficient remains an explicit review action. Replacing a document preserves the old pin,
+          creates a pending-verification evidence reference, and marks linked procedures and
+          version-pinned workpapers for reassessment. New evidence and fieldwork still require human
+          verification and independent clearance.
         </p>
       </div>
 

@@ -885,6 +885,52 @@ class PrototypeStore {
       brokenLink: undefined
     };
     this.state.documents.push(revision);
+    const affectedEngagementIds = new Set<string>();
+    const replacementEvidence = this.state.evidenceCatalogue.filter(item => item.documentId === previous.id).map(item => ({
+      ...structuredClone(item),
+      id: `EVD-${crypto.randomUUID()}`,
+      documentId: revision.id,
+      version: revision.version,
+      sha: file.sha256,
+      adequacyStatus: 'Pending verification' as const,
+      receivedDate: this.state.asOfDate,
+      owner: this.state.currentPerson
+    }));
+    for (const item of this.state.evidenceCatalogue.filter(evidence => evidence.documentId === previous.id)) {
+      for (const procedureId of item.linkedProcedures) {
+        for (const program of this.state.auditPrograms) {
+          const procedure = program.procedures.find(candidate => candidate.id === procedureId);
+          if (!procedure) continue;
+          const engagementId = procedure.engagementId || program.engagementId || previous.engagementId;
+          const engagement = this.state.engagements.find(candidate => candidate.id === engagementId);
+          if (!engagement) continue;
+          procedure.evidenceReassessmentHistory ||= [];
+          procedure.evidenceReassessmentHistory.push({ documentId: previous.id, version: previous.version, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+          procedure.evidenceReassessmentRequired = true;
+          if (procedure.status === 'Cleared') procedure.status = 'In progress';
+          procedure.reviewedByUserId = undefined;
+          procedure.reviewedAt = undefined;
+          affectedEngagementIds.add(engagement.id);
+        }
+      }
+    }
+    this.state.evidenceCatalogue.push(...replacementEvidence);
+    for (const engagement of this.state.engagements) {
+      if (previous.engagementId && engagement.id !== previous.engagementId) continue;
+      if (engagement.client !== previous.clientId) continue;
+      for (const workpaper of engagement.workpapers) {
+        if (!workpaper.evidenceRefs?.includes(previous.id)) continue;
+        if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+        workpaper.clearance = null;
+        workpaper.status = 'Changes required';
+        workpaper.version += 1;
+        affectedEngagementIds.add(engagement.id);
+      }
+    }
+    for (const engagementId of affectedEngagementIds) {
+      const engagement = this.state.engagements.find(candidate => candidate.id === engagementId);
+      if (engagement) this.invalidateReleaseBasis(engagement);
+    }
     this.logEvent(`Document ${previous.name} superseded by ${revision.name} (v${revision.version}); prior revision retained`, revision.id);
     this.notify();
     return revision;
@@ -1856,13 +1902,25 @@ class PrototypeStore {
     if (status === 'Submitted') {
       requireRole(this.state, ['preparer', 'manager'], 'submit procedure fieldwork');
       if (!procedure.workPerformed?.trim() || !procedure.conclusion?.trim()) throw new GuardError('INVALID_STATE', 'Record work performed and a conclusion before submitting fieldwork.');
-      const hasCurrentEvidence = this.state.evidenceCatalogue.some(e => e.linkedProcedures.includes(procedureId) && e.adequacyStatus === 'Adequate' && this.state.documents.some(d => d.id === e.documentId && d.clientId === this.state.engagements.find(item => item.id === engId)?.client && (!d.engagementId || d.engagementId === engId) && d.version === e.version));
+      const hasCurrentEvidence = this.state.evidenceCatalogue.some(e => {
+        if (!e.linkedProcedures.includes(procedureId) || e.adequacyStatus !== 'Adequate') return false;
+        let document = this.state.documents.find(d => d.id === e.documentId);
+        if (!document || document.clientId !== this.state.engagements.find(item => item.id === engId)?.client || (document.engagementId && document.engagementId !== engId) || document.version !== e.version) return false;
+        while (true) {
+          const newer = this.state.documents.find(d => d.supersedesDocumentId === document!.id);
+          if (!newer) break;
+          document = newer;
+        }
+        return document.id === e.documentId;
+      });
       if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');
       procedure.preparedByUserId = this.state.currentUserId;
+      procedure.evidenceReassessmentRequired = false;
     }
     if (status === 'Completed') throw new GuardError('INVALID_STATE', 'Use Submitted for preparer work and Cleared for independent review.');
     if (status === 'Cleared' && procedure.status !== 'Cleared') {
       requireRole(this.state, ['reviewer', 'manager', 'partner', 'eqr'], 'clear procedure fieldwork');
+      if (procedure.evidenceReassessmentRequired) throw new GuardError('STALE_REVISION', 'Reassess the changed evidence and resubmit fieldwork before clearing this procedure.');
       if (procedure.status !== 'Submitted' || !procedure.preparedByUserId) throw new GuardError('INVALID_STATE', 'Only submitted fieldwork with a recorded preparer can be cleared.');
       requireIndependentActor(procedure.preparedByUserId, this.state.currentUserId, 'clear their own procedure fieldwork', this.state);
       procedure.reviewedByUserId = this.state.currentUserId;

@@ -8,8 +8,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 - **AT-20 — document replacement:** Chrome verifies a replacement revision is
   registered separately, preserves the prior document and evidence pin, and
-  shows reviewers that a newer version exists. Original bytes remain local;
-  dependent procedure/workpaper/review reassessment is manual.
+  shows reviewers that a newer version exists. The replacement creates a new
+  pending-verification evidence reference, marks dependent procedures stale,
+  and invalidates direct workpaper clearance pins. Human adequacy review,
+  fieldwork reassessment and independent re-clearance remain manual. Original
+  bytes remain local.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.

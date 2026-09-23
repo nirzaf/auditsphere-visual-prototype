@@ -172,6 +172,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                         <td>
                           <b>{p.title || p.text}</b>
                           {p.instructions && <div className="cell-sub">{p.instructions}</div>}
+                          {p.evidenceReassessmentRequired && <div className="badge amber mt4">Changed evidence — reassessment required</div>}
                           {p.sampleSize && <div className="cell-sub">Sample size tested: {p.sampleSize} items</div>}
                         </td>
                         <td>

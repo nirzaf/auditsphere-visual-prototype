@@ -851,11 +851,16 @@ describe('actual Chrome browser acceptance', () => {
     await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');if(!input)throw Error('Replacement file input missing');const transfer=new DataTransfer();transfer.items.add(new File(['replacement bank statement'], 'Bank_Statement_December_v2.pdf', {type:'application/pdf'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Record Replacement v2');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.some(d=>d.supersedesDocumentId==='DOC-002')`), true, 'replacement revision recorded');
-    const stateAfter = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {old:s.documents.find(d=>d.id==='DOC-002'),next:s.documents.find(d=>d.supersedesDocumentId==='DOC-002'),evidence:s.evidenceCatalogue.find(e=>e.id==='EVD-01')};})()`);
+    const stateAfter = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {old:s.documents.find(d=>d.id==='DOC-002'),next:s.documents.find(d=>d.supersedesDocumentId==='DOC-002'),evidence:s.evidenceCatalogue.find(e=>e.id==='EVD-01'),replacementEvidence:s.evidenceCatalogue.find(e=>e.documentId===s.documents.find(d=>d.supersedesDocumentId==='DOC-002').id),procedures:s.auditPrograms.flatMap(p=>p.procedures).filter(p=>p.id==='PRC-01'||p.id==='PRC-02'),workpaper:s.engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id==='WP-A1')};})()`);
     assert.equal(stateAfter.old.version, 1);
     assert.equal(stateAfter.next.version, 2);
     assert.equal(stateAfter.evidence.documentId, 'DOC-002');
     assert.equal(stateAfter.evidence.version, 1);
+    assert.equal(stateAfter.replacementEvidence.adequacyStatus, 'Pending verification');
+    assert.ok(stateAfter.procedures.every((procedure: any) => procedure.evidenceReassessmentRequired && procedure.status === 'In progress'));
+    assert.equal(stateAfter.workpaper.status, 'Changes required');
+    assert.equal(stateAfter.workpaper.clearance, null);
+    assert.equal(stateAfter.workpaper.clearanceHistory.length, 1);
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Evidence Catalogue'));if(!b)throw Error('Evidence Catalogue navigation missing');b.click();})()`);
     const evidenceView = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(evidenceView, /Pinned v1/);

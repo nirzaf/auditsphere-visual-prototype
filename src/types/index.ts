@@ -788,6 +788,8 @@ export interface AuditProcedureItem {
   preparedByUserId?: string;
   reviewedByUserId?: string;
   reviewedAt?: string;
+  evidenceReassessmentRequired?: boolean;
+  evidenceReassessmentHistory?: Array<{ documentId: string; version: number; previousStatus: AuditProcedureItem['status']; reviewedByUserId?: string; reviewedAt?: string; invalidatedAt: string }>;
 }
 
 export interface AuditProgramItem {
