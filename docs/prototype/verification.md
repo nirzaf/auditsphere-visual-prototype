@@ -146,8 +146,21 @@ journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
 remaining end-to-end acceptance journeys across the modules (R12); and browser
 storage limits on the explicitly local archive scope (R14). Purview/provider
 retention locks and physical deletion controls are excluded acceptance scope. The
-current checks cover schema migrations 0–11 and browser storage conflict/quota
+current checks cover schema migrations 0–12 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to
 source/bundle probes and exercised Chrome journeys. The prototype remains
 browser-local and simulated; see `remaining-limitations.md` for scope boundaries.
+
+The VP-047 follow-up adds per-check acceptance screening evidence references,
+retains them in recommendation history, rejects completed checks without a
+reference, and prevents legacy approvals without references from authorizing
+engagement work. `npm run test:unit` passed 114/114 and `npm run test:e2e` passed
+40/40 in Chrome; `npm run build` passed with the existing large-bundle advisory.
+Commit `7c92df3` is deployed to the existing `steaudit-prototype` Pages project
+on the `production` branch as release `ff530ea1-0ae9-4c01-8ebf-0f409db2f694`.
+The release URL and `https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-CH22FW0F.js`, which contains the evidence-reference validation and
+five screening reference inputs. Live screening and identity verification remain
+out of scope. The overall 64 story and 39 module acceptance ledger remains
+**Partial** pending full execution of the remaining criteria.
