@@ -62,6 +62,7 @@ export function createInitialState(): PrototypeState {
       // Narrow group-reporting scope: consolidation components only, no sibling access.
       { userId: 'group-user', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' }
     ],
+    roleGrantHistory: [],
 
     // Module 02: Clients
     clients: [

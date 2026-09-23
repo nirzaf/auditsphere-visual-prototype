@@ -369,6 +369,14 @@ describe('actual Chrome browser acceptance', () => {
     })()`);
     await clickButton('Record approved grant');
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='client' && g.scopeKind==='Client' && g.scopeId==='CL-002')`), true, 'management approver receives only the explicitly approved client scope');
+    await clickButton('Access History (2)');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Approved scoped access request')&&document.body.innerText.includes('Mona Khalil')`), true, 'grant events retain approver, target and recorded reason');
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Active Access Grants')).click())()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.panel-head h3')?.innerText==='Explicit Access Grants Register'`), true, 'active grants table opened');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Assignment ended';const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('group-user')&&x.innerText.includes('ENG-26002'));const revoke=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Revoke Grant');if(!revoke)throw Error('target grant not listed');revoke.click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.roleGrantHistory.length===3&&!s.roleGrants.some(g=>g.userId==='group-user'&&g.scopeId==='ENG-26002');})()`), true, 'revocation removes authority but appends a durable event');
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Access History')).click())()`);
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Assignment ended')&&document.body.innerText.includes('Revoked')`), true, 'revocation reason and event remain visible in history');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

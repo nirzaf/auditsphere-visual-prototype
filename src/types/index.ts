@@ -1122,6 +1122,17 @@ export interface PrototypeState {
     grantedBy?: string;
     reason?: string;
   }>;
+  roleGrantHistory: Array<{
+    id: string;
+    action: 'Granted' | 'Revoked';
+    userId: string;
+    role: RoleKey;
+    scopeKind: 'Global' | 'Client' | 'Engagement';
+    scopeId?: string;
+    actorUserId: string;
+    at: string;
+    reason?: string;
+  }>;
   folders?: Array<{
     path: string;
     label: string;

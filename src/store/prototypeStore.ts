@@ -344,18 +344,25 @@ class PrototypeStore {
     if (this.state.roleGrants.some(g => g.userId === userId && g.role === role && g.scopeKind === scopeKind && g.scopeId === scopeId)) {
       throw new GuardError('INVALID_STATE', 'That scope is already granted to this persona.');
     }
-    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, grantedAt: new Date().toISOString(), grantedBy: actor.id, reason: reason.trim() });
+    const at = new Date().toISOString();
+    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, grantedAt: at, grantedBy: actor.id, reason: reason.trim() });
+    this.state.roleGrantHistory ||= [];
+    this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Granted', userId, role, scopeKind, scopeId, actorUserId: actor.id, at, reason: reason.trim() });
     this.logEvent(`Access granted: ${user.name} → ${role} (${scopeKind}${scopeId ? ':' + scopeId : ''}) — ${reason}`, scopeId || user.id);
     this.notify();
   }
 
-  public revokeAccess(userId: string, role: RoleKey, scopeId?: string) {
+  public revokeAccess(userId: string, role: RoleKey, scopeId: string | undefined, reason: string) {
     requireActiveIdentity(this.state);
     requireGlobalAdmin(this.state, 'revoke access');
     const idx = this.state.roleGrants.findIndex(g => g.userId === userId && g.role === role && (g.scopeId || undefined) === (scopeId || undefined));
     if (idx >= 0) {
+      if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An access-revocation reason is required.');
+      const grant = this.state.roleGrants[idx];
+      this.state.roleGrantHistory ||= [];
+      this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Revoked', userId, role, scopeKind: grant.scopeKind, scopeId: grant.scopeId, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
       this.state.roleGrants.splice(idx, 1);
-      this.logEvent(`Access revoked: ${this.state.users.find(u => u.id === userId)?.name || userId} → ${role}${scopeId ? ' (' + scopeId + ')' : ''}`, scopeId || userId);
+      this.logEvent(`Access revoked: ${this.state.users.find(u => u.id === userId)?.name || userId} → ${role}${scopeId ? ' (' + scopeId + ')' : ''} — ${reason.trim()}`, scopeId || userId);
       this.notify();
     }
   }

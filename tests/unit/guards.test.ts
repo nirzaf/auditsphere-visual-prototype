@@ -69,11 +69,11 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 11);
+    assert.equal(migrated.schema, 12);
   });
-  it('upgrades each persisted schema revision through current v11 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v12 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 10; version++) {
+    for (let version = 0; version <= 11; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -86,8 +86,9 @@ describe('fixture integrity (AT-02/54)', () => {
       }
       if (version < 10) legacy.samplePopulations.forEach((population: any) => { delete population.engagementId; population.items.forEach((item: any) => delete item.selected); });
       if (version < 11) legacy.samplePopulations.forEach((population: any) => { delete population.sourceRevision; delete population.sourceFileName; delete population.sourceComplete; delete population.sourceHistory; });
+      if (version < 12) delete legacy.roleGrantHistory;
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 11, `schema ${version} should reach v11`);
+      assert.equal(migrated.schema, 12, `schema ${version} should reach v12`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -98,6 +99,7 @@ describe('fixture integrity (AT-02/54)', () => {
       assert.ok(migrated.samplePopulations[0].items.every(item => item.selected), `v${version} keeps legacy sample items selected`);
       assert.equal(migrated.samplePopulations[0].sourceRevision, 1);
       assert.deepEqual(migrated.samplePopulations[0].sourceHistory, []);
+      assert.deepEqual(migrated.roleGrantHistory, []);
       for (const risk of migrated.auditRisks) for (const procedureId of risk.linkedProcedureIds) {
         const procedure = migrated.auditPrograms.flatMap(program => program.procedures).find(item => item.id === procedureId);
         assert.ok(procedure?.linkedRiskIds?.includes(risk.id), `v${version} migration restores reciprocal risk link ${risk.id} -> ${procedureId}`);
@@ -127,6 +129,24 @@ describe('sampling workpaper guards (VP-051)', () => {
     assert.equal(replaced.sourceHistory?.[1].items[0].difference, -1);
     assert.deepEqual([replaced.totalPopulationCount, replaced.totalPopulationValue, replaced.selectedCount], [1, 120, 0]);
     assert.equal(replaced.sourceSha256, 'a'.repeat(64));
+  });
+});
+
+describe('access grant history (VP-018/019)', () => {
+  it('retains grant and revocation actor, scope, timestamp and reason', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    prototypeStore.resetState();
+    prototypeStore.setPersona('admin');
+    prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Approved request AR-42');
+    assert.throws(() => prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', ''), /revocation reason/);
+    prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', 'Assignment ended');
+    const history = prototypeStore.getSnapshot().roleGrantHistory.slice(-2);
+    assert.deepEqual(history.map(event => [event.action, event.actorUserId, event.userId, event.scopeId, event.reason]), [
+      ['Granted', 'admin', 'group-user', 'ENG-26002', 'Approved request AR-42'],
+      ['Revoked', 'admin', 'group-user', 'ENG-26002', 'Assignment ended']
+    ]);
+    assert.ok(history.every(event => Number.isFinite(Date.parse(event.at))));
+    assert.equal(prototypeStore.getSnapshot().roleGrants.some(grant => grant.userId === 'group-user' && grant.scopeId === 'ENG-26002'), false);
   });
 });
 

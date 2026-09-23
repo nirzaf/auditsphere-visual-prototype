@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 11;
+export const CURRENT_SCHEMA = 12;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -206,6 +206,10 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       population.sourceHistory ||= [];
     }
     warnings.push('Added source identity and predecessor history for sample population replacements (v11).');
+  }
+  if (from < 12) {
+    state.roleGrantHistory = Array.isArray(state.roleGrantHistory) ? state.roleGrantHistory : [];
+    warnings.push('Initialized access grant history without inferring events from current grants (v12).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

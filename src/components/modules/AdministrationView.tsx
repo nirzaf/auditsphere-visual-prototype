@@ -12,7 +12,7 @@ interface AdministrationViewProps {
 
 export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeTab, setActiveTab] = useState<'users' | 'grants' | 'firm' | 'permissions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'grants' | 'history' | 'firm' | 'permissions'>('users');
   const [selectedUser, setSelectedUser] = useState<UserPersona | null>(null);
   const [showGrantModal, setShowGrantModal] = useState(false);
   const [grantScopeKind, setGrantScopeKind] = useState<'Global' | 'Client' | 'Engagement'>('Client');
@@ -46,7 +46,9 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
 
   const handleRevokeAccess = (grant: typeof state.roleGrants[0]) => {
     try {
-      prototypeStore.revokeAccess(grant.userId, grant.role, grant.scopeId);
+      const reason = window.prompt('Reason for revoking this access grant:');
+      if (reason === null) return;
+      prototypeStore.revokeAccess(grant.userId, grant.role, grant.scopeId, reason);
       triggerNotice('success', 'Access grant revoked. User authority narrowed or zeroed if last grant removed.');
     } catch (err: any) {
       triggerNotice('error', err.message);
@@ -88,6 +90,9 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
         </button>
         <button className={`tab-btn ${activeTab === 'grants' ? 'active' : ''}`} onClick={() => setActiveTab('grants')}>
           Active Access Grants ({state.roleGrants.length})
+        </button>
+        <button className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+          Access History ({state.roleGrantHistory.length})
         </button>
         <button className={`tab-btn ${activeTab === 'firm' ? 'active' : ''}`} onClick={() => setActiveTab('firm')}>
           Firm Legal Details &amp; Branding
@@ -235,6 +240,21 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="panel">
+          <div className="panel-head"><h3>Immutable Access Grant History</h3><span className="caption">New grants append here; revocation never erases its grant event.</span></div>
+          <div className="tablewrap"><table><thead><tr><th>Time</th><th>Action</th><th>Person</th><th>Role</th><th>Scope</th><th>Actor</th><th>Reason</th></tr></thead><tbody>
+            {[...state.roleGrantHistory].reverse().map(event => <tr key={event.id}>
+              <td>{event.at}</td><td><span className={`badge ${event.action === 'Granted' ? 'green' : 'amber'}`}>{event.action}</span></td>
+              <td>{state.users.find(user => user.id === event.userId)?.name || event.userId}</td><td>{event.role}</td>
+              <td>{event.scopeKind}{event.scopeId ? ` · ${event.scopeId}` : ''}</td>
+              <td>{state.users.find(user => user.id === event.actorUserId)?.name || event.actorUserId}</td><td>{event.reason || '—'}</td>
+            </tr>)}
+          </tbody></table></div>
+          {state.roleGrantHistory.length === 0 && <p className="sub panel-pad">No access changes have been recorded in this browser state.</p>}
         </div>
       )}
 
