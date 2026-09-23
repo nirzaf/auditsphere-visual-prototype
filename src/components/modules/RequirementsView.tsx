@@ -1,6 +1,6 @@
 // Module coverage & traceability — VP-001 (scope) + VP-064 (evidence)
 // Verbatim 64-story acceptance backlog (VP-001–VP-064) and 39-module traceability matrix.
-// Rows stay Partial until each original acceptance journey has direct evidence.
+// Mark a row Verified only after its complete acceptance journey has direct evidence.
 // Excluded surfaces (AI, payments, eSignatures, tax/payroll, Purview) are absent.
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
@@ -15,7 +15,7 @@ interface StoryRow {
   moduleId: string;
   moduleName: string;
   route: RouteKey;
-  status: 'Partial';
+  status: 'Partial' | 'Verified';
   criteriaSummary: string;
 }
 
@@ -24,14 +24,14 @@ interface ModuleRow {
   module: string;
   stories: string;
   route: RouteKey;
-  status: 'Partial';
+  status: 'Partial' | 'Verified';
   notes: string;
 }
 
 const MODULE_ROWS: ModuleRow[] = [
   { moduleId: '01', module: 'Practice Dashboard', stories: 'VP-005, VP-060', route: 'overview', status: 'Partial', notes: 'Computed counters with drill-downs; finance sections gated by visibility.' },
   { moduleId: '02', module: 'CRM & Client Management', stories: 'VP-006, VP-007, VP-008', route: 'clients', status: 'Partial', notes: 'Profiles, contacts, non-authorizing relationship groups, custom fields, 360 client workspace.' },
-  { moduleId: '03', module: 'Leads & Opportunities', stories: 'VP-009', route: 'acquisition', status: 'Partial', notes: 'Chrome covers Won-to-Prospect conversion without professional acceptance; unit checks cover idempotence and converted-record protection. The full stage/rework matrix remains incomplete.' },
+  { moduleId: '03', module: 'Leads & Opportunities', stories: 'VP-009', route: 'acquisition', status: 'Verified', notes: 'AT-07 covers editable inquiry details, currency-separated fees, Lost/Unqualified reasons and open-count exclusion, list-view rework, Won conversion, permitted client linking, and non-acceptance.' },
   { moduleId: '04', module: 'Proposals & Engagements', stories: 'VP-010, VP-011, VP-012', route: 'proposals', status: 'Partial', notes: 'Chrome covers proposal draft/review/presentation, evidence-backed client response, linked draft creation and separate partner activation.' },
   { moduleId: '05', module: 'Jobs & Tasks', stories: 'VP-013, VP-014', route: 'jobs', status: 'Partial', notes: 'Chrome covers blocked parent completion and real reassignment history; unit tests cover nesting/job-scope guards.' },
   { moduleId: '06', module: 'Job Templates', stories: 'VP-015', route: 'job-templates', status: 'Partial', notes: 'Chrome verifies authoring Draft, publish, instantiate a fresh job, and retire without changing that job; template revision editing and duplicate-click recovery remain incomplete.' },
@@ -79,8 +79,8 @@ const STORY_ROWS: StoryRow[] = [
   { id: 'VP-006', title: 'Complete client profile creation, editing and lifecycle', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Normalized client codes unique; soft archival; status transitions validated.' },
   { id: 'VP-007', title: 'Add contacts, relationship groups and bounded custom fields', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Multiple contacts with one primary; non-authorizing groups; typed custom fields.' },
   { id: 'VP-008', title: 'Complete the centralized client workspace', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Tabs for complete client lifecycle; context preserved in navigation; scoped data.' },
-  { id: 'VP-009', title: 'Finish the leads and opportunities pipeline', moduleId: '03', moduleName: 'Leads & Opportunities', route: 'acquisition', status: 'Partial', criteriaSummary: 'Lead qualification → won/lost with reason; conversion to prospect without auto-acceptance.' },
-  { id: 'VP-010', title: 'Build reusable services and complete proposal drafting', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Partial', criteriaSummary: 'Service catalogue; proposal revisions; arithmetic reconciled; no tax/eSign.' },
+  { id: 'VP-009', title: 'Finish the leads and opportunities pipeline', moduleId: '03', moduleName: 'Leads & Opportunities', route: 'acquisition', status: 'Verified', criteriaSummary: 'AT-07 covers details and stage history, reasoned Lost/Unqualified outcomes outside open totals, list/rework, Won conversion, permitted client linking, and no duplicate or professional acceptance.' },
+  { id: 'VP-010', title: 'Build reusable services and complete proposal drafting', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Partial', criteriaSummary: 'Service catalogue; proposal revisions; arithmetic reconciled; local demo terms only.' },
   { id: 'VP-011', title: 'Record proposal review, presentation and manual client acceptance', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Partial', criteriaSummary: 'Preparer cannot self-approve; response binds to presented revision; manual acceptance.' },
   { id: 'VP-012', title: 'Complete engagement creation and lifecycle handoff', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'engagements', status: 'Partial', criteriaSummary: 'Creation from accepted proposal; explicit activation check; change history preserved.' },
   { id: 'VP-013', title: 'Add the simple job register and job detail workspace', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Partial', criteriaSummary: 'Manual job CRUD modal; filters by client/status; completion requires finished tasks.' },

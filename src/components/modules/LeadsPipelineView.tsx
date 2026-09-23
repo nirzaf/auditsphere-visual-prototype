@@ -4,6 +4,7 @@ import { RouteKey, LeadOpportunity } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
+import { visibleClientIds } from '../../services/guards';
 
 interface LeadsPipelineViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -13,6 +14,8 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
   const state = prototypeStore.getSnapshot();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadOpportunity | null>(null);
+  const [viewMode, setViewMode] = useState<'pipeline' | 'list'>('pipeline');
+  const [conversionClientId, setConversionClientId] = useState('');
 
   // New lead form
   const [leadName, setLeadName] = useState('');
@@ -21,8 +24,14 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
   const [value, setValue] = useState(1000000);
   const [currency, setCurrency] = useState('QAR');
   const [stage, setStage] = useState<LeadOpportunity['stage']>('Inquiry');
+  const [source, setSource] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [nextAction, setNextAction] = useState('');
+  const [discoveryNotes, setDiscoveryNotes] = useState('');
 
-  const stages: Array<LeadOpportunity['stage']> = ['Inquiry', 'Discovery', 'Evaluation', 'Proposal', 'Won', 'Lost'];
+  const stages: Array<LeadOpportunity['stage']> = ['Inquiry', 'Discovery', 'Evaluation', 'Proposal', 'Won', 'Lost', 'Unqualified'];
+  const clientScope = visibleClientIds(state);
+  const convertibleClients = state.clients.filter(client => clientScope === 'ALL' || clientScope.includes(client.id));
 
   const handleAddLead = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +46,10 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
       currency,
       stage,
       owner: state.currentPerson,
+      source: source.trim() || undefined,
+      targetDate: targetDate || undefined,
+      nextAction: nextAction.trim() || undefined,
+      discoveryNotes: discoveryNotes.trim() || undefined,
       accepted: false,
       terms: false
     };
@@ -45,11 +58,22 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
     setShowAddModal(false);
     setLeadName('');
     setContact('');
+    setSource('');
+    setTargetDate('');
+    setNextAction('');
+    setDiscoveryNotes('');
+  };
+
+  const saveLeadDetails = () => {
+    if (!selectedLead) return;
+    try { prototypeStore.updateLead(selectedLead); }
+    catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   };
 
   const handleConvert = (leadId: string) => {
-    prototypeStore.convertLead(leadId);
+    prototypeStore.convertLead(leadId, conversionClientId || undefined);
     setSelectedLead(null);
+    setConversionClientId('');
   };
 
   return (
@@ -62,19 +86,20 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
         <button className="btn primary sm" onClick={() => setShowAddModal(true)}>
           <Icon name="plus" /> New Inquiry
         </button>
+        <button className="btn sm ghost" aria-pressed={viewMode === 'list'} onClick={() => setViewMode(viewMode === 'pipeline' ? 'list' : 'pipeline')}>{viewMode === 'pipeline' ? 'List view' : 'Pipeline view'}</button>
       </div>
 
       {/* Metrics */}
       <div className="metric-grid">
         <div className="metric">
           <span className="metric-label">Open Opportunities</span>
-          <div className="metric-val">{state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost').length}</div>
+          <div className="metric-val">{state.leads.filter(l => !['Won', 'Lost', 'Unqualified'].includes(l.stage)).length}</div>
           <span className="metric-sub">Commercial prospect pipeline</span>
         </div>
         <div className="metric purple">
           <span className="metric-label">Proposed Fees Pipeline</span>
           <div className="metric-val">
-            {Array.from(new Set(state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost').map(l => l.currency))).map(code => formatCurrency(state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost' && l.currency === code).reduce((sum, lead) => sum + lead.value, 0), code)).join(' · ') || formatCurrency(0)}
+            {Array.from(new Set(state.leads.filter(l => !['Won', 'Lost', 'Unqualified'].includes(l.stage)).map(l => l.currency))).map(code => formatCurrency(state.leads.filter(l => !['Won', 'Lost', 'Unqualified'].includes(l.stage) && l.currency === code).reduce((sum, lead) => sum + lead.value, 0), code)).join(' · ') || formatCurrency(0)}
           </div>
           <span className="metric-sub">Commercial value, unbilled</span>
         </div>
@@ -85,9 +110,9 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="kanban">
-        {stages.filter(s => s !== 'Lost').map((col, idx) => {
+      {/* Pipeline and full outcome list */}
+      {viewMode === 'list' ? <div className="panel tablewrap"><table><thead><tr><th>Opportunity</th><th>Stage</th><th>Service</th><th>Owner</th><th>Expected fee</th><th>Target date</th><th>Next action</th><th /></tr></thead><tbody>{state.leads.map(lead => <tr key={lead.id}><td>{lead.name}<div className="cell-sub">{lead.contact} · {lead.id}</div></td><td>{lead.stage}{lead.lostReason ? <div className="cell-sub">{lead.lostReason}</div> : null}</td><td>{lead.service}</td><td>{lead.owner}</td><td>{formatCurrency(lead.value, lead.currency)}</td><td>{lead.targetDate || '—'}</td><td>{lead.nextAction || '—'}</td><td><button className="btn sm ghost" onClick={() => { setSelectedLead(lead); setConversionClientId(''); }}>Details</button></td></tr>)}</tbody></table></div> : <div className="kanban">
+        {stages.filter(s => !['Lost', 'Unqualified'].includes(s)).map((col, idx) => {
           const colLeads = state.leads.filter(l => l.stage === col);
           return (
             <div key={col} className="kanban-col">
@@ -99,7 +124,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                 <div
                   key={l.id}
                   className="lead-card"
-                  onClick={() => setSelectedLead(l)}
+                  onClick={() => { setSelectedLead(l); setConversionClientId(''); }}
                   style={{ cursor: 'pointer' }}
                 >
                   <span className={`badge ${idx % 2 ? 'purple' : 'teal'}`}>{l.service}</span>
@@ -113,6 +138,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                       onClick={e => {
                         e.stopPropagation();
                         setSelectedLead(l);
+                        setConversionClientId('');
                       }}
                     >
                       Details
@@ -126,7 +152,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* Lead Detail & Conversion Modal */}
       {selectedLead && (
@@ -134,7 +160,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
           <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Opportunity Details: {selectedLead.name}</h2>
-              <button className="icon-btn" onClick={() => setSelectedLead(null)}>✕</button>
+              <button className="icon-btn" onClick={() => { setSelectedLead(null); setConversionClientId(''); }}>✕</button>
             </div>
             <div className="modal-body stack" style={{ gap: 12 }}>
               <div className="info-grid">
@@ -144,14 +170,30 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                 <div><label>Current Stage</label><span>{selectedLead.stage}</span></div>
                 <div><label>Primary Contact</label><span>{selectedLead.contact}</span></div>
               <div><label>Commercial Owner</label><span>{selectedLead.owner}</span></div>
-              <div><label>Stage history</label><span>{(selectedLead.history || []).map(h => `${h.stage} · ${new Date(h.at).toLocaleDateString()}`).join(' → ') || selectedLead.stage}</span></div>
+              <div><label>Stage history</label><span>{(selectedLead.history || []).map(h => `${h.stage}${h.reason ? ` (${h.reason})` : ''} · ${new Date(h.at).toLocaleDateString()}`).join(' → ') || selectedLead.stage}</span></div>
               </div>
 
+              {!selectedLead.convertedClientId && <div className="stack" style={{ gap: 8 }}>
+                <h4>Editable Opportunity Details</h4>
+                <div className="grid2">
+                  <label className="caption">Commercial owner<input className="input" value={selectedLead.owner} onChange={e => setSelectedLead({ ...selectedLead, owner: e.target.value })} /></label>
+                  <label className="caption">Contact<input className="input" value={selectedLead.contact} onChange={e => setSelectedLead({ ...selectedLead, contact: e.target.value })} /></label>
+                  <label className="caption">Requested service<input className="input" value={selectedLead.service} onChange={e => setSelectedLead({ ...selectedLead, service: e.target.value })} /></label>
+                  <label className="caption">Expected fee<input className="input" type="number" min="0" step="0.01" value={selectedLead.value} onChange={e => setSelectedLead({ ...selectedLead, value: Number(e.target.value) })} /></label>
+                  <label className="caption">Currency<select className="input" value={selectedLead.currency} onChange={e => setSelectedLead({ ...selectedLead, currency: e.target.value })}><option>QAR</option><option>USD</option><option>EUR</option><option>GBP</option></select></label>
+                  <label className="caption">Inquiry source<input className="input" value={selectedLead.source || ''} onChange={e => setSelectedLead({ ...selectedLead, source: e.target.value })} /></label>
+                  <label className="caption">Target date<input className="input" type="date" value={selectedLead.targetDate || ''} onChange={e => setSelectedLead({ ...selectedLead, targetDate: e.target.value || undefined })} /></label>
+                </div>
+                <label className="caption">Next action<input className="input" value={selectedLead.nextAction || ''} onChange={e => setSelectedLead({ ...selectedLead, nextAction: e.target.value })} /></label>
+                <label className="caption">Discovery notes<textarea className="input" rows={2} value={selectedLead.discoveryNotes || ''} onChange={e => setSelectedLead({ ...selectedLead, discoveryNotes: e.target.value })} /></label>
+                <button className="btn sm ghost" onClick={saveLeadDetails}>Save Opportunity Details</button>
+              </div>}
+
               {selectedLead.stage !== 'Won' && !selectedLead.convertedClientId && <div className="grid2">
-                <label className="caption">Update stage<select className="input" value={selectedLead.stage} onChange={e => { const nextStage = e.target.value as LeadOpportunity['stage']; const reason = nextStage === 'Lost' ? (window.prompt('Reason for loss (required):', '') || undefined) : undefined; if (nextStage === 'Lost' && !reason?.trim()) return; const next: LeadOpportunity = { ...selectedLead, stage: nextStage, lostReason: reason }; try { prototypeStore.updateLead(next); setSelectedLead({ ...next }); } catch (error: any) { window.alert(error.message); } }}>
+                <label className="caption">Update stage<select className="input" value={selectedLead.stage} onChange={e => { const nextStage = e.target.value as LeadOpportunity['stage']; const needsReason = ['Lost', 'Unqualified'].includes(nextStage); const reason = needsReason ? (window.prompt('Reason for lost or unqualified outcome (required):', '') || undefined) : undefined; if (needsReason && !reason?.trim()) return; const next: LeadOpportunity = { ...selectedLead, stage: nextStage, lostReason: reason }; try { prototypeStore.updateLead(next); setSelectedLead({ ...next }); } catch (error: any) { window.alert(error.message); } }}>
                   {stages.map(value => <option key={value}>{value}</option>)}
                 </select></label>
-                {selectedLead.stage === 'Lost' && <label className="caption">Reason<input className="input" value={selectedLead.lostReason || ''} readOnly placeholder="Captured when marked lost" /></label>}
+                {['Lost', 'Unqualified'].includes(selectedLead.stage) && <label className="caption">Outcome reason<input className="input" value={selectedLead.lostReason || ''} readOnly placeholder="Captured when outcome was recorded" /></label>}
               </div>}
 
               <div className="divider" />
@@ -162,14 +204,17 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                   Converting an inquiry creates a draft client and transfers to the acceptance and terms workflow. A proposal does not constitute professional engagement authorization.
                 </p>
                 {selectedLead.stage === 'Won' && !selectedLead.convertedClientId ? (
-                  <button
-                    className="btn primary sm mt12"
-                    onClick={() => handleConvert(selectedLead.id)}
-                  >
-                    Convert Won Opportunity to Prospect
-                  </button>
+                  <>
+                    <label className="caption mt12">Link an existing permitted client (optional)<select className="input" aria-label="Existing client for conversion" value={conversionClientId} onChange={e => setConversionClientId(e.target.value)}>
+                      <option value="">Create a new Prospect</option>
+                      {convertibleClients.map(client => <option key={client.id} value={client.id}>{client.name} · {client.id} · {client.status}</option>)}
+                    </select></label>
+                    <button className="btn primary sm mt12" onClick={() => handleConvert(selectedLead.id)}>
+                      {conversionClientId ? 'Link Won Opportunity to Client' : 'Convert Won Opportunity to Prospect'}
+                    </button>
+                  </>
                 ) : selectedLead.convertedClientId ? (
-                  <span className="tag green mt12">Converted to Prospect</span>
+                  <span className="tag green mt12">Converted to {convertibleClients.find(client => client.id === selectedLead.convertedClientId)?.name || 'a prospect'}</span>
                 ) : (
                   <span className="caption mt12">Mark this opportunity Won before converting it to a prospect.</span>
                 )}
@@ -213,6 +258,10 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                     placeholder="e.g. Mansour Al-Hajri"
                   />
                 </div>
+                <label className="caption">Inquiry source<input className="input" value={source} onChange={e => setSource(e.target.value)} placeholder="Referral, existing contact, or event" /></label>
+                <label className="caption">Target date<input className="input" type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} /></label>
+                <label className="caption">Next action<input className="input" value={nextAction} onChange={e => setNextAction(e.target.value)} placeholder="Schedule discovery call" /></label>
+                <label className="caption">Discovery notes<textarea className="input" rows={2} value={discoveryNotes} onChange={e => setDiscoveryNotes(e.target.value)} /></label>
                 <div className="grid2">
                   <div>
                     <label className="caption">Service Requested</label>

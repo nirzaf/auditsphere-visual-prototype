@@ -614,8 +614,10 @@ class PrototypeStore {
   public addLead(lead: PrototypeState['leads'][0]) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'manage opportunities');
-    if (!lead.name.trim() || !lead.contact.trim() || !lead.owner.trim()) throw new GuardError('INVALID_STATE', 'Opportunity name, contact, and owner are required.');
+    if (!lead.name.trim() || !lead.contact.trim() || !lead.service.trim() || !lead.owner.trim()) throw new GuardError('INVALID_STATE', 'Opportunity name, contact, requested service, and owner are required.');
     if (!isValidMoney(lead.value, true)) throw new GuardError('INVALID_STATE', 'Opportunity amount must be a finite non-negative amount with at most two decimal places.');
+    if (lead.targetDate && (!/^\d{4}-\d{2}-\d{2}$/.test(lead.targetDate) || !Number.isFinite(Date.parse(lead.targetDate)) || new Date(`${lead.targetDate}T00:00:00Z`).toISOString().slice(0, 10) !== lead.targetDate)) throw new GuardError('INVALID_STATE', 'Opportunity target date must be a real calendar date.');
+    if (['Lost', 'Unqualified'].includes(lead.stage) && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost or unqualified opportunity requires an outcome reason.');
     if (this.state.leads.some(item => item.id === lead.id)) throw new GuardError('INVALID_STATE', `Opportunity "${lead.id}" already exists.`);
     lead.history ||= [{ by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage }];
     this.state.leads.push(lead);
@@ -629,10 +631,12 @@ class PrototypeStore {
     const index = this.state.leads.findIndex(l => l.id === lead.id);
     if (index >= 0) {
       if (this.state.leads[index].convertedClientId) throw new GuardError('INVALID_STATE', 'A converted opportunity cannot be converted or reclassified again.');
-      if (lead.stage === 'Lost' && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost opportunity requires a reason.');
-      if (lead.stage !== this.state.leads[index].stage) lead.history = [...(this.state.leads[index].history || []), { by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage, reason: lead.stage === 'Lost' ? lead.lostReason?.trim() : undefined }];
+      if (!lead.name.trim() || !lead.contact.trim() || !lead.service.trim() || !lead.owner.trim() || !isValidMoney(lead.value, true)) throw new GuardError('INVALID_STATE', 'Opportunity name, contact, requested service, owner and a valid non-negative fee are required.');
+      if (lead.targetDate && (!/^\d{4}-\d{2}-\d{2}$/.test(lead.targetDate) || !Number.isFinite(Date.parse(lead.targetDate)) || new Date(`${lead.targetDate}T00:00:00Z`).toISOString().slice(0, 10) !== lead.targetDate)) throw new GuardError('INVALID_STATE', 'Opportunity target date must be a real calendar date.');
+      if (['Lost', 'Unqualified'].includes(lead.stage) && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost or unqualified opportunity requires an outcome reason.');
+      if (lead.stage !== this.state.leads[index].stage) lead.history = [...(this.state.leads[index].history || []), { by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage, reason: ['Lost', 'Unqualified'].includes(lead.stage) ? lead.lostReason?.trim() : undefined }];
       this.state.leads[index] = lead;
-      this.logEvent(`Opportunity ${lead.id} moved to ${lead.stage}${lead.stage === 'Lost' ? `: ${lead.lostReason}` : ''}`, lead.id);
+      this.logEvent(`Opportunity ${lead.id} moved to ${lead.stage}${['Lost', 'Unqualified'].includes(lead.stage) ? `: ${lead.lostReason}` : ''}`, lead.id);
       this.notify();
     }
   }

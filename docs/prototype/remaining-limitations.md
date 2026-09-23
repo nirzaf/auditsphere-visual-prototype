@@ -1,10 +1,9 @@
 # AuditSphere Visual Prototype — Remaining Limitations
 
 Updated 2026-09-23. Selected R01–R14 defects received code and regression
-coverage, but that does not constitute full acceptance. VP-051 and VP-052 are
-verified; VP-053 gained reasoned unlink history and adequacy-driven invalidation,
-but its full projection/provenance matrix remains open. 37 of 39 modules remain
-Partial. Automated sources explicitly trace AT-01 through AT-54. See
+coverage, but that does not constitute full acceptance. VP-009, VP-051 and
+VP-052 are Verified. VP-053 gained reasoned unlink history and adequacy-driven
+invalidation, but its full projection/provenance matrix remains open; 36 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
 `verification.md` for exact executed checks.
 
 ## Known acceptance gaps
@@ -204,12 +203,13 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.14 MB,
-  600.11 kB gzip in the latest build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.15 MB,
+  601.02 kB gzip in the latest build).
 
 ## Verification snapshot
 
 Latest recorded run: 133/133 unit checks and 56/56 E2E checks passed. E2E
-includes five static checks and 51 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
-because full criterion-by-criterion acceptance evidence is not complete. See
+includes five static checks and 51 Chrome journeys. VP-009, VP-051 and VP-052
+are Verified; 36 modules remain Partial because full criterion-by-criterion
+acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

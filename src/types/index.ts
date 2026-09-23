@@ -166,10 +166,12 @@ export interface LeadOpportunity {
   service: string;
   value: number; // QAR minor units / currency
   currency: string;
-  stage: 'Inquiry' | 'Discovery' | 'Evaluation' | 'Proposal' | 'Won' | 'Lost';
-  source?: string;
+  stage: 'Inquiry' | 'Discovery' | 'Evaluation' | 'Proposal' | 'Won' | 'Lost' | 'Unqualified';
   owner: string;
+  source?: string;
   targetDate?: string;
+  nextAction?: string;
+  discoveryNotes?: string;
   notes?: string;
   lostReason?: string;
   convertedClientId?: string;

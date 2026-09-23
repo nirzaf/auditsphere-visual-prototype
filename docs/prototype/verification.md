@@ -18,7 +18,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 |---|---|---|---|---|
 | 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; existing large-main-chunk advisory remains (2.14 MB, 600.15 kB gzip). |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 133/133 | Includes schema v0–v19 migration, statement revision review/staleness, won-opportunity conversion idempotence and Prospect status, plus mapping, sampling, package, finance and release guards. |
-| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 56/56 | Five static checks plus 51 serial Chrome journeys. AT-07 now qualifies and converts a Won opportunity to a Prospect without professional acceptance; AT-37 saves/reviews comparative statements. Modules and stories remain partially verified overall. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 56/56 | Five static checks plus 51 serial Chrome journeys. AT-07 now covers inquiry metadata/editing, reasoned Lost/Unqualified outcomes, list/requalification history, Won-to-Prospect conversion and existing-client linking; AT-37 saves/reviews comparative statements. VP-009, VP-051 and VP-052 are Verified; overall coverage remains Partial. |
 | 2026-09-23 | `8208d48` | Wrangler Pages production deploy + live HTTP/bundle check | PASS | Existing `steaudit-prototype` production branch, release `e675b376-84b6-44ba-8a27-40c39aaa5176`; release and `prototype.steaudit.com` returned HTTP 200 and served identical `assets/index-BZplP356.js` (SHA-256 `de41b524129c077b7c1de4092a27fe817c7fead905ad9d25b6fb5b57584bb293`). Bundle contains Won-to-Prospect conversion UI and guard. |
 | 2026-09-23 | `7c46768` | Wrangler Pages production deploy + Chrome check | PASS | Deployed to the existing `steaudit-prototype` production project; release `148c2362.steaudit-prototype.pages.dev`, Wrangler source `7c46768`. Reloaded `prototype.steaudit.com` in Chrome; the AuditSphere app shell remained rendered. |
 | 2026-09-23 | `9176c23` | Wrangler Pages production deploy + Chrome check | PASS | Deployed to the existing `steaudit-prototype` production project; release `8f3f2e25.steaudit-prototype.pages.dev`, Wrangler source `9176c23`. Reloaded `prototype.steaudit.com` in Chrome; the AuditSphere app shell rendered. |
@@ -180,7 +180,8 @@ AT-49/60 now checks every CSV cell against the displayed values for 13 reports
 and independently computes all rows for three formula reports. All AT-01–AT-54 identifiers now appear in automated test source. That traceability
 does not mean every acceptance criterion has been executed end to end.
 
-The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
+The acceptance ledger remains Partial overall: 36 of 39 modules and 61 of 64
+stories remain Partial (VP-009, VP-051 and VP-052 are Verified). The Chrome suite checks
 major workflows and route rendering; it does not execute and verify every
 acceptance criterion. In particular, the route
 smoke test does not prove create/edit/review/rework behavior on each route.

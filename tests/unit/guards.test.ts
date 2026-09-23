@@ -386,11 +386,15 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     target.state = createInitialState();
     setPersona(target.state, 'Layla Rahman');
     const lead = structuredClone(target.state.leads[0]);
-    assert.throws(() => target.updateLead({ ...lead, stage: 'Lost', lostReason: '' }), /requires a reason/);
+    assert.throws(() => target.updateLead({ ...lead, stage: 'Lost', lostReason: '' }), /requires an outcome reason/);
     target.updateLead({ ...lead, stage: 'Lost', lostReason: 'Client deferred the work.' });
     const saved = target.state.leads.find((item: any) => item.id === lead.id);
     assert.equal(saved.history.at(-1).stage, 'Lost');
     assert.equal(saved.history.at(-1).reason, 'Client deferred the work.');
+    const unqualified = structuredClone(target.state.leads.find((item: any) => item.id !== lead.id));
+    assert.throws(() => target.updateLead({ ...unqualified, stage: 'Unqualified' }), /requires an outcome reason/);
+    target.updateLead({ ...unqualified, stage: 'Unqualified', lostReason: 'Outside supported service scope.' });
+    assert.equal(target.state.leads.find((item: any) => item.id === unqualified.id).history.at(-1).reason, 'Outside supported service scope.');
   });
 
   it('converts only won opportunities to non-authorizing prospect records once', async () => {
@@ -399,6 +403,8 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     target.state = createInitialState();
     setPersona(target.state, 'Layla Rahman');
     const lead = structuredClone(target.state.leads[0]);
+    assert.throws(() => target.updateLead({ ...lead, targetDate: '2026-02-30' }), /real calendar date/);
+    assert.throws(() => target.updateLead({ ...lead, value: -1 }), /valid non-negative fee/);
     target.updateLead({ ...lead, stage: 'Proposal' });
     assert.throws(() => target.convertLead(lead.id), /Only a won opportunity/);
     target.updateLead({ ...lead, stage: 'Won' });
@@ -409,6 +415,11 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     assert.equal(target.convertLead(lead.id).id, client.id, 'retry returns the same prospect');
     assert.equal(target.state.clients.filter((item: any) => item.id === client.id).length, 1);
     assert.throws(() => target.updateLead({ ...lead, stage: 'Lost' }), /cannot be converted or reclassified/);
+    const secondLead = { ...lead, id: 'LD-CROSS-CLIENT', name: 'Cross Client Opportunity', stage: 'Won' as const, convertedClientId: undefined };
+    target.addLead(secondLead);
+    const secondProspect = target.convertLead(secondLead.id);
+    const unrelatedClient = target.state.clients.find((item: any) => item.id !== secondProspect.id);
+    assert.throws(() => target.addProposal({ id: 'PROP-CROSS-CLIENT', title: 'Cross Client Proposal', revision: 1, preparedBy: 'Layla Rahman', preparedAt: '2026-09-23', clientId: unrelatedClient.id, leadId: secondLead.id, currency: 'QAR', totalAmount: 100, items: [{ id: 'PROP-CROSS-CLIENT-1', serviceName: 'Audit', description: 'Audit', scope: 'Annual audit', exclusions: 'Tax', deliverables: 'Report', clientResponsibilities: 'Supply records', feeModel: 'Fixed', amount: 100 }], terms: 'Payment within 30 days.', state: 'Draft' }), /do not match/);
   });
 
   it('requires independent review before presentation and preserves the exact presented revision', async () => {
