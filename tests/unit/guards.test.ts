@@ -393,6 +393,24 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     assert.equal(saved.history.at(-1).reason, 'Client deferred the work.');
   });
 
+  it('converts only won opportunities to non-authorizing prospect records once', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const lead = structuredClone(target.state.leads[0]);
+    target.updateLead({ ...lead, stage: 'Proposal' });
+    assert.throws(() => target.convertLead(lead.id), /Only a won opportunity/);
+    target.updateLead({ ...lead, stage: 'Won' });
+    const client = target.convertLead(lead.id);
+    assert.equal(client.status, 'Prospect');
+    assert.equal(target.state.leads.find((item: any) => item.id === lead.id).accepted, false);
+    assert.equal(target.state.leads.find((item: any) => item.id === lead.id).convertedClientId, client.id);
+    assert.equal(target.convertLead(lead.id).id, client.id, 'retry returns the same prospect');
+    assert.equal(target.state.clients.filter((item: any) => item.id === client.id).length, 1);
+    assert.throws(() => target.updateLead({ ...lead, stage: 'Lost' }), /cannot be converted or reclassified/);
+  });
+
   it('requires independent review before presentation and preserves the exact presented revision', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const target = prototypeStore as any;

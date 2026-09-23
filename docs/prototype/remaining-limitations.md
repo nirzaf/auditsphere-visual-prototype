@@ -120,13 +120,16 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
   scoped proposal drafting, independent review and presentation.
-  Store checks enforce required loss reasons, stage history, line-item totals,
+  Chrome now also converts a qualified Won opportunity to a Prospect, verifies
+  that acceptance remains false, and checks the resulting stage history. Store
+  checks enforce non-Won/lost conversion blocks, idempotent Prospect creation,
+  converted-record immutability, required loss reasons, line-item totals,
   stale-review reset on revision, and preservation of the exact presented
   revision. The client portal records accept/decline/withdraw responses with an
   authorized contact and explicit evidence reference without auto-creating an
   engagement. AT-10 creates one draft from the accepted revision and separately
-  requires partner acceptance evidence before activation. Qualification and
-  conversion edge paths, suspension, close and change applicability remain
+  requires partner acceptance evidence before activation. Other qualification
+  edge paths, suspension, close and change applicability remain
   unverified.
 
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
@@ -206,7 +209,7 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
 
 ## Verification snapshot
 
-Latest recorded run: 132/132 unit checks and 56/56 E2E checks passed. E2E
+Latest recorded run: 133/133 unit checks and 56/56 E2E checks passed. E2E
 includes five static checks and 51 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
 because full criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

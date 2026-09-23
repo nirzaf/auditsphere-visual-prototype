@@ -161,15 +161,17 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                 <p className="sub mt8">
                   Converting an inquiry creates a draft client and transfers to the acceptance and terms workflow. A proposal does not constitute professional engagement authorization.
                 </p>
-                {selectedLead.stage !== 'Won' && selectedLead.stage !== 'Lost' ? (
+                {selectedLead.stage === 'Won' && !selectedLead.convertedClientId ? (
                   <button
                     className="btn primary sm mt12"
                     onClick={() => handleConvert(selectedLead.id)}
                   >
-                    Convert Opportunity to Client Entity
+                    Convert Won Opportunity to Prospect
                   </button>
+                ) : selectedLead.convertedClientId ? (
+                  <span className="tag green mt12">Converted to Prospect</span>
                 ) : (
-                  <span className="tag green mt12">Converted to Client Record</span>
+                  <span className="caption mt12">Mark this opportunity Won before converting it to a prospect.</span>
                 )}
               </div>
             </div>

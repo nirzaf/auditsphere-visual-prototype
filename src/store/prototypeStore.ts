@@ -628,8 +628,8 @@ class PrototypeStore {
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'manage opportunities');
     const index = this.state.leads.findIndex(l => l.id === lead.id);
     if (index >= 0) {
-      if (lead.stage === 'Lost' && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost opportunity requires a reason.');
       if (this.state.leads[index].convertedClientId) throw new GuardError('INVALID_STATE', 'A converted opportunity cannot be converted or reclassified again.');
+      if (lead.stage === 'Lost' && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost opportunity requires a reason.');
       if (lead.stage !== this.state.leads[index].stage) lead.history = [...(this.state.leads[index].history || []), { by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage, reason: lead.stage === 'Lost' ? lead.lostReason?.trim() : undefined }];
       this.state.leads[index] = lead;
       this.logEvent(`Opportunity ${lead.id} moved to ${lead.stage}${lead.stage === 'Lost' ? `: ${lead.lostReason}` : ''}`, lead.id);
@@ -643,7 +643,7 @@ class PrototypeStore {
     const lead = this.state.leads.find(l => l.id === leadId);
     if (!lead) throw new GuardError('INVALID_STATE', `Opportunity "${leadId}" was not found.`);
     if (lead.convertedClientId) return this.state.clients.find(c => c.id === lead.convertedClientId);
-    if (lead.stage !== 'Won' && lead.stage !== 'Proposal') throw new GuardError('INVALID_STATE', 'Only a won or presented proposal opportunity can be converted.');
+    if (lead.stage !== 'Won') throw new GuardError('INVALID_STATE', 'Only a won opportunity can be converted to a prospect.');
     lead.stage = 'Won';
     lead.accepted = false;
 
@@ -665,7 +665,7 @@ class PrototypeStore {
         contact: lead.contact,
         email: lead.email,
         jurisdiction: 'State of Qatar',
-        status: 'Active',
+        status: 'Prospect',
         risk: 'Low',
         revenue: lead.value,
         relationshipOwner: lead.owner
@@ -675,6 +675,7 @@ class PrototypeStore {
     lead.convertedClientId = client.id;
     this.logEvent(`Opportunity ${lead.name} converted to client ${client.name}`, client.id);
     this.notify();
+    return client;
   }
 
   // --- Proposal Actions (VP-010, VP-011) ---
