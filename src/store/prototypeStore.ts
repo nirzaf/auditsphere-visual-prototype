@@ -941,15 +941,33 @@ class PrototypeStore {
   }
 
   // --- Accounting & TB (VP-035, VP-036, VP-038) ---
-  public updateTrialBalanceRows(engId: string, rows: PrototypeState['engagements'][0]['rows']) {
+  public updateTrialBalanceRows(
+    engId: string,
+    rows: PrototypeState['engagements'][0]['rows'],
+    source?: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; mapping: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit' } }
+  ) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'replace trial balance rows');
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
     if (!Array.isArray(rows) || rows.some(r => !r.code.trim() || !r.name.trim() || !Number.isFinite(r.balance)) || new Set(rows.map(r => r.code.trim())).size !== rows.length) throw new GuardError('INVALID_STATE', 'Trial balance rows require unique account codes, names, and finite balances.');
-    eng.rows = rows;
+    if (source && (!source.fileName.trim() || !/^[0-9a-f]{64}$/i.test(source.sha256))) throw new GuardError('INVALID_STATE', 'Imported source requires a file name and SHA-256 digest.');
+    if (!eng.sourceHistory) eng.sourceHistory = eng.rows.length ? [{ version: eng.sourceVersion || 1, rows: structuredClone(eng.rows), importedAt: this.state.asOfDate, importedBy: 'Legacy source; import metadata unavailable', format: 'Legacy' }] : [];
+    const predecessorVersion = eng.sourceVersion;
     eng.sourceVersion++;
+    eng.rows = structuredClone(rows);
+    eng.sourceHistory.push({
+      version: eng.sourceVersion,
+      rows: structuredClone(rows),
+      importedAt: new Date().toISOString(),
+      importedBy: this.state.currentPerson,
+      fileName: source?.fileName || 'Manual local replacement',
+      format: source?.format || 'Manual',
+      sha256: source?.sha256,
+      mapping: source ? { ...source.mapping } : undefined,
+      predecessorVersion
+    });
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Trial balance updated for ${eng.id} (Source v${eng.sourceVersion})`, eng.id);
     this.notify();
@@ -1563,7 +1581,9 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', `Cannot prepare release candidate: ${readiness.reason}`);
     }
 
-    if (eng.candidate && eng.candidate.generation === eng.generation && eng.candidate.sourceVersion === eng.sourceVersion && eng.candidate.packageRevision === eng.packageRevision) {
+    const packageDefinition = eng.packageHistory?.find(p => p.revision === eng.packageRevision);
+    if (!packageDefinition || packageDefinition.generation !== eng.generation || packageDefinition.sourceVersion !== eng.sourceVersion || packageDefinition.mappingRevision !== eng.sourceVersion || !packageDefinition.validation.passed || packageDefinition.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Cannot prepare release candidate: assemble a valid current package revision with XLSX, DOCX and PDF artifacts first.');
+    if (eng.candidate && eng.candidate.generation === eng.generation && eng.candidate.sourceVersion === eng.sourceVersion && eng.candidate.packageRevision === eng.packageRevision && eng.candidate.packageDefinitionId === packageDefinition.id) {
       return eng.candidate;
     }
 
@@ -1574,25 +1594,30 @@ class PrototypeStore {
       preparedByUserId: this.state.currentUserId,
       sourceVersion: eng.sourceVersion,
       packageRevision: eng.packageRevision,
-      manifest: [
-        `Sample audit report preview · ${eng.id} · package revision ${eng.packageRevision}`,
-        `Sample financial statements preview · ${eng.id} · source version ${eng.sourceVersion}`
-      ]
+      packageDefinitionId: packageDefinition.id,
+      manifest: structuredClone(packageDefinition.artifacts)
     };
     this.logEvent(`Release candidate frozen for ${eng.id} (Gen ${eng.generation})`, eng.id);
     this.notify();
     return eng.candidate;
   }
 
-  public updatePackageRevision(engId: string) {
+  public saveFinancialPackageRevision(record: import('../types').FinancialPackageRevision) {
     requireActiveIdentity(this.state);
-    requireEngagementScope(this.state, engId);
-    const eng = this.state.engagements.find(e => e.id === engId);
-    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
-    eng.packageRevision++;
+    requireRole(this.state, ['manager', 'preparer'], 'assemble a financial package revision');
+    if (this.isSessionOnly) throw new GuardError('INVALID_STATE', 'Browser state storage is unavailable; package revisions cannot be claimed as persisted.');
+    requireEngagementScope(this.state, record.engagementId);
+    const eng = this.state.engagements.find(e => e.id === record.engagementId);
+    const requiredKinds = ['XLSX', 'DOCX', 'PDF'];
+    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== eng.sourceVersion || record.noteRevision !== record.revision || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, unique ordered sections, and genuine XLSX/DOCX/PDF artifact digests.');
+    eng.packageHistory ||= [];
+    if (eng.packageHistory.some(p => p.revision === record.revision || p.id === record.id) || this.state.engagements.some(other => other.packageHistory?.some(p => p.artifacts.some(a => record.artifacts.some(n => n.id === a.id))))) throw new GuardError('INVALID_STATE', 'Package revision or artifact identity already exists.');
+    eng.packageHistory.push(structuredClone(record));
+    eng.packageRevision = record.revision;
     this.invalidateReleaseBasis(eng);
-    this.logEvent(`Package revision updated to Rev ${eng.packageRevision}`, eng.id);
+    this.logEvent(`Financial package revision ${record.revision} assembled from source v${record.sourceVersion}`, eng.id);
     this.notify();
+    if (this.isSessionOnly) throw new GuardError('INVALID_STATE', 'Browser storage could not persist the package definition; the revision is available only for this session.');
   }
 
   public issueRelease(engId: string, dispatchNote = '', recipients: string[] = []) {
@@ -1611,6 +1636,8 @@ class PrototypeStore {
       throw new GuardError('STALE_REVISION', `Release candidate is stale: candidate generation is ${eng.candidate.generation}, but current engagement generation is ${eng.generation}.`);
     }
     if (eng.candidate.sourceVersion !== eng.sourceVersion || eng.candidate.packageRevision !== eng.packageRevision) throw new GuardError('STALE_REVISION', 'Release candidate no longer matches the pinned source and package revisions.');
+    const packageDefinition = eng.packageHistory?.find(p => p.id === eng.candidate!.packageDefinitionId && p.revision === eng.packageRevision && p.generation === eng.generation);
+    if (!packageDefinition || JSON.stringify(packageDefinition.artifacts) !== JSON.stringify(eng.candidate.manifest)) throw new GuardError('STALE_REVISION', 'Release candidate artifact identities no longer match the frozen package revision.');
     if ((eng.approvals.partner?.byUserId ? eng.approvals.partner.byUserId !== this.state.currentUserId : eng.approvals.partner?.by !== this.state.currentPerson) || eng.approvals.partner?.generation !== eng.generation) throw new GuardError('FORBIDDEN_SCOPE', 'The active partner must record current-generation sign-off before issue.');
     const cleanRecipients = [...new Set(recipients.map(r => r.trim()).filter(Boolean))];
     if (cleanRecipients.length === 0) throw new GuardError('INVALID_STATE', 'Enter at least one distribution recipient for the local release record.');
@@ -1638,7 +1665,7 @@ class PrototypeStore {
       dispatchNote,
       predecessorId: prevRelease ? prevRelease.id : undefined,
       recipients: cleanRecipients,
-      manifest: eng.candidate.manifest.map((name, index) => ({ id: `M-${releaseId}-${index + 1}`, name, type: 'metadata-preview', sourceId: eng.id, sourceRevision: index === 0 ? eng.packageRevision : eng.sourceVersion }))
+      manifest: eng.candidate.manifest.map((artifact, index) => ({ id: `M-${releaseId}-${index + 1}`, artifactId: artifact.id, name: artifact.name, type: artifact.kind, mimeType: artifact.mimeType, size: artifact.size, sha: artifact.sha256, sourceId: packageDefinition.id, sourceRevision: eng.packageRevision }))
     });
     eng.candidate = null;
     this.logEvent(`Report package released in demo: ${releaseId}`, eng.id);
@@ -1710,7 +1737,8 @@ class PrototypeStore {
     }
 
     if (!release.manifest.length) throw new GuardError('INVALID_STATE', 'Cannot create an archive index without a release manifest.');
-    if (!retentionUntil || !/^\d{4}-\d{2}-\d{2}$/.test(retentionUntil) || Number.isNaN(Date.parse(retentionUntil)) || new Date(`${retentionUntil}T00:00:00Z`).toISOString().slice(0, 10) !== retentionUntil) throw new GuardError('INVALID_STATE', 'Enter a valid retention date.');
+    const normalizedRetentionUntil = retentionUntil?.trim() || undefined;
+    if (normalizedRetentionUntil && (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedRetentionUntil) || Number.isNaN(Date.parse(normalizedRetentionUntil)) || new Date(`${normalizedRetentionUntil}T00:00:00Z`).toISOString().slice(0, 10) !== normalizedRetentionUntil)) throw new GuardError('INVALID_STATE', 'Enter a valid retention date.');
     if (onHold && !holdReason?.trim()) throw new GuardError('INVALID_STATE', 'An application hold requires a reason.');
     const archiveManifest = release.manifest.map(m => `${m.id} · ${m.name} · ${m.sourceId || eng.id} · rev ${m.sourceRevision ?? 'unknown'}`);
     if (!this.state.archives) this.state.archives = [];
@@ -1720,7 +1748,7 @@ class PrototypeStore {
       archivedBy: existing?.archivedBy || this.state.currentPerson,
       releaseId,
       manifest: archiveManifest,
-      retentionUntil,
+      retentionUntil: normalizedRetentionUntil,
       onApplicationHold: onHold,
       holdReason
     };
@@ -1774,9 +1802,11 @@ class PrototypeStore {
     if (!this.state.acceptanceCases) this.state.acceptanceCases = [];
     const idx = this.state.acceptanceCases.findIndex(c => c.id === accCase.id);
     const previous = idx >= 0 ? this.state.acceptanceCases[idx] : undefined;
+    const linkedEngagement = this.state.engagements.find(e => e.client === accCase.clientId && e.year === accCase.year);
     const at = new Date().toISOString();
     const saved: AcceptanceCaseRecord = {
       ...accCase,
+      engagementId: accCase.engagementId || linkedEngagement?.id,
       decisionStatus: 'Pending',
       decisionBy: undefined,
       decisionByUserId: undefined,
@@ -1804,7 +1834,7 @@ class PrototypeStore {
     const record = this.state.acceptanceCases?.find(c => c.id === caseId);
     if (!record) throw new GuardError('INVALID_STATE', 'Acceptance case was not found.');
     requireClientScope(this.state, record.clientId);
-    const eng = this.state.engagements.find(e => e.client === record.clientId && e.year === record.year);
+    const eng = this.state.engagements.find(e => e.id === record.engagementId) || this.state.engagements.find(e => e.client === record.clientId && e.year === record.year);
     if (!eng) throw new GuardError('INVALID_STATE', 'Acceptance decision must be bound to an engagement.');
     requireEngagementScope(this.state, eng.id);
     const assignedPartner = this.state.users.find(u => u.name === eng.partner && u.role === 'partner');
@@ -1825,6 +1855,76 @@ class PrototypeStore {
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Partner ${decision.toLowerCase()} client acceptance case ${caseId}`, eng.id);
     this.notify();
+  }
+
+  public createContinuanceDraft(priorEngagementId: string, changedFacts: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'create a continuance draft');
+    requireEngagementScope(this.state, priorEngagementId);
+    const prior = this.state.engagements.find(e => e.id === priorEngagementId);
+    if (!prior) throw new GuardError('INVALID_STATE', 'Prior-period engagement was not found.');
+    const caseRecord = this.state.acceptanceCases?.find(c => c.clientId === prior.client && c.year === prior.year);
+    const assignedPartner = this.state.users.find(u => u.name === prior.partner && u.role === 'partner');
+    if (!prior.acceptance || !caseRecord || (caseRecord.engagementId && caseRecord.engagementId !== prior.id) || caseRecord.decisionStatus !== 'Accepted' || !caseRecord.decisionByUserId || !assignedPartner || (assignedPartner.personId || assignedPartner.id) !== (this.state.users.find(u => u.id === caseRecord.decisionByUserId)?.personId || caseRecord.decisionByUserId)) throw new GuardError('INVALID_STATE', 'A separately accepted prior-period continuance case is required.');
+    if (!changedFacts.trim()) throw new GuardError('INVALID_STATE', 'Record current-period changes from the prior period before creating a draft.');
+    if (caseRecord.continuedToEngagementId) {
+      const existing = this.state.engagements.find(e => e.id === caseRecord.continuedToEngagementId);
+      if (existing) return existing;
+    }
+
+    const year = prior.year + 1;
+    const id = `ENG-CONT-${prior.client}-${year}`;
+    if (this.state.engagements.some(e => e.id === id)) throw new GuardError('INVALID_STATE', 'A next-period engagement already exists without a matching continuance link.');
+    const dueMonthDay = /^\d{4}-\d{2}-\d{2}$/.test(prior.due) ? prior.due.slice(5) : '09-28';
+    const draft: EngagementRecord = {
+      ...prior,
+      id,
+      continuanceFromEngagementId: prior.id,
+      continuanceCaseId: caseRecord.id,
+      continuanceNotes: changedFacts.trim(),
+      stage: 'Acceptance pending',
+      year,
+      period: `01 Jan – 31 Dec ${year}`,
+      due: `${year}-${dueMonthDay}`,
+      agreedFee: 0,
+      proposalId: undefined,
+      acceptance: false,
+      terms: false,
+      planning: false,
+      sourceAccepted: false,
+      mappingApproved: false,
+      generation: 0,
+      packageRevision: 1,
+      builtGeneration: 0,
+      sourceVersion: 0,
+      sourceHistory: [],
+      packageHistory: [],
+      candidate: null,
+      releases: [],
+      archive: null,
+      approvals: { manager: null, client: null, partner: null, eqr: null },
+      approvalHistory: [],
+      eqrConcerns: [],
+      rows: [],
+      adjustment: 0,
+      journalState: 'Draft',
+      sourceReflection: false,
+      supplements: false,
+      reconciliations: [],
+      workpapers: [],
+      reviews: [],
+      pbc: [],
+      annual: { confirmed: [], decision: null, nextId: null },
+      questionnaire: { answers: {}, status: 'Not started' },
+      events: [{ text: `Fresh period draft linked to ${prior.id}; changed facts recorded`, ref: id, time: new Date().toISOString(), type: 'history' }]
+    };
+    this.state.engagements.push(draft);
+    caseRecord.changedFacts = changedFacts.trim();
+    caseRecord.continuedToEngagementId = id;
+    this.state.selectedEngagement = id;
+    this.logEvent(`Fresh FY${year} continuance draft created from ${prior.id}`, id);
+    this.notify();
+    return draft;
   }
 
   // --- Audit Planning & Materiality (VP-048 / R12) ---
@@ -1880,6 +1980,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['admin', 'manager', 'partner'], 'change simulated Microsoft configuration');
     const prev = this.state.m365Config;
+    if (!Array.isArray(config.permittedUsers) || new Set(config.permittedUsers.map(u => u.userId)).size !== config.permittedUsers.length || config.permittedUsers.some(u => !this.state.users.some(person => person.id === u.userId && person.status === 'Active') || !this.state.users.some(person => person.role === u.role && person.status === 'Active'))) throw new GuardError('INVALID_STATE', 'Permitted-person mappings must use unique active personas and active AuditSphere roles.');
     const changed = prev.tenantId !== config.tenantId ||
       prev.tenantName !== config.tenantName ||
       prev.sharePointSite !== config.sharePointSite ||
@@ -1887,7 +1988,8 @@ class PrototypeStore {
       prev.folderRoot !== config.folderRoot ||
       prev.mailSenderAccount !== config.mailSenderAccount ||
       prev.oneDriveEnabled !== config.oneDriveEnabled ||
-      JSON.stringify(prev.permittedUserGroups) !== JSON.stringify(config.permittedUserGroups);
+      JSON.stringify(prev.permittedUserGroups) !== JSON.stringify(config.permittedUserGroups) ||
+      JSON.stringify(prev.permittedUsers || []) !== JSON.stringify(config.permittedUsers);
     this.state.m365Config = {
       ...config,
       liveConnected: false,
@@ -1905,9 +2007,10 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', `Unsupported simulation outcome "${outcome}".`);
     }
     const config = this.state.m365Config;
+    if (card === 'identity' && outcome === 'success' && (!config.permittedUsers?.length || config.permittedUsers.some(u => !this.state.users.some(person => person.id === u.userId && person.status === 'Active')))) throw new GuardError('INVALID_STATE', 'Select at least one active permitted person before a successful identity simulation.');
     if (card === 'mail' && !config.mailSenderAccount.trim()) throw new GuardError('INVALID_STATE', 'Mail verification requires a saved sender selection.');
     if (card === 'onedrive' && !config.oneDriveEnabled) throw new GuardError('INVALID_STATE', 'OneDrive simulation is disabled.');
-    const resourceId = card === 'identity' ? config.tenantId
+    const resourceId = card === 'identity' ? `${config.tenantId}|${config.permittedUsers.map(u => `${u.userId}:${u.role}`).join(',')}`
       : card === 'sharepoint' ? `${config.tenantId}|${config.sharePointSite}|${config.sharePointLibrary}|${config.folderRoot}`
         : card === 'mail' ? `${config.tenantId}|${config.mailSenderAccount}`
           : `${config.tenantId}|${config.folderRoot}`;

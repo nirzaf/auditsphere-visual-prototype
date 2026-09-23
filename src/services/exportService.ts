@@ -20,11 +20,10 @@ export function downloadBlob(blob: Blob, fileName: string) {
 }
 
 // 1. Genuine XLSX Export
-export function exportToXLSX(
+export function createXLSXBlob(
   title: string,
-  sheetData: Array<Array<string | number>> | Array<Record<string, any>>,
-  fileName = 'AuditSphere_Export.xlsx'
-) {
+  sheetData: Array<Array<string | number>> | Array<Record<string, any>>
+): Blob {
   const wb = XLSX.utils.book_new();
 
   const headerMeta: Array<Array<string | number>> = [
@@ -51,15 +50,18 @@ export function exportToXLSX(
   XLSX.utils.book_append_sheet(wb, ws, 'Financial Data');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  downloadBlob(blob, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+  return blob;
+}
+
+export function exportToXLSX(title: string, sheetData: Array<Array<string | number>> | Array<Record<string, any>>, fileName = 'AuditSphere_Export.xlsx') {
+  downloadBlob(createXLSXBlob(title, sheetData), fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
 }
 
 // 2. Genuine DOCX Export
-export async function exportToDOCX(
-  fileName = 'AuditSphere_Package.docx',
+export async function createDOCXBlob(
   title = 'AuditSphere Deliverable Package',
   lines: string[] = []
-) {
+): Promise<Blob> {
   const doc = new Document({
     sections: [
       {
@@ -92,16 +94,18 @@ export async function exportToDOCX(
     ]
   });
 
-  const blob = await Packer.toBlob(doc);
-  downloadBlob(blob, fileName.endsWith('.docx') ? fileName : `${fileName}.docx`);
+  return Packer.toBlob(doc);
+}
+
+export async function exportToDOCX(fileName = 'AuditSphere_Package.docx', title = 'AuditSphere Deliverable Package', lines: string[] = []) {
+  downloadBlob(await createDOCXBlob(title, lines), fileName.endsWith('.docx') ? fileName : `${fileName}.docx`);
 }
 
 // 3. Genuine PDF Export
-export function exportToPDF(
-  fileName = 'AuditSphere_Statement.pdf',
+export function createPDFBlob(
   title = 'AuditSphere Statement',
   lines: string[] = []
-) {
+): Blob {
   const doc = new jsPDF();
 
   // Watermark header
@@ -123,13 +127,10 @@ export function exportToPDF(
 
   // Content lines
   let y = 60;
-  lines.forEach(line => {
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
-    }
+  lines.flatMap(line => doc.splitTextToSize(line, 170)).forEach(line => {
+    if (y > 270) { doc.addPage(); y = 20; }
     doc.text(line, 20, y);
-    y += 8;
+    y += 6;
   });
 
   // Footer
@@ -137,7 +138,11 @@ export function exportToPDF(
   doc.setTextColor(170, 170, 170);
   doc.text('AuditSphere Prototype v2.0 · Qatar Synthetic Accounting & Audit Scenario', 20, 285);
 
-  doc.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+  return doc.output('blob');
+}
+
+export function exportToPDF(fileName = 'AuditSphere_Statement.pdf', title = 'AuditSphere Statement', lines: string[] = []) {
+  downloadBlob(createPDFBlob(title, lines), fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
 }
 
 // 4. CSV Helper
@@ -154,6 +159,9 @@ export function exportToCSV(fileName = 'AuditSphere_Export.csv', dataOrRows: str
 }
 
 export const exportService = {
+  createPDFBlob,
+  createDOCXBlob,
+  createXLSXBlob,
   exportPDF: (fileName: string, title: string, lines: string[]) => exportToPDF(fileName, title, lines),
   exportDOCX: (fileName: string, title: string, lines: string[]) => exportToDOCX(fileName, title, lines),
   exportXLSX: (fileName: string, title: string, data: any) => exportToXLSX(title, data, fileName),

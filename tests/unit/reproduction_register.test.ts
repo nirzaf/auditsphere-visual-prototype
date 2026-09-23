@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { calculateReceivablesAging, verifyGLCompleteness } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds, requireActiveIdentity, GuardError } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
+import { seedPackageDefinition } from './packageFixture.js';
 
 function setPersona(state: any, name: string) {
   const matches = state.users.filter((u: any) => u.name === name);
@@ -310,9 +311,12 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
       eqr: null
     };
     eng.eqrRequired = false;
+    seedPackageDefinition(eng);
     const c1 = prototypeStore.prepareReleaseCandidate(eng.id);
     const c2 = prototypeStore.prepareReleaseCandidate(eng.id);
     assert.strictEqual(c1, c2);
+    assert.strictEqual(c1.packageDefinitionId, eng.packageHistory[0].id);
+    assert.deepEqual(c1.manifest, eng.packageHistory[0].artifacts);
   });
 
   // RR25: Incomplete children block parent completion
@@ -470,13 +474,17 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR35 (VP-017): M365 updates never enable a live connection', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
+    const grantsBefore = JSON.stringify((prototypeStore as any).state.roleGrants);
     prototypeStore.updateM365Config({
-      tenantName: 'Contoso Demo', tenantId: 'tenant-123', permittedUserGroups: ['Auditors'],
+      tenantName: 'Contoso Demo', tenantId: 'tenant-123', permittedUserGroups: ['Auditors'], permittedUsers: [{ userId: 'manager', role: 'manager' }],
       sharePointSite: 'https://contoso.sharepoint.com/sites/audit', sharePointLibrary: 'AuditDocs',
       folderRoot: '/ClientEngagements/', mailSenderAccount: 'noreply@contoso.demo',
       oneDriveEnabled: true, status: 'Simulated verified', liveConnected: false
     });
     assert.strictEqual(prototypeStore.getSnapshot().m365Config.liveConnected, false);
+    prototypeStore.simulateM365Verification('identity', 'success');
+    assert.match(prototypeStore.getSnapshot().m365Config.verificationResults!.identity!.resourceId, /manager:manager/);
+    assert.equal(JSON.stringify((prototypeStore as any).state.roleGrants), grantsBefore);
   });
 
   // RR36: Changed root invalidates saved verified status

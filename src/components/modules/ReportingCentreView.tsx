@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey, EngagementRecord, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 
@@ -14,9 +14,22 @@ interface ReportingCentreViewProps {
   onNavigate: (route: RouteKey) => void;
 }
 
+type ReportKey = 'wip' | 'utilization' | 'compliance' | 'clients' | 'jobs' | 'tasks' | 'pbc' | 'time' | 'budget' | 'invoices' | 'credits' | 'receipts' | 'ar' | 'findings' | 'reviews' | 'packages';
+type ReportRow = { cells: string[]; engagementId?: string };
+const REPORTS: Array<{ key: ReportKey; label: string }> = [
+  { key: 'wip', label: 'WIP and billing realization' }, { key: 'utilization', label: 'Staff chargeability and utilization' },
+  { key: 'compliance', label: 'Compliance calendar' }, { key: 'clients', label: 'Clients and engagements' },
+  { key: 'jobs', label: 'Jobs by status and due date' }, { key: 'tasks', label: 'Tasks by status and overdue' },
+  { key: 'pbc', label: 'Outstanding PBC' }, { key: 'time', label: 'Approved time by person and billing class' },
+  { key: 'budget', label: 'Budget variance' }, { key: 'invoices', label: 'Invoice register' },
+  { key: 'credits', label: 'Credit register' }, { key: 'receipts', label: 'Receipt register' },
+  { key: 'ar', label: 'Accounts receivable aging' }, { key: 'findings', label: 'Audit findings' },
+  { key: 'reviews', label: 'Review-point status' }, { key: 'packages', label: 'Package readiness' }
+];
+
 export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [selectedReport, setSelectedReport] = useState<'wip' | 'utilization' | 'compliance'>('wip');
+  const [selectedReport, setSelectedReport] = useState<ReportKey>('wip');
   const [clientFilter, setClientFilter] = useState<string>('ALL');
   const [drillDownEng, setDrillDownEng] = useState<EngagementRecord | null>(null);
 
@@ -89,46 +102,63 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
     };
   });
 
-  const handleExportCSV = () => {
-    if (selectedReport === 'wip') {
-      const headers = ['Client Name', 'Engagement Service', 'Currency', 'Total WIP Hours', 'Recorded WIP Value', 'Billed Fees', 'Unbilled WIP'];
-      const dataRows = wipRows.map(r => [
-        r.clientName,
-        r.service,
-        r.currency,
-        r.totalHours,
-        r.recordedWipValue === null ? 'Unknown (unmatched activity rate)' : String(r.recordedWipValue),
-        String(r.billedAmount),
-        String(r.unbilledWip)
-      ]);
-      exportService.exportCSV('WIP_Billing_Realization_Report', [headers, ...dataRows]);
-    } else if (selectedReport === 'utilization') {
-      const headers = ['Staff Member', 'Practice Role', 'Billable Hours', 'Non-Billable Hours', 'Target Utilization %', 'Actual Utilization %'];
-      const dataRows = utilizationRows.map(u => [
-        u.name,
-        u.role,
-        String(u.billableHours),
-        String(u.nonBillableHours),
-        `${u.targetPct}%`,
-        `${u.actualPct}%`
-      ]);
-      exportService.exportCSV('Staff_Chargeability_Utilization_Report', [headers, ...dataRows]);
-    } else {
-      const headers = ['Engagement ID', 'Client Name', 'Service', 'Statutory Year', 'Filing Due Date', 'Audit Stage', 'Signing Partner'];
-      const dataRows = filteredEngs.map(e => {
-        const cl = state.clients.find(c => c.id === e.client);
-        return [e.id, cl?.name || e.client, e.service, String(e.year), e.due, e.stage, e.partner];
-      });
-      exportService.exportCSV('Statutory_Compliance_Calendar_Report', [headers, ...dataRows]);
-    }
+  const visibleReports = ['manager', 'partner'].includes(state.currentRole) ? REPORTS : state.currentRole === 'billing'
+    ? REPORTS.filter(r => ['wip', 'utilization', 'clients', 'invoices', 'credits', 'receipts', 'ar', 'time', 'budget'].includes(r.key))
+    : REPORTS.filter(r => ['clients', 'jobs', 'tasks', 'compliance'].includes(r.key));
+  const report = visibleReports.some(r => r.key === selectedReport) ? selectedReport : visibleReports[0]?.key || 'clients';
+  const scopedJobIds = new Set(state.jobs.filter(j => filteredEngs.some(e => e.id === j.engagementId)).map(j => j.id));
+  const approvedTime = state.times.filter(t => t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
+  const scopedInvoices = state.invoices.filter(i => i.engagementId && filteredEngs.some(e => e.id === i.engagementId));
+  const scopedInvoiceIds = new Set(scopedInvoices.map(i => i.id));
+  const scopedClientsSet = new Set(scopedClients.filter(c => clientFilter === 'ALL' || c.id === clientFilter).map(c => c.id));
+  const scopedCredits = state.creditNotes.filter(c => scopedInvoiceIds.has(c.invoiceId) && scopedClientsSet.has(c.clientId));
+  const scopedReceipts = state.receipts.filter(r => scopedClientsSet.has(r.clientId));
+  const aging = calculateReceivablesAging(scopedInvoices, scopedCredits, scopedReceipts, state.asOfDate);
+  const data = (headers: string[], rows: ReportRow[]) => ({ headers, rows });
+  const datasets: Partial<Record<ReportKey, ReturnType<typeof data>>> = {
+    wip: data(['Client', 'Engagement', 'Service', 'Currency', 'Approved hours', 'Recorded WIP', 'Billed', 'Unbilled WIP'], [
+      ...wipRows.map(r => ({ engagementId: r.eng.id, cells: [r.clientName, r.eng.id, r.service, r.currency, r.totalHours, r.recordedWipValue === null ? 'Unknown' : String(r.recordedWipValue), String(r.billedAmount), r.unbilledWip === null ? 'Unknown' : String(r.unbilledWip)] })),
+      { cells: ['Filtered totals', '', '', oneCurrency ? wipRows[0]?.currency || 'QAR' : 'Mixed', formatMinutesToHours(wipRows.reduce((sum, r) => sum + r.approvedTimes.reduce((n, t) => n + t.durationMinutes, 0), 0)), totalWipValue === null ? 'Unknown' : String(totalWipValue), totalBilled === null ? 'Unknown' : String(totalBilled), totalUnbilled === null ? 'Unknown' : String(totalUnbilled)] }
+    ]),
+    utilization: data(['Staff member', 'Role', 'Billable hours', 'Non-billable hours', 'Target utilization', 'Actual utilization'], utilizationRows.map(u => ({ cells: [u.name, u.role, String(u.billableHours), String(u.nonBillableHours), `${u.targetPct}%`, `${u.actualPct}%`] }))),
+    compliance: data(['Engagement', 'Client', 'Service', 'Year', 'Due date', 'Stage', 'Partner'], filteredEngs.map(e => ({ engagementId: e.id, cells: [e.id, state.clients.find(c => c.id === e.client)?.name || e.client, e.service, String(e.year), e.due, e.stage, e.partner] }))),
+    clients: data(['Client', 'Engagement', 'Service', 'Year', 'Stage', 'Manager', 'Partner', 'Currency'], filteredEngs.map(e => ({ engagementId: e.id, cells: [state.clients.find(c => c.id === e.client)?.name || e.client, e.id, e.service, String(e.year), e.stage, e.manager, e.partner, e.currency] }))),
+    jobs: data(['Job', 'Engagement', 'Title', 'Owner', 'Status', 'Due', 'Overdue'], state.jobs.filter(j => scopedJobIds.has(j.id)).map(j => ({ engagementId: j.engagementId, cells: [j.id, j.engagementId, j.title, j.owner, j.status, j.dueDate, j.dueDate < state.asOfDate && !['Completed', 'Cancelled'].includes(j.status) ? 'Yes' : 'No'] }))),
+    tasks: data(['Task', 'Job', 'Engagement', 'Title', 'Assignee', 'Status', 'Due', 'Overdue'], state.jobTasks.filter(t => scopedJobIds.has(t.jobId)).map(t => ({ engagementId: state.jobs.find(j => j.id === t.jobId)?.engagementId, cells: [t.id, t.jobId, state.jobs.find(j => j.id === t.jobId)?.engagementId || '', t.title, t.assignee, t.status, t.dueDate || '', Boolean(t.dueDate && t.dueDate < state.asOfDate && !['Completed', 'Cancelled'].includes(t.status)) ? 'Yes' : 'No'] }))),
+    pbc: data(['Request', 'Engagement', 'Title', 'Status', 'Owner', 'Due'], filteredEngs.flatMap(e => e.pbc.filter(p => !['Accepted', 'Cancelled'].includes(p.status)).map(p => ({ engagementId: e.id, cells: [p.id, e.id, p.title, p.status, p.owner, p.due] })))),
+    time: data(['Person', 'Engagement', 'Activity', 'Date', 'Minutes', 'Billing class', 'Currency', 'Amount'], approvedTime.map(t => ({ engagementId: t.engagementId, cells: [t.person, t.engagementId, t.activity, t.date, String(t.durationMinutes), t.billable ? 'Billable' : 'Non-billable', t.currency || 'Unknown', t.billable && t.billingRatePerHour !== undefined ? ((t.durationMinutes / 60) * t.billingRatePerHour).toFixed(2) : 'Unknown'] }))),
+    budget: data(['Engagement', 'Job', 'Budget version', 'Currency', 'Planned minutes', 'Approved minutes', 'Variance minutes', 'Planned billable value'], state.budgets.filter(b => filteredEngs.some(e => e.id === b.engagementId)).map(b => {
+      const actual = approvedTime.filter(t => t.engagementId === b.engagementId && (b.jobId ? t.jobId === b.jobId : !t.jobId));
+      const plan = b.lines.reduce((sum, line) => sum + line.plannedMinutes, 0);
+      const minutes = actual.reduce((sum, t) => sum + t.durationMinutes, 0);
+      const amount = actual.filter(t => t.billable).every(t => t.billingRatePerHour !== undefined) ? actual.filter(t => t.billable).reduce((sum, t) => sum + t.durationMinutes / 60 * (t.billingRatePerHour || 0), 0).toFixed(2) : 'Unknown';
+      return { engagementId: b.engagementId, cells: [b.engagementId, b.jobId || 'Engagement', String(b.version), b.currency, String(plan), String(minutes), String(minutes - plan), amount] };
+    })),
+    invoices: data(['Invoice', 'Engagement', 'Client', 'Status', 'Currency', 'Amount', 'Paid', 'Due'], scopedInvoices.filter(i => scopedClientsSet.has(i.clientId)).map(i => ({ engagementId: i.engagementId, cells: [i.invoiceNumber, i.engagementId || '', state.clients.find(c => c.id === i.clientId)?.name || i.clientId, i.status, i.currency, String(i.amount), String(i.paid), i.due] }))),
+    credits: data(['Credit note', 'Invoice', 'Client', 'Status', 'Currency', 'Amount', 'Date'], scopedCredits.map(c => ({ engagementId: scopedInvoices.find(i => i.id === c.invoiceId)?.engagementId, cells: [c.creditNumber, c.invoiceId, state.clients.find(cl => cl.id === c.clientId)?.name || c.clientId, c.status, c.currency || 'Unknown', String(c.amount), c.issueDate || c.date || ''] }))),
+    receipts: data(['Receipt', 'Client', 'Date', 'Currency', 'Amount', 'Allocated', 'Unallocated'], scopedReceipts.map(r => {
+      const allocated = r.allocations.filter(a => !a.reversed && scopedInvoiceIds.has(a.invoiceId)).reduce((sum, a) => sum + a.amount, 0);
+      return { cells: [r.receiptNumber, state.clients.find(c => c.id === r.clientId)?.name || r.clientId, r.date, r.currency, String(r.amount), String(allocated), String(Math.max(0, r.amount - allocated))] };
+    })),
+    ar: data(['Invoice', 'Engagement', 'Currency', 'Due', 'Outstanding', 'Aging bucket', 'Days overdue'], aging.invoiceBreakdown.map(r => ({ engagementId: r.invoice.engagementId, cells: [r.invoice.invoiceNumber, r.invoice.engagementId || '', r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)] }))),
+    findings: data(['Finding', 'Engagement', 'Title', 'Severity', 'Disposition', 'Currency', 'Amount'], state.findings.filter(f => filteredEngs.some(e => e.id === f.engagementId)).map(f => ({ engagementId: f.engagementId, cells: [f.id, f.engagementId, f.title, f.severity || 'Unrated', f.disposition, f.currency || 'Unknown', f.amount === undefined ? 'Not quantified' : String(f.amount)] }))),
+    reviews: data(['Review point', 'Engagement', 'Subject', 'Severity', 'Status', 'Assigned', 'Due'], filteredEngs.flatMap(e => e.reviews.map(r => ({ engagementId: e.id, cells: [r.id, e.id, r.wp, r.severity, r.status, r.assigned, r.due] })))),
+    packages: data(['Engagement', 'Client', 'Package revision', 'Source revision', 'Status', 'Artifacts', 'SHA-256 identities'], filteredEngs.map(e => {
+      const p = e.packageHistory?.find(item => item.revision === e.packageRevision);
+      return { engagementId: e.id, cells: [e.id, state.clients.find(c => c.id === e.client)?.name || e.client, String(e.packageRevision), p ? `TB v${p.sourceVersion}` : 'Not assembled', p ? p.validation.passed && p.sourceVersion === e.sourceVersion ? 'Ready' : 'Stale / blocked' : 'Not assembled', String(p?.artifacts.length || 0), (p?.artifacts || []).map(a => a.sha256).join('; ')] };
+    }))
   };
+  const activeDataset = datasets[report] || { headers: [], rows: [] };
+  const drillRoute: Partial<Record<ReportKey, RouteKey>> = { clients: 'engagements', jobs: 'jobs', tasks: 'jobs', pbc: 'documents', time: 'my-time', budget: 'budgets', invoices: 'billing', credits: 'receivables', receipts: 'receivables', ar: 'receivables', findings: 'findings', reviews: 'reviews', packages: 'financial-packages', wip: 'budgets', utilization: 'my-time', compliance: 'engagements' };
+
+  const handleExportCSV = () => exportService.exportCSV(`${report}_practice_report_${state.asOfDate}`, [activeDataset.headers, ...activeDataset.rows.map(r => r.cells)]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
           <h1>Practice Reporting Centre</h1>
-          <p>Computed practice intelligence, WIP tracking, staff realization, and filtered operational exports.</p>
+          <p>Scoped operational and financial reports with consistent filters, drill-downs, currency context and CSV exports.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button className="btn primary sm" onClick={handleExportCSV}>
@@ -138,27 +168,16 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
       </div>
 
       <div className="between">
-        <div className="tabs" style={{ marginBottom: 0 }}>
-          <button className={`tab-btn ${selectedReport === 'wip' ? 'active' : ''}`} onClick={() => setSelectedReport('wip')}>
-            Work In Progress (WIP) &amp; Billing Realization
-          </button>
-          <button className={`tab-btn ${selectedReport === 'utilization' ? 'active' : ''}`} onClick={() => setSelectedReport('utilization')}>
-            Staff Chargeability &amp; Utilization
-          </button>
-          <button className={`tab-btn ${selectedReport === 'compliance' ? 'active' : ''}`} onClick={() => setSelectedReport('compliance')}>
-            Statutory Deadlines &amp; Compliance Calendar
-          </button>
-        </div>
-
         <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-          <label className="caption">Filter Client:</label>
+          <label className="caption" htmlFor="report-client-filter">Filter Client:</label>
           <select
+            id="report-client-filter"
             className="input sm"
             value={clientFilter}
             onChange={e => setClientFilter(e.target.value)}
             style={{ width: 180 }}
           >
-            <option value="ALL">All Clients ({state.clients.length})</option>
+            <option value="ALL">All Clients ({scopedClients.length})</option>
             {scopedClients.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -166,8 +185,17 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
         </div>
       </div>
 
+      <div className="panel panel-pad grid2">
+        <div><label className="caption" htmlFor="practice-report">Report catalogue</label>
+          <select id="practice-report" className="input" value={report} onChange={e => setSelectedReport(e.target.value as ReportKey)}>
+            {visibleReports.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+          </select>
+        </div>
+        <div><label className="caption">Report context</label><div>{report === 'ar' ? `As of ${state.asOfDate}; each row retains its invoice currency.` : `Scoped to permitted engagements · ${filteredEngs.length} engagement(s) · ${state.asOfDate}`}</div></div>
+      </div>
+
       {/* REPORT 1: WIP Breakdown */}
-      {selectedReport === 'wip' && (
+      {report === 'wip' && (
         <div className="stack" style={{ gap: 16 }}>
           <div className="metric-grid">
             <div className="metric">
@@ -250,7 +278,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
       )}
 
       {/* REPORT 2: Staff Chargeability */}
-      {selectedReport === 'utilization' && (
+      {report === 'utilization' && (
         <div className="panel">
           <div className="panel-head between">
             <div>
@@ -297,7 +325,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
       )}
 
       {/* REPORT 3: Statutory Compliance Calendar */}
-      {selectedReport === 'compliance' && (
+      {report === 'compliance' && (
         <div className="panel">
           <div className="panel-head between">
             <div>
@@ -336,6 +364,20 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {!['wip', 'utilization', 'compliance'].includes(report) && (
+        <div className="panel">
+          <div className="panel-head between"><div><h3>{REPORTS.find(item => item.key === report)?.label}</h3><span className="caption">{activeDataset.rows.length} scoped record(s) · CSV export uses these same rows</span></div></div>
+          <div className="tablewrap"><table>
+            <thead><tr>{activeDataset.headers.map(h => <th key={h}>{h}</th>)}<th>Drill down</th></tr></thead>
+            <tbody>{activeDataset.rows.map((row, index) => <tr key={`${row.engagementId || 'row'}-${index}`}>
+              {row.cells.map((cell, i) => <td key={i}>{cell || '—'}</td>)}
+              <td>{row.engagementId ? <button className="btn sm ghost" onClick={() => { prototypeStore.setSelectedEngagement(row.engagementId!); onNavigate(drillRoute[report] || 'engagements'); }}>Open source</button> : '—'}</td>
+            </tr>)}</tbody>
+          </table></div>
+          {!activeDataset.rows.length && <p className="sub panel-pad">No records match this client filter and the current role scope.</p>}
         </div>
       )}
 

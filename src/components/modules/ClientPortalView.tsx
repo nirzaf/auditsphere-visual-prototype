@@ -1,5 +1,5 @@
 // Module 08: Client Experience Portal (VP-025)
-// 7 Subviews: Home, Engagement Status, Requests (PBC), Shared Docs, Messages, Packages, Invoices (no payment button)
+// Client portal subviews include management representation acknowledgement without signature capture or payment.
 // Strictly browser-only prototype: no online payments, no external mail delivery, local deterministic document registry.
 
 import React, { useState } from 'react';
@@ -17,7 +17,7 @@ interface ClientPortalViewProps {
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices'>('home');
+  const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices' | 'approvals'>('home');
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadPbcModal, setUploadPbcModal] = useState<PbcRequestItem | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -117,6 +117,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     }
   };
 
+  const handleManagementApproval = () => {
+    if (!eng) return;
+    try {
+      prototypeStore.recordApproval(eng.id, 'client', 'Management representation receipt recorded in the local prototype; no signature was captured.');
+      triggerNotice('Management representation receipt recorded locally. No signature was captured.');
+    } catch (err) {
+      triggerNotice(err instanceof Error ? err.message : 'Management acknowledgement could not be recorded.');
+    }
+  };
+
   if (!client) {
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
@@ -199,7 +209,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             { key: 'docs', label: 'Shared Documents' },
             { key: 'messages', label: 'Messages & Mail' },
             { key: 'packages', label: 'Published Reports' },
-            { key: 'invoices', label: 'Fee Invoices' }
+            { key: 'invoices', label: 'Fee Invoices' },
+            ...(state.currentRole === 'client' ? [{ key: 'approvals', label: 'Management Approvals' }] : [])
           ].map(t => (
             <button
               key={t.key}
@@ -470,6 +481,20 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeSub === 'approvals' && state.currentRole === 'client' && (
+        <div className="panel panel-pad">
+          <h3>Management Representation Receipt</h3>
+          {!eng ? <p className="sub mt8">Select an engagement within your granted client scope.</p> : <>
+            <p className="sub mt8">Engagement {eng.id} · Generation {eng.generation}. This records a local receipt of management representation; it is not an electronic signature or external certification.</p>
+            {eng.approvals.client?.generation === eng.generation ? (
+              <div className="banner green mt12">Receipt recorded by {eng.approvals.client.by} for the current generation.</div>
+            ) : (
+              <button className="btn primary sm mt12" disabled={!eng.acceptance} onClick={handleManagementApproval}>Record Representation Receipt</button>
+            )}
+          </>}
         </div>
       )}
 

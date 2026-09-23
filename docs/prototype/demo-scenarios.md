@@ -48,5 +48,9 @@ visible, never plugged (unit-tested).
 2. Failure/rework: blocked task needs reason; PBC replacement needs re-review;
    self-approval denied by person; stale revision rejected; TB error preview keeps
    old source; mail failure fixture + retry; disconnect keeps local work.
-3. These are presenter journey descriptions, not scripted or fully accepted journeys.
-   `verification.md` lists the five static checks and four actual Chrome checks currently run; route rendering does not prove each workflow.
+3. These presenter steps are not all automated or fully accepted journeys.
+   The current Chrome suite directly exercises shell/scope, M365 setup and
+   recovery, identity mapping vs grant separation, staff route rendering, fresh
+   annual continuance, generated financial package persistence, reporting
+   catalogue and browser storage recovery. It does not establish completion of
+   the remaining journeys in §8 of `Gap_Closure_User_Stories.md`.

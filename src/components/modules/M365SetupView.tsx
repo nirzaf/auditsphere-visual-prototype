@@ -6,7 +6,7 @@
 // a failed optional mail test never blocks SharePoint or local work.
 
 import React, { useState } from 'react';
-import { RouteKey } from '../../types';
+import { RoleKey, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 
 interface M365SetupViewProps {
@@ -24,6 +24,7 @@ const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
   { key: 'throttled', label: 'Throttled (simulated)', detail: 'The local fixture reports throttling. Wait, then retry — no background polling occurs.' },
   { key: 'unavailable', label: 'Service unavailable (simulated)', detail: 'The synthetic provider is unavailable. Local business modules keep working with fixture data.' }
 ];
+const ASSIGNABLE_ROLES: RoleKey[] = ['relationship', 'onboarding', 'compliance', 'partner', 'manager', 'preparer', 'reviewer', 'eqr', 'client_admin', 'client_finance', 'client', 'billing', 'records', 'admin'];
 
 export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
@@ -36,6 +37,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   const [folderRoot, setFolderRoot] = useState(config.folderRoot);
   const [mailSender, setMailSender] = useState(config.mailSenderAccount);
   const [oneDriveEnabled, setOneDriveEnabled] = useState(config.oneDriveEnabled);
+  const [permittedUsers, setPermittedUsers] = useState(config.permittedUsers || []);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement);
@@ -49,6 +51,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
       ...config,
       tenantId,
       tenantName,
+      permittedUsers,
       sharePointSite: siteUrl,
       sharePointLibrary: library,
       folderRoot,
@@ -117,6 +120,26 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
             <input type="text" className="input mono" value={tenantName} onChange={e => { setTenantName(e.target.value); markDirty(); }} required />
           </div>
         </div>
+        <fieldset className="borderbox stack" style={{ gap: 8, padding: 12 }}>
+          <legend className="caption">Permitted people and initial AuditSphere role mappings</legend>
+          <p className="caption">These are local identity mappings only. They do not create invitations or role grants; assign scoped access separately in Administration.</p>
+          {state.users.filter(user => user.status === 'Active').map(user => {
+            const mapping = permittedUsers.find(item => item.userId === user.id);
+            return <div className="between" key={user.id}>
+              <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <input type="checkbox" checked={Boolean(mapping)} onChange={e => {
+                  setPermittedUsers(current => e.target.checked ? [...current, { userId: user.id, role: user.role }] : current.filter(item => item.userId !== user.id));
+                  markDirty();
+                }} />
+                <span>{user.name} <span className="caption">({user.email})</span></span>
+              </label>
+              {mapping && <select className="input" aria-label={`AuditSphere role for ${user.name}`} value={mapping.role} onChange={e => {
+                setPermittedUsers(current => current.map(item => item.userId === user.id ? { ...item, role: e.target.value as RoleKey } : item));
+                markDirty();
+              }}>{ASSIGNABLE_ROLES.map(role => <option key={role} value={role}>{role}</option>)}</select>}
+            </div>;
+          })}
+        </fieldset>
 
         <h3>2 · SharePoint canonical library</h3>
         <div>

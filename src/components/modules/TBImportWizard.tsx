@@ -114,6 +114,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const [errors, setErrors] = useState<string[]>([]);
   const [format, setFormat] = useState<'XLSX' | 'CSV' | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const sourceHistory = prototypeStore.getSnapshot().engagements.find(e => e.id === engagementId)?.sourceHistory || [];
 
   const handleFile = async (f: File | undefined) => {
     setPreview(null); setErrors([]); setFormat(null); setFileError(null);
@@ -168,11 +169,20 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
     setFormat(result.format);
   };
 
-  const commit = () => {
+  const commit = async () => {
     if (!preview || errors.length > 0 || preview.length === 0) return;
-    // Commit creates a NEW source revision; previous accepted source is preserved
-    // in history and dependents go stale via the store (candidate cleared).
-    prototypeStore.updateTrialBalanceRows(engagementId, preview);
+    if (!bytes || !globalThis.crypto?.subtle) {
+      setFileError('This browser cannot calculate the source SHA-256 digest. Nothing was committed.');
+      return;
+    }
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const sha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    prototypeStore.updateTrialBalanceRows(engagementId, preview, {
+      fileName,
+      format: format || 'CSV',
+      sha256,
+      mapping: { ...mapping, convention }
+    });
     setPreview(null);
     setBytes(null);
     setFileName('');
@@ -188,6 +198,23 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
         </div>
         {format && <span className="tag blue">Detected format: {format}</span>}
       </div>
+
+      <details>
+        <summary className="caption">Trial-balance source history ({sourceHistory.length} revisions)</summary>
+        <div className="tablewrap mt8"><table>
+          <thead><tr><th>Revision</th><th>Source</th><th>Imported by / at</th><th>Rows / signed total</th><th>SHA-256</th></tr></thead>
+          <tbody>{[...sourceHistory].sort((a, b) => b.version - a.version).map(item => (
+            <tr key={item.version}>
+              <td>v{item.version}</td>
+              <td>{item.fileName || 'Legacy source'} · {item.format || 'Legacy'}</td>
+              <td>{item.importedBy} · {item.importedAt}</td>
+              <td>{item.rows.length} · {item.rows.reduce((sum, row) => sum + row.balance, 0).toFixed(2)}</td>
+              <td className="mono">{item.sha256 || 'Unavailable for legacy source'}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+        <p className="caption mt4">Parsed rows and source digests are retained as local history; original uploaded file bytes remain session-only.</p>
+      </details>
 
       <div className="grid2">
         <div>

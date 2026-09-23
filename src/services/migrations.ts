@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 5;
+export const CURRENT_SCHEMA = 8;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -152,6 +152,26 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       verificationResults: {}
     };
     warnings.push('Migrated persona grants to immutable IDs and cleared legacy M365 verification claims (v5).');
+  }
+  if (from < 6) {
+    state.m365Config = { ...fresh.m365Config, ...(state.m365Config || {}), permittedUsers: Array.isArray(state.m365Config?.permittedUsers) ? state.m365Config.permittedUsers : [], liveConnected: false };
+    warnings.push('Added explicit synthetic M365 permitted-person mappings without inferring access grants (v6).');
+  }
+  if (from < 7) {
+    for (const engagement of state.engagements) {
+      if (!Array.isArray(engagement.sourceHistory)) engagement.sourceHistory = engagement.rows.length ? [{
+        version: engagement.sourceVersion || 1,
+        rows: structuredClone(engagement.rows),
+        importedAt: state.asOfDate,
+        importedBy: 'Legacy source; import metadata unavailable',
+        format: 'Legacy'
+      }] : [];
+    }
+    warnings.push('Preserved existing trial-balance rows as legacy source snapshots and enabled immutable import revision history (v7).');
+  }
+  if (from < 8) {
+    for (const engagement of state.engagements) if (!Array.isArray(engagement.packageHistory)) engagement.packageHistory = [];
+    warnings.push('Initialized versioned financial package definitions without fabricating generated artifacts (v8).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

@@ -1,5 +1,5 @@
 // Module 38: Logical Practice Records Repository & Archive (VP-059, VP-060)
-// Cross-engagement archive register, statutory 10-year retention schedules,
+// Cross-engagement archive register, optional retention dates,
 // handover request workflows, and application legal holds without Purview claims.
 
 import React, { useState } from 'react';
@@ -21,7 +21,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
 
   const [activeTab, setActiveTab] = useState<'single' | 'register'>('single');
   const [holdReason, setHoldReason] = useState('Pending tax authority audit inquiry on FY 2026 VAT declaration.');
-  const [retentionYear, setRetentionYear] = useState('2036-12-31');
+  const [retentionYear, setRetentionYear] = useState('');
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [handoverTargetEng, setHandoverTargetEng] = useState<string>(selectedEng?.id || '');
   const [handoverReason, setHandoverReason] = useState('Successor auditor inspection requested under ISA 510.');
@@ -182,7 +182,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 <div><label>Archived Date</label><span>{new Date(archive.archivedAt).toLocaleDateString('en-GB')}</span></div>
                 <div><label>Archived By</label><span>{archive.archivedBy}</span></div>
                 <div><label>Linked Release</label><b>{archive.releaseId}</b></div>
-                <div><label>Statutory Retention Until</label><b>{archive.retentionUntil || '2036-12-31'}</b></div>
+                <div><label>Retention Until</label><b>{archive.retentionUntil || 'Not specified'}</b></div>
                 <div>
                   <label>Application Legal Hold</label>
                   <span className={`badge ${archive.onApplicationHold ? 'red' : 'green'}`}>
@@ -225,7 +225,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
 
               <div className="grid2 mt16">
                 <div>
-                  <label className="caption">Statutory Retention Date (10 Years)</label>
+                  <label className="caption">Retention Until (Optional)</label>
                   <input
                     type="date"
                     className="input"

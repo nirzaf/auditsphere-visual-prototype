@@ -32,7 +32,7 @@ export const ALL_PERSONAS: UserPersona[] = [
 
 export function createInitialState(): PrototypeState {
   const state: PrototypeState = {
-    schema: 5,
+    schema: 8,
     asOfDate: '2026-09-23',
     selectedEngagement: 'ENG-26001',
     currentRole: 'manager',
@@ -1035,6 +1035,7 @@ export function createInitialState(): PrototypeState {
       tenantName: 'ste-audit-demo.onmicrosoft.com',
       tenantId: 'd48e8912-3211-4091-a1b2-9901882299aa',
       permittedUserGroups: ['STE Audit Staff', 'Client Finance Contacts'],
+      permittedUsers: [{ userId: 'manager', role: 'manager' }, { userId: 'partner', role: 'partner' }],
       sharePointSite: 'https://ste-audit.demo.sharePoint.com/sites/ClientEngagements',
       sharePointLibrary: 'EngagementDocuments',
       folderRoot: '/ClientEngagements/2026',
@@ -1077,6 +1078,17 @@ export function createInitialState(): PrototypeState {
       { path: '/Clients/CL-001/2026/05_Correspondence/', label: '05 Client Communications', clientId: 'CL-001' }
     ]
   };
+  for (const engagement of state.engagements) {
+    engagement.packageHistory = [];
+    engagement.sourceHistory = engagement.rows.length ? [{
+      version: engagement.sourceVersion || 1,
+      rows: structuredClone(engagement.rows),
+      importedAt: state.asOfDate,
+      importedBy: 'Synthetic baseline fixture',
+      fileName: `seed-${engagement.id}.csv`,
+      format: 'Legacy'
+    }] : [];
+  }
   for (const group of state.consolidationGroups) {
     for (const component of group.components) {
       const engagement = state.engagements.find(e => e.id === component.componentId);

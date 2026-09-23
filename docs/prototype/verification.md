@@ -1,7 +1,9 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. No deployment or merge was performed.
+acceptance assertions. Commit `5ec7cd9` was deployed to the existing
+`steaudit-prototype` Pages project and verified at `prototype.steaudit.com`.
+This working-tree change has not yet been committed or deployed.
 
 ## Commands
 
@@ -15,13 +17,16 @@ acceptance assertions. No deployment or merge was performed.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | working tree based on `2d3b6ae` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.92 MB (549 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | working tree based on `2d3b6ae` | `npm run test:unit` | PASS — 92/92, 20 suites | Includes RR01–RR38 and additional acceptance/planning checks. These verify selected deterministic rules, not all UI journeys. |
-| 2026-09-23 | working tree based on `2d3b6ae` | `npm run test:e2e` | PASS — 9/9 | Five static smoke checks and four real Chrome checks. Chrome rendered the shell, exercised a persisted M365 simulation, switched to client persona, and opened all 31 staff navigation routes without render exceptions. |
+| 2026-09-23 | working tree based on `5ec7cd9` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (557 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | working tree based on `5ec7cd9` | `npm run test:unit` | PASS — 96/96, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions and artifact/package checks. These verify selected deterministic rules, not all UI journeys. |
+| 2026-09-23 | working tree based on `5ec7cd9` | `npm run test:e2e` | PASS — 14/14 | Five static checks and nine real Chrome checks. Chrome exercised M365 configuration, recovery and workspace setup; identity mapping vs scoped grants; persona scoping; all staff routes; partner-approved annual continuance into a clean draft; generated package bytes and digests across reload; scoped reporting; storage conflict preservation and quota failure messaging. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
-network policy for every possible UI state.
+network policy for every possible UI state. The AT-41/42/48 browser journey now
+also exercises manager, management and partner approvals, exact artifact-bound
+release, amendment generation reset, predecessor manifest preservation, and
+archive indexing with an unspecified optional retention date.
 
 ## Acceptance status
 
@@ -32,18 +37,13 @@ smoke test does not prove create/edit/review/rework behavior on each route.
 Unit checks provide focused evidence for selected calculation, access, migration,
 and workflow invariants only.
 
-Outstanding review gaps include: full version-by-version migration and recovery
-journeys (R10); full consolidation suite against reordered/missing components
-(R09); immutable TB import history and complete adjustment/reporting pipeline
-(R08); release manifests bound to actual saved package bytes and digests (R05);
-source-byte immutable archives and Purview retention locks (R14); and remaining
-end-to-end acceptance journeys across the modules (R12). Financial package
-selection/order remains component-local rather than persisted. Egress evidence is
-limited to source/bundle probes and the exercised Chrome journeys. The prototype
-remains browser-local and simulated; see `remaining-limitations.md` for scope
-boundaries.
-
-Source/test tree fingerprint (SHA-256 over sorted paths and contents under
-`src/` and `tests/`): `f159868f160a2ec49b88db9a15537a80def938d1f8d69a2c755ba696c2f8046d`.
-Generated main asset `dist/assets/index-ujq39aWI.js` SHA-256:
-`8013d773b0c997237898c38b91d176fd6ef83cce21c0a4b9712e9ade41624901`.
+Outstanding review gaps include the full consolidation suite against
+reordered/missing components (R09); complete adjustment/reporting acceptance
+journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
+source-byte immutable archives and physical retention locks (R14); and remaining
+end-to-end acceptance journeys across the modules (R12). The
+current checks cover schema migrations 0–8 and browser storage conflict/quota
+behavior, but do not establish every recovery path. Package section ordering and
+notes now persist with generated revisions. Egress evidence is limited to
+source/bundle probes and exercised Chrome journeys. The prototype remains
+browser-local and simulated; see `remaining-limitations.md` for scope boundaries.

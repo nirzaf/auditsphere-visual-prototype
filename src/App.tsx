@@ -108,7 +108,7 @@ export const App: React.FC = () => {
         return <EngagementsView onNavigate={navigate} />;
       case 'onboarding':
       case 'audit-acceptance' as any:
-        return <AuditAcceptanceView onNavigate={navigate} />;
+        return <AuditAcceptanceView key={state.selectedEngagement} onNavigate={navigate} />;
 
       // Work & Collaboration
       case 'jobs':
@@ -143,7 +143,7 @@ export const App: React.FC = () => {
         return <FinancialStatementsView onNavigate={navigate} />;
       case 'financial-packages':
       case 'packages' as any:
-        return <FinancialPackagesView onNavigate={navigate} />;
+        return <FinancialPackagesView key={state.selectedEngagement} onNavigate={navigate} />;
       case 'consolidation':
         return <ConsolidationView onNavigate={navigate} />;
 

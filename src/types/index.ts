@@ -200,8 +200,37 @@ export interface ProposalRecord {
 }
 
 // Module 04 / Engagements
+export interface GeneratedArtifactRecord {
+  id: string;
+  name: string;
+  kind: 'XLSX' | 'DOCX' | 'PDF';
+  mimeType: string;
+  size: number;
+  sha256: string;
+}
+
+export interface FinancialPackageRevision {
+  id: string;
+  engagementId: string;
+  revision: number;
+  generation: number;
+  sourceVersion: number;
+  mappingRevision: number;
+  notes: string;
+  noteRevision: number;
+  sections: Array<{ id: string; title: string; desc: string; enabled: boolean; order: number }>;
+  validation: { passed: boolean; trialBalanceNet: number; pendingWorkpapers: number; openReviews: number; materialFindings: number };
+  artifacts: GeneratedArtifactRecord[];
+  createdAt: string;
+  createdBy: string;
+  createdByUserId: string;
+}
+
 export interface EngagementRecord {
   id: string;
+  continuanceFromEngagementId?: string;
+  continuanceCaseId?: string;
+  continuanceNotes?: string;
   client: string;
   service: string;
   stage: string;
@@ -224,6 +253,18 @@ export interface EngagementRecord {
   packageRevision: number;
   builtGeneration: number;
   sourceVersion: number;
+  sourceHistory?: Array<{
+    version: number;
+    rows: TrialBalanceRow[];
+    importedAt: string;
+    importedBy: string;
+    fileName?: string;
+    format?: 'CSV' | 'XLSX' | 'Legacy' | 'Manual';
+    sha256?: string;
+    mapping?: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit' };
+    predecessorVersion?: number;
+  }>;
+  packageHistory?: FinancialPackageRevision[];
   eqrRequired: boolean;
   opinion: string;
   candidate?: null | {
@@ -231,9 +272,10 @@ export interface EngagementRecord {
     preparedAt: string;
     preparedBy: string;
     preparedByUserId?: string;
-    manifest: string[];
+    manifest: GeneratedArtifactRecord[];
     sourceVersion: number;
     packageRevision: number;
+    packageDefinitionId: string;
   };
   releases: Array<{
     id: string;
@@ -246,7 +288,7 @@ export interface EngagementRecord {
     recipients?: string[];
     isAmended?: boolean;
     predecessorId?: string;
-    manifest: Array<{ id: string; name: string; type: string; sha?: string; sourceId?: string; sourceRevision?: number }>;
+    manifest: Array<{ id: string; artifactId?: string; name: string; type: string; mimeType?: string; size?: number; sha?: string; sourceId?: string; sourceRevision?: number }>;
   }>;
   archive?: null | {
     archivedAt: string;
@@ -883,6 +925,7 @@ export interface M365SimulationConfig {
   tenantName: string;
   tenantId: string;
   permittedUserGroups: string[];
+  permittedUsers: Array<{ userId: string; role: RoleKey }>;
   sharePointSite: string;
   sharePointLibrary: string;
   folderRoot: string;
@@ -917,6 +960,9 @@ export interface FirmSettings {
 
 export interface AcceptanceCaseRecord {
   id: string;
+  engagementId?: string;
+  changedFacts?: string;
+  continuedToEngagementId?: string;
   clientId: string;
   year: number;
   service: string;
@@ -972,7 +1018,7 @@ export interface ArchiveRecord {
   year: number;
   archivedAt: string;
   archivedBy: string;
-  retentionUntil: string;
+  retentionUntil?: string;
   onHold: boolean;
   onApplicationHold?: boolean;
   holdReason?: string;

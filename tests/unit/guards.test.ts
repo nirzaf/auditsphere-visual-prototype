@@ -7,6 +7,7 @@ import { createInitialState } from '../../src/store/initialState.js';
 import { visibleClientIds, visibleEngagementIds, GuardError } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
+import { seedPackageDefinition } from './packageFixture.js';
 
 let state: PrototypeState;
 beforeEach(() => { state = createInitialState(); });
@@ -68,7 +69,25 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 5);
+    assert.equal(migrated.schema, 8);
+  });
+  it('upgrades each persisted schema revision through current v8 without losing histories', () => {
+    const seed = createInitialState();
+    for (let version = 0; version <= 8; version++) {
+      const legacy = structuredClone(seed) as any;
+      legacy.schema = version;
+      if (version < 6) delete legacy.m365Config.permittedUsers;
+      if (version < 7) legacy.engagements.forEach((e: any) => delete e.sourceHistory);
+      if (version < 8) legacy.engagements.forEach((e: any) => delete e.packageHistory);
+      const { state: migrated } = migratePersistedState(legacy, createInitialState());
+      assert.equal(migrated.schema, 8, `schema ${version} should reach v8`);
+      assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
+      assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
+      assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
+      assert.deepEqual(migrated.engagements[0].releases.map(r => r.id), seed.engagements[0].releases.map(r => r.id));
+      assert.ok(migrated.engagements.every(e => Array.isArray(e.sourceHistory) && Array.isArray(e.packageHistory)));
+      assert.ok(Array.isArray(migrated.m365Config.permittedUsers));
+    }
   });
 });
 
@@ -437,6 +456,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     };
 
     // Issue initial release
+    seedPackageDefinition(eng);
     prototypeStore.prepareReleaseCandidate(eng.id);
     prototypeStore.issueRelease(eng.id, 'First local release record', ['board@example.demo']);
     const firstRelId = eng.releases[0].id;
@@ -462,6 +482,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     };
 
     // Freeze and issue second release
+    seedPackageDefinition(eng);
     prototypeStore.prepareReleaseCandidate(eng.id);
     prototypeStore.issueRelease(eng.id, 'Second local release record', ['board@example.demo']);
     assert.strictEqual(eng.releases.length, 2);
@@ -485,5 +506,60 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(clientFolders.some((f: any) => f.path.includes('03_Fieldwork')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('04_Deliverables')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('05_Correspondence')));
+  });
+
+  it('creates an idempotent fresh next-period continuance draft without prior work (VP-047)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    state.currentRole = 'manager';
+    const prior = state.engagements[0];
+    const partner = state.users.find((u: any) => u.name === prior.partner && u.role === 'partner');
+    state.acceptanceCases = [{
+      id: 'ACC-CONT', clientId: prior.client, year: prior.year, service: prior.service,
+      riskRating: 'Low', independenceConfirmed: true, amlKycCompleted: true,
+      conflictsCleared: true, prohibitionsChecked: true, competenceConfirmed: true,
+      conditions: [], recommendationBy: 'Layla Rahman', recommendationDate: '2026-09-20',
+      recommendationNotes: 'Prior year continuance review.', decisionBy: prior.partner,
+      decisionByUserId: partner.id, decisionDate: '2026-09-21', decisionStatus: 'Accepted'
+    }];
+    assert.throws(() => prototypeStore.createContinuanceDraft(prior.id, ''), /Record current-period changes/);
+    const draft = prototypeStore.createContinuanceDraft(prior.id, 'Ownership changed; new ERP deployed.');
+    assert.equal(draft.year, prior.year + 1);
+    assert.equal(draft.continuanceFromEngagementId, prior.id);
+    assert.equal(draft.continuanceNotes, 'Ownership changed; new ERP deployed.');
+    assert.equal(draft.acceptance, false);
+    assert.equal(draft.terms, false);
+    assert.equal(draft.rows.length, 0);
+    assert.equal(draft.workpapers.length, 0);
+    assert.equal(draft.reviews.length, 0);
+    assert.equal(draft.releases.length, 0);
+    assert.deepEqual(draft.approvals, { manager: null, client: null, partner: null, eqr: null });
+    assert.equal(prototypeStore.createContinuanceDraft(prior.id, 'Changed text ignored on retry.').id, draft.id);
+    assert.equal(state.engagements.filter((e: any) => e.continuanceFromEngagementId === prior.id).length, 1);
+    assert.equal(state.acceptanceCases[0].continuedToEngagementId, draft.id);
+  });
+
+  it('retains immutable trial-balance source snapshots with import metadata (VP-035)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const engagement = state.engagements[0];
+    const original = structuredClone(engagement.rows);
+    const replacement = structuredClone(original);
+    replacement[0].balance += 125;
+    prototypeStore.updateTrialBalanceRows(engagement.id, replacement, {
+      fileName: 'replacement.csv', format: 'CSV', sha256: 'a'.repeat(64),
+      mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net' }
+    });
+    assert.deepEqual(engagement.sourceHistory[0].rows, original);
+    assert.equal(engagement.sourceHistory[1].version, 2);
+    assert.equal(engagement.sourceHistory[1].predecessorVersion, 1);
+    assert.equal(engagement.sourceHistory[1].sha256, 'a'.repeat(64));
+    assert.equal(engagement.sourceHistory[1].fileName, 'replacement.csv');
+    engagement.rows[0].balance = -999;
+    assert.deepEqual(engagement.sourceHistory[1].rows, replacement);
   });
 });

@@ -55,6 +55,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
   const [partnerRationale, setPartnerRationale] = useState(
     existingCase?.decisionNotes || ''
   );
+  const [changedFacts, setChangedFacts] = useState('');
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -91,6 +92,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
     try {
       const caseRecord: AcceptanceCaseRecord = {
         id: existingCase?.id || `ACC-${client.id}-${selectedEng.year}`,
+        engagementId: selectedEng.id,
         clientId: client.id,
         year: selectedEng.year,
         service: selectedEng.service,
@@ -127,6 +129,14 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
   };
 
   const allChecksPass = riskRating !== 'Prohibited' && independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed;
+  const handleCreateContinuance = () => {
+    try {
+      const draft = prototypeStore.createContinuanceDraft(selectedEng.id, changedFacts);
+      triggerNotice('success', `Fresh FY${draft.year} draft ${draft.id} created. Its recommendation and partner decision are pending.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -141,6 +151,14 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           </button>
         </div>
       </div>
+
+      {selectedEng.continuanceFromEngagementId && (
+        <div className="panel panel-pad" role="status">
+          <b>Fresh-period draft · FY {selectedEng.year}</b>
+          <p className="sub mt4">Continued manually from {selectedEng.continuanceFromEngagementId} under prior case {selectedEng.continuanceCaseId}. Changed facts: {selectedEng.continuanceNotes}</p>
+          <p className="caption mt4">This draft has no carried balances, tasks, evidence, workpapers, reviews, approvals or releases. Complete a new recommendation and a separate assigned-partner decision.</p>
+        </div>
+      )}
 
       {notice && (
         <div
@@ -344,6 +362,24 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           </button>
         </div>
       </div>
+
+      {existingCase?.decisionStatus === 'Accepted' && (
+        <div className="panel panel-pad">
+          <h3>Manual Annual Continuance</h3>
+          <p className="sub mt4">Record what changed since FY {selectedEng.year}; creating the next-period draft does not carry forward balances, tasks, evidence, workpapers, reviews, approvals or releases.</p>
+          {existingCase.continuedToEngagementId ? (
+            <p className="mt12">Next-period draft: <b>{existingCase.continuedToEngagementId}</b></p>
+          ) : (
+            <>
+              <label className="caption mt12" htmlFor="continuance-changed-facts">Current-period changes from prior period</label>
+              <textarea id="continuance-changed-facts" className="input mt4" rows={3} value={changedFacts} onChange={e => setChangedFacts(e.target.value)} placeholder="Record changed ownership, activities, risks, independence or other relevant facts" />
+              <button className="btn primary sm mt12" onClick={handleCreateContinuance} disabled={!['manager', 'partner'].includes(state.currentRole) || !changedFacts.trim()}>
+                Create Fresh FY{selectedEng.year + 1} Draft
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Case History / Prior Years Register */}
       {(state.acceptanceCases && state.acceptanceCases.length > 0) && (

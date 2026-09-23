@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { loadVerifiedArtifact } from '../../services/artifactStore';
 
 interface ReleaseCompletionViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -63,28 +64,33 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
   );
 
   const gatesPass = allWpCleared && noOpenReviews && noMaterialFindings && approvalsValid;
+  const packageDefinition = selectedEng.packageHistory?.find(p => p.revision === selectedEng.packageRevision);
+  const packageArtifactsReady = Boolean(packageDefinition?.validation.passed && packageDefinition.sourceVersion === selectedEng.sourceVersion && packageDefinition.artifacts.length === 3);
 
-  const handleFreezeCandidate = () => {
+  const handleFreezeCandidate = async () => {
     if (!gatesPass) {
       triggerNotice('error', 'Cannot freeze release candidate: One or more release gates remain unfulfilled.');
       return;
     }
     try {
+      if (!packageDefinition) throw new Error('Assemble the current package revision first.');
+      for (const artifact of packageDefinition.artifacts) await loadVerifiedArtifact(artifact);
       prototypeStore.prepareReleaseCandidate(selectedEng.id);
-      triggerNotice('success', `Release candidate frozen for Generation ${selectedEng.generation}.`);
+      triggerNotice('success', `Release candidate frozen with ${packageDefinition.artifacts.length} verified artifacts for Generation ${selectedEng.generation}.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
   };
 
-  const handleIssueRelease = () => {
+  const handleIssueRelease = async () => {
     if (!selectedEng.candidate) {
       triggerNotice('error', 'Must freeze release candidate first before issuing delivery.');
       return;
     }
     try {
+      for (const artifact of selectedEng.candidate.manifest) await loadVerifiedArtifact(artifact);
       prototypeStore.issueRelease(selectedEng.id, dispatchNote, recipientText.split(/[;,\n]/));
-      triggerNotice('success', 'Local release record created. No files were delivered and no cryptographic hashes are claimed.');
+      triggerNotice('success', 'Local release record created with frozen file identities and SHA-256 digests. No files were sent.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -213,7 +219,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
             <button
               className={`btn ${gatesPass ? 'primary' : 'ghost'} sm`}
               onClick={handleFreezeCandidate}
-              disabled={!gatesPass}
+              disabled={!gatesPass || !packageArtifactsReady}
             >
               Freeze Release Candidate (Generation {selectedEng.generation})
             </button>
@@ -222,11 +228,15 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
               <div className="borderbox" style={{ background: '#f0fdf4', padding: 16 }}>
                 <div className="between">
                   <b>Release Candidate Frozen (Generation {selectedEng.candidate.generation})</b>
-              <span className="mono">Metadata candidate · Generation {selectedEng.candidate.generation}</span>
+              <span className="mono">Exact artifact candidate · Generation {selectedEng.candidate.generation}</span>
                 </div>
                 <div className="cell-sub mt8">
                   Prepared by {selectedEng.candidate.preparedBy} on {new Date(selectedEng.candidate.preparedAt).toLocaleString('en-GB')}
                 </div>
+                <div className="tablewrap mt8"><table>
+                  <thead><tr><th>Artifact</th><th>Type</th><th>Bytes</th><th>SHA-256</th></tr></thead>
+                  <tbody>{selectedEng.candidate.manifest.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.kind}</td><td>{item.size}</td><td className="mono">{item.sha256}</td></tr>)}</tbody>
+                </table></div>
                 <div className="mt12">
                   <label className="caption">Local release note</label>
                   <textarea
@@ -240,7 +250,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                   <label className="caption">Recipient metadata (comma separated)</label>
                   <input className="input" value={recipientText} onChange={e => setRecipientText(e.target.value)} placeholder="Enter intended recipients" />
                 </div>
-                <p className="caption mt8">This records a local release event and revision references. It does not store deliverable bytes, calculate cryptographic hashes, or send anything.</p>
+                <p className="caption mt8">The frozen manifest identifies the verified generated files and digests. The local release record does not send them to recipients.</p>
                 <div className="row mt12" style={{ gap: 10 }}>
                   <button className="btn primary sm" onClick={handleIssueRelease} disabled={state.currentRole !== 'partner'}>
                     Record Local Release
@@ -274,11 +284,12 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                 <th>Recorded By</th>
                 <th>Recipients</th>
                 <th>Local Note</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {selectedEng.releases.length === 0 ? (
-                <tr><td colSpan={9} className="text-center sub" style={{ padding: 20 }}>No local release records exist for this engagement.</td></tr>
+                <tr><td colSpan={10} className="text-center sub" style={{ padding: 20 }}>No local release records exist for this engagement.</td></tr>
               ) : (
                 selectedEng.releases.map(rel => (
                   <tr key={rel.id}>
@@ -295,6 +306,13 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                     <td>{rel.releasedBy}</td>
                     <td>{(rel.recipients || []).join(', ')}</td>
                     <td>{rel.dispatchNote}</td>
+                    <td>
+                      {!selectedEng.releases.some(next => next.predecessorId === rel.id) && (
+                        <button className="btn sm ghost" disabled={!['manager', 'partner'].includes(state.currentRole)} onClick={() => setShowAmendModal(true)}>
+                          Re-open for Amendment
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

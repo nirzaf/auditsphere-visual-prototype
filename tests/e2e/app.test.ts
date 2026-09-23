@@ -19,6 +19,7 @@ const MIME: Record<string, string> = {
 
 let server: Server;
 let baseUrl = '';
+let browserDebugPort = '';
 let chrome: ChildProcess | undefined;
 let profileDir = '';
 let browserTab: CdpTab | undefined;
@@ -101,6 +102,7 @@ before(async () => {
   }
   assert.ok(existsSync(activePortPath), 'Chrome remote debugging endpoint did not start');
   const [debugPort] = readFileSync(activePortPath, 'utf8').trim().split('\n');
+  browserDebugPort = debugPort;
   let target: any;
   for (let attempt = 0; attempt < 50; attempt++) {
     const response = await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`, { method: 'PUT' }).catch(() => null);
@@ -130,10 +132,10 @@ after(async () => {
   await new Promise<void>(resolve => server.close(() => resolve()));
 });
 
-async function waitForBrowser(expression: string, timeoutMs = 8000): Promise<boolean> {
+async function waitForBrowser(expression: string, timeoutMs = 8000, tab = browserTab!): Promise<boolean> {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
-    if (await browserTab!.evaluate<boolean>(expression).catch(() => false)) return true;
+    if (await tab.evaluate<boolean>(expression).catch(() => false)) return true;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   return false;
@@ -145,6 +147,18 @@ async function clickButton(label: string): Promise<void> {
     if (!b) return false; b.click(); return true;
   })()`);
   assert.equal(found, true, `button not found: ${label}`);
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+async function clickPanelButton(heading: string, label: string): Promise<void> {
+  const found = await browserTab!.evaluate<boolean>(`(() => {
+    const title = [...document.querySelectorAll('h3')].find(x => x.innerText.toLowerCase().includes(${JSON.stringify(heading.toLowerCase())}));
+    const panel = title?.closest('.panel');
+    const button = [...(panel?.querySelectorAll('button') || [])].find(x => x.innerText.trim() === ${JSON.stringify(label)});
+    if (!button || button.disabled) return false;
+    button.click(); return true;
+  })()`);
+  assert.equal(found, true, `panel button not found or disabled: ${heading} / ${label}`);
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 
@@ -236,6 +250,54 @@ describe('actual Chrome browser acceptance', () => {
     const afterReload = await browserTab!.evaluate<string>('JSON.stringify({ route: document.querySelector(".crumb")?.innerText, text: document.body?.innerText.slice(-1800), result: JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2") || "{}").m365Config?.verificationResults })');
     assert.match(persistedText, /Identity — Simulated Test\s+success ·/, `saved result should remain visible after reload: ${afterReload}`);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /liveConnected: false/);
+
+    await clickPanelButton('sharepoint — simulated test', 'Simulate: Success (simulated)');
+    const beforeConfig = await browserTab!.evaluate<any>(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {revision:s.m365Config.configRevision, grants:s.roleGrants.length, identity:s.m365Config.verificationResults.identity.configRevision, sharepoint:s.m365Config.verificationResults.sharepoint.configRevision}; })()`);
+    await browserTab!.evaluate(`(() => {
+      const row = [...document.querySelectorAll('fieldset .between')].find(x => x.innerText.includes('Layla Rahman'));
+      const role = row?.querySelector('select[aria-label="AuditSphere role for Layla Rahman"]');
+      if (!role) throw new Error('Layla identity mapping not visible');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, 'reviewer');
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await clickButton('Save simulated configuration');
+    assert.equal(await waitForBrowser(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return s.m365Config.permittedUsers.some(x=>x.userId==='manager' && x.role==='reviewer'); })()`), true, 'permitted person role mapping persists');
+    const mapped = await browserTab!.evaluate<any>(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {revision:s.m365Config.configRevision, grants:s.roleGrants.length, identity:s.m365Config.verificationResults.identity.configRevision}; })()`);
+    assert.ok(mapped.revision > beforeConfig.revision);
+    assert.equal(mapped.grants, beforeConfig.grants, 'identity mapping alone must not create an authorization grant');
+    assert.equal(mapped.identity, beforeConfig.identity, 'configuration edits retain prior identity result as stale evidence');
+
+    const rootInput = await browserTab!.evaluate<boolean>(`(() => {
+      const label = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === 'Folder root');
+      const input = label?.parentElement?.querySelector('input');
+      if (!input) return false;
+      input.focus(); return true;
+    })()`);
+    assert.equal(rootInput, true);
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Control', code: 'ControlLeft', modifiers: 2 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft' });
+    await browserTab!.command('Input.insertText', { text: '/AuditSphere/Clients/UpdatedRoot' });
+    await clickButton('Save simulated configuration');
+    assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return c.verificationResults.identity.configRevision < c.configRevision && c.verificationResults.sharepoint.configRevision < c.configRevision;})()`), true, 'changing resource selections makes earlier results stale');
+    await clickPanelButton('sharepoint — simulated test', 'Simulate: Access denied (simulated)');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'access-denied'`), true);
+    await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
+    const failures = await browserTab!.evaluate<any>(`(() => { const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return {site:c.verificationResults.sharepoint.outcome,mail:c.verificationResults.mail.outcome}; })()`);
+    assert.equal(failures.site, 'access-denied', 'optional mail failure must not overwrite SharePoint state');
+    assert.equal(failures.mail, 'unavailable');
+    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'success'`), true);
+    await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return c.verificationResults.sharepoint.outcome==='success' && c.verificationResults.mail.outcome==='unavailable';})()`), true, 'mail outage does not invalidate successful SharePoint setup');
+    const foldersBefore = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
+    await clickPanelButton('sharepoint — simulated test', 'Prepare selected client workspace');
+    const foldersAfter = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
+    assert.ok(foldersAfter > foldersBefore, 'explicit workspace preparation creates its canonical folder set');
+    await clickPanelButton('sharepoint — simulated test', 'Prepare selected client workspace');
+    const foldersAfterRetry = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
+    assert.equal(foldersAfterRetry, foldersAfter, 'retry remains idempotent');
   });
 
   it('AT-18/25/53: switches to a client persona and exposes only the portal', async () => {
@@ -251,6 +313,62 @@ describe('actual Chrome browser acceptance', () => {
     const nav = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("nav button")].map(x => x.innerText.trim())');
     assert.deepEqual(nav, ['Client Experience Portal', 'Specifications & PRD']);
     assert.equal(browserTab!.exceptions.length, 0);
+  });
+
+  it('AT-17/18: keeps identity mapping separate from a reviewed scoped access grant', async () => {
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => /system administrator/i.test(o.textContent));
+      if (!option) throw new Error('system administrator persona missing');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "admin"'), true);
+    await clickButton('Firm Administration');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Practice Administration & Access Control")'), true);
+    const opened = await browserTab!.evaluate<boolean>(`(() => {
+      const row = [...document.querySelectorAll('tbody tr')].find(x => x.innerText.includes('Mona Khalil'));
+      const button = [...(row?.querySelectorAll('button') || [])].find(x => x.innerText.trim() === '+ Grant Scope');
+      if (!button) return false; button.click(); return true;
+    })()`);
+    assert.equal(opened, true, 'fixture persona can be selected for a scoped grant');
+    await browserTab!.evaluate(`(() => {
+      const selects = [...document.querySelectorAll('.modal-card select')];
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(selects[0], 'Engagement');
+      selects[0].dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await browserTab!.evaluate(`(() => {
+      const target = [...document.querySelectorAll('.modal-card select')].find(x => [...x.options].some(o => o.value === 'ENG-26002'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(target, 'ENG-26002');
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
+    await clickButton('Record approved grant');
+    const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
+    assert.equal(before.grants.some((g: any) => g.scopeKind === 'Engagement' && g.scopeId === 'ENG-26002'), false);
+    assert.ok(after.grants.some((g: any) => g.scopeKind === 'Engagement' && g.scopeId === 'ENG-26002'), 'approved scope adds exactly the requested target');
+    assert.deepEqual(after.mappings, before.mappings, 'administrative grant does not rewrite M365 identity mappings');
+    await clickButton('✕');
+    const clientGrantOpened = await browserTab!.evaluate<boolean>(`(() => {
+      const row = [...document.querySelectorAll('tbody tr')].find(x => x.innerText.includes('Omar Nasser'));
+      const button = [...(row?.querySelectorAll('button') || [])].find(x => x.innerText.trim() === '+ Grant Scope');
+      if (!button) return false; button.click(); return true;
+    })()`);
+    assert.equal(clientGrantOpened, true);
+    await browserTab!.evaluate(`(() => {
+      const scope = document.querySelector('.modal-card select');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(scope, 'Client');
+      scope.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('!![...document.querySelectorAll(".modal-card select")].find(x => [...x.options].some(o => o.value === "CL-002"))'), true);
+    await browserTab!.evaluate(`(() => {
+      const client = [...document.querySelectorAll('.modal-card select')].find(x => [...x.options].some(o => o.value === 'CL-002'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
+      client.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await clickButton('Record approved grant');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='client' && g.scopeKind==='Client' && g.scopeId==='CL-002')`), true, 'management approver receives only the explicitly approved client scope');
+    assert.deepEqual(browserTab!.exceptions, []);
   });
 
   it('AT-53: opens every staff navigation route in Chrome without a render exception', async () => {
@@ -271,5 +389,246 @@ describe('actual Chrome browser acceptance', () => {
       assert.ok(content.trim().length > 0, `route rendered no content: ${label}`);
     }
     assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => o.textContent.includes('Engagement manager'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+      const engagement = document.querySelector('select[aria-label="Selected engagement"]');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(engagement, 'ENG-26001');
+      engagement.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await clickButton('Acceptance & KYC');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Client Acceptance & Continuance")'), true);
+    await browserTab!.evaluate(`(() => {
+      for (const box of document.querySelectorAll('input[type=checkbox]')) {
+        if (!box.checked) box.click();
+      }
+      const rationale = document.querySelectorAll('textarea')[0];
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(rationale, 'Annual risk and independence screening completed.');
+      rationale.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await clickButton('Save Recommendation');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Partner decision is pending")'), true);
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => o.textContent.includes('Engagement partner'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('(() => { const s = [...document.querySelectorAll("select")].find(x => [...x.options].some(o => o.textContent.includes("Accept & Continue Engagement Mandate"))); return s && !s.disabled; })()'), true, 'partner decision control should be enabled for the assigned partner');
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.textContent.includes('Accept & Continue Engagement Mandate'))).focus())()`);
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', text: 'a' });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA' });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter' });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter' });
+    assert.equal(await waitForBrowser('(() => { const b = [...document.querySelectorAll("button")].find(x => x.innerText.includes("Record Partner Decision")); return b && !b.disabled; })()'), true, 'partner decision should update to accepted');
+    await browserTab!.evaluate(`(() => {
+      const rationale = document.querySelectorAll('textarea')[1];
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(rationale, 'Proceed subject to current-period reassessment.');
+      rationale.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await clickButton('Record Partner Decision');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Manual Annual Continuance")'), true, (await browserTab!.evaluate<string>('JSON.stringify({top:document.body.innerText.slice(0,650), state:JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentPerson, role:JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole})')));
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => o.textContent.includes('Engagement manager'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('!!document.querySelector("#continuance-changed-facts") && !document.querySelector("#continuance-changed-facts").disabled'), true);
+    await browserTab!.evaluate('document.querySelector("#continuance-changed-facts").focus()');
+    await browserTab!.command('Input.insertText', { text: 'Ownership and business activity were reviewed for the new period.' });
+    assert.equal(await browserTab!.evaluate<boolean>('!([...document.querySelectorAll("button")].find(b => b.innerText.includes("Create Fresh FY2027 Draft"))?.disabled)'), true, 'changed facts should enable draft creation');
+    await clickButton('Create Fresh FY2027 Draft');
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).acceptanceCases?.[0]?.continuedToEngagementId === "ENG-CONT-CL-001-2027"'), true);
+    const persisted = await browserTab!.evaluate<any>(`(() => {
+      const state = JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+      const prior = state.engagements.find(e => e.id === 'ENG-26001');
+      const priorCase = state.acceptanceCases.find(c => c.engagementId === 'ENG-26001');
+      const draft = state.engagements.find(e => e.id === priorCase.continuedToEngagementId);
+      const jobs = state.jobs.filter(j => j.engagementId === draft?.id);
+      const jobIds = new Set(jobs.map(j => j.id));
+      const documentIds = new Set(state.documents.filter(d => d.engagementId === draft?.id).map(d => d.id));
+      return { priorRows: prior?.rows?.length, continuedTo: priorCase?.continuedToEngagementId, draftId: draft?.id, acceptance: draft?.acceptance, terms: draft?.terms, rows: draft?.rows?.length, sourceHistory: draft?.sourceHistory?.length, jobs: jobs.length, tasks: state.jobTasks.filter(t => jobIds.has(t.jobId)).length, documents: documentIds.size, linkedEvidence: state.evidenceCatalogue.filter(e => documentIds.has(e.documentId)).length, findings: state.findings.filter(f => f.engagementId === draft?.id).length, workpapers: draft?.workpapers?.length, reviews: draft?.reviews?.length, packages: draft?.packageHistory?.length, releases: draft?.releases?.length, approvals: Object.values(draft?.approvals || {}).filter(Boolean).length, approvalHistory: draft?.approvalHistory?.length, reconciliations: draft?.reconciliations?.length, pbc: draft?.pbc?.length, events: draft?.events?.length };
+    })()`);
+    assert.ok(persisted.priorRows > 0, 'prior period source rows remain intact');
+    assert.equal(persisted.continuedTo, 'ENG-CONT-CL-001-2027');
+    assert.equal(persisted.draftId, 'ENG-CONT-CL-001-2027');
+    assert.equal(persisted.acceptance, false);
+    assert.equal(persisted.terms, false);
+    for (const field of ['rows', 'sourceHistory', 'jobs', 'tasks', 'documents', 'linkedEvidence', 'findings', 'workpapers', 'reviews', 'packages', 'releases', 'approvals', 'approvalHistory', 'reconciliations', 'pbc']) assert.equal(persisted[field], 0, `${field} must start empty`);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('AT-41/42/48: saves exact generated package artifacts and verifies them after reload', async () => {
+    const selected = await browserTab!.evaluate<boolean>(`(() => {
+      const role = document.querySelector('#role-select');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, 'manager');
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+      const engagement = document.querySelector('select[aria-label="Selected engagement"]');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(engagement, 'ENG-26002');
+      engagement.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    assert.equal(selected, true);
+    await clickButton('Financial Packages');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Financial Reporting Packages")'), true);
+    await clickButton('+ Assemble New Revision (Rev 2)');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 2 saved with exact XLSX, DOCX and PDF files.")'), true, 'package should persist genuine artifacts');
+    const persisted = await browserTab!.evaluate<any>(`(async () => {
+      const state = JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+      const eng = state.engagements.find(e => e.id === 'ENG-26002');
+      const pack = eng.packageHistory.find(p => p.revision === 2);
+      const db = await new Promise((resolve, reject) => { const r = indexedDB.open('ste-auditsphere-generated-artifacts', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+      const files = await Promise.all(pack.artifacts.map(async a => {
+        const blob = await new Promise((resolve, reject) => { const r = db.transaction('artifacts').objectStore('artifacts').get(a.id); r.onsuccess = () => resolve(r.result?.blob); r.onerror = () => reject(r.error); });
+        const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(x => x.toString(16).padStart(2, '0')).join('');
+        return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256 };
+      }));
+      db.close();
+      return { revision: pack.revision, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
+    })()`);
+    assert.equal(persisted.revision, 2);
+    assert.equal(persisted.sourceVersion, persisted.mappingRevision);
+    assert.equal(persisted.validation, true);
+    assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
+    for (const file of persisted.files) {
+      assert.ok(file.size > 0);
+      assert.equal(file.sha256, file.expected, `${file.kind} digest must match saved package metadata`);
+    }
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await clickButton('Financial Packages');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Saved Revision 2 · Validated/);
+
+    await clickButton('Sign-offs & EQR');
+    await clickButton('Sign Off as Manager (Layla Rahman)');
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => o.textContent.includes('Management approver'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "client"'), true);
+    await browserTab!.evaluate(`(() => {
+      const client = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'CL-002'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
+      client.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services") && [...document.querySelectorAll("select")].some(s=>s.value==="ENG-26002") && [...document.querySelectorAll("select")].some(s=>s.value==="CL-002")'), true, 'client can switch only to explicitly granted entity and engagement');
+    await clickButton('Management Approvals');
+    await clickButton('Record Representation Receipt');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals.client?.generation === 2`), true);
+    await browserTab!.evaluate(`(() => {
+      const role = document.querySelector('#role-select');
+      const option = [...role.options].find(o => o.textContent.includes('Engagement partner'));
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "partner"'), true);
+    await clickButton('Sign-offs & EQR');
+    await clickButton('Approve as Lead Partner (Daniel James)');
+    const approvals = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals`);
+    assert.equal(approvals.manager.generation, persisted.revision);
+    assert.equal(approvals.client.generation, persisted.revision);
+    assert.equal(approvals.partner.generation, persisted.revision);
+
+    await clickButton('Release & Completion');
+    await clickButton('Freeze Release Candidate (Generation 2)');
+    assert.equal(await waitForBrowser('!!JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).engagements.find(e=>e.id==="ENG-26002").candidate'), true);
+    const releaseText = await browserTab!.evaluate<boolean>(`(() => {
+      const labels=[...document.querySelectorAll('label')];
+      const note=labels.find(x=>x.textContent.trim()==='Local release note')?.parentElement?.querySelector('textarea');
+      const recipients=labels.find(x=>x.textContent.trim()==='Recipient metadata (comma separated)')?.parentElement?.querySelector('input');
+      if (!note || !recipients) return false;
+      note.focus(); return true;
+    })()`);
+    assert.equal(releaseText, true);
+    await browserTab!.command('Input.insertText', { text: 'Approved local release of revision 2.' });
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Recipient metadata (comma separated)').parentElement.querySelector('input').focus())()`);
+    await browserTab!.command('Input.insertText', { text: 'board@example.invalid, client@example.invalid' });
+    await clickButton('Record Local Release');
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).engagements.find(e=>e.id==="ENG-26002").releases.length === 1'), true);
+    const frozenRelease = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {release:e.releases[0], artifacts:e.packageHistory.find(x=>x.revision===2).artifacts};})()`);
+    assert.deepEqual(frozenRelease.release.manifest.map((x: any) => x.artifactId).sort(), frozenRelease.artifacts.map((x: any) => x.id).sort());
+    for (const artifact of frozenRelease.artifacts) assert.ok(frozenRelease.release.manifest.some((x: any) => x.artifactId === artifact.id && x.sha === artifact.sha256));
+
+    await clickButton('Re-open for Amendment');
+    await browserTab!.evaluate('document.querySelector(".modal textarea").focus()');
+    await browserTab!.command('Input.insertText', { text: 'Correct subsequent-event disclosure before final issue.' });
+    await clickButton('Confirm Amendment');
+    const reopened = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {generation:e.generation,packageRevision:e.packageRevision,candidate:e.candidate,approvals:e.approvals,release:e.releases[0]};})()`);
+    assert.equal(reopened.generation, 3);
+    assert.equal(reopened.packageRevision, 3);
+    assert.equal(reopened.candidate, null);
+    assert.equal(reopened.approvals.partner, null, 'amendment requires new generation-bound partner review');
+    assert.deepEqual(reopened.release.manifest, frozenRelease.release.manifest, 'predecessor release remains byte-identity stable');
+
+    await clickButton('Records & Archive');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Retention Until \(Optional\)/);
+    assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /10 Years Statutory Retention/);
+    await clickButton('Create Local Archive Index');
+    const archive = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').archive`);
+    assert.equal(archive.retentionUntil, undefined, 'archive retention date remains optional');
+    assert.ok(archive.manifest.length > 0);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Not specified/);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('AT-49: exposes the scoped report catalogue and as-of report context', async () => {
+    await clickButton('Report Centre');
+    assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
+    const labels = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("#practice-report option")].map(o => o.textContent.trim())');
+    for (const report of ['Clients and engagements', 'Jobs by status and due date', 'Tasks by status and overdue', 'Outstanding PBC', 'Approved time by person and billing class', 'Budget variance', 'Invoice register', 'Credit register', 'Receipt register', 'Accounts receivable aging', 'Audit findings', 'Review-point status', 'Package readiness']) assert.ok(labels.includes(report), `report catalogue is missing ${report}`);
+    const changed = await browserTab!.evaluate<boolean>(`(() => {
+      const select = document.querySelector('#practice-report');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'ar');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    assert.equal(changed, true);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Accounts receivable aging") && document.body.innerText.includes("As of 2026-09-23")'), true);
+    assert.equal(browserTab!.exceptions.length, 0);
+  });
+
+  it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
+    const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
+    assert.equal(targetResponse.ok, true);
+    const target = await targetResponse.json() as { webSocketDebuggerUrl: string };
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise<void>((resolve, reject) => {
+      ws.addEventListener('open', () => resolve(), { once: true });
+      ws.addEventListener('error', () => reject(new Error('Could not connect to second Chrome tab')), { once: true });
+    });
+    const secondTab = new CdpTab(ws);
+    try {
+      await secondTab.command('Page.enable');
+      await secondTab.command('Runtime.enable');
+      await secondTab.command('Page.navigate', { url: baseUrl });
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true);
+      await secondTab.evaluate(`(() => {
+        const key = 'ste-auditsphere-role-portals-v2';
+        const newer = JSON.parse(localStorage.getItem(key)); newer.asOfDate = '2026-09-24';
+        localStorage.setItem(key, JSON.stringify(newer)); return true;
+      })()`);
+      assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
+      await clickButton('Keep this tab and replace newer state');
+      const backup = await browserTab!.evaluate<string>('localStorage.getItem("ste-auditsphere-role-portals-v2.backup") || ""');
+      assert.equal(JSON.parse(backup).asOfDate, '2026-09-24', 'the conflicting state is preserved before local state wins');
+
+      await browserTab!.evaluate(`(() => {
+        window.__nativeSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function() { throw new DOMException('quota fixture', 'QuotaExceededError'); };
+        const select = document.querySelector('select[aria-label="Selected engagement"]');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'ENG-26001');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      assert.equal(await waitForBrowser('document.querySelector("[role=status]")?.innerText.includes("Browser storage is unavailable; changes last only for this session")'), true);
+      await browserTab!.evaluate('Storage.prototype.setItem = window.__nativeSetItem');
+    } finally { secondTab.close(); }
   });
 });
