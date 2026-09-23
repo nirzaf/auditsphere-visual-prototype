@@ -885,8 +885,9 @@ export interface SamplePopulationRow {
   description?: string;
   findingId?: string;
   tested: boolean;
-  result: 'Satisfactory' | 'Exception noted' | 'Untested' | 'Exception';
+  result: 'Satisfactory' | 'Exception noted' | 'Untested' | 'Exception' | 'Limited';
   notes?: string;
+  limitation?: string;
   selectionRationale?: string;
   evidenceDoc?: string;
   selected?: boolean;
@@ -913,7 +914,7 @@ export interface SamplePopulationItem {
   selectedValue: number;
   selectionVersion?: number;
   selectionPreparedBy?: string;
-  selectionReviews?: Array<{ version: number; sourceRevision: number; reviewedBy: string; reviewedAt: string; selectedCount: number; testedCount: number; untestedCount: number; exceptionCount: number; evaluation: string }>;
+  selectionReviews?: Array<{ version: number; sourceRevision: number; reviewedBy: string; reviewedAt: string; selectedCount: number; testedCount: number; untestedCount: number; limitedCount: number; exceptionCount: number; evaluation: string }>;
   items: SamplePopulationRow[];
 }
 

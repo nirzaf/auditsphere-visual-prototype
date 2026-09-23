@@ -219,6 +219,22 @@ describe('sampling workpaper guards (VP-051)', () => {
     assert.equal(replaced.selectionReviews?.length, 2, 'prior selection evaluations remain historical');
     assert.throws(() => prototypeStore.setSampleItemSelected('POP-01', 'SAMP-IMPORT-1', true), /Reconcile the complete population/);
   });
+
+  it('records a selected-item testing limitation and separates it in reviewer evaluation', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    prototypeStore.resetState();
+    prototypeStore.setPersona('preparer');
+    prototypeStore.setSelectedEngagement('ENG-26001');
+    const row = { id: 'LIMIT-1', itemRef: 'LIMIT-1', date: '2026-09-20', period: 2026, currency: 'QAR', counterparty: 'Customer', amount: 500000, tested: false, selected: false, result: 'Untested' as const };
+    prototypeStore.replaceSamplePopulationSource('POP-01', 'limit.csv', 'a'.repeat(64), [row]);
+    prototypeStore.setSampleItemSelected('POP-01', 'LIMIT-1', true, 'Select for confirmation testing');
+    assert.throws(() => prototypeStore.recordSampleItemLimitation('POP-01', 'LIMIT-1', ''), /explain the testing limitation/);
+    prototypeStore.recordSampleItemLimitation('POP-01', 'LIMIT-1', 'Customer confirmation could not be obtained.');
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.reviewSampleSelection('POP-01', 'One item limited; alternative procedures required.');
+    const population = prototypeStore.getSnapshot().samplePopulations[0];
+    assert.deepEqual([population.items[0].result, population.selectionReviews?.[0].testedCount, population.selectionReviews?.[0].limitedCount, population.selectionReviews?.[0].untestedCount], ['Limited', 0, 1, 0]);
+  });
 });
 
 describe('access grant history (VP-018/019)', () => {

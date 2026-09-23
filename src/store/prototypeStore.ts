@@ -2386,7 +2386,7 @@ class PrototypeStore {
     if (!population.selectionPreparedBy) throw new GuardError('INVALID_STATE', 'A preparer must save the current selection before review.');
     requireIndependentActor(population.selectionPreparedBy, this.state.currentUserId, 'review sample selection', this.state);
     population.selectionReviews ||= [];
-    population.selectionReviews.push({ version: population.selectionVersion || 0, sourceRevision: population.sourceRevision || 1, reviewedBy: this.state.currentUserId, reviewedAt: new Date().toISOString(), selectedCount: population.selectedCount, testedCount: population.items.filter(item => item.selected && item.tested).length, untestedCount: population.items.filter(item => item.selected && !item.tested).length, exceptionCount: population.items.filter(item => item.selected && item.result === 'Exception noted').length, evaluation: evaluation.trim() });
+    population.selectionReviews.push({ version: population.selectionVersion || 0, sourceRevision: population.sourceRevision || 1, reviewedBy: this.state.currentUserId, reviewedAt: new Date().toISOString(), selectedCount: population.selectedCount, testedCount: population.items.filter(item => item.selected && item.tested).length, untestedCount: population.items.filter(item => item.selected && !item.tested && !item.limitation).length, limitedCount: population.items.filter(item => item.selected && Boolean(item.limitation)).length, exceptionCount: population.items.filter(item => item.selected && item.result === 'Exception noted').length, evaluation: evaluation.trim() });
     this.logEvent(`Sample selection v${population.selectionVersion || 0} independently reviewed`, populationId);
     this.notify();
   }
@@ -2402,6 +2402,20 @@ class PrototypeStore {
     if (!sample?.selected || !sample.tested || sample.result !== 'Exception noted' || !finding) throw new GuardError('INVALID_STATE', 'Link a tested sample exception to a finding in the same engagement.');
     sample.findingId = finding.id;
     this.logEvent(`Sample exception ${itemId} linked to finding ${finding.id}`, populationId);
+    this.notify();
+  }
+
+  public recordSampleItemLimitation(populationId: string, itemId: string, limitation: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager'], 'record a sample testing limitation');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId || !population.sourceComplete || !isSampleFrameReconciled(this.state, population)) throw new GuardError('INVALID_STATE', 'A complete, reconciled population is required before recording limitations.');
+    requireEngagementScope(this.state, population.engagementId);
+    const sample = population.items.find(item => item.id === itemId);
+    if (!sample?.selected || sample.tested || !limitation.trim()) throw new GuardError('INVALID_STATE', 'Select an untested item and explain the testing limitation.');
+    sample.limitation = limitation.trim();
+    sample.result = 'Limited';
+    this.logEvent(`Sample item ${itemId} limitation recorded`, populationId);
     this.notify();
   }
 
@@ -2421,6 +2435,7 @@ class PrototypeStore {
     item.tested = true;
     item.result = item.difference === 0 ? 'Satisfactory' : 'Exception noted';
     item.notes = notes.trim();
+    item.limitation = undefined;
     const engagement = this.state.engagements.find(candidate => candidate.id === population.engagementId);
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Sample item ${itemId} test recorded: ${item.result}`, populationId);
@@ -2453,7 +2468,7 @@ class PrototypeStore {
     population.sourceFileName = fileName.trim();
     population.sourceSha256 = sha256;
     population.sourceComplete = true;
-    population.items = structuredClone(rows).map(row => ({ ...row, selected: false, tested: false, result: 'Untested', notes: undefined, auditedAmount: undefined, difference: undefined, findingId: undefined }));
+    population.items = structuredClone(rows).map(row => ({ ...row, selected: false, tested: false, result: 'Untested', notes: undefined, limitation: undefined, auditedAmount: undefined, difference: undefined, findingId: undefined }));
     population.totalPopulationCount = rows.length;
     population.totalPopulationValue = rows.reduce((sum, row) => sum + row.amount, 0);
     population.selectedCount = 0;
