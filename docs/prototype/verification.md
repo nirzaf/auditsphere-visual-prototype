@@ -372,10 +372,12 @@ and release state. The import wizard displays context, and imported account
 codes must be active posting accounts in the selected open book. Schema v20
 migrates legacy TB rows into chart and period records and leaves legacy history
 explicitly unpinned and the reporting basis stays unselected until configured.
-Unit checks passed 139/139; full build and Chrome acceptance
-passed 58/58, including AT-34 edit/save/reload and version history. The existing
-large-bundle advisory remains. This slice does not complete the other accounting
-mapping/statement journey criteria; Module 20 remains Partial.
+Accounting-context edits stale dependent current/comparative statement sets;
+package generations are visibly stale until reassembled. Unit checks passed
+139/139; full build and Chrome acceptance passed 58/58, including AT-34
+edit/save/reload, invalid setup rejection, statement invalidation and stale
+package detection. The existing large-bundle advisory remains. Module 20 remains
+Partial pending broader client/period/chart rework combinations.
 
 Deployment verification: commits `97e703a` and `109bc39` are on `main`; the
 latest production Pages deployment is `b80bf015-6808-41f1-a07a-9f2fbc9707ab`

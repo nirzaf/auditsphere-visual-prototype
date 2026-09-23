@@ -1675,6 +1675,8 @@ class PrototypeStore {
     if (previous.revision) history.push({ legalEntityName: previous.legalEntityName, reportingBasis: previous.reportingBasis, baseCurrency: previous.baseCurrency, accounts: structuredClone(previous.accounts), periodBooks: structuredClone(previous.periodBooks), dimensions: structuredClone(previous.dimensions), revision: previous.revision, chartRevision: previous.chartRevision, savedAt: new Date().toISOString(), savedByUserId: this.state.currentUserId });
     const profile: ClientAccountingProfile = { ...structuredClone(input), revision: previous.revision + 1, chartRevision: previous.chartRevision + Number(chartChanged), history };
     client.accountingProfile = profile;
+    const engagementIds = new Set(this.state.engagements.filter(item => item.client === clientId).map(item => item.id));
+    for (const revision of this.state.statementSetRevisions || []) if (engagementIds.has(revision.engagementId) || revision.comparativeEngagementId && engagementIds.has(revision.comparativeEngagementId)) revision.status = 'Stale';
     for (const item of this.state.engagements.filter(e => e.client === clientId)) {
       item.accountingProfileRevision = profile.revision; item.accountingChartRevision = profile.chartRevision;
       const book = profile.periodBooks.find(b => b.ownerEngagementId === item.id && b.id === (item.id === engagementId ? periodBookId : item.accountingPeriodBookId));

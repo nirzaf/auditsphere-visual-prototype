@@ -64,6 +64,10 @@ describe('accounting setup guards (AT-34)', () => {
     profile.legalEntityName = `${client.name} Holdings`;
     profile.accounts.push({ code: '9900', name: 'New account', type: 'asset', posting: true, active: true });
     const book = profile.periodBooks.find(item => item.id === engagement.accountingPeriodBookId)!;
+    const previousGeneration = engagement.generation;
+    engagement.packageRevision = 1;
+    engagement.packageHistory = [{ revision: 1, generation: previousGeneration, sourceVersion: engagement.sourceVersion, mappingRevision: 0 }] as any;
+    current.statementSetRevisions = [{ id: 'SETUP-STATEMENT', engagementId: engagement.id, status: 'Reviewed' } as any];
     assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: [...profile.accounts, { ...profile.accounts[0] }] }, engagement.id, book.id), /uniquely coded/);
     assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, periodBooks: profile.periodBooks.map(item => item.id === book.id ? { ...item, endDate: '2025-12-31' } : item) }, engagement.id, book.id), /valid ranges/);
     assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: profile.accounts.map(item => item.code === '9900' ? { ...item, parentCode: '9900' } : item) }, engagement.id, book.id), /Invalid chart parent|cycle/);
@@ -77,6 +81,9 @@ describe('accounting setup guards (AT-34)', () => {
     assert.equal(client.accountingProfile!.history.at(-1)?.revision, 1);
     assert.equal(engagement.accountingProfileRevision, 2);
     assert.equal(engagement.accountingChartRevision, 2);
+    assert.equal(engagement.generation, previousGeneration + 1);
+    assert.equal(engagement.packageHistory[0].generation, previousGeneration, 'the existing package remains pinned to its prior generation');
+    assert.equal(current.statementSetRevisions[0].status, 'Stale', 'setup changes stale dependent statement output');
     const before = engagement.sourceVersion;
     assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, [{ ...engagement.rows[0], code: '8888' }], { fileName: 'bad.csv', format: 'CSV', sha256: 'b'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net' } }), /active posting accounts/);
     assert.equal(engagement.sourceVersion, before);

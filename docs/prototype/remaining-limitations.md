@@ -17,8 +17,11 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   revision, invalid date ranges, duplicate codes, hierarchy cycles, posting
   parents, cross-client period owners, closed books, duplicate dimension values
   and invalid import accounts. The full mapping, unmapped-account, comparative statement
-  lineage and downstream rework matrix remains incomplete, so Module 20 remains
-  Partial. Migrated legacy records keep reporting basis unselected until an
+  lineage workflow is covered by the separately verified VP-037 story. AT-34
+  now confirms an accounting-context edit stales reviewed statements and marks
+  the prior package generation stale. Module 20 remains Partial until the wider
+  client/period/chart change and rework combinations have direct acceptance
+  evidence. Migrated legacy records keep reporting basis unselected until an
   authorized person configures it.
 - **VP-039 — manual reconciliation:** preparers can save source-version-pinned
   schedules with dated, typed items; reviewers must be independent, return
@@ -246,7 +249,7 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 
 ## Verification snapshot
 
-Latest recorded run: 138/138 unit checks and 58/58 E2E checks passed. E2E
+Latest recorded run: 139/139 unit checks and 58/58 E2E checks passed. E2E
 includes five static checks and 53 Chrome journeys. VP-009, VP-018, VP-037,
 VP-051 and VP-052 are Verified; 59 of 64 stories and 36 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See

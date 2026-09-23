@@ -2348,6 +2348,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-34: configures and persists the selected accounting context', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k));const e=s.engagements.find(x=>x.id===s.selectedEngagement);e.packageHistory=[{id:'AT34-OLD-PACKAGE',engagementId:e.id,revision:e.packageRevision,generation:e.generation,sourceVersion:e.sourceVersion,mappingRevision:0,notes:'',noteRevision:e.packageRevision,sections:[],validation:{passed:true},artifacts:[],createdAt:new Date().toISOString(),createdBy:s.currentPerson}];s.statementSetRevisions=[{id:'AT34-OLD-STATEMENT',engagementId:e.id,status:'Reviewed'}];localStorage.setItem(k,JSON.stringify(s));})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButton('Accounting Workbench');
       await clickButton('Accounting Setup');
       let text = await browserTab!.evaluate<string>('document.body.innerText');
@@ -2355,17 +2358,22 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /Chart of accounts/);
       assert.match(text, /Periods and books/);
       assert.match(text, /Department/);
-      const before = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).client).accountingProfile.revision`);
+      const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);return {profile:s.clients.find(c=>c.id===e.client).accountingProfile.revision,generation:e.generation}})()`);
       await browserTab!.evaluate(`(() => {const input=document.querySelector('form input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(input,input.value+' AT34');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Save Accounting Setup');
-      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);const c=s.clients.find(c=>c.id===e.client);return {profile:c.accountingProfile,engagement:e}})()`);
-      assert.equal(saved.profile.revision, before + 1);
-      assert.equal(saved.profile.history.at(-1).revision, before);
+      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);const c=s.clients.find(c=>c.id===e.client);return {profile:c.accountingProfile,engagement:e,statement:s.statementSetRevisions.find(r=>r.id==='AT34-OLD-STATEMENT')}})()`);
+      assert.equal(saved.profile.revision, before.profile + 1);
+      assert.equal(saved.profile.history.at(-1).revision, before.profile);
       assert.match(saved.profile.legalEntityName, /AT34$/);
       assert.equal(saved.engagement.accountingProfileRevision, saved.profile.revision);
       assert.ok(saved.profile.periodBooks.some((book: any) => book.id === saved.engagement.accountingPeriodBookId));
+      assert.equal(saved.engagement.generation, before.generation + 1);
+      assert.equal(saved.engagement.packageHistory[0].generation, before.generation, 'the old package remains pinned to its prior context generation');
+      assert.equal(saved.statement.status, 'Stale', 'setup changes stale a reviewed statement set');
+      await clickButton('Financial Packages');
       text = await browserTab!.evaluate<string>('document.body.innerText');
-      assert.match(text, /Profile Rev/);
+      assert.match(text, /Saved Revision .*?Stale/);
+      assert.match(text, /accounting or engagement context changed/);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

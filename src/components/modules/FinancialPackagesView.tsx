@@ -240,9 +240,11 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
 
       {savedPackage && (
         <div className="panel panel-pad">
-          <h3>Saved Revision {savedPackage.revision} · {savedPackage.validation.passed ? 'Validated' : 'Validation blocked'}</h3>
+          <h3>Saved Revision {savedPackage.revision} · {savedPackage.generation === selectedEng.generation && savedPackage.sourceVersion === selectedEng.sourceVersion && savedPackage.mappingRevision === (currentMapping?.revision || 0) ? (savedPackage.validation.passed ? 'Validated' : 'Validation blocked') : 'Stale'}</h3>
           <p className="sub mt4">Notes revision {savedPackage.noteRevision} · assembled by {savedPackage.createdBy} · {new Date(savedPackage.createdAt).toLocaleString('en-GB')}</p>
           {savedPackage.sourceVersion !== selectedEng.sourceVersion && <p role="status" className="mt8">This package is pinned to TB source v{savedPackage.sourceVersion}; current source is v{selectedEng.sourceVersion}. Assemble a new revision before release.</p>}
+          {savedPackage.generation !== selectedEng.generation && <p role="status" className="mt8">This package is pinned to generation {savedPackage.generation}; accounting or engagement context changed to generation {selectedEng.generation}. Assemble a new revision before release.</p>}
+          {savedPackage.mappingRevision !== (currentMapping?.revision || 0) && <p role="status" className="mt8">This package is pinned to mapping v{savedPackage.mappingRevision}; the current mapping is v{currentMapping?.revision || 0}. Assemble a new revision before release.</p>}
           <div className="tablewrap mt8"><table>
             <thead><tr><th>Artifact</th><th>Exact identity</th><th>Type / bytes</th><th>SHA-256</th></tr></thead>
             <tbody>{savedPackage.artifacts.map(artifact => <tr key={artifact.id}>
