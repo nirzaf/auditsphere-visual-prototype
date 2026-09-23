@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `6b8d6e4` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `ef5b91f0` (`https://ef5b91f0.steaudit-prototype.pages.dev`). Release and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-DhaYtjGU.js` (2,170,359 bytes, SHA-256 `bb81e2bd5cc3367c9b6d211def80cc33b62b86d4129b22c9866a65c9beaec088`), matching the local bundle and containing the VP-039 schedule editor/review actions. |
 | 2026-09-23 | VP-039 working tree | `npm run test:unit` | PASS — 136/136 | Reconciliation draft source pin, independent-review guard, residual and proposed-correction blocks, revision history, and TB/document replacement stale state; existing EX09 confirms corrections cannot clear timing residuals. |
 | 2026-09-23 | VP-039 working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. AT-39 creates and reads back a manual source-pinned schedule draft. Evidence-document replacement and complete browser review/rework journey remain unverified. |
 | 2026-09-23 | VP-039 working tree | `npm run build` | PASS | TypeScript and Vite build passed with the existing >500 kB main-chunk advisory. |
