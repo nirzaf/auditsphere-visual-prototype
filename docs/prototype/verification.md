@@ -241,4 +241,9 @@ exports are disabled, an independently reviewed mapping unlocks statements,
 and the generated package is approved/released against its mapping revision.
 Build passes with the existing large-bundle advisory. Module 20 remains Partial
 until the complete chart, period, dimension and dependent-output acceptance
-matrix is executed. Production deployment evidence is recorded after release.
+matrix is executed. Commit `e29d3a1` was pushed to `main` and deployed to the
+existing `steaudit-prototype` Pages project on production as release
+`09ddcfa7-9173-496d-8cd4-b053a4ddb292` (`https://09ddcfa7.steaudit-prototype.pages.dev`).
+Both the release URL and `https://prototype.steaudit.com` returned HTTP 200 and
+served `assets/index-Cbjjq6p3.js`, which contains the mapping gate and corrected
+package mapping revision content.
