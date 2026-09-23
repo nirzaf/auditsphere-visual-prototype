@@ -855,6 +855,33 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-32/VP-032: records, allocates and reverses an offline receipt with a reason', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'billing');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Receivables & Receipts'));if(!b)throw Error('Receivables navigation is missing');b.click();})()`);
+    await clickButton('Record Offline Receipt');
+    await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing receipt field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Receipt Number','RCP-AT32');set('Amount (QAR)','50000');set('Bank Reference / Cheque No.','AT32-BANK-REF');})()`);
+    await clickButton('Record Receipt');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).receipts.some(r=>r.receiptNumber==='RCP-AT32'&&r.allocatedAmount===0)`), true);
+    const openAllocation = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('RCP-AT32'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Allocate to Invoice');if(!b)return false;b.click();return true;})()`);
+    assert.equal(openAllocation,true);
+    const invoiceBefore = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const select=document.querySelector('.modal-backdrop select');const invoice=s.invoices.find(i=>i.id===select.value);const allocated=s.receipts.flatMap(r=>r.allocations).filter(a=>a.invoiceId===invoice.id&&!a.reversed).reduce((sum,a)=>sum+a.amount,0);return Math.max(invoice.paid||0,allocated);})()`);
+    await clickButton('Apply Allocation');
+    const afterAllocation = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0];return {receipt:r,allocation:a,invoice:s.invoices.find(x=>x.id===a.invoiceId)};})()`);
+    assert.equal(afterAllocation.allocation.amount,50000);
+    assert.equal(afterAllocation.receipt.allocatedAmount,50000);
+    assert.equal(afterAllocation.invoice.paid,invoiceBefore+50000);
+
+    const beginReverse = browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Reverse Allocation');if(!b)return false;b.click();return true;})()`);
+    await new Promise(resolve=>setTimeout(resolve,50));
+    await browserTab!.command('Page.handleJavaScriptDialog',{accept:true,promptText:'AT32 bank allocation correction'});
+    assert.equal(await beginReverse,true);
+    const reversed = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.receipts.find(x=>x.receiptNumber==='RCP-AT32');const a=r.allocations[0];return {receipt:r,allocation:a,invoice:s.invoices.find(x=>x.id===a.invoiceId)};})()`);
+    assert.equal(reversed.allocation.reversed,true);
+    assert.equal(reversed.allocation.reversalReason,'AT32 bank allocation correction');
+    assert.equal(reversed.receipt.allocatedAmount,0);
+    assert.equal(reversed.invoice.paid,invoiceBefore);
+    assert.deepEqual(browserTab!.exceptions,[]);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

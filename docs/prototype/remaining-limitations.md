@@ -17,6 +17,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   internal communication and can find a shared document; unit coverage checks
   document-name grant scoping. Other client/person grant combinations, result
   cross-links and search types still need direct journey coverage.
+- **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
+  to an issued invoice and reverses it with a reason while preserving prior
+  settlements. Multi-invoice receipt allocation and the complete statement
+  workflow remain partial; the integration is offline-only.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted
