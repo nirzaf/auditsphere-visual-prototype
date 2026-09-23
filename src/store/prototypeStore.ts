@@ -1835,6 +1835,45 @@ class PrototypeStore {
     this.notify();
   }
 
+  public updateAuditRisk(engId: string, riskId: string, changes: Pick<import('../types').AuditRiskItem, 'title' | 'area' | 'assertions' | 'description' | 'rationale' | 'response' | 'owner' | 'rating'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer'], 'edit assessed risks');
+    requireEngagementScope(this.state, engId);
+    const risk = this.state.auditRisks.find(item => (item.engagementId === engId || (!item.engagementId && engId === this.state.engagements[0]?.id)) && item.id === riskId);
+    if (!risk) throw new GuardError('INVALID_STATE', 'Risk was not found in the selected engagement.');
+    if (![changes.title, changes.area, changes.description, changes.rationale, changes.response, changes.owner].every(value => value?.trim())) throw new GuardError('INVALID_STATE', 'Risk title, area, description, rationale, response and owner are required.');
+    if (!changes.assertions.length || new Set(changes.assertions).size !== changes.assertions.length || changes.assertions.some(assertion => !assertion.trim())) throw new GuardError('INVALID_STATE', 'Select at least one unique assertion.');
+    if (!['Low', 'Medium', 'Significant'].includes(changes.rating) || !this.state.users.some(user => user.name === changes.owner && user.status === 'Active')) throw new GuardError('INVALID_STATE', 'Risk rating and active owner must be valid.');
+    Object.assign(risk, structuredClone(changes));
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Risk ${riskId} updated`, riskId);
+    this.notify();
+  }
+
+  public setAuditRiskProcedureLink(engId: string, riskId: string, procedureId: string, linked: boolean) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer'], 'link a risk to a procedure');
+    requireEngagementScope(this.state, engId);
+    const risk = this.state.auditRisks.find(item => (item.engagementId === engId || (!item.engagementId && engId === this.state.engagements[0]?.id)) && item.id === riskId);
+    const program = this.state.auditPrograms.find(item => (item.engagementId === engId || (!item.engagementId && engId === this.state.engagements[0]?.id)) && item.procedures.some(proc => proc.id === procedureId));
+    const procedure = program?.procedures.find(item => item.id === procedureId);
+    if (!risk || !procedure) throw new GuardError('INVALID_STATE', 'Risk and procedure must both belong to the selected engagement.');
+    risk.linkedProcedureIds ||= [];
+    procedure.linkedRiskIds ||= [];
+    if (linked) {
+      if (!risk.linkedProcedureIds.includes(procedureId)) risk.linkedProcedureIds.push(procedureId);
+      if (!procedure.linkedRiskIds.includes(riskId)) procedure.linkedRiskIds.push(riskId);
+    } else {
+      risk.linkedProcedureIds = risk.linkedProcedureIds.filter(id => id !== procedureId);
+      procedure.linkedRiskIds = procedure.linkedRiskIds.filter(id => id !== riskId);
+    }
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Risk ${riskId} ${linked ? 'linked to' : 'unlinked from'} procedure ${procedureId}`, riskId);
+    this.notify();
+  }
+
   // --- Findings disposition (VP-054) -------------------------------------------
   public setFindingDisposition(findingId: string, disposition: PrototypeState['findings'][0]['disposition'], rationale: string) {
     requireActiveIdentity(this.state);

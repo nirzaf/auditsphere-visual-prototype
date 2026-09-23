@@ -959,9 +959,9 @@ export function createInitialState(): PrototypeState {
 
     // Module 29: Risks & Programs
     auditRisks: [
-      { id: 'RSK-01', title: 'Cash & Bank Valuation & Existence', area: 'Cash & bank', assertions: ['Existence', 'Completeness'], description: 'Risk of unrecorded bank transactions or misstated balances.', rationale: 'Material liquidity balance.', response: 'Direct bank circularisations and cut-off verification.', owner: 'Adam Khan', rating: 'Significant', linkedProcedureIds: ['PRC-01', 'PRC-02'] },
-      { id: 'RSK-02', title: 'Trade Receivables Recoverability', area: 'Receivables', assertions: ['Valuation', 'Existence'], description: 'Risk of overdue debt becoming uncollectible.', rationale: 'Customer aging > 90 days.', response: 'Circulate debtor confirmations and review subsequent receipts.', owner: 'Adam Khan', rating: 'Medium', linkedProcedureIds: ['PRC-03'] },
-      { id: 'RSK-03', title: 'Fixed Asset Valuation & Depreciation', area: 'Fixed assets', assertions: ['Valuation'], description: 'Risk of inappropriate useful lives or unrecorded impairment.', rationale: 'Heavy equipment fleet.', response: 'Audit depreciation schedule against industry benchmark useful lives.', owner: 'Adam Khan', rating: 'Medium', linkedProcedureIds: ['PRC-04'] }
+      { id: 'RSK-01', engagementId: 'ENG-26001', title: 'Cash & Bank Valuation & Existence', area: 'Cash & bank', assertions: ['Existence', 'Completeness'], description: 'Risk of unrecorded bank transactions or misstated balances.', rationale: 'Material liquidity balance.', response: 'Direct bank circularisations and cut-off verification.', owner: 'Adam Khan', rating: 'Significant', linkedProcedureIds: ['PRC-01', 'PRC-02'] },
+      { id: 'RSK-02', engagementId: 'ENG-26001', title: 'Trade Receivables Recoverability', area: 'Receivables', assertions: ['Valuation', 'Existence'], description: 'Risk of overdue debt becoming uncollectible.', rationale: 'Customer aging > 90 days.', response: 'Circulate debtor confirmations and review subsequent receipts.', owner: 'Adam Khan', rating: 'Medium', linkedProcedureIds: ['PRC-03'] },
+      { id: 'RSK-03', engagementId: 'ENG-26001', title: 'Fixed Asset Valuation & Depreciation', area: 'Fixed assets', assertions: ['Valuation'], description: 'Risk of inappropriate useful lives or unrecorded impairment.', rationale: 'Heavy equipment fleet.', response: 'Audit depreciation schedule against industry benchmark useful lives.', owner: 'Adam Khan', rating: 'Medium', linkedProcedureIds: ['PRC-04'] }
     ],
 
     auditPrograms: [
@@ -971,8 +971,8 @@ export function createInitialState(): PrototypeState {
         area: 'Cash and Bank Balances',
         objective: 'Substantive testing to substantiate existence and ownership of bank accounts.',
         procedures: [
-          { id: 'PRC-01', engagementId: 'ENG-26001', ref: 'P-1.1', title: 'Direct Bank Confirmation Circularisation', instructions: 'Send independent confirmation requests to all banks.', assignee: 'Adam Khan', requiredEvidence: 'Bank response letters', status: 'Cleared', workPerformed: 'Obtained standard confirmation from CBQ and QNB agreeing to trial balance.', conclusion: 'Satisfactory' },
-          { id: 'PRC-02', engagementId: 'ENG-26001', ref: 'P-1.2', title: 'Bank Reconciliation Testing & Cut-off', instructions: 'Sample cheques and deposits for 5 days pre/post year end.', assignee: 'Adam Khan', requiredEvidence: 'Bank statements and reconciliations', status: 'Cleared', workPerformed: 'Cleared reconciling items in January 2027 bank statement.', conclusion: 'Satisfactory' }
+          { id: 'PRC-01', engagementId: 'ENG-26001', linkedRiskIds: ['RSK-01'], ref: 'P-1.1', title: 'Direct Bank Confirmation Circularisation', instructions: 'Send independent confirmation requests to all banks.', assignee: 'Adam Khan', requiredEvidence: 'Bank response letters', status: 'Cleared', workPerformed: 'Obtained standard confirmation from CBQ and QNB agreeing to trial balance.', conclusion: 'Satisfactory' },
+          { id: 'PRC-02', engagementId: 'ENG-26001', linkedRiskIds: ['RSK-01'], ref: 'P-1.2', title: 'Bank Reconciliation Testing & Cut-off', instructions: 'Sample cheques and deposits for 5 days pre/post year end.', assignee: 'Adam Khan', requiredEvidence: 'Bank statements and reconciliations', status: 'Cleared', workPerformed: 'Cleared reconciling items in January 2027 bank statement.', conclusion: 'Satisfactory' }
         ]
       },
       {
@@ -981,7 +981,16 @@ export function createInitialState(): PrototypeState {
         area: 'Fixed Assets and Depreciation',
         objective: 'Substantiate equipment cost, additions and depreciation recalculation.',
         procedures: [
-          { id: 'PRC-04', engagementId: 'ENG-26001', ref: 'P-3.1', title: 'Depreciation Recalculation & Asset Register Tie-out', instructions: 'Recalculate depreciation expense and tie to ledger.', assignee: 'Adam Khan', requiredEvidence: 'Fixed asset register', status: 'Exceptions noted', workPerformed: 'Recalculated depreciation. Identified QAR 500 under-accrual. Proposed adjustment AJ-01.', hasExceptions: true, conclusion: 'Adjustment proposed' }
+          { id: 'PRC-04', engagementId: 'ENG-26001', linkedRiskIds: ['RSK-03'], ref: 'P-3.1', title: 'Depreciation Recalculation & Asset Register Tie-out', instructions: 'Recalculate depreciation expense and tie to ledger.', assignee: 'Adam Khan', requiredEvidence: 'Fixed asset register', status: 'Exceptions noted', workPerformed: 'Recalculated depreciation. Identified QAR 500 under-accrual. Proposed adjustment AJ-01.', hasExceptions: true, conclusion: 'Adjustment proposed' }
+        ]
+      },
+      {
+        id: 'PRG-03',
+        engagementId: 'ENG-26001',
+        area: 'Trade Receivables',
+        objective: 'Substantiate recoverability and existence of year-end receivables.',
+        procedures: [
+          { id: 'PRC-03', engagementId: 'ENG-26001', linkedRiskIds: ['RSK-02'], ref: 'P-2.1', title: 'Receivables confirmation and subsequent receipts', instructions: 'Confirm material customer balances and inspect subsequent cash receipts.', assignee: 'Adam Khan', requiredEvidence: 'Customer confirmations and bank receipts', status: 'In progress', workPerformed: 'Confirmation requests prepared for material balances.', conclusion: 'Pending evidence review' }
         ]
       }
     ],

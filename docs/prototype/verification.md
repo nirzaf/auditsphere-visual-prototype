@@ -1,9 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `49e9ed8` is deployed as Pages release
-`7d4033e3-3682-4742-a76b-fa6189081852` in the existing `steaudit-prototype`
-project at `prototype.steaudit.com`.
+acceptance assertions. The latest source and Pages release are recorded below;
+the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 ## Commands
 
@@ -17,9 +16,9 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 109/109 | Full deterministic Node suite; selected rules and guards, not the full acceptance contract. |
-| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 38/38 | Five static checks and 33 actual Chrome checks. VP-050 persists engagement-scoped procedure fieldwork, requires evidence or limitation and independent clearance, and retains exception visibility after reload. AT-23/24 also verifies original bytes and SHA-256 for both PBC versions after reload. |
-| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (571.37 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 110/110 | Schema v9 migration restores engagement scope and reciprocal risk/procedure links; cross-engagement link guard plus prior workflow rules pass. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 39/39 | Five static checks and 34 actual Chrome checks. VP-049 edits scoped risks and checks reciprocal links after reload; VP-050 persists independent fieldwork clearance; AT-23/24 verifies PBC bytes and digests after reload. |
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.02 MB (572.52 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `49e9ed8` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `7d4033e3-3682-4742-a76b-fa6189081852`; release URL and `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-273pKITI.js`. The served bundle contains the procedure execution controls and PBC retention flow. |
 | 2026-09-23 | `b68bbe1` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `74e0efcc-b45d-4380-971e-12ab0cc300d8`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index--1Rj-hLz.js`. |
 | 2026-09-23 | `79039f4` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (570.90 kB gzip), above Vite's 500 kB advisory threshold. |

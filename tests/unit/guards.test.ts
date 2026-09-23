@@ -69,9 +69,9 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 8);
+    assert.equal(migrated.schema, 9);
   });
-  it('upgrades each persisted schema revision through current v8 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v9 without losing histories', () => {
     const seed = createInitialState();
     for (let version = 0; version <= 8; version++) {
       const legacy = structuredClone(seed) as any;
@@ -79,14 +79,23 @@ describe('fixture integrity (AT-02/54)', () => {
       if (version < 6) delete legacy.m365Config.permittedUsers;
       if (version < 7) legacy.engagements.forEach((e: any) => delete e.sourceHistory);
       if (version < 8) legacy.engagements.forEach((e: any) => delete e.packageHistory);
+      if (version < 9) {
+        legacy.auditPrograms = legacy.auditPrograms.filter((program: any) => program.id !== 'PRG-03');
+        legacy.auditRisks.forEach((risk: any) => delete risk.engagementId);
+        legacy.auditPrograms.forEach((program: any) => { delete program.engagementId; program.procedures.forEach((procedure: any) => { delete procedure.engagementId; delete procedure.linkedRiskIds; }); });
+      }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 8, `schema ${version} should reach v8`);
+      assert.equal(migrated.schema, 9, `schema ${version} should reach v9`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
       assert.deepEqual(migrated.engagements[0].releases.map(r => r.id), seed.engagements[0].releases.map(r => r.id));
       assert.ok(migrated.engagements.every(e => Array.isArray(e.sourceHistory) && Array.isArray(e.packageHistory)));
       assert.ok(Array.isArray(migrated.m365Config.permittedUsers));
+      for (const risk of migrated.auditRisks) for (const procedureId of risk.linkedProcedureIds) {
+        const procedure = migrated.auditPrograms.flatMap(program => program.procedures).find(item => item.id === procedureId);
+        assert.ok(procedure?.linkedRiskIds?.includes(risk.id), `v${version} migration restores reciprocal risk link ${risk.id} -> ${procedureId}`);
+      }
     }
   });
 });
@@ -523,6 +532,17 @@ describe('money guards (AT-30/31/32)', () => {
 });
 
 describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    prototypeStore.setAuditRiskProcedureLink('ENG-26001', 'RSK-01', 'PRC-03', true);
+    const current = (prototypeStore as any).state;
+    assert.ok(current.auditRisks.find((risk: any) => risk.id === 'RSK-01').linkedProcedureIds.includes('PRC-03'));
+    assert.ok(current.auditPrograms.flatMap((program: any) => program.procedures).find((procedure: any) => procedure.id === 'PRC-03').linkedRiskIds.includes('RSK-01'));
+    assert.throws(() => prototypeStore.setAuditRiskProcedureLink('ENG-26002', 'RSK-01', 'PRC-03', true), /both belong to the selected engagement/);
+  });
+
   it('EQR sign-off blocked when unresolved EQR concerns exist (VP-056 / F03)', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();

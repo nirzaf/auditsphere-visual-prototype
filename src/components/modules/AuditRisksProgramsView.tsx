@@ -1,6 +1,6 @@
 // Modules 29 & 30: Audit Risk Register & Fieldwork Audit Programs (VP-049, VP-050)
 import React, { useState } from 'react';
-import { RouteKey, AuditProcedureItem } from '../../types';
+import { RouteKey, AuditProcedureItem, AuditRiskItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -17,6 +17,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const [workPerformed, setWorkPerformed] = useState('');
   const [conclusion, setConclusion] = useState('');
   const [evidenceLimitation, setEvidenceLimitation] = useState('');
+  const [riskDraft, setRiskDraft] = useState<AuditRiskItem | null>(null);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
 
@@ -35,14 +36,8 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
     );
   }
 
-  // Synthetic risks
-  const risks = [
-    { id: 'RSK-01', title: 'Improper revenue recognition near period-end (Cutoff)', level: 'Assertion', accounts: '4000 - Sales', assertions: 'Cutoff, Accuracy', inherent: 'High', control: 'Moderate', plannedResponse: 'Sample delivery notes 10 days before and after 31 Dec.' },
-    { id: 'RSK-02', title: 'Unrecorded liabilities and year-end accruals', level: 'Assertion', accounts: '2000 - Trade payables', assertions: 'Completeness', inherent: 'Moderate', control: 'Low', plannedResponse: 'Search for unrecorded liabilities post year-end payments.' },
-    { id: 'RSK-03', title: 'Overstatement of trade receivables collectibility', level: 'Assertion', accounts: '1100 - Receivables', assertions: 'Valuation, Existence', inherent: 'High', control: 'Moderate', plannedResponse: 'Direct circularization and subsequent cash collections testing.' }
-  ];
-
   const programs = state.auditPrograms.filter(program => program.engagementId === selectedEng.id || (!program.engagementId && selectedEng.id === state.engagements[0]?.id));
+  const risks = state.auditRisks.filter(risk => risk.engagementId === selectedEng.id || (!risk.engagementId && selectedEng.id === state.engagements[0]?.id));
   const activeProgram = programs.find(program => program.id === selectedProgramId) || programs[0];
 
   const handleUpdateProcedureStatus = (procId: string, status: AuditProcedureItem['status']) => {
@@ -61,6 +56,28 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
       setNotice(`Fieldwork for ${procId} saved.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Fieldwork could not be saved.');
+    }
+  };
+
+  const handleSaveRisk = () => {
+    if (!riskDraft) return;
+    try {
+      const current = risks.find(risk => risk.id === riskDraft.id);
+      if (!current) throw new Error('Risk is no longer in this engagement.');
+      prototypeStore.updateAuditRisk(selectedEng.id, riskDraft.id, {
+        title: riskDraft.title, area: riskDraft.area, assertions: riskDraft.assertions,
+        description: riskDraft.description, rationale: riskDraft.rationale,
+        response: riskDraft.response, owner: riskDraft.owner, rating: riskDraft.rating
+      });
+      for (const procedure of programs.flatMap(program => program.procedures)) {
+        const wasLinked = current.linkedProcedureIds.includes(procedure.id);
+        const shouldLink = riskDraft.linkedProcedureIds.includes(procedure.id);
+        if (wasLinked !== shouldLink) prototypeStore.setAuditRiskProcedureLink(selectedEng.id, riskDraft.id, procedure.id, shouldLink);
+      }
+      setRiskDraft(null);
+      setNotice(`Risk ${riskDraft.id} and its procedure links were saved.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Risk could not be saved.');
     }
   };
 
@@ -196,40 +213,35 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
 
       {/* Risks Tab */}
       {activeTab === 'risks' && (
-        <div className="panel">
-          <div className="panel-head">
-            <h3>ISA 315 Assessed Risks of Material Misstatement</h3>
+        <div className="stack">
+          <div className="panel">
+            <div className="panel-head"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3></div>
+            <div className="tablewrap"><table>
+              <thead><tr><th>Risk</th><th>Area / Rating</th><th>Assertions</th><th>Rationale</th><th>Planned response</th><th>Owner</th><th>Linked procedures</th><th>Action</th></tr></thead>
+              <tbody>{risks.map(risk => <tr key={risk.id}>
+                <td><b>{risk.title}</b><div className="cell-sub mono">{risk.id}</div><div className="cell-sub">{risk.description}</div></td>
+                <td>{risk.area}<div className={`badge ${risk.rating === 'Significant' ? 'amber' : 'green'}`}>{risk.rating}</div></td>
+                <td>{risk.assertions.join(', ')}</td><td>{risk.rationale}</td><td>{risk.response}</td><td>{risk.owner}</td>
+                <td>{risk.linkedProcedureIds.map(id => <span className="tag gray" key={id}>{id}</span>)}</td>
+                <td><button className="btn sm" disabled={!['manager', 'preparer'].includes(state.currentRole)} onClick={() => setRiskDraft(structuredClone(risk))}>Edit risk</button></td>
+              </tr>)}</tbody>
+            </table></div>
           </div>
-          <div className="tablewrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Risk ID & Description</th>
-                  <th>Level</th>
-                  <th>Accounts Affected</th>
-                  <th>Relevant Assertions</th>
-                  <th>Inherent Risk</th>
-                  <th>Audit Strategy & Response</th>
-                </tr>
-              </thead>
-              <tbody>
-                {risks.map(r => (
-                  <tr key={r.id}>
-                    <td><b>{r.title}</b><div className="cell-sub">{r.id}</div></td>
-                    <td><span className="tag gray">{r.level}</span></td>
-                    <td><b>{r.accounts}</b></td>
-                    <td>{r.assertions}</td>
-                    <td>
-                      <span className={`badge ${r.inherent === 'High' ? 'amber' : 'green'}`}>
-                        {r.inherent}
-                      </span>
-                    </td>
-                    <td>{r.plannedResponse}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {riskDraft && <div className="panel panel-pad stack">
+            <h3>Edit {riskDraft.id}</h3>
+            <div className="grid2">
+              <label className="caption">Risk title<input className="input mt4" value={riskDraft.title} onChange={e => setRiskDraft({...riskDraft, title:e.target.value})} /></label>
+              <label className="caption">Area<input className="input mt4" value={riskDraft.area} onChange={e => setRiskDraft({...riskDraft, area:e.target.value})} /></label>
+              <label className="caption">Description<textarea className="input mt4" value={riskDraft.description} onChange={e => setRiskDraft({...riskDraft, description:e.target.value})} /></label>
+              <label className="caption">Rationale<textarea className="input mt4" value={riskDraft.rationale} onChange={e => setRiskDraft({...riskDraft, rationale:e.target.value})} /></label>
+              <label className="caption">Planned response<textarea className="input mt4" value={riskDraft.response} onChange={e => setRiskDraft({...riskDraft, response:e.target.value})} /></label>
+              <label className="caption">Assertions (comma separated)<input className="input mt4" value={riskDraft.assertions.join(', ')} onChange={e => setRiskDraft({...riskDraft, assertions:e.target.value.split(',').map(value=>value.trim()).filter(Boolean)})} /></label>
+              <label className="caption">Owner<input className="input mt4" value={riskDraft.owner} onChange={e => setRiskDraft({...riskDraft, owner:e.target.value})} /></label>
+              <label className="caption">Rating<select className="input mt4" value={riskDraft.rating} onChange={e => setRiskDraft({...riskDraft, rating:e.target.value as AuditRiskItem['rating']})}><option>Low</option><option>Medium</option><option>Significant</option></select></label>
+            </div>
+            <fieldset className="borderbox"><legend className="caption">Linked procedures</legend><div className="grid2">{programs.flatMap(program=>program.procedures).map(procedure=><label key={procedure.id} className="row" style={{gap:8}}><input type="checkbox" checked={riskDraft.linkedProcedureIds.includes(procedure.id)} onChange={e=>setRiskDraft({...riskDraft,linkedProcedureIds:e.target.checked?[...new Set([...riskDraft.linkedProcedureIds,procedure.id])]:riskDraft.linkedProcedureIds.filter(id=>id!==procedure.id)})} />{procedure.id} · {procedure.title || procedure.text}</label>)}</div></fieldset>
+            <div className="row"><button className="btn primary sm" onClick={handleSaveRisk}>Save assessed risk</button><button className="btn sm ghost" onClick={()=>setRiskDraft(null)}>Cancel</button></div>
+          </div>}
         </div>
       )}
     </div>

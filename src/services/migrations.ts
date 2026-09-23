@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 8;
+export const CURRENT_SCHEMA = 9;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -172,6 +172,24 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   if (from < 8) {
     for (const engagement of state.engagements) if (!Array.isArray(engagement.packageHistory)) engagement.packageHistory = [];
     warnings.push('Initialized versioned financial package definitions without fabricating generated artifacts (v8).');
+  }
+  if (from < 9) {
+    const defaultEngagementId = state.engagements[0]?.id;
+    state.auditRisks ||= fresh.auditRisks;
+    state.auditPrograms ||= fresh.auditPrograms;
+    for (const risk of state.auditRisks) if (!risk.engagementId) risk.engagementId = defaultEngagementId;
+    for (const seeded of fresh.auditPrograms) {
+      if (seeded.id === 'PRG-03' && !state.auditPrograms.some(program => program.procedures.some(procedure => procedure.id === 'PRC-03'))) state.auditPrograms.push(structuredClone(seeded));
+    }
+    for (const program of state.auditPrograms) {
+      program.engagementId ||= defaultEngagementId;
+      for (const procedure of program.procedures) {
+        procedure.engagementId ||= program.engagementId;
+        const linkedRiskIds = state.auditRisks.filter(risk => risk.engagementId === procedure.engagementId && risk.linkedProcedureIds.includes(procedure.id)).map(risk => risk.id);
+        procedure.linkedRiskIds = [...new Set([...(procedure.linkedRiskIds || []), ...linkedRiskIds])];
+      }
+    }
+    warnings.push('Scoped legacy risks and programs to the default engagement and restored reciprocal risk/procedure lineage (v9).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

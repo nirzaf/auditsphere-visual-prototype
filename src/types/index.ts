@@ -745,6 +745,7 @@ export interface ConsolidationGroupRecord {
 // Module 27-36: Audit
 export interface AuditRiskItem {
   id: string;
+  engagementId?: string;
   title: string;
   area: string;
   assertions: string[];
@@ -759,6 +760,7 @@ export interface AuditRiskItem {
 export interface AuditProcedureItem {
   id: string;
   engagementId?: string;
+  linkedRiskIds?: string[];
   ref?: string;
   title?: string;
   instructions?: string;

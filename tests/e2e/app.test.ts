@@ -425,6 +425,24 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-049: edits the persisted risk register and keeps procedure links reciprocal', async () => {
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
+    await clickButton('Risks & Audit Programs');
+    await clickButton('Identified Risk Register (3)');
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('RSK-01'));const button=[...(row?.querySelectorAll('button')||[])].find(b=>b.innerText==='Edit risk');if(!button)return false;button.click();return true;})()`);
+    assert.equal(opened, true);
+    await browserTab!.evaluate(`(() => {const panel=[...document.querySelectorAll('.panel')].find(p=>p.querySelector('h3')?.innerText==='Edit RSK-01');const response=panel?.querySelectorAll('textarea')[2];const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;set.call(response,'Independent confirmations plus year-end cut-off tests.');response.dispatchEvent(new Event('input',{bubbles:true}));const label=[...panel.querySelectorAll('label')].find(l=>l.innerText.includes('PRC-03'));const checkbox=label?.querySelector('input[type=checkbox]');if(!checkbox)throw new Error('PRC-03 risk link control unavailable');checkbox.click();})()`);
+    await clickButton('Save assessed risk');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.auditRisks.find(x=>x.id==='RSK-01');const p=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-03');return r.response.includes('Independent confirmations')&&r.linkedProcedureIds.includes('PRC-03')&&p.linkedRiskIds.includes('RSK-01');})()`), true, 'risk edit and both sides of the procedure link persist');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await clickButton('Risks & Audit Programs');
+    await clickButton('Identified Risk Register (3)');
+    assert.equal(await waitForBrowser(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('RSK-01'));return !!row&&row.innerText.includes('Independent confirmations')&&row.innerText.includes('PRC-03');})()`), true, 'risk response and link remain visible after reload');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-05/06: creates a client, primary contact, typed value and non-authorizing relationship group', async () => {
     const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));if(!o)throw Error('Missing persona '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const setLabeledField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.trim()==${JSON.stringify(label)});const e=l?.parentElement?.querySelector('input');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
