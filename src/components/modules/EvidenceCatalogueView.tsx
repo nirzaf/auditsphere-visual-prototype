@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RouteKey, EvidenceItem } from '../../types';
+import { RouteKey, EvidenceItem, AuditProcedureItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -11,6 +11,7 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
   const state = prototypeStore.getSnapshot();
   const evidenceList = state.evidenceCatalogue;
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [linkSelections, setLinkSelections] = useState<Record<string, string>>({});
   const latestDocument = (documentId: string) => {
     let latest = state.documents.find(doc => doc.id === documentId);
     while (latest) {
@@ -19,6 +20,17 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
       latest = replacement;
     }
     return undefined;
+  };
+  const linkableProcedures = (item: EvidenceItem): AuditProcedureItem[] => {
+    const document = state.documents.find(doc => doc.id === item.documentId);
+    if (!document || document.version !== item.version || item.adequacyStatus !== 'Adequate') return [];
+    return state.auditPrograms.flatMap(program => program.procedures.filter(procedure => {
+      const engagementId = procedure.engagementId || program.engagementId || document.engagementId;
+      const engagement = state.engagements.find(candidate => candidate.id === engagementId);
+      return !!engagement && engagement.client === document.clientId &&
+        (!document.engagementId || document.engagementId === engagement.id) &&
+        !item.linkedProcedures.includes(procedure.id);
+    }));
   };
 
   const handleToggleAdequacy = (id: string, current: EvidenceItem['adequacyStatus']) => {
@@ -45,6 +57,16 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
     try {
       prototypeStore.unlinkEvidenceProcedure(evidenceId, procedureId, reason);
       setNotice({ type: 'success', text: 'Evidence link removed; prior link retained in history and the procedure requires reassessment.' });
+    } catch (e) {
+      setNotice({ type: 'error', text: (e as Error).message });
+    }
+  };
+
+  const handleLink = (evidenceId: string, procedureId: string) => {
+    try {
+      prototypeStore.linkEvidenceProcedure(evidenceId, procedureId);
+      setLinkSelections(current => ({ ...current, [evidenceId]: '' }));
+      setNotice({ type: 'success', text: `${evidenceId} linked to ${procedureId}.` });
     } catch (e) {
       setNotice({ type: 'error', text: (e as Error).message });
     }
@@ -115,6 +137,13 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                       <span key={p} className="tag gray" style={{ marginRight: 4 }}>{p} <button className="btn sm ghost" aria-label={`Unlink ${p} from ${item.id}`} onClick={() => handleUnlink(item.id, p)}>×</button></span>
                     ))}
                     {(item.linkedProcedureHistory || []).length > 0 && <div className="cell-sub">{item.linkedProcedureHistory.length} link history events</div>}
+                    {linkableProcedures(item).length > 0 && <div className="row mt4" style={{ gap: 6 }}>
+                      <select className="input sm" aria-label={`Procedure to link ${item.id}`} value={linkSelections[item.id] || ''} onChange={event => setLinkSelections(current => ({ ...current, [item.id]: event.target.value }))}>
+                        <option value="">Link to procedure…</option>
+                        {linkableProcedures(item).map(procedure => <option key={procedure.id} value={procedure.id}>{procedure.id} · {procedure.title || procedure.text}</option>)}
+                      </select>
+                      <button className="btn sm ghost" aria-label={`Link ${item.id} to selected procedure`} disabled={!linkSelections[item.id]} onClick={() => handleLink(item.id, linkSelections[item.id])}>Link</button>
+                    </div>}
                   </td>
                   <td>
                     <span className={`badge ${item.adequacyStatus === 'Adequate' ? 'green' : 'amber'}`}>

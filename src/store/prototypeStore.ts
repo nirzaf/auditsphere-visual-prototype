@@ -1204,7 +1204,9 @@ class PrototypeStore {
       sha: file.sha256,
       adequacyStatus: 'Pending verification' as const,
       receivedDate: this.state.asOfDate,
-      owner: this.state.currentPerson
+      owner: this.state.currentPerson,
+      linkedProcedures: [],
+      linkedProcedureHistory: []
     }));
     for (const item of this.state.evidenceCatalogue.filter(evidence => evidence.documentId === previous.id)) {
       for (const procedureId of item.linkedProcedures) {

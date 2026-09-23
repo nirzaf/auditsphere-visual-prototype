@@ -1060,6 +1060,31 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const evidenceView = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(evidenceView, /Pinned v1/);
     assert.match(evidenceView, /Newer version available/);
+
+    const replacementEvidenceId = stateAfter.replacementEvidence.id;
+    const replacementRowExists = await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('tbody tr')].some(row=>row.innerText.includes(${JSON.stringify(replacementEvidenceId)})&&row.innerText.includes('Pending verification'))`);
+    assert.equal(replacementRowExists, true, 'reviewer can identify the new evidence revision for adequacy review');
+    await clickButton('Mark Adequate');
+    assert.equal(await waitForBrowser(`(() => {const ev=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).evidenceCatalogue.find(x=>x.id===${JSON.stringify(replacementEvidenceId)});return ev.adequacyStatus==='Adequate'&&ev.adequacyHistory.at(-1).actorId==='manager';})()`), true, 'independent manager records the replacement evidence adequacy decision');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Procedure to link ${replacementEvidenceId}"]');if(!select||![...select.options].some(option=>option.value==='PRC-01'))throw Error('Scoped replacement evidence link control is missing PRC-01');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'PRC-01');select.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[aria-label="Link ${replacementEvidenceId} to selected procedure"]').click();})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).evidenceCatalogue.find(x=>x.id===${JSON.stringify(replacementEvidenceId)}).linkedProcedures.includes('PRC-01')`), true, 'reviewed current evidence is linked through the scoped catalogue action');
+
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'preparer');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='preparer'`), true);
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
+    await clickButton('Risks & Audit Programs');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Audit Risks & Substantive Programs")'), true);
+    await clickButton('Cash and Bank Balances');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const edit=[...row.querySelectorAll('button')].find(button=>button.innerText.trim()==='Record fieldwork');if(!edit)throw Error('Record fieldwork action is missing');edit.click();})()`);
+    assert.equal(await waitForBrowser('!!document.querySelector(`[aria-label="Work performed for PRC-01"]`)'), true, 'fieldwork editor opens for the selected procedure');
+    await browserTab!.evaluate(`(() => {const work=document.querySelector('[aria-label="Work performed for PRC-01"]');const conclusion=document.querySelector('[aria-label="Conclusion for PRC-01"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(work,'Reassessed using the reviewed replacement bank statement v2.');work.dispatchEvent(new Event('input',{bubbles:true}));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(conclusion,'Replacement statement agrees to the ledger.');conclusion.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save fieldwork');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01'));const select=row.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Submitted');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Submitted'&&!p.evidenceReassessmentRequired&&p.workPerformed.includes('replacement bank statement v2');})()`), true, 'preparer reassesses and resubmits work against the new evidence');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const option=[...s.options].find(x=>x.textContent.includes('Senior reviewer — Sara'));if(!option)throw Error('Independent reviewer identity is missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,option.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const select=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01')).querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Cleared');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Cleared'&&p.reviewedByUserId==='reviewer'&&!!p.reviewedAt;})()`), true, 'independent reviewer re-clears the reassessed work');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
