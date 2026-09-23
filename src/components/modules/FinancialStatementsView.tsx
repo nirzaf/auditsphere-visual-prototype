@@ -33,23 +33,49 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   }
 
   const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id));
-  const statementRows = adjustmentResult.rows;
+  const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
+  const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
+  const mappedAccounts = currentMapping?.mappings || [];
+  const unmappedRows = currentMapping ? selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code)) : [];
+  const mappingReady = !currentMapping || (currentMapping.status === 'Approved' && !unmappedRows.length);
+  const mapRow = (row: TrialBalanceRow): TrialBalanceRow[] => {
+    const targets = mappedAccounts.find(mapping => mapping.accountCode === row.code)?.targets || [];
+    let allocatedCents = 0;
+    return targets.map((target, index) => {
+      const cents = index === targets.length - 1 ? Math.round(row.balance * 100) - allocatedCents : Math.round(row.balance * 100 * target.percentage / 100);
+      allocatedCents += cents;
+      return {
+        ...row,
+        code: `${row.code} → ${target.statementLine}`,
+        name: target.statementLine,
+        type: ['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment'].includes(target.statementLine) ? 'asset' : ['Trade payables', 'Borrowings'].includes(target.statementLine) ? 'liability' : target.statementLine === 'Share capital and reserves' ? 'equity' : target.statementLine === 'Revenue' ? 'revenue' : 'expense',
+        balance: cents / 100,
+        mappedStatementLine: target.statementLine
+      };
+    });
+  };
+  const statementRows: TrialBalanceRow[] = currentMapping?.status === 'Approved' && !unmappedRows.length
+    ? adjustmentResult.rows.flatMap(mapRow)
+    : adjustmentResult.rows;
   const bs = calculateBalanceSheet(statementRows);
   const is = calculateIncomeStatement(statementRows);
 
   const handleExportXLSX = () => {
     const data = [
       { LineItem: 'Assets', Amount: bs.totalAssets },
-      ...bs.assets.map((a: TrialBalanceRow) => ({ LineItem: `  ${a.name} (${a.code})`, Amount: a.balance })),
+      ...bs.assets.map((a: TrialBalanceRow) => ({ LineItem: `  ${a.name} · Source ${a.code.split(' → ')[0]} · Mapping ${a.mappedStatementLine || 'legacy'}`, Amount: a.balance })),
       { LineItem: 'Liabilities', Amount: bs.totalLiabilities },
-      ...bs.liabilities.map((l: TrialBalanceRow) => ({ LineItem: `  ${l.name} (${l.code})`, Amount: Math.abs(l.balance) })),
+      ...bs.liabilities.map((l: TrialBalanceRow) => ({ LineItem: `  ${l.name} · Source ${l.code.split(' → ')[0]} · Mapping ${l.mappedStatementLine || 'legacy'}`, Amount: Math.abs(l.balance) })),
       { LineItem: 'Equity', Amount: bs.totalEquity },
-      ...bs.equity.map((e: TrialBalanceRow) => ({ LineItem: `  ${e.name} (${e.code})`, Amount: Math.abs(e.balance) })),
+      ...bs.equity.map((e: TrialBalanceRow) => ({ LineItem: `  ${e.name} · Source ${e.code.split(' → ')[0]} · Mapping ${e.mappedStatementLine || 'legacy'}`, Amount: Math.abs(e.balance) })),
       { LineItem: '  Current-period profit / (loss)', Amount: bs.currentPeriodResult },
       { LineItem: 'Revenue', Amount: is.revenue },
+      ...statementRows.filter(row => row.type === 'revenue').map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
       { LineItem: 'Cost of Sales', Amount: is.costOfSales },
+      ...statementRows.filter(row => row.type === 'expense' && (row.name.toLowerCase().includes('cost of sales') || row.name.toLowerCase().includes('cost of goods'))).map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
       { LineItem: 'Gross Profit', Amount: is.grossProfit },
       { LineItem: 'Operating Expenses', Amount: is.operatingExpenses },
+      ...statementRows.filter(row => row.type === 'expense' && !row.name.toLowerCase().includes('cost of sales') && !row.name.toLowerCase().includes('cost of goods')).map(row => ({ LineItem: `  ${row.name} · Source ${row.code.split(' → ')[0]} · Mapping ${row.mappedStatementLine || 'legacy'}`, Amount: Math.abs(row.balance) })),
       { LineItem: 'Net Profit', Amount: is.netProfit }
     ];
 
@@ -73,6 +99,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       `Balance Sheet Equation Check: ${bs.isBalanced ? 'BALANCED' : 'IMBALANCE DETECTED'}`,
       '',
       `INCOME STATEMENT`,
+      ...statementRows.filter(row => ['revenue', 'expense'].includes(row.type)).map(row => `${row.mappedStatementLine || row.type} · Source ${row.code.split(' → ')[0]}: ${formatCurrency(row.balance)}`),
       `Revenue: ${formatCurrency(is.revenue)}`,
       `Cost of Sales: ${formatCurrency(is.costOfSales)}`,
       `Gross Profit: ${formatCurrency(is.grossProfit)}`,
@@ -95,14 +122,16 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
           <p>Multi-statement drill-down, balance verification, and genuine demonstration document exports.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn sm ghost" onClick={handleExportXLSX}>
+          <button className="btn sm ghost" disabled={!mappingReady} onClick={handleExportXLSX}>
             <Icon name="download" /> Export XLSX
           </button>
-          <button className="btn primary sm" onClick={handleExportPDF}>
+          <button className="btn primary sm" disabled={!mappingReady} onClick={handleExportPDF}>
             <Icon name="download" /> Export PDF
           </button>
         </div>
       </div>
+
+      {!mappingReady && <div role="alert" className="badge danger" style={{ display: 'block', padding: 12 }}>Statement generation is blocked until the latest mapping revision is independently approved and covers all trial balance accounts. Unmapped: {unmappedRows.map(row => row.code).join(', ') || 'none'}.</div>}
 
       {adjustmentResult.unapplied.length > 0 && <div role="status" className="badge danger" style={{ display: 'block', padding: 12 }}>
         Some management-accepted adjustments were excluded because their source reflection or account mapping needs review: {adjustmentResult.unapplied.map(item => `${item.journalId}: ${item.reason}`).join(' ')}
@@ -156,7 +185,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
                   <tr style={{ background: '#f8fafc' }}><td colSpan={3}><b>ASSETS</b></td></tr>
                   {bs.assets.map((a: TrialBalanceRow) => (
                     <tr key={a.code}>
-                      <td style={{ paddingLeft: 24 }}>{a.name}</td>
+                      <td style={{ paddingLeft: 24 }}>{a.name} <span className="caption">· Source {a.code.split(' → ')[0]} · Mapping {a.mappedStatementLine || 'legacy'}</span></td>
                       <td><span className="mono">{a.code}</span></td>
                       <td style={{ textAlign: 'right' }}>{formatCurrency(a.balance)}</td>
                     </tr>
@@ -169,7 +198,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
                   <tr style={{ background: '#f8fafc' }}><td colSpan={3}><b>LIABILITIES</b></td></tr>
                   {bs.liabilities.map((l: TrialBalanceRow) => (
                     <tr key={l.code}>
-                      <td style={{ paddingLeft: 24 }}>{l.name}</td>
+                      <td style={{ paddingLeft: 24 }}>{l.name} <span className="caption">· Source {l.code.split(' → ')[0]} · Mapping {l.mappedStatementLine || 'legacy'}</span></td>
                       <td><span className="mono">{l.code}</span></td>
                       <td style={{ textAlign: 'right' }}>{formatCurrency(Math.abs(l.balance))}</td>
                     </tr>
@@ -182,7 +211,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
                   <tr style={{ background: '#f8fafc' }}><td colSpan={3}><b>EQUITY</b></td></tr>
                   {bs.equity.map((e: TrialBalanceRow) => (
                     <tr key={e.code}>
-                      <td style={{ paddingLeft: 24 }}>{e.name}</td>
+                      <td style={{ paddingLeft: 24 }}>{e.name} <span className="caption">· Source {e.code.split(' → ')[0]} · Mapping {e.mappedStatementLine || 'legacy'}</span></td>
                       <td><span className="mono">{e.code}</span></td>
                       <td style={{ textAlign: 'right' }}>{formatCurrency(Math.abs(e.balance))}</td>
                     </tr>

@@ -1787,4 +1787,33 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(preserved.evidence, undefined);
     assert.deepEqual(browserTab!.exceptions, []);
   });
+
+  it('AT-37: independently approves account mappings and traces statement rows to their source accounts', async () => {
+    const original = await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    const setRole = async (role: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(role)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    try {
+      await setRole('preparer');
+      await clickButton('Accounting Workbench');
+      await clickButton('Statement Mappings');
+      await browserTab!.evaluate(`(() => {
+        const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+        const e=s.engagements.find(x=>x.id===s.selectedEngagement);
+        const targets={asset:'Cash and cash equivalents',liability:'Trade payables',equity:'Share capital and reserves',revenue:'Revenue',expense:'Operating expenses'};
+        for(const row of e.rows){const select=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');if(!select)throw Error('Missing mapping control for '+row.code);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,targets[row.type]);select.dispatchEvent(new Event('change',{bubbles:true}));}
+      })()`);
+      await clickButton('Save new revision');
+      await setRole('reviewer');
+      await clickButton('Approve revision');
+      const approved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.accountMappingRevisions.filter(x=>x.engagementId===s.selectedEngagement).at(-1)})()`);
+      assert.equal(approved.status, 'Approved');
+      assert.equal(approved.mappings.length, (await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(x=>x.id===s.selectedEngagement).rows.length})()`)));
+      await clickButton('Financial Statements');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Cash and cash equivalents · Source 1000 · Mapping Cash and cash equivalents/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
 });

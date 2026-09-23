@@ -27,9 +27,37 @@ export interface UserPersona {
   label: string;
   group: 'Commercial' | 'Professional' | 'Client' | 'Operations';
   email: string;
-  status: 'Active' | 'Inactive';
+  status: 'Active' | 'Inactive' | 'Disabled';
   demoClients?: string[];
 }
+
+export interface SimulatedInvitation {
+  id: string;
+  email: string;
+  name: string;
+  role: RoleKey;
+  scopeKind: 'Global' | 'Client' | 'Engagement';
+  scopeId?: string;
+  status: 'Pending' | 'Accepted' | 'Expired' | 'Revoked';
+  invitedAt: string;
+  invitedBy: string;
+  expiresAt: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  revocationReason?: string;
+}
+
+export interface IdentityStatusEvent {
+  id: string;
+  timestamp: string;
+  action: 'Created' | 'Activated' | 'Disabled' | 'Invited' | 'InvitationAccepted' | 'InvitationRevoked' | 'InvitationResent';
+  userId: string;
+  userName: string;
+  role: RoleKey;
+  actor: string;
+  reason?: string;
+}
+
 
 export type RouteKey =
   | 'overview'
@@ -758,6 +786,16 @@ export interface ConsolidationGroupRecord {
 }
 
 // Module 27-36: Audit
+export interface AuditRiskRevision {
+  revision: number;
+  title: string;
+  rating: 'Low' | 'Medium' | 'Significant';
+  response: string;
+  changedBy: string;
+  changedAt: string;
+  rationale?: string;
+}
+
 export interface AuditRiskItem {
   id: string;
   engagementId?: string;
@@ -770,7 +808,25 @@ export interface AuditRiskItem {
   owner: string;
   rating: 'Low' | 'Medium' | 'Significant';
   linkedProcedureIds: string[];
+  revisions?: AuditRiskRevision[];
 }
+
+export interface AuditProgramTemplate {
+  id: string;
+  name: string;
+  area: string;
+  description: string;
+  version: number;
+  status: 'Draft' | 'Published' | 'Retired';
+  procedures: Array<{
+    title: string;
+    objective: string;
+    instructions: string;
+    defaultAssertions: string[];
+    requiredEvidenceType: string;
+  }>;
+}
+
 
 export interface AuditProcedureItem {
   id: string;
@@ -1111,6 +1167,9 @@ export interface PrototypeState {
   receipts: ReceiptRecord[];
   glTransactions: GLTransactionItem[];
   accountMappingRevisions?: AccountMappingRevision[];
+  simulatedInvitations?: SimulatedInvitation[];
+  identityStatusHistory?: IdentityStatusEvent[];
+  auditProgramTemplates?: AuditProgramTemplate[];
   adjustmentJournals: AdjustmentJournalItem[];
   consolidationGroups: ConsolidationGroupRecord[];
   auditRisks: AuditRiskItem[];
