@@ -56,6 +56,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
   const [partnerRationale, setPartnerRationale] = useState(
     existingCase?.decisionNotes || ''
   );
+  const historicalApprovalNeedsEvidenceReview = existingCase?.decisionStatus === 'Accepted' && !selectedEng.acceptance;
   const [changedFacts, setChangedFacts] = useState('');
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -185,7 +186,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <p className="sub">{selectedEng.service} · Jurisdiction: {client?.jurisdiction || 'State of Qatar'}</p>
           </div>
           <span className={`badge ${partnerDecision === 'Accepted' ? 'green' : partnerDecision === 'Declined' ? 'red' : 'amber'}`}>
-            Decision: {partnerDecision}
+            Decision: {historicalApprovalNeedsEvidenceReview ? 'Accepted · evidence review required' : partnerDecision}
           </span>
         </div>
 
@@ -370,7 +371,14 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
         </div>
       </div>
 
-      {existingCase?.decisionStatus === 'Accepted' && (
+      {historicalApprovalNeedsEvidenceReview && (
+        <div className="panel panel-pad" role="status">
+          <b>Prior approval retained for history</b>
+          <p className="sub mt4">This legacy approval has no screening evidence references and does not currently authorize engagement work. Record a new recommendation with evidence references and obtain a fresh independent partner decision.</p>
+        </div>
+      )}
+
+      {existingCase?.decisionStatus === 'Accepted' && selectedEng.acceptance && (
         <div className="panel panel-pad">
           <h3>Manual Annual Continuance</h3>
           <p className="sub mt4">Record what changed since FY {selectedEng.year}; creating the next-period draft does not carry forward balances, tasks, evidence, workpapers, reviews, approvals or releases.</p>

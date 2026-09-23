@@ -71,6 +71,23 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(warnings.length > 0, true);
     assert.equal(migrated.schema, 13);
   });
+  it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
+    const legacy = createInitialState() as any;
+    legacy.schema = 12;
+    const engagement = legacy.engagements[0];
+    engagement.acceptance = true;
+    legacy.acceptanceCases = [{
+      id: 'ACC-LEGACY', clientId: engagement.client, year: engagement.year, engagementId: engagement.id,
+      decisionStatus: 'Accepted', independenceConfirmed: true, amlKycCompleted: true,
+      conflictsCleared: true, prohibitionsChecked: true, competenceConfirmed: true,
+      history: [{ action: 'decision', status: 'Accepted', notes: 'Prior decision', at: '2026-01-01T00:00:00Z' }]
+    }];
+    const { state: migrated } = migratePersistedState(legacy, createInitialState());
+    assert.equal(migrated.engagements.find(item => item.id === engagement.id)?.acceptance, false);
+    assert.equal(migrated.acceptanceCases?.[0].decisionStatus, 'Accepted');
+    assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
+    assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
+  });
   it('upgrades each persisted schema revision through current v13 without losing histories', () => {
     const seed = createInitialState();
     for (let version = 0; version <= 12; version++) {
