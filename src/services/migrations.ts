@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 4;
+export const CURRENT_SCHEMA = 5;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -20,42 +20,52 @@ export interface IntegrityIssue {
 /** Validate foreign references, dates, money control totals, no binary payloads. */
 export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
-  const clientIds = new Set(state.clients.map(c => c.id));
-  const engIds = new Set(state.engagements.map(e => e.id));
-  const jobIds = new Set(state.jobs.map(j => j.id));
-  const taskIds = new Set(state.jobTasks.map(t => t.id));
+  const list = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
+  const clients = list<PrototypeState['clients'][number]>(state?.clients);
+  const engagements = list<PrototypeState['engagements'][number]>(state?.engagements);
+  const jobs = list<PrototypeState['jobs'][number]>(state?.jobs);
+  const tasks = list<PrototypeState['jobTasks'][number]>(state?.jobTasks);
+  const users = list<PrototypeState['users'][number]>(state?.users);
+  const clientIds = new Set(clients.map(c => c.id));
+  const engIds = new Set(engagements.map(e => e.id));
+  const jobIds = new Set(jobs.map(j => j.id));
+  const taskIds = new Set(tasks.map(t => t.id));
 
-  for (const e of state.engagements) {
+  for (const e of engagements) {
     if (!clientIds.has(e.client)) {
       issues.push({ code: 'FK_ENGAGEMENT_CLIENT', message: `Engagement ${e.id} references unknown client ${e.client}` });
     }
   }
-  for (const j of state.jobs) {
+  for (const j of jobs) {
     if (!clientIds.has(j.clientId)) issues.push({ code: 'FK_JOB_CLIENT', message: `Job ${j.id} references unknown client ${j.clientId}` });
     if (!engIds.has(j.engagementId)) issues.push({ code: 'FK_JOB_ENGAGEMENT', message: `Job ${j.id} references unknown engagement ${j.engagementId}` });
   }
-  for (const t of state.jobTasks) {
+  for (const t of tasks) {
     if (!jobIds.has(t.jobId)) issues.push({ code: 'FK_TASK_JOB', message: `Task ${t.id} references unknown job ${t.jobId}` });
     if (t.parentTaskId) {
       if (!taskIds.has(t.parentTaskId)) {
         issues.push({ code: 'FK_SUBTASK_PARENT', message: `Subtask ${t.id} references unknown parent ${t.parentTaskId}` });
       } else {
-        const parent = state.jobTasks.find(p => p.id === t.parentTaskId);
+        const parent = tasks.find(p => p.id === t.parentTaskId);
         if (parent?.parentTaskId) issues.push({ code: 'HIERARCHY_DEPTH', message: `Task ${t.id} nests deeper than one subtask level` });
         if (parent && parent.jobId !== t.jobId) issues.push({ code: 'HIERARCHY_JOB', message: `Subtask ${t.id} crosses jobs` });
       }
     }
   }
-  for (const inv of state.invoices) {
+  for (const inv of list<PrototypeState['invoices'][number]>(state?.invoices)) {
     if (!clientIds.has(inv.clientId)) issues.push({ code: 'FK_INVOICE_CLIENT', message: `Invoice ${inv.id} references unknown client ${inv.clientId}` });
-    const lineSum = inv.lines.reduce((s, l) => s + l.amount, 0);
+    if (!Array.isArray(inv.lines)) {
+      issues.push({ code: 'INVOICE_LINES', message: `Invoice ${inv.id} has no valid line collection` });
+      continue;
+    }
+    const lineSum = inv.lines.reduce((s, l) => s + (Number.isFinite(l.amount) ? l.amount : 0), 0);
     if (Math.abs(lineSum - inv.amount) > 0.005) {
       issues.push({ code: 'MONEY_INVOICE_TOTAL', message: `Invoice ${inv.id} total ${inv.amount} != sum of lines ${lineSum}` });
     }
   }
   // Monetary control total: 8-account demo TB must net to zero per engagement where applicable
   // (only warn when engagement carries the canonical 8 demo rows)
-  for (const e of state.engagements) {
+  for (const e of engagements) {
     if (e.rows.length === 8) {
       const net = e.rows.reduce((s, r) => s + r.balance, 0);
       if (Math.abs(net) > 0.005) {
@@ -69,10 +79,20 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
     issues.push({ code: 'PERSISTENCE_BINARY', message: 'Persisted state contains inline binary payload (file bytes must stay in-session only)' });
   }
   // No real personal data: demo emails must use .demo
-  for (const u of state.users) {
+  for (const u of users) {
     if (u.email && !/\.demo$/.test(u.email) && !/\.invalid$/.test(u.email)) {
       issues.push({ code: 'FIXTURE_PII', message: `User ${u.name} email ${u.email} is not a synthetic .demo address` });
     }
+  }
+  const userIds = new Set(users.map(u => u.id));
+  for (const g of list<PrototypeState['roleGrants'][number]>(state?.roleGrants)) {
+    if (!userIds.has(g.userId)) issues.push({ code: 'FK_GRANT_USER', message: `Access grant references unknown persona ${g.userId}` });
+    else if (users.find(u => u.id === g.userId)?.role !== g.role) issues.push({ code: 'GRANT_ROLE_MISMATCH', message: `Access grant role does not match persona ${g.userId}` });
+    if (g.scopeKind === 'Client' && (!g.scopeId || !clientIds.has(g.scopeId))) issues.push({ code: 'FK_GRANT_CLIENT', message: `Access grant references unknown client ${g.scopeId || '(empty)'}` });
+    if (g.scopeKind === 'Engagement' && (!g.scopeId || !engIds.has(g.scopeId))) issues.push({ code: 'FK_GRANT_ENGAGEMENT', message: `Access grant references unknown engagement ${g.scopeId || '(empty)'}` });
+  }
+  if (!userIds.has(state.currentUserId) || users.find(u => u.id === state.currentUserId)?.name !== state.currentPerson || users.find(u => u.id === state.currentUserId)?.role !== state.currentRole) {
+    issues.push({ code: 'CURRENT_IDENTITY', message: 'Current identity does not resolve to one immutable active persona and role.' });
   }
   return issues;
 }
@@ -96,6 +116,42 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     }
     if (!state.emailTemplates) state.emailTemplates = fresh.emailTemplates;
     if (!state.customFields) state.customFields = fresh.customFields;
+  }
+  if (from < 5) {
+    const users = Array.isArray(state.users) ? state.users : fresh.users;
+    const resolve = (value: string, role?: string) => {
+      const byId = users.find(u => u.id === value);
+      if (byId) return byId;
+      const matches = users.filter(u => u.name === value && (!role || u.role === role));
+      return matches.length === 1 ? matches[0] : undefined;
+    };
+    const grants: PrototypeState['roleGrants'] = [];
+    for (const grant of Array.isArray(state.roleGrants) ? state.roleGrants : []) {
+      const user = resolve(grant.userId, grant.role);
+      if (!user || user.role !== grant.role) {
+        warnings.push(`Removed ambiguous or mismatched legacy access grant for ${grant.userId}; no authority was inferred.`);
+        continue;
+      }
+      grants.push({ ...grant, userId: user.id });
+    }
+    state.users = users;
+    state.roleGrants = grants;
+    const current = resolve(state.currentUserId || state.currentPerson, state.currentRole);
+    state.currentUserId = current?.id || '';
+    if (current) {
+      state.currentPerson = current.name;
+      state.currentRole = current.role;
+    } else {
+      warnings.push('Could not uniquely resolve the legacy active persona; business commands remain disabled until a persona is selected.');
+    }
+    state.m365Config = {
+      ...fresh.m365Config,
+      ...(state.m365Config || {}),
+      liveConnected: false,
+      configRevision: Math.max(1, state.m365Config?.configRevision || 1),
+      verificationResults: {}
+    };
+    warnings.push('Migrated persona grants to immutable IDs and cleared legacy M365 verification claims (v5).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

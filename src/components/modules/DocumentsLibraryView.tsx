@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { RouteKey, DocumentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { sha256OfFile } from '../../services/fileMetadata';
 
 interface DocumentsLibraryViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -17,7 +18,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
   const [notice, setNotice] = useState<string | null>(null);
 
   // New file form
-  const [fileName, setFileName] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [classification, setClassification] = useState<DocumentItem['classification']>('Working paper');
   const [folderPath, setFolderPath] = useState('/Engagements/2026/Audit/');
 
@@ -36,42 +37,52 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
         { path: '/PBC/', label: 'Client PBC Submissions' }
       ];
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileName.trim()) return;
+    if (!uploadFile) return;
 
-    const currentEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+    const currentEng = state.engagements.find(e => e.id === state.selectedEngagement);
+    if (!currentEng) { setNotice('Select an engagement before registering a file.'); return; }
+    const sha = await sha256OfFile(uploadFile);
     const newDoc: DocumentItem = {
-      id: `DOC-00${documents.length + 1}`,
-      clientId: currentEng?.client || state.clients[0]?.id || 'CL-001',
-      engagementId: currentEng?.id,
-      name: fileName,
+      id: `DOC-${crypto.randomUUID()}`,
+      clientId: currentEng.client,
+      engagementId: currentEng.id,
+      name: uploadFile.name,
       folderPath,
       version: 1,
-      size: 42000,
-      sha: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      size: uploadFile.size,
+      sha,
       classification,
       visibility: classification === 'Deliverable' ? 'Client shared' : 'Internal',
-      source: 'SharePoint',
+      source: 'Local In-Session',
       uploadedBy: state.currentPerson,
       uploadedAt: new Date().toISOString()
     };
 
-    prototypeStore.addDocument(newDoc);
-    setShowUploadModal(false);
-    setFileName('');
+    try {
+      prototypeStore.addDocument(newDoc);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setNotice(`${uploadFile.name} metadata recorded (SHA-256 ${sha.slice(0, 12)}…). File bytes remain local and are not saved or uploaded.`);
+    } catch (err) { setNotice(err instanceof Error ? err.message : 'Document metadata could not be recorded.'); }
   };
 
   const handleImportFromOneDrive = (name: string) => {
+    const currentEng = state.engagements.find(e => e.id === state.selectedEngagement);
+    const result = state.m365Config.verificationResults?.onedrive;
+    if (!currentEng || !state.m365Config.oneDriveEnabled || result?.outcome !== 'success' || result.configRevision !== state.m365Config.configRevision) {
+      setNotice('OneDrive import simulation requires an enabled option and a current success result for this configuration.');
+      return;
+    }
     const newDoc: DocumentItem = {
-      id: `DOC-00${documents.length + 1}`,
-      clientId: state.engagements[0]?.client || 'CL-001',
-      engagementId: state.selectedEngagement,
+      id: `DOC-${crypto.randomUUID()}`,
+      clientId: currentEng.client,
+      engagementId: currentEng.id,
       name,
       folderPath: '/Engagements/2026/Audit/',
       version: 1,
       size: 65000,
-      sha: '123456abcdef123456abcdef123456abcdef123456abcdef123456abcdef1234',
       classification: 'Client provided',
       visibility: 'Internal',
       source: 'OneDrive Import',
@@ -209,8 +220,8 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
               <div className="row" style={{ gap: 10 }}>
                 <Icon name="file" />
                 <div>
-                  <h3>Simulated Microsoft 365 Viewer: {previewDoc.name}</h3>
-                  <div className="cell-sub">SharePoint Document Service · Read Only Preview</div>
+                  <h3>Local metadata preview: {previewDoc.name}</h3>
+                  <div className="cell-sub">No original file bytes are stored in this prototype</div>
                 </div>
               </div>
               <button className="icon-btn" onClick={() => setPreviewDoc(null)}>✕</button>
@@ -224,18 +235,17 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                 <div className="info-grid mt12">
                   <div><label>Classification</label><span>{previewDoc.classification}</span></div>
                   <div><label>Storage Source</label><span>{previewDoc.source}</span></div>
-                  <div><label>SHA-256 Digest</label><span className="mono" style={{ fontSize: 10 }}>{previewDoc.sha.slice(0, 24)}...</span></div>
+                  <div><label>SHA-256</label><span className="mono" style={{ fontSize: 10 }}>{previewDoc.sha ? `${previewDoc.sha.slice(0, 24)}…` : 'Not available for sample metadata'}</span></div>
                   <div><label>Uploaded By</label><span>{previewDoc.uploadedBy}</span></div>
                   <div><label>Uploaded Date</label><span>{new Date(previewDoc.uploadedAt).toLocaleDateString('en-GB')}</span></div>
                 </div>
               </div>
 
               <div className="borderbox" style={{ padding: 16, minHeight: 120 }}>
-                <h4>Synthetic File Contents Preview</h4>
+                <h4>Sample preview</h4>
                 <p className="sub mt8" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                  [EXCEL/WORD/PDF DATA STREAM - SIMULATED MICROSOFT VIEWER]<br />
-                  Content is verified against SHA checksum.<br />
-                  Linked to engagement: {previewDoc.engagementId || 'ENG-26001'}
+                  Original file content is unavailable. This screen shows metadata only.<br />
+                  Linked to engagement: {previewDoc.engagementId || 'No engagement'}
                 </p>
               </div>
             </div>
@@ -257,15 +267,14 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
             <form onSubmit={handleUploadSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div>
-                  <label className="caption">Document File Name</label>
-                  <input
-                    type="text"
+                    <label className="caption">Choose a local file</label>
+                    <input
+                    type="file"
                     className="input"
-                    value={fileName}
-                    onChange={e => setFileName(e.target.value)}
-                    placeholder="e.g. Q4_Bank_Statements_Combined.pdf"
+                    onChange={e => setUploadFile(e.target.files?.[0] || null)}
                     required
                   />
+                  <span className="caption">Metadata is recorded locally. The original file is not uploaded or persisted by this prototype.</span>
                 </div>
                 <div>
                   <label className="caption">Target SharePoint Folder</label>
@@ -296,7 +305,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowUploadModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Register Document</button>
+                <button type="submit" className="btn primary sm" disabled={!uploadFile}>Record file metadata</button>
               </div>
             </form>
           </div>
@@ -312,7 +321,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
               <button className="icon-btn" onClick={() => setShowOneDriveModal(false)}>✕</button>
             </div>
             <div className="modal-body stack" style={{ gap: 12 }}>
-              <p className="sub">Select a file from your personal Microsoft OneDrive to copy into the engagement library.</p>
+              <p className="sub">This local fixture list represents optional OneDrive selection. No Microsoft connection or file import occurs.</p>
               <div className="stack" style={{ gap: 8 }}>
                 {[
                   'Fixed_Asset_Additions_Schedule_2026.xlsx',
@@ -325,7 +334,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                       className="btn sm"
                       onClick={() => handleImportFromOneDrive(file)}
                     >
-                      Import File
+                      Record sample metadata
                     </button>
                   </div>
                 ))}

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey, ArchiveRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { visibleEngagementIds } from '../../services/guards';
 
 interface RecordsArchiveViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -13,8 +14,10 @@ interface RecordsArchiveViewProps {
 
 export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement);
   const client = state.clients.find(c => c.id === selectedEng?.client);
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
 
   const [activeTab, setActiveTab] = useState<'single' | 'register'>('single');
   const [holdReason, setHoldReason] = useState('Pending tax authority audit inquiry on FY 2026 VAT declaration.');
@@ -51,18 +54,18 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
     const targetEng = state.engagements.find(e => e.id === engId);
     if (!targetEng) return;
     if (targetEng.releases.length === 0) {
-      triggerNotice('error', 'Cannot archive: Must issue at least one official release deliverable first.');
+      triggerNotice('error', 'Cannot index an archive without a recorded release manifest.');
       return;
     }
 
     try {
       prototypeStore.archiveEngagement(
         targetEng.id,
-        targetEng.releases[0].id,
+        targetEng.releases.at(-1)!.id,
         retentionYear,
         false
       );
-      triggerNotice('success', `Engagement ${targetEng.id} successfully sealed into immutable logical practice archive.`);
+      triggerNotice('success', `Local archive index recorded for ${targetEng.id}. Source bytes and immutability are not represented.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -81,7 +84,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
         nextHold,
         nextHold ? holdReason : undefined
       );
-      triggerNotice('success', `Application legal hold ${nextHold ? 'enforced' : 'released'} for ${targetEng.id}.`);
+      triggerNotice('success', `Application hold metadata ${nextHold ? 'recorded' : 'removed'} for ${targetEng.id}.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -94,9 +97,9 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
         triggerNotice('error', 'Target engagement must be archived before processing handover request.');
         return;
       }
-      prototypeStore.logEvent(`Handover inspection packet authorized for ${handoverRequester}: ${handoverReason}`, eng.id);
+      prototypeStore.recordArchiveHandover(eng.id, handoverRequester, handoverReason);
       setShowHandoverModal(false);
-      triggerNotice('success', `Handover inspection manifest issued to ${handoverRequester}. Authorization logged.`);
+      triggerNotice('success', `Local handover request metadata recorded for ${handoverRequester}. No inspection packet was sent.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -107,7 +110,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
       <div className="pagehead">
         <div>
           <h1>Logical Practice Records Archive</h1>
-          <p>Cross-engagement archive register, statutory 10-year retention schedules, and handover workflows.</p>
+          <p>Local archive index, retention-date metadata, and handover request records. No external archive or transfer is performed.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button
@@ -141,7 +144,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
       <div className="panel panel-pad" style={{ background: '#f8fafc' }}>
         <b>Logical Practice Repository Architecture Notice (VP-059):</b>
         <p className="sub mt4">
-          This system provides an application-level immutable audit archive. It maintains checksum manifests, retention dates, and application legal holds without claiming external compliance with Microsoft Purview (no purview integration).
+          This browser stores a local metadata index only and has no Purview connection or lock. Original file bytes, retention enforcement, and archive checksum calculation are not provided.
         </p>
       </div>
 
@@ -183,7 +186,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 <div>
                   <label>Application Legal Hold</label>
                   <span className={`badge ${archive.onApplicationHold ? 'red' : 'green'}`}>
-                    {archive.onApplicationHold ? 'Active Hold Enforced' : 'No Holds'}
+                    {archive.onApplicationHold ? 'Application Hold Recorded' : 'No Application Hold'}
                   </span>
                 </div>
               </div>
@@ -217,7 +220,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
             <div className="borderbox mt20" style={{ padding: 16, background: '#f8fafc' }}>
               <h4>Archive Engagement File</h4>
               <p className="sub mt8">
-                Seal all engagement workpapers, reviews, and release deliverables into an immutable logical archive record.
+                Create an index linked to an existing local release record. This does not copy files or make records immutable.
               </p>
 
               <div className="grid2 mt16">
@@ -231,8 +234,8 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                   />
                 </div>
                 <div>
-                  <label className="caption">Target Release Candidate</label>
-                  <div><b>{selectedEng.releases[0]?.id || 'No releases issued yet'}</b></div>
+                  <label className="caption">Latest Local Release Record</label>
+                  <div><b>{selectedEng.releases.at(-1)?.id || 'No releases recorded yet'}</b></div>
                 </div>
               </div>
 
@@ -240,7 +243,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 className="btn primary sm mt16"
                 onClick={() => handleArchiveEngagement(selectedEng.id)}
               >
-                Seal &amp; Archive Engagement
+                Create Local Archive Index
               </button>
             </div>
           )}
@@ -251,7 +254,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
           <div className="panel-head between">
             <div>
               <h3>Practice-Wide Records &amp; Archive Register</h3>
-              <span className="caption">Master statutory retention index across all client engagements</span>
+              <span className="caption">Local metadata register across accessible engagements</span>
             </div>
           </div>
           <div className="tablewrap">
@@ -269,7 +272,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 </tr>
               </thead>
               <tbody>
-                {state.engagements.map(eng => {
+                {scopedEngagements.map(eng => {
                   const cl = state.clients.find(c => c.id === eng.client);
                   const arch = eng.archive;
                   return (
@@ -286,7 +289,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                       <td>{arch?.retentionUntil || '—'}</td>
                       <td>
                         {arch?.onApplicationHold ? (
-                          <span className="badge red">Hold Enforced</span>
+                          <span className="badge red">Application Hold Recorded</span>
                         ) : arch ? (
                           <span className="badge green">None</span>
                         ) : '—'}
@@ -295,6 +298,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                         <div className="row" style={{ gap: 6 }}>
                           {arch ? (
                             <>
+                              {eng.releases.at(-1)?.id !== arch.releaseId && <button className="btn sm primary" onClick={() => handleArchiveEngagement(eng.id)}>Index Successor Release</button>}
                               <button
                                 className="btn sm ghost"
                                 onClick={() => handleToggleHold(eng.id)}
@@ -316,7 +320,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                               className="btn sm primary"
                               onClick={() => handleArchiveEngagement(eng.id)}
                             >
-                              Seal Archive
+                              Create Archive Index
                             </button>
                           )}
                         </div>
@@ -339,7 +343,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
               <button className="btn sm ghost" onClick={() => setShowHandoverModal(false)}>✕</button>
             </div>
             <p className="sub mt4">
-              Authorize inspection access to archived workpapers for successor auditors or regulatory inspectors under ISA 510.
+              Record a local request for successor auditor or regulator inspection. This prototype does not authorize access or send records.
             </p>
 
             <div className="stack mt16" style={{ gap: 12 }}>
@@ -350,7 +354,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                   value={handoverTargetEng}
                   onChange={e => setHandoverTargetEng(e.target.value)}
                 >
-                  {state.engagements.map(e => (
+                  {scopedEngagements.map(e => (
                     <option key={e.id} value={e.id}>{e.id} · {e.client} · FY {e.year}</option>
                   ))}
                 </select>

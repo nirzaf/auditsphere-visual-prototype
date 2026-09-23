@@ -11,7 +11,7 @@
     "legacy:build": "py -3 build.py",
     "legacy:check": "node --check app.bundle.js",
     "test:unit": "tsx --test tests/unit/*.test.ts",
-    "test:e2e": "tsx --test tests/e2e/*.test.ts"
+    "test:e2e": "npm run build && tsx --test tests/e2e/*.test.ts"
   },
   "dependencies": {
     "docx": "^9.7.1",

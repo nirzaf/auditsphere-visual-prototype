@@ -7,6 +7,22 @@ import { calculateReceivablesAging, verifyGLCompleteness } from '../../src/servi
 import { visibleClientIds, visibleEngagementIds, requireActiveIdentity, GuardError } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
 
+function setPersona(state: any, name: string) {
+  const matches = state.users.filter((u: any) => u.name === name);
+  const user = matches.find((u: any) => u.id === state.currentUserId) || matches.find((u: any) => u.role === state.currentRole) || matches[0];
+  state.currentUserId = user?.id || '';
+  state.currentPerson = name;
+  if (user) state.currentRole = user.role;
+}
+function addAmiraManagerPersona(state: any) {
+  const user = state.users.find((u: any) => u.id === 'relationship');
+  state.users.push({ ...user, id: 'amira-manager', role: 'manager', label: 'Engagement manager' });
+  state.roleGrants.push({ userId: 'amira-manager', role: 'manager', scopeKind: 'Global' });
+  state.currentUserId = 'amira-manager';
+  state.currentPerson = user.name;
+  state.currentRole = 'manager';
+}
+
 describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () => {
   // RR01: Previously failing QAR600 example now reconciles
   it('RR01 (VP-033): Previously failing QAR 600 example reconciles', () => {
@@ -137,8 +153,8 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   // RR11: Person without grants has no inherited global access
   it('RR11 (VP-018/019): Person without grants has no inherited global access', () => {
     const state = createInitialState();
-    state.currentPerson = 'NoGrants User';
     state.users.push({ id: 'u-nogrants', role: 'manager', name: 'NoGrants User', initials: 'NU', label: 'Unassigned Manager', group: 'Professional', email: 'nu@test.demo', status: 'Active' });
+    setPersona(state, 'NoGrants User');
     const clientIds = visibleClientIds(state);
     assert.deepStrictEqual(clientIds, []);
     const engIds = visibleEngagementIds(state);
@@ -148,9 +164,9 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   // RR12: Revoking last own grant must not activate role fallback
   it('RR12 (VP-019): Revoking last own grant does not activate role fallback', () => {
     const state = createInitialState();
-    state.currentPerson = 'Adam Khan';
+    setPersona(state, 'Adam Khan');
     // Remove all grants for Adam Khan
-    state.roleGrants = state.roleGrants.filter(g => g.userId !== 'Adam Khan');
+    state.roleGrants = state.roleGrants.filter(g => g.userId !== 'preparer');
     const clientIds = visibleClientIds(state);
     assert.deepStrictEqual(clientIds, []);
   });
@@ -158,21 +174,21 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   // RR13: Unknown identity fails active-user guard
   it('RR13 (VP-018): Unknown identity fails active-user guard', () => {
     const state = createInitialState();
-    state.currentPerson = 'Totally Unknown User';
+    setPersona(state, 'Totally Unknown User');
     assert.throws(() => requireActiveIdentity(state), /not recognized/);
   });
 
   // RR14: Disabled identity is blocked
   it('RR14 (VP-018): Disabled identity is blocked', () => {
     const state = createInitialState();
-    state.currentPerson = 'Tariq Aziz'; // status: 'Inactive'
+    setPersona(state, 'Tariq Aziz'); // status: 'Inactive'
     assert.throws(() => requireActiveIdentity(state), /disabled/);
   });
 
   // RR15: Existing narrow engagement grant excludes sibling
   it('RR15 (VP-019): Existing narrow engagement grant excludes sibling', () => {
     const state = createInitialState();
-    state.currentPerson = 'Mona Khalil';
+    setPersona(state, 'Mona Khalil');
     const engIds = visibleEngagementIds(state);
     assert.strictEqual(Array.isArray(engIds) && !engIds.includes('ENG-26003'), true);
   });
@@ -181,10 +197,10 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR16 (VP-019): Non-admin contributor cannot grant access', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Rami Nasser';
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
     (prototypeStore as any).state.currentRole = 'client_finance';
     assert.throws(
-      () => prototypeStore.grantAccess('Rami Nasser', 'admin', 'Global'),
+      () => prototypeStore.grantAccess('client_finance', 'admin', 'Global'),
       /Only administrators/
     );
   });
@@ -193,7 +209,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR17 (VP-056): Actual management-approver role "client" can record approval', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Omar Nasser';
+    setPersona((prototypeStore as any).state, 'Omar Nasser');
     (prototypeStore as any).state.currentRole = 'client';
     prototypeStore.recordApproval('ENG-26001', 'client', 'Management accounts representation accepted.');
     const eng = (prototypeStore as any).state.engagements.find((e: any) => e.id === 'ENG-26001');
@@ -204,7 +220,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR18 (VP-056): Client administrator cannot approve management accounts', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Amal Nasser';
+    setPersona((prototypeStore as any).state, 'Amal Nasser');
     (prototypeStore as any).state.currentRole = 'client_admin';
     assert.throws(
       () => prototypeStore.recordApproval('ENG-26001', 'client'),
@@ -216,7 +232,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR19 (VP-056): Contributor cannot record partner approval', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Rami Nasser';
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
     (prototypeStore as any).state.currentRole = 'client_finance';
     assert.throws(
       () => prototypeStore.recordApproval('ENG-26001', 'partner'),
@@ -228,8 +244,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR20 (VP-011): Same-person proposal approval is blocked', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Amira Qasim';
-    (prototypeStore as any).state.currentRole = 'manager';
+    addAmiraManagerPersona((prototypeStore as any).state);
     assert.throws(
       () => prototypeStore.reviewProposal('PROP-001', true),
       /commercially approve/
@@ -240,7 +255,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR21 (VP-011): Client contributor cannot review a commercial proposal', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Rami Nasser';
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
     (prototypeStore as any).state.currentRole = 'client_finance';
     assert.throws(
       () => prototypeStore.reviewProposal('PROP-001', true),
@@ -252,7 +267,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR22 (VP-057): Unapproved engagement cannot prepare release candidate', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Daniel James';
+    setPersona((prototypeStore as any).state, 'Daniel James');
     (prototypeStore as any).state.currentRole = 'partner';
     const eng = (prototypeStore as any).state.engagements[0];
     eng.approvals.partner = null;
@@ -266,7 +281,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR23 (VP-057): Stale candidate cannot issue after generation changes', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Daniel James';
+    setPersona((prototypeStore as any).state, 'Daniel James');
     (prototypeStore as any).state.currentRole = 'partner';
     const eng = (prototypeStore as any).state.engagements[0];
     eng.candidate = { generation: eng.generation - 1, preparedAt: '2026-09-01T00:00:00Z', preparedBy: 'Daniel James', manifest: ['file.pdf'] };
@@ -280,10 +295,13 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR24 (VP-057): Re-preparing same content returns existing candidate (idempotent)', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Daniel James';
+    setPersona((prototypeStore as any).state, 'Daniel James');
     (prototypeStore as any).state.currentRole = 'partner';
     const eng = (prototypeStore as any).state.engagements[0];
-    eng.workpapers.forEach((w: any) => { w.status = 'Cleared'; });
+    eng.workpapers.forEach((w: any) => {
+      w.status = 'Cleared';
+      w.clearance = { clearedBy: 'Sara Malik', clearedAt: '2026-09-21T09:00:00Z', sourceVersion: eng.sourceVersion, generation: eng.generation, version: w.version, notes: 'Independent review completed.' };
+    });
     if (eng.reviews) eng.reviews.forEach((r: any) => { r.status = 'Cleared'; });
     eng.approvals = {
       manager: { by: 'Layla Rahman', at: '2026-09-21T10:00:00Z', generation: eng.generation },
@@ -301,7 +319,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR25 (VP-014): Incomplete children block parent completion', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     const parent = (prototypeStore as any).state.jobTasks.find((t: any) => t.id === 'TSK-103');
     assert.throws(
@@ -314,7 +332,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR26 (VP-014): Second subtask level is blocked', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     assert.throws(
       () => prototypeStore.addTask({ id: 'TASK-SUB-2', jobId: 'JOB-2601', title: 'Sub-subtask', parentTaskId: 'TSK-103-1' }),
@@ -326,7 +344,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR27 (VP-013/014): Task referencing nonexistent job is rejected', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     assert.throws(
       () => prototypeStore.addTask({ id: 'TASK-ORPHAN', jobId: 'NONEXISTENT-JOB', title: 'Orphan Task' }),
@@ -338,7 +356,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR28 (VP-032): Cross-currency allocation is rejected', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    setPersona((prototypeStore as any).state, 'Leila Hassan');
     (prototypeStore as any).state.currentRole = 'billing';
     const rcpt = (prototypeStore as any).state.receipts[0];
     const foreignInv = {
@@ -356,7 +374,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR29 (VP-032): Negative allocation is rejected', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    setPersona((prototypeStore as any).state, 'Leila Hassan');
     (prototypeStore as any).state.currentRole = 'billing';
     assert.throws(
       () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', -50),
@@ -368,7 +386,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR30 (VP-032): Over-allocation of invoice is rejected', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    setPersona((prototypeStore as any).state, 'Leila Hassan');
     (prototypeStore as any).state.currentRole = 'billing';
     assert.throws(
       () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', 9999999),
@@ -380,7 +398,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR31 (VP-032): Non-finite allocation (NaN/Infinity) is rejected', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    setPersona((prototypeStore as any).state, 'Leila Hassan');
     (prototypeStore as any).state.currentRole = 'billing';
     assert.throws(
       () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', NaN),
@@ -396,7 +414,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR32 (VP-032/004): Legacy paid cache cannot be ignored in invoice cap', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    setPersona((prototypeStore as any).state, 'Leila Hassan');
     (prototypeStore as any).state.currentRole = 'billing';
     const rcpt = (prototypeStore as any).state.receipts.find((r: any) => r.id === 'RCPT-02');
     const legacyInv = {
@@ -415,7 +433,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR33 (VP-024): Draft PBC with no received file cannot be accepted', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     const eng = (prototypeStore as any).state.engagements[0];
     const draftPbc = {
@@ -433,7 +451,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   it('RR34 (VP-024): Uploader cannot accept own PBC response', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
     (prototypeStore as any).state.currentRole = 'manager';
     const eng = (prototypeStore as any).state.engagements[0];
     const receivedPbc = {
@@ -476,8 +494,8 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   // RR37: No permitted clients must not fall back to first client
   it('RR37 (VP-025): No permitted clients resolves to null in portal logic', () => {
     const state = createInitialState();
-    state.currentPerson = 'NoAccess Person';
     state.users.push({ id: 'u-na', role: 'client', name: 'NoAccess Person', initials: 'NA', label: 'Unassigned Client', group: 'Client', email: 'na@test.demo', status: 'Active' });
+    setPersona(state, 'NoAccess Person');
     const allowed = visibleClientIds(state);
     const availableClients = allowed === 'ALL' ? state.clients : state.clients.filter(c => (allowed as string[]).includes(c.id));
     const selectedClient = availableClients.find(c => c.id === 'NONEXISTENT') || availableClients[0] || null;
@@ -487,7 +505,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
   // RR38: Client global search must exclude internal document names
   it('RR38 (VP-061): Client global search excludes internal document names', () => {
     const state = createInitialState();
-    state.currentPerson = 'Rami Nasser';
+    setPersona(state, 'Rami Nasser');
     state.currentRole = 'client_finance';
     const allowedClients = visibleClientIds(state);
     const clientAllowed = (id?: string) => !id || allowedClients === 'ALL' || (id && (allowedClients as string[]).includes(id));

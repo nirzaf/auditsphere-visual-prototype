@@ -12,7 +12,8 @@ interface ReleaseCompletionViewProps {
 
 export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [dispatchNote, setDispatchNote] = useState('Official audit report and audited financial statements dispatched to Board of Directors.');
+  const [dispatchNote, setDispatchNote] = useState('');
+  const [recipientText, setRecipientText] = useState('');
   const [amendReason, setAmendReason] = useState('');
   const [showAmendModal, setShowAmendModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -82,8 +83,8 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
       return;
     }
     try {
-      prototypeStore.issueRelease(selectedEng.id, dispatchNote);
-      triggerNotice('success', 'Release package published successfully with cryptographic manifest.');
+      prototypeStore.issueRelease(selectedEng.id, dispatchNote, recipientText.split(/[;,\n]/));
+      triggerNotice('success', 'Local release record created. No files were delivered and no cryptographic hashes are claimed.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -221,13 +222,13 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
               <div className="borderbox" style={{ background: '#f0fdf4', padding: 16 }}>
                 <div className="between">
                   <b>Release Candidate Frozen (Generation {selectedEng.candidate.generation})</b>
-                  <span className="mono">Ready for Dispatch</span>
+              <span className="mono">Metadata candidate · Generation {selectedEng.candidate.generation}</span>
                 </div>
                 <div className="cell-sub mt8">
                   Prepared by {selectedEng.candidate.preparedBy} on {new Date(selectedEng.candidate.preparedAt).toLocaleString('en-GB')}
                 </div>
                 <div className="mt12">
-                  <label className="caption">Dispatch Memo &amp; Distribution Record</label>
+                  <label className="caption">Local release note</label>
                   <textarea
                     className="input"
                     rows={2}
@@ -235,9 +236,14 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                     onChange={e => setDispatchNote(e.target.value)}
                   />
                 </div>
+                <div className="mt8">
+                  <label className="caption">Recipient metadata (comma separated)</label>
+                  <input className="input" value={recipientText} onChange={e => setRecipientText(e.target.value)} placeholder="Enter intended recipients" />
+                </div>
+                <p className="caption mt8">This records a local release event and revision references. It does not store deliverable bytes, calculate cryptographic hashes, or send anything.</p>
                 <div className="row mt12" style={{ gap: 10 }}>
-                  <button className="btn primary sm" onClick={handleIssueRelease}>
-                    Publish Official Release Deliverable
+                  <button className="btn primary sm" onClick={handleIssueRelease} disabled={state.currentRole !== 'partner'}>
+                    Record Local Release
                   </button>
                   <button className="btn ghost sm" onClick={() => setShowAmendModal(true)}>
                     Re-open for Amendment
@@ -252,8 +258,8 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
       {/* Dispatched Releases History */}
       <div className="panel">
         <div className="panel-head">
-          <h3>Published Releases ({selectedEng.releases.length})</h3>
-          <span className="caption">Cryptographic Delivery Manifest &amp; Reissue Lineage</span>
+          <h3>Release Records ({selectedEng.releases.length})</h3>
+          <span className="caption">Local metadata manifest and revision lineage · no delivery or cryptographic hash claim</span>
         </div>
         <div className="tablewrap">
           <table>
@@ -264,15 +270,15 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                 <th>Gen</th>
                 <th>Predecessor</th>
                 <th>Status</th>
-                <th>Date Dispatched</th>
-                <th>Signatory</th>
+                <th>Recorded At</th>
+                <th>Recorded By</th>
                 <th>Recipients</th>
-                <th>Dispatch Memo</th>
+                <th>Local Note</th>
               </tr>
             </thead>
             <tbody>
               {selectedEng.releases.length === 0 ? (
-                <tr><td colSpan={9} className="text-center sub" style={{ padding: 20 }}>No official release packages issued yet for this engagement.</td></tr>
+                <tr><td colSpan={9} className="text-center sub" style={{ padding: 20 }}>No local release records exist for this engagement.</td></tr>
               ) : (
                 selectedEng.releases.map(rel => (
                   <tr key={rel.id}>
@@ -281,8 +287,8 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                     <td>Gen {rel.generation}</td>
                     <td><span className="mono">{rel.predecessorId || 'Initial Release'}</span></td>
                     <td>
-                      <span className={`badge ${rel.isAmended ? 'amber' : 'green'}`}>
-                        {rel.isAmended ? 'Superseded (Amended)' : 'Current Official'}
+                      <span className={`badge ${selectedEng.releases.some(next => next.predecessorId === rel.id) ? 'amber' : 'green'}`}>
+                        {selectedEng.releases.some(next => next.predecessorId === rel.id) ? 'Superseded' : 'Recorded locally · not delivered'}
                       </span>
                     </td>
                     <td>{new Date(rel.releasedAt).toLocaleDateString('en-GB')}</td>
@@ -308,7 +314,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
             <form onSubmit={handleAmendSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <p className="sub">
-                  Re-opening a release increments the revision lineage, supersedes the prior release record, and invalidates signing partner approval until re-evaluated.
+                  Re-opening a release preserves the prior record, increments the generation, and requires fresh approvals. It does not alter the predecessor record.
                 </p>
                 <div>
                   <label className="caption">Amendment Reason (Required Governance Record)</label>

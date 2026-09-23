@@ -21,7 +21,8 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Existing plan if any
-  const existingPlan = (state.auditPlans || []).find(p => p.engagementId === selectedEng?.id);
+  const existingPlan = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version)[0];
+  const planHistory = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version);
 
   const [benchmarkType, setBenchmarkType] = useState<'profit' | 'revenue' | 'assets' | 'equity'>(
     (existingPlan?.benchmark as any) || 'revenue'
@@ -82,7 +83,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
     try {
       const nextVersion = (existingPlan?.version || 0) + 1;
       const plan: AuditPlanRecord = {
-        id: existingPlan?.id || `PLAN-${selectedEng.id}`,
+        id: `PLAN-${selectedEng.id}-V${nextVersion}`,
         engagementId: selectedEng.id,
         version: nextVersion,
         status: 'Under review',
@@ -128,7 +129,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
           <button className="btn sm ghost" onClick={() => onNavigate('audit-risks')}>
             <Icon name="shield" /> Audit Risk Register
           </button>
-          <button className="btn primary sm" onClick={handleSavePlan}>
+              <button className="btn primary sm" onClick={handleSavePlan} disabled={!['manager', 'preparer', 'partner'].includes(state.currentRole)}>
             <Icon name="check" /> Save Version {(existingPlan?.version || 0) + 1}
           </button>
         </div>
@@ -334,7 +335,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
           <div className="panel panel-pad">
             <h3>Independent Plan Review</h3>
             <p className="sub mt4">
-              ISA 220 requirement: Audit strategy and materiality thresholds must be independently reviewed and approved by the engagement manager or partner.
+              Audit strategy and materiality thresholds require a recorded review by someone other than the preparer.
             </p>
 
             <div className="borderbox mt16" style={{ padding: 16, background: '#f8fafc' }}>
@@ -366,17 +367,25 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                 <button
                   className="btn primary sm"
                   onClick={() => handleReviewPlan(true)}
+                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !['manager', 'reviewer', 'partner'].includes(state.currentRole)}
                 >
                   Approve Audit Plan Strategy
                 </button>
                 <button
                   className="btn sm ghost"
                   onClick={() => handleReviewPlan(false)}
+                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !['manager', 'reviewer', 'partner'].includes(state.currentRole)}
                 >
                   Return for Rework
                 </button>
               </div>
             </div>
+          </div>
+          <div className="panel">
+            <div className="panel-head"><h3>Saved Plan Revisions ({planHistory.length})</h3><span className="caption">Older revisions remain visible; only the latest approved revision clears planning.</span></div>
+            <div className="tablewrap"><table><thead><tr><th>Version</th><th>Status</th><th>Prepared By</th><th>Reviewed By</th><th>Review Notes</th></tr></thead><tbody>
+              {planHistory.map(plan => <tr key={plan.id}><td><b>v{plan.version}</b></td><td>{plan.status}</td><td>{plan.preparedBy || 'Unknown'}</td><td>{plan.reviewedBy || '—'}</td><td>{plan.reviewNotes || '—'}</td></tr>)}
+            </tbody></table></div>
           </div>
         </div>
       )}

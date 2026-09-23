@@ -5,7 +5,7 @@
 // Browser-local only: these illustrate intended production behaviour; browser data
 // remains inspectable by the browser owner.
 
-import type { PrototypeState, RoleKey } from '../types';
+import type { PrototypeState, RoleKey, RouteKey } from '../types';
 
 export interface CommandContext {
   person: string;
@@ -22,30 +22,31 @@ export class GuardError extends Error {
   }
 }
 
-export function activePersona(state: PrototypeState): { name: string; role: RoleKey; active: boolean } {
-  const user = state.users.find(u => u.name === state.currentPerson);
-  if (!user) {
-    return { name: state.currentPerson, role: state.currentRole, active: false };
-  }
-  return { name: user.name, role: state.currentRole, active: user.status === 'Active' };
+export function activePersona(state: PrototypeState) {
+  const user = state.users.find(u => u.id === state.currentUserId);
+  return user
+    ? { id: user.id, personId: user.personId || user.id, name: user.name, role: user.role, active: user.status === 'Active' && state.currentPerson === user.name && state.currentRole === user.role }
+    : { id: '', personId: '', name: state.currentPerson, role: state.currentRole, active: false };
 }
 
 export function requireActiveIdentity(state: PrototypeState): void {
-  const user = state.users.find(u => u.name === state.currentPerson);
-  if (!user) {
+  const persona = activePersona(state);
+  if (!persona.id || state.currentPerson !== persona.name || state.currentRole !== persona.role) {
     throw new GuardError('DISABLED_IDENTITY', `Identity "${state.currentPerson}" is not recognized.`);
   }
-  if (user.status !== 'Active') {
-    throw new GuardError('DISABLED_IDENTITY', `Identity "${user.name}" is disabled and cannot perform business commands.`);
+  if (!persona.active) {
+    throw new GuardError('DISABLED_IDENTITY', `Identity "${persona.name}" is disabled and cannot perform business commands.`);
   }
 }
 
 /** Narrow grants: Global sees all; Client sees one client; Engagement sees one engagement.
- * Grants bind strictly to the natural person name (userId). Revoking grants results
- * in zero access (empty array), never fallback to other people's grants. */
-export function visibleClientIds(state: PrototypeState, personName?: string): string[] | 'ALL' {
-  const person = personName ?? state.currentPerson;
-  const grants = state.roleGrants.filter(g => g.userId === person);
+ * Grants bind to immutable persona IDs. Revoking grants results in zero access,
+ * never fallback to another person's grants. */
+export function visibleClientIds(state: PrototypeState, userId = state.currentUserId): string[] | 'ALL' {
+  const user = state.users.find(u => u.id === userId && u.status === 'Active');
+  if (!user || (userId === state.currentUserId && !activePersona(state).active)) return [];
+  const today = state.asOfDate || new Date().toISOString().slice(0, 10);
+  const grants = state.roleGrants.filter(g => g.userId === userId && g.role === user.role && (!g.effectiveFrom || g.effectiveFrom <= today) && (!g.expiresAt || g.expiresAt >= today));
   if (grants.length === 0) return [];
   if (grants.some(g => g.scopeKind === 'Global')) return 'ALL';
   const clients = new Set<string>();
@@ -59,9 +60,11 @@ export function visibleClientIds(state: PrototypeState, personName?: string): st
   return [...clients];
 }
 
-export function visibleEngagementIds(state: PrototypeState, personName?: string): string[] | 'ALL' {
-  const person = personName ?? state.currentPerson;
-  const grants = state.roleGrants.filter(g => g.userId === person);
+export function visibleEngagementIds(state: PrototypeState, userId = state.currentUserId): string[] | 'ALL' {
+  const user = state.users.find(u => u.id === userId && u.status === 'Active');
+  if (!user || (userId === state.currentUserId && !activePersona(state).active)) return [];
+  const today = state.asOfDate || new Date().toISOString().slice(0, 10);
+  const grants = state.roleGrants.filter(g => g.userId === userId && g.role === user.role && (!g.effectiveFrom || g.effectiveFrom <= today) && (!g.expiresAt || g.expiresAt >= today));
   if (grants.length === 0) return [];
   if (grants.some(g => g.scopeKind === 'Global')) return 'ALL';
   const engs = new Set<string>();
@@ -89,9 +92,13 @@ export function requireEngagementScope(state: PrototypeState, engagementId: stri
 }
 
 /** Same natural person cannot approve their own preparation by switching role labels. */
-export function requireIndependentActor(preparerName: string, actorName: string, action: string): void {
-  if (preparerName === actorName) {
-    throw new GuardError('SELF_APPROVAL', `Separation of duties: ${actorName} cannot ${action} their own work, even under a different role label.`);
+export function requireIndependentActor(preparer: string, actor: string, action: string, state?: PrototypeState): void {
+  const naturalId = (identity: string) => {
+    const user = state?.users.find(u => u.id === identity || u.name === identity);
+    return user?.personId || user?.id || identity;
+  };
+  if (naturalId(preparer) === naturalId(actor)) {
+    throw new GuardError('SELF_APPROVAL', `Separation of duties: ${actor} cannot ${action}; the same person cannot review their own work, even under a different role label.`);
   }
 }
 
@@ -105,4 +112,31 @@ export function requireRevision(expected: number | undefined, actual: number, su
 export const CLIENT_ROLES: RoleKey[] = ['client_admin', 'client_finance', 'client'];
 export function isClientRole(role: RoleKey): boolean {
   return (CLIENT_ROLES as string[]).includes(role);
+}
+
+const PROFESSIONAL_ROUTES: RouteKey[] = [
+  'overview', 'clients', 'client-detail', 'proposals', 'engagements', 'jobs', 'job-templates',
+  'documents', 'communications', 'my-time', 'budgets', 'billing', 'receivables',
+  'accounting-setup', 'trial-balance', 'gl-transactions', 'account-mappings', 'adjustments',
+  'reconciliations', 'financial-statements', 'financial-packages', 'consolidation', 'onboarding',
+  'audit-planning', 'audit-risks', 'audit-fieldwork', 'sampling', 'audit', 'evidence', 'findings',
+  'reviews', 'approvals', 'quality', 'delivery', 'records', 'reports', 'portal', 'm365-setup', 'requirements'
+];
+
+/** Shared UI route policy; App checks it again so direct navigation cannot bypass the sidebar. */
+export function canOpenRoute(role: RoleKey, route: RouteKey): boolean {
+  if (route === 'requirements') return true;
+  if (isClientRole(role)) return route === 'portal';
+  if (role === 'partner') return PROFESSIONAL_ROUTES.includes(route);
+  if (role === 'manager') return PROFESSIONAL_ROUTES.includes(route) && route !== 'administration';
+  if (role === 'reviewer') return ['overview', 'engagements', 'jobs', 'documents', 'communications', 'my-time', 'budgets', 'accounting-setup', 'trial-balance', 'gl-transactions', 'account-mappings', 'adjustments', 'reconciliations', 'financial-statements', 'financial-packages', 'audit-planning', 'audit-risks', 'audit-fieldwork', 'sampling', 'audit', 'evidence', 'findings', 'reviews', 'approvals', 'quality', 'requirements'].includes(route);
+  if (role === 'preparer') return ['overview', 'engagements', 'jobs', 'documents', 'communications', 'my-time', 'budgets', 'accounting-setup', 'trial-balance', 'gl-transactions', 'account-mappings', 'adjustments', 'reconciliations', 'financial-statements', 'audit-planning', 'audit-risks', 'audit-fieldwork', 'sampling', 'audit', 'evidence', 'findings', 'requirements'].includes(route);
+  if (role === 'eqr') return ['overview', 'engagements', 'documents', 'accounting-setup', 'trial-balance', 'financial-statements', 'financial-packages', 'audit-planning', 'audit-risks', 'audit', 'evidence', 'findings', 'reviews', 'approvals', 'quality', 'delivery', 'records', 'requirements'].includes(route);
+  if (role === 'relationship') return ['overview', 'clients', 'client-detail', 'acquisition', 'proposals', 'engagements', 'communications', 'requirements'].includes(route);
+  if (role === 'onboarding') return ['overview', 'clients', 'client-detail', 'engagements', 'documents', 'communications', 'onboarding', 'portal', 'requirements'].includes(route);
+  if (role === 'compliance') return ['overview', 'clients', 'client-detail', 'engagements', 'documents', 'onboarding', 'approvals', 'requirements'].includes(route);
+  if (role === 'billing') return ['overview', 'clients', 'my-time', 'budgets', 'billing', 'receivables', 'reports', 'requirements'].includes(route);
+  if (role === 'records') return ['overview', 'clients', 'documents', 'records', 'reports', 'requirements'].includes(route);
+  if (role === 'admin') return ['overview', 'administration', 'm365-setup', 'requirements'].includes(route);
+  return false;
 }

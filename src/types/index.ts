@@ -19,6 +19,8 @@ export type RoleKey =
 
 export interface UserPersona {
   id: string;
+  /** Stable natural-person key shared by a person's role personas. */
+  personId?: string;
   name: string;
   initials: string;
   role: RoleKey;
@@ -228,7 +230,10 @@ export interface EngagementRecord {
     generation: number;
     preparedAt: string;
     preparedBy: string;
+    preparedByUserId?: string;
     manifest: string[];
+    sourceVersion: number;
+    packageRevision: number;
   };
   releases: Array<{
     id: string;
@@ -241,7 +246,7 @@ export interface EngagementRecord {
     recipients?: string[];
     isAmended?: boolean;
     predecessorId?: string;
-    manifest: Array<{ id: string; name: string; type: string; sha: string }>;
+    manifest: Array<{ id: string; name: string; type: string; sha?: string; sourceId?: string; sourceRevision?: number }>;
   }>;
   archive?: null | {
     archivedAt: string;
@@ -253,19 +258,27 @@ export interface EngagementRecord {
     holdReason?: string;
   };
   approvals: {
-    manager: null | { by: string; at: string; generation: number; notes?: string };
-    client: null | { by: string; at: string; generation: number; notes?: string };
-    partner: null | { by: string; at: string; generation: number; notes?: string };
-    eqr: null | { by: string; at: string; generation: number; notes?: string };
+    manager: null | { by: string; byUserId?: string; at: string; generation: number; notes?: string };
+    client: null | { by: string; byUserId?: string; at: string; generation: number; notes?: string };
+    partner: null | { by: string; byUserId?: string; at: string; generation: number; notes?: string };
+    eqr: null | { by: string; byUserId?: string; at: string; generation: number; notes?: string };
   };
+  approvalHistory?: Array<{ role: 'manager' | 'client' | 'partner' | 'eqr'; by: string; byUserId: string; at: string; generation: number; notes?: string }>;
   eqrConcerns?: Array<{
     id: string;
     text: string;
     resolved: boolean;
     raisedBy: string;
     raisedAt: string;
+    response?: string;
+    responseBy?: string;
+    responseUserId?: string;
+    responseAt?: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
     resolvedAt?: string;
     resolvedBy?: string;
+    resolvedUserId?: string;
   }>;
   rows: TrialBalanceRow[];
   adjustment: number;
@@ -399,7 +412,7 @@ export interface DocumentItem {
   folderPath: string; // e.g. /Engagements/2026/Audit/
   version: number;
   size: number;
-  sha: string;
+  sha?: string;
   classification: 'Client provided' | 'Working paper' | 'Deliverable' | 'Correspondence';
   visibility: 'Internal' | 'Client shared';
   spSiteId?: string;
@@ -450,6 +463,11 @@ export interface TimeEntryItem {
   taskTitle: string;
   date: string;
   durationMinutes: number; // Integer minutes
+  /** Rates pinned when this time entry was approved; missing means unknown. */
+  budgetVersion?: number;
+  billingRatePerHour?: number;
+  costRatePerHour?: number;
+  currency?: string;
   billable: boolean;
   activity: string;
   narrative?: string;
@@ -469,6 +487,7 @@ export interface BudgetRecord {
   version: number;
   currency: string;
   status: 'Draft' | 'Approved';
+  history?: Array<{ version: number; savedAt: string; savedBy: string; lines: BudgetRecord['lines'] }>;
   lines: Array<{
     id: string;
     roleOrActivity: string;
@@ -645,6 +664,7 @@ export interface ConsolidationGroupRecord {
     ownershipPct?: number;
     packageRevisionPinned?: number;
     pinnedPackageRev?: number;
+    packageRows?: TrialBalanceRow[];
     status: 'Ready' | 'Pending' | 'Stale';
   }>;
   fxRates: Record<string, number>; // Currency -> Rate to Group currency
@@ -777,7 +797,7 @@ export interface WorkpaperItem {
     file: string;
     name: string;
     size: number;
-    sha: string;
+    sha?: string;
     version: number;
     uploadedAt: string;
     uploadedBy: string;
@@ -788,7 +808,7 @@ export interface WorkpaperItem {
     pbcId?: string;
     title: string;
     file: string;
-    sha: string;
+    sha?: string;
     source: string;
     status: string;
     linkedAt: string;
@@ -869,6 +889,13 @@ export interface M365SimulationConfig {
   mailSenderAccount: string;
   oneDriveEnabled: boolean;
   lastSimulatedVerification?: string;
+  configRevision?: number;
+  verificationResults?: Partial<Record<'identity' | 'sharepoint' | 'mail' | 'onedrive', {
+    outcome: string;
+    testedAt: string;
+    configRevision: number;
+    resourceId: string;
+  }>>;
   status: 'Not configured' | 'Simulated verified' | 'Simulated error' | 'Disconnected';
   simulatedErrorMessage?: string;
   liveConnected: false; // Must strictly always be false!
@@ -907,13 +934,16 @@ export interface AcceptanceCaseRecord {
   decisionDate?: string;
   decisionStatus: 'Pending' | 'Accepted' | 'Declined';
   decisionNotes?: string;
+  recommendationByUserId?: string;
+  decisionByUserId?: string;
+  history?: Array<{ action: 'recommendation' | 'decision'; by: string; byUserId: string; at: string; notes: string; status: 'Pending' | 'Accepted' | 'Declined' }>;
 }
 
 export interface AuditPlanRecord {
   id: string;
   engagementId: string;
   version: number;
-  status: 'Draft' | 'Under review' | 'Approved';
+  status: 'Draft' | 'Under review' | 'Approved' | 'Superseded';
   benchmark: string;
   benchmarkValue: number;
   materialityRate: number;
@@ -925,8 +955,10 @@ export interface AuditPlanRecord {
   timingMilestones: Array<{ phase: string; targetDate: string; status: 'Planned' | 'In progress' | 'Completed' }>;
   significantAreas: string[];
   preparedBy?: string;
+  preparedByUserId?: string;
   preparedAt?: string;
   reviewedBy?: string;
+  reviewedByUserId?: string;
   reviewedAt?: string;
   reviewNotes?: string;
 }
@@ -945,6 +977,7 @@ export interface ArchiveRecord {
   onApplicationHold?: boolean;
   holdReason?: string;
   handoverRequested?: boolean;
+  handoverRequester?: string;
   handoverNotes?: string;
   manifestCount: number;
   manifest?: string[];
@@ -956,6 +989,7 @@ export interface PrototypeState {
   asOfDate: string;
   selectedEngagement: string;
   currentRole: RoleKey;
+  currentUserId: string;
   currentPerson: string;
   users: UserPersona[];
   clients: ClientRecord[];
@@ -1002,6 +1036,11 @@ export interface PrototypeState {
     role: RoleKey;
     scopeKind: 'Global' | 'Client' | 'Engagement';
     scopeId?: string;
+    effectiveFrom?: string;
+    expiresAt?: string;
+    grantedAt?: string;
+    grantedBy?: string;
+    reason?: string;
   }>;
   folders?: Array<{
     path: string;

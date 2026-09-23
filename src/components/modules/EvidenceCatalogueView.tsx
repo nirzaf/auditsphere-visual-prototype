@@ -70,7 +70,7 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                 <th>Evidence Item</th>
                 <th>File Reference</th>
                 <th>Source & Provider</th>
-                <th>SHA-256 Checksum</th>
+                <th>Recorded Digest</th>
                 <th>Linked Procedures</th>
                 <th>Adequacy Status</th>
                 <th>Action</th>
@@ -85,7 +85,7 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                   </td>
                   <td><span className="mono">{item.documentId}</span></td>
                   <td>{item.provider || item.owner}</td>
-                  <td><span className="mono" style={{ fontSize: 10 }}>{(item.sha || 'e3b0c44298fc1c14').slice(0, 16)}...</span></td>
+                  <td><span className="mono" style={{ fontSize: 10 }}>{item.sha ? `${item.sha.slice(0, 16)}…` : 'No file digest recorded'}</span></td>
                   <td>
                     {(item.linkedProcedures || []).map((p: string) => (
                       <span key={p} className="tag gray" style={{ marginRight: 4 }}>{p}</span>

@@ -6,10 +6,10 @@ import { PrototypeState, UserPersona, RoleKey } from '../types';
 export const ALL_PERSONAS: UserPersona[] = [
   { id: 'manager', role: 'manager', name: 'Layla Rahman', initials: 'LR', label: 'Engagement manager', group: 'Professional', email: 'layla.rahman@ste-audit.demo', status: 'Active' },
   { id: 'partner', role: 'partner', name: 'Daniel James', initials: 'DJ', label: 'Engagement partner', group: 'Professional', email: 'daniel.james@ste-audit.demo', status: 'Active' },
-  { id: 'preparer', role: 'preparer', name: 'Adam Khan', initials: 'AK', label: 'Audit preparer', group: 'Professional', email: 'adam.khan@ste-audit.demo', status: 'Active' },
+  { id: 'preparer', personId: 'person-adam-khan', role: 'preparer', name: 'Adam Khan', initials: 'AK', label: 'Audit preparer', group: 'Professional', email: 'adam.khan@ste-audit.demo', status: 'Active' },
   { id: 'reviewer', role: 'reviewer', name: 'Sara Malik', initials: 'SM', label: 'Senior reviewer', group: 'Professional', email: 'sara.malik@ste-audit.demo', status: 'Active' },
   { id: 'eqr', role: 'eqr', name: 'Dr. Tariq Al-Sayed', initials: 'TS', label: 'Engagement quality reviewer', group: 'Professional', email: 'tariq.alsayed@ste-audit.demo', status: 'Active' },
-  { id: 'relationship', role: 'relationship', name: 'Amira Qasim', initials: 'AQ', label: 'Relationship owner', group: 'Commercial', email: 'amira.qasim@ste-audit.demo', status: 'Active' },
+  { id: 'relationship', personId: 'person-amira-qasim', role: 'relationship', name: 'Amira Qasim', initials: 'AQ', label: 'Relationship owner', group: 'Commercial', email: 'amira.qasim@ste-audit.demo', status: 'Active' },
   { id: 'onboarding', role: 'onboarding', name: 'Hana Ali', initials: 'HA', label: 'Onboarding coordinator', group: 'Commercial', email: 'hana.ali@ste-audit.demo', status: 'Active' },
   { id: 'compliance', role: 'compliance', name: 'Yusuf Ahmed', initials: 'YA', label: 'Compliance reviewer', group: 'Commercial', email: 'yusuf.ahmed@ste-audit.demo', status: 'Active' },
   { id: 'billing', role: 'billing', name: 'Leila Hassan', initials: 'LH', label: 'Billing officer', group: 'Operations', email: 'leila.hassan@ste-audit.demo', status: 'Active' },
@@ -23,7 +23,7 @@ export const ALL_PERSONAS: UserPersona[] = [
   { id: 'reviewer-2', role: 'reviewer', name: 'Bilal Ahmed', initials: 'BA', label: 'Senior reviewer (second)', group: 'Professional', email: 'bilal.ahmed@ste-audit.demo', status: 'Active' },
   // Multi-role person: same natural person holds preparer + billing duties; SoD still
   // applies by person name, not role label (§5.3)
-  { id: 'multirole-1', role: 'billing', name: 'Adam Khan', initials: 'AK', label: 'Billing officer (also preparer)', group: 'Operations', email: 'adam.khan.billing@ste-audit.demo', status: 'Active' },
+  { id: 'multirole-1', personId: 'person-adam-khan', role: 'billing', name: 'Adam Khan', initials: 'AK', label: 'Billing officer (also preparer)', group: 'Operations', email: 'adam.khan.billing@ste-audit.demo', status: 'Active' },
   // Disabled identity for lifecycle tests (VP-018)
   { id: 'reviewer-disabled', role: 'reviewer', name: 'Tariq Aziz', initials: 'TA', label: 'Senior reviewer (disabled)', group: 'Professional', email: 'tariq.aziz@ste-audit.demo', status: 'Inactive' },
   // Narrowly scoped group-reporting user: sees one engagement only (VP-019 negative tests)
@@ -31,35 +31,36 @@ export const ALL_PERSONAS: UserPersona[] = [
 ];
 
 export function createInitialState(): PrototypeState {
-  return {
-    schema: 4,
+  const state: PrototypeState = {
+    schema: 5,
     asOfDate: '2026-09-23',
     selectedEngagement: 'ENG-26001',
     currentRole: 'manager',
+    currentUserId: 'manager',
     currentPerson: 'Layla Rahman',
     users: ALL_PERSONAS,
     roleGrants: [
-      { userId: 'Layla Rahman', role: 'manager', scopeKind: 'Global' },
-      { userId: 'Daniel James', role: 'partner', scopeKind: 'Global' },
-      { userId: 'Adam Khan', role: 'preparer', scopeKind: 'Global' },
-      { userId: 'Nadia Rahman', role: 'preparer', scopeKind: 'Global' },
-      { userId: 'Sara Malik', role: 'reviewer', scopeKind: 'Global' },
-      { userId: 'Bilal Ahmed', role: 'reviewer', scopeKind: 'Global' },
-      { userId: 'Dr. Tariq Al-Sayed', role: 'eqr', scopeKind: 'Global' },
-      { userId: 'Amira Qasim', role: 'relationship', scopeKind: 'Global' },
-      { userId: 'Hana Ali', role: 'onboarding', scopeKind: 'Global' },
-      { userId: 'Yusuf Ahmed', role: 'compliance', scopeKind: 'Global' },
-      { userId: 'Leila Hassan', role: 'billing', scopeKind: 'Global' },
-      { userId: 'Farooq Mansour', role: 'records', scopeKind: 'Global' },
-      { userId: 'Khalid Al-Nuaimi', role: 'admin', scopeKind: 'Global' },
+      { userId: 'manager', role: 'manager', scopeKind: 'Global' },
+      { userId: 'partner', role: 'partner', scopeKind: 'Global' },
+      { userId: 'preparer', role: 'preparer', scopeKind: 'Global' },
+      { userId: 'preparer-2', role: 'preparer', scopeKind: 'Global' },
+      { userId: 'reviewer', role: 'reviewer', scopeKind: 'Global' },
+      { userId: 'reviewer-2', role: 'reviewer', scopeKind: 'Global' },
+      { userId: 'eqr', role: 'eqr', scopeKind: 'Global' },
+      { userId: 'relationship', role: 'relationship', scopeKind: 'Global' },
+      { userId: 'onboarding', role: 'onboarding', scopeKind: 'Global' },
+      { userId: 'compliance', role: 'compliance', scopeKind: 'Global' },
+      { userId: 'billing', role: 'billing', scopeKind: 'Global' },
+      { userId: 'records', role: 'records', scopeKind: 'Global' },
+      { userId: 'admin', role: 'admin', scopeKind: 'Global' },
       // Client identities carry explicit per-client grants; Amal holds two entity
       // grants to exercise multi-entity portal switching (VP-025).
-      { userId: 'Amal Nasser', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-001' },
-      { userId: 'Amal Nasser', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-003' },
-      { userId: 'Rami Nasser', role: 'client_finance', scopeKind: 'Client', scopeId: 'CL-001' },
-      { userId: 'Omar Nasser', role: 'client', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'client_admin', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'client_admin', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-003' },
+      { userId: 'client_finance', role: 'client_finance', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'client', role: 'client', scopeKind: 'Client', scopeId: 'CL-001' },
       // Narrow group-reporting scope: consolidation components only, no sibling access.
-      { userId: 'Mona Khalil', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' }
+      { userId: 'group-user', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' }
     ],
 
     // Module 02: Clients
@@ -331,7 +332,6 @@ export function createInitialState(): PrototypeState {
               file: 'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',
               name: 'WP-A1_Cash_and_Bank_Audit_Schedule.xlsx',
               size: 45200,
-              sha: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
               version: 2,
               uploadedAt: '2026-09-21T09:30:00.000Z',
               uploadedBy: 'Adam Khan',
@@ -343,7 +343,6 @@ export function createInitialState(): PrototypeState {
                 pbcId: 'PBC-02',
                 title: 'Bank statement and reconciliation',
                 file: 'Bank_Statement_December.pdf',
-                sha: 'a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7',
                 source: 'PBC-02',
                 status: 'Accepted',
                 linkedAt: '2026-09-21T09:15:00.000Z'
@@ -373,7 +372,7 @@ export function createInitialState(): PrototypeState {
             conclusion: 'Synthetic ageing agrees to the selected trial balance.',
             guidelines: [{ title: 'Debtor Confirmation', desc: 'Sample confirmation of material debtors.', mandatory: true }],
             template: { name: 'WP-B1 Trade Receivables Schedule', ref: 'TPL-WP-B1-v1.0', version: '1.0', format: 'Excel (.xlsx)', instructions: 'Reconcile debtor balance.', csv: '' },
-            workingPaper: { file: 'WP-B1_Trade_Receivables_Schedule.xlsx', name: 'WP-B1_Trade_Receivables_Schedule.xlsx', size: 38400, sha: 'c2b3d4e5f6', version: 2, uploadedAt: '2026-09-21T09:45:00Z', uploadedBy: 'Adam Khan', local: false },
+            workingPaper: { file: 'WP-B1_Trade_Receivables_Schedule.xlsx', name: 'WP-B1_Trade_Receivables_Schedule.xlsx', size: 38400, version: 2, uploadedAt: '2026-09-21T09:45:00Z', uploadedBy: 'Adam Khan', local: false },
             supportingEvidence: [],
             clearance: { clearedBy: 'Sara Malik', clearedAt: '2026-09-21T10:15:00Z', sourceVersion: 1, generation: 3, version: 2, notes: 'Aged debtors reconciled to trial balance; confirmations cleared.' },
             clearanceHistory: []
@@ -392,7 +391,7 @@ export function createInitialState(): PrototypeState {
             conclusion: 'Depreciation proposal is linked to asset schedule; reviewer response pending.',
             guidelines: [{ title: 'Depreciation Testing', desc: 'Recalculate depreciation based on approved useful life.', mandatory: true }],
             template: { name: 'WP-C1 Fixed Asset Register', ref: 'TPL-WP-C1-v1.0', version: '1.0', format: 'Excel (.xlsx)', instructions: 'Verify asset additions and depreciation rates.', csv: '' },
-            workingPaper: { file: 'WP-C1_Fixed_Asset_Register.xlsx', name: 'WP-C1_Fixed_Asset_Register.xlsx', size: 52100, sha: 'f1a2b3c4d5', version: 3, uploadedAt: '2026-09-21T08:50:00Z', uploadedBy: 'Adam Khan', local: false },
+            workingPaper: { file: 'WP-C1_Fixed_Asset_Register.xlsx', name: 'WP-C1_Fixed_Asset_Register.xlsx', size: 52100, version: 3, uploadedAt: '2026-09-21T08:50:00Z', uploadedBy: 'Adam Khan', local: false },
             supportingEvidence: [],
             clearance: null,
             clearanceHistory: []
@@ -665,7 +664,6 @@ export function createInitialState(): PrototypeState {
         folderPath: '/Engagements/2026/Accounting/',
         version: 1,
         size: 14200,
-        sha: '7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
         classification: 'Client provided',
         visibility: 'Client shared',
         source: 'SharePoint',
@@ -681,7 +679,6 @@ export function createInitialState(): PrototypeState {
         folderPath: '/Engagements/2026/Audit/Cash/',
         version: 1,
         size: 215000,
-        sha: 'a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7',
         classification: 'Client provided',
         visibility: 'Client shared',
         source: 'SharePoint',
@@ -698,7 +695,6 @@ export function createInitialState(): PrototypeState {
         folderPath: '/Engagements/2026/Audit/Workpapers/',
         version: 2,
         size: 45200,
-        sha: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
         classification: 'Working paper',
         visibility: 'Internal',
         source: 'SharePoint',
@@ -714,7 +710,6 @@ export function createInitialState(): PrototypeState {
         folderPath: '/Engagements/2026/Deliverables/',
         version: 3,
         size: 380000,
-        sha: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff',
         classification: 'Deliverable',
         visibility: 'Client shared',
         source: 'SharePoint',
@@ -937,10 +932,10 @@ export function createInitialState(): PrototypeState {
         period: 'FY 2026',
         currency: 'QAR',
         manager: 'Layla Rahman',
-        status: 'Reviewed',
+        status: 'In progress',
         components: [
-          { componentId: 'ENG-26001', legalEntityName: 'Example Trading Entity (Parent)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 3, status: 'Ready' },
-          { componentId: 'ENG-26002', legalEntityName: 'Northstar Services (Associate)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1, status: 'Ready' }
+          { componentId: 'ENG-26001', role: 'Parent', legalEntityName: 'Example Trading Entity (Parent)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 3, status: 'Ready' },
+          { componentId: 'ENG-26002', role: 'Associate', legalEntityName: 'Northstar Services (Associate)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1, status: 'Ready' }
         ],
         fxRates: { 'QAR': 1.0, 'USD': 3.64, 'EUR': 3.95 },
         eliminations: [
@@ -1045,8 +1040,9 @@ export function createInitialState(): PrototypeState {
       folderRoot: '/ClientEngagements/2026',
       mailSenderAccount: 'notifications@ste-audit.demo',
       oneDriveEnabled: true,
-      lastSimulatedVerification: '2026-09-22T08:00:00Z',
-      status: 'Simulated verified',
+      configRevision: 1,
+      verificationResults: {},
+      status: 'Not configured',
       liveConnected: false // Strictly false as per spec
     },
 
@@ -1081,4 +1077,11 @@ export function createInitialState(): PrototypeState {
       { path: '/Clients/CL-001/2026/05_Correspondence/', label: '05 Client Communications', clientId: 'CL-001' }
     ]
   };
+  for (const group of state.consolidationGroups) {
+    for (const component of group.components) {
+      const engagement = state.engagements.find(e => e.id === component.componentId);
+      if (engagement && component.packageRevisionPinned === engagement.packageRevision) component.packageRows = structuredClone(engagement.rows);
+    }
+  }
+  return state;
 }

@@ -60,13 +60,15 @@ describe('budget fixed example (AT-29)', () => {
       id: 'B', engagementId: 'E', version: 1, currency: 'QAR', status: 'Approved',
       lines: [{ id: 'L', roleOrActivity: 'Audit fieldwork', plannedMinutes: 600, billingRatePerHour: 200, costRatePerHour: 80 }]
     };
-    const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 660, billable: true, activity: 'Audit fieldwork' }];
+    const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 660, billable: true, activity: 'Audit fieldwork', budgetVersion: 1, billingRatePerHour: 200, costRatePerHour: 80 }];
     const a = calculateBudgetVsActual(budget, times, 'E');
     assert.equal(a.plannedFees, 2000);
     assert.equal(a.actualBillableValue, 2200);
     assert.equal(a.varianceHours, 1); // +60 minutes = +1 hour (positive = over budget)
     assert.equal(a.approvedMinutes - a.plannedMinutes, 60);
     assert.equal(a.knownDeliveryCost, 880);
+    const rerated = { ...budget, version: 2, lines: [{ ...budget.lines[0], billingRatePerHour: 900, costRatePerHour: 500 }] };
+    assert.equal(calculateBudgetVsActual(rerated, times, 'E').actualBillableValue, 2200);
   });
 
   it('reports unknown (not zero) cost when the cost rate is missing', () => {
@@ -74,7 +76,7 @@ describe('budget fixed example (AT-29)', () => {
       id: 'B', engagementId: 'E', version: 1, currency: 'QAR', status: 'Approved',
       lines: [{ id: 'L', roleOrActivity: 'Audit fieldwork', plannedMinutes: 600, billingRatePerHour: 200 }]
     };
-    const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 60, billable: true, activity: 'Audit fieldwork' }];
+    const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 60, billable: true, activity: 'Audit fieldwork', budgetVersion: 1, billingRatePerHour: 200 }];
     const a = calculateBudgetVsActual(budget, times, 'E');
     assert.equal(a.knownDeliveryCost, null);
   });
@@ -144,7 +146,10 @@ describe('consolidation fixed example (AT-42)', () => {
       { code: '2000', name: 'Trade and other payables', type: 'liability', balance: -1000 }
     ];
     const out = calculateConsolidatedBalanceSheet(parent, sub, [
-      { description: 'Trade and other receivables elimination', debitAccount: 'x', creditAccount: 'y', amount: 1000 }
+      { id: 'ELIM-1', lines: [
+        { account: '1100', type: 'credit', amount: 1000 },
+        { account: '2000', type: 'debit', amount: 1000 }
+      ] }
     ]);
     assert.equal(out.totalEliminations >= 1000, true);
     // Component packages unchanged: inputs still carry their original balances.
@@ -250,4 +255,3 @@ describe('Consolidation math tests (EX10, EX11, EX12)', () => {
     assert.equal(detailAssetSum === out.totalAssets, true);
   });
 });
-

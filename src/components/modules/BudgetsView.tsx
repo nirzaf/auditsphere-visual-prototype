@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey, BudgetRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface BudgetsViewProps {
@@ -18,14 +19,16 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
   const [showAuthorModal, setShowAuthorModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
+  const selectedEng = scopedEngagements.find(e => e.id === state.selectedEngagement) || (scopedEngagements.length === 1 ? scopedEngagements[0] : undefined);
   const client = state.clients.find(c => c.id === selectedEng?.client);
 
   const rawBudget = state.budgets.find(b => b.engagementId === selectedEng?.id);
   const currency = rawBudget?.currency || selectedEng?.currency || 'QAR';
 
   // Authoring state
-  const [editLines, setEditLines] = useState<Array<{ roleOrActivity: string; plannedHours: number; billingRatePerHour: number; costRatePerHour: number }>>([
+  const [editLines, setEditLines] = useState<Array<{ roleOrActivity: string; plannedHours: number; billingRatePerHour: number; costRatePerHour: number | '' }>>([
     { roleOrActivity: 'Planning & Risk Assessment', plannedHours: 15, billingRatePerHour: 350, costRatePerHour: 120 },
     { roleOrActivity: 'Substantive Fieldwork', plannedHours: 40, billingRatePerHour: 250, costRatePerHour: 90 },
     { roleOrActivity: 'Senior Review & Clearance', plannedHours: 12, billingRatePerHour: 450, costRatePerHour: 180 },
@@ -38,14 +41,12 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
   };
 
   const handleOpenAuthorModal = () => {
-    if (rawBudget && rawBudget.lines.length > 0) {
-      setEditLines(rawBudget.lines.map(l => ({
+    setEditLines(rawBudget?.lines.map(l => ({
         roleOrActivity: l.roleOrActivity,
-        plannedHours: Math.round((l.plannedMinutes || 0) / 60),
-        billingRatePerHour: l.billingRatePerHour || 250,
-        costRatePerHour: l.costRatePerHour || 100
-      })));
-    }
+        plannedHours: l.plannedMinutes / 60,
+        billingRatePerHour: l.billingRatePerHour,
+        costRatePerHour: l.costRatePerHour ?? ''
+      })) || [{ roleOrActivity: '', plannedHours: 0, billingRatePerHour: 0, costRatePerHour: '' }]);
     setShowAuthorModal(true);
   };
 
@@ -64,9 +65,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
       const newBudgetLines = editLines.map((l, idx) => ({
         id: `BL-${nextVersion}-${idx + 1}`,
         roleOrActivity: l.roleOrActivity.trim(),
-        plannedMinutes: Math.max(0, l.plannedHours * 60),
-        billingRatePerHour: Math.max(0, l.billingRatePerHour),
-        costRatePerHour: l.costRatePerHour > 0 ? l.costRatePerHour : undefined
+        plannedMinutes: Math.round(l.plannedHours * 60),
+        billingRatePerHour: l.billingRatePerHour,
+        costRatePerHour: l.costRatePerHour === '' ? undefined : l.costRatePerHour
       }));
 
       const newBudget: BudgetRecord = {
@@ -92,7 +93,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
         <Icon name="calculator" size="lg" className="text-muted mb16" />
         <h3>No Active Engagement Selected</h3>
         <p className="sub max-w-md mx-auto mt8">
-          Select or create an engagement to analyze engagement budgets and staff cost variances.
+          Select one of your permitted engagements to view or author a budget.
         </p>
         <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
           Go to Engagements
@@ -108,40 +109,42 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
     t => t.engagementId === selectedEng?.id && t.status === 'Submitted'
   );
 
-  interface LineActual { plannedMinutes: number; billingRate: number; costRate?: number; actualMinutes: number; actualValue: number; actualCost: number | null; }
+  interface LineActual { plannedMinutes: number; billingRate: number; costRate?: number; actualMinutes: number; actualValue: number | null; actualCost: number | null; }
   const budgetLines = rawBudget?.lines || [];
   const lineActuals: Array<{ label: string } & LineActual> = budgetLines.map((l, idx: number) => {
     const label = l.roleOrActivity || `Line ${idx + 1}`;
     const plannedMinutes = l.plannedMinutes ?? 0;
-    const billingRate = l.billingRatePerHour ?? 200;
+    const billingRate = l.billingRatePerHour;
     const costRate = l.costRatePerHour;
     const mine = approvedEntries.filter(t =>
       t.activity.toLowerCase() === String(l.roleOrActivity || '').toLowerCase());
-    const attributed = (idx === 0)
-      ? [...mine, ...approvedEntries.filter(t => !budgetLines.some(x =>
-          t.activity.toLowerCase() === String(x.roleOrActivity || '').toLowerCase()))]
-      : mine;
-    const actualMinutes = attributed.reduce((s, t) => s + t.durationMinutes, 0);
-    const billableMinutes = attributed.filter(t => t.billable).reduce((s, t) => s + t.durationMinutes, 0);
+    const actualMinutes = mine.reduce((s, t) => s + t.durationMinutes, 0);
+    const billableEntries = mine.filter(t => t.billable);
+    const actualValue = billableEntries.some(t => t.billingRatePerHour === undefined || !Number.isFinite(t.billingRatePerHour))
+      ? null
+      : Math.round(billableEntries.reduce((s, t) => s + (t.durationMinutes / 60) * t.billingRatePerHour!, 0) * 100) / 100;
     return {
       label,
       plannedMinutes,
       billingRate,
       costRate,
       actualMinutes,
-      actualValue: Math.round((billableMinutes / 60) * billingRate),
-      actualCost: costRate === undefined || costRate === null
+      actualValue,
+      actualCost: mine.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour))
         ? null
-        : Math.round((actualMinutes / 60) * costRate)
+        : Math.round(mine.reduce((s, t) => s + (t.durationMinutes / 60) * t.costRatePerHour!, 0) * 100) / 100
     };
   });
 
   const totalPlannedMinutes = lineActuals.reduce((s, l) => s + l.plannedMinutes, 0);
-  const totalActualMinutes = lineActuals.reduce((s, l) => s + l.actualMinutes, 0);
-  const totalPlannedBilling = lineActuals.reduce((s, l) => s + Math.round((l.plannedMinutes / 60) * l.billingRate), 0);
-  const totalActualBilling = lineActuals.reduce((s, l) => s + l.actualValue, 0);
-  const hasUnknownCost = lineActuals.some(l => l.actualCost === null && l.actualMinutes > 0);
-  const totalActualCost = lineActuals.reduce((s, l) => s + (l.actualCost || 0), 0);
+  const totalActualMinutes = approvedEntries.reduce((s, t) => s + t.durationMinutes, 0);
+  const unmatchedEntries = approvedEntries.filter(t => !budgetLines.some(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase()));
+  const totalPlannedBilling = Math.round(lineActuals.reduce((s, l) => s + (l.plannedMinutes / 60) * l.billingRate, 0) * 100) / 100;
+  const totalActualBilling = approvedEntries.some(t => t.billable && (t.billingRatePerHour === undefined || !Number.isFinite(t.billingRatePerHour)))
+    ? null
+    : Math.round(approvedEntries.filter(t => t.billable).reduce((s, t) => s + (t.durationMinutes / 60) * t.billingRatePerHour!, 0) * 100) / 100;
+  const hasUnknownCost = approvedEntries.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour));
+  const totalActualCost = Math.round(approvedEntries.reduce((s, t) => s + (t.durationMinutes / 60) * (t.costRatePerHour || 0), 0) * 100) / 100;
   const varianceMinutes = totalActualMinutes - totalPlannedMinutes;
 
   return (
@@ -157,6 +160,12 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
           </button>
         </div>
       </div>
+
+      {unmatchedEntries.length > 0 && (
+        <div role="status" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
+          {unmatchedEntries.reduce((s, t) => s + t.durationMinutes, 0)} approved minutes do not match a current budget activity. Their saved rate snapshots remain in totals, but they do not appear under a current budget line.
+        </div>
+      )}
 
       {notice && (
         <div
@@ -184,7 +193,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
           className={`tab-btn ${activeTab === 'aggregation' ? 'active' : ''}`}
           onClick={() => setActiveTab('aggregation')}
         >
-          Practice-Wide Budget Aggregation ({state.engagements.length})
+          Practice-Wide Budget Aggregation ({scopedEngagements.length})
         </button>
       </div>
 
@@ -226,7 +235,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                 </div>
                 <div className="metric green">
                   <span className="metric-label">Billable Value (approved)</span>
-                  <div className="metric-val">{formatCurrency(totalActualBilling, currency)}</div>
+                  <div className="metric-val">{totalActualBilling === null ? 'Unknown (unmapped activity)' : formatCurrency(totalActualBilling, currency)}</div>
                   <span className="metric-sub">
                     Variance: {varianceMinutes >= 0 ? '+' : ''}{varianceMinutes} min
                     {submittedEntries.length > 0 && ` · ${submittedEntries.reduce((s, t) => s + t.durationMinutes, 0)} min pending`}
@@ -247,8 +256,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                   <thead>
                     <tr>
                       <th>Role / Activity</th>
-                      <th>Billing Rate</th>
-                      <th>Cost Rate</th>
+                      <th>Current Billing Rate</th>
+                      <th>Current Cost Rate</th>
                       <th>Planned</th>
                       <th>Actual (approved)</th>
                       <th>Variance</th>
@@ -272,7 +281,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                             </span>
                           </td>
                           <td>{l.actualCost === null ? 'Unknown' : formatCurrency(l.actualCost, currency)}</td>
-                          <td><b>{formatCurrency(l.actualValue, currency)}</b></td>
+                          <td><b>{l.actualValue === null ? 'Unknown' : formatCurrency(l.actualValue, currency)}</b></td>
                         </tr>
                       );
                     })}
@@ -290,12 +299,25 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                         </span>
                       </td>
                       <td><b>{hasUnknownCost ? 'Unknown' : formatCurrency(totalActualCost, currency)}</b></td>
-                      <td><b>{formatCurrency(totalActualBilling, currency)}</b></td>
+                      <td><b>{totalActualBilling === null ? 'Unknown' : formatCurrency(totalActualBilling, currency)}</b></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             </div>
+          )}
+          {rawBudget?.history && rawBudget.history.length > 0 && (
+            <details className="panel panel-pad">
+              <summary><b>Prior budget revisions ({rawBudget.history.length})</b></summary>
+              <div className="tablewrap mt12">
+                <table>
+                  <thead><tr><th>Revision</th><th>Activities</th><th>Saved By</th><th>Saved At</th></tr></thead>
+                  <tbody>{rawBudget.history.map(v => (
+                    <tr key={v.version}><td>v{v.version}</td><td>{v.lines.length}</td><td>{v.savedBy}</td><td>{new Date(v.savedAt).toLocaleString('en-GB')}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </details>
           )}
         </>
       ) : (
@@ -320,12 +342,16 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                 </tr>
               </thead>
               <tbody>
-                {state.engagements.map(eng => {
+                {scopedEngagements.map(eng => {
                   const cl = state.clients.find(c => c.id === eng.client);
                   const bdg = state.budgets.find(b => b.engagementId === eng.id);
                   const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
                   const actualMins = approvedTimes.reduce((s, t) => s + t.durationMinutes, 0);
-                  const billableVal = approvedTimes.filter(t => t.billable).reduce((s, t) => s + (t.durationMinutes / 60) * 350, 0);
+                  const values = approvedTimes.filter(t => t.billable).map(t => {
+                    const line = bdg?.lines.find(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase());
+                    return line ? (t.durationMinutes / 60) * line.billingRatePerHour : null;
+                  });
+                  const billableVal = values.some(v => v === null) ? null : Math.round((values as number[]).reduce((s, value) => s + value, 0) * 100) / 100;
 
                   return (
                     <tr key={eng.id}>
@@ -335,7 +361,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                       <td><span className="badge gray">v{bdg?.version || 1}</span></td>
                       <td><b>{formatCurrency(eng.agreedFee, eng.currency)}</b></td>
                       <td>{formatMinutesToHours(actualMins)}</td>
-                      <td><b>{formatCurrency(Math.round(billableVal), eng.currency)}</b></td>
+                      <td><b>{billableVal === null ? 'Unknown (unmapped activity)' : formatCurrency(billableVal, eng.currency)}</b></td>
                       <td>
                         <button
                           className="btn sm"
@@ -421,8 +447,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                       type="number"
                       className="input"
                       value={line.costRatePerHour}
-                      onChange={e => {
-                        const val = Number(e.target.value);
+                    onChange={e => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value);
                         setEditLines(prev => prev.map((item, i) => i === idx ? { ...item, costRatePerHour: val } : item));
                       }}
                     />

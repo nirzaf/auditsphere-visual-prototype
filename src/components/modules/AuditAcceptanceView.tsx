@@ -26,37 +26,34 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
     existingCase?.riskRating || 'Low'
   );
   const [independenceConfirmed, setIndependenceConfirmed] = useState(
-    existingCase ? existingCase.independenceConfirmed : true
+    existingCase?.independenceConfirmed || false
   );
   const [amlKycCompleted, setAmlKycCompleted] = useState(
-    existingCase ? existingCase.amlKycCompleted : true
+    existingCase?.amlKycCompleted || false
   );
   const [conflictsCleared, setConflictsCleared] = useState(
-    existingCase ? existingCase.conflictsCleared : true
+    existingCase?.conflictsCleared || false
   );
   const [prohibitionsChecked, setProhibitionsChecked] = useState(
-    existingCase ? existingCase.prohibitionsChecked : true
+    existingCase?.prohibitionsChecked || false
   );
   const [competenceConfirmed, setCompetenceConfirmed] = useState(
-    existingCase ? existingCase.competenceConfirmed : true
+    existingCase?.competenceConfirmed || false
   );
 
   const [conditions, setConditions] = useState<string[]>(
-    existingCase?.conditions || [
-      'Obtain signed confirmation of all related party transactions prior to fieldwork release',
-      'Conduct monthly covenant compliance review for commercial banking facilities'
-    ]
+    existingCase?.conditions || []
   );
   const [newCondition, setNewCondition] = useState('');
 
   const [recommendationNotes, setRecommendationNotes] = useState(
-    existingCase?.recommendationNotes || 'Client has clean regulatory record with QFMA, transparent beneficial ownership structure, and prompt predecessor clearance.'
+    existingCase?.recommendationNotes || ''
   );
   const [partnerDecision, setPartnerDecision] = useState<'Pending' | 'Accepted' | 'Declined'>(
-    existingCase?.decisionStatus || 'Accepted'
+    existingCase?.decisionStatus || 'Pending'
   );
   const [partnerRationale, setPartnerRationale] = useState(
-    existingCase?.decisionNotes || 'Satisfactory governance, low risk profile, full independence maintained. Partner clearance approved.'
+    existingCase?.decisionNotes || ''
   );
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -107,23 +104,29 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
         recommendationBy: state.currentPerson,
         recommendationDate: new Date().toISOString(),
         recommendationNotes,
-        decisionBy: partnerDecision !== 'Pending' ? selectedEng.partner : undefined,
-        decisionDate: partnerDecision !== 'Pending' ? new Date().toISOString() : undefined,
-        decisionStatus: partnerDecision,
-        decisionNotes: partnerRationale
+        decisionStatus: 'Pending'
       };
 
       prototypeStore.saveAcceptanceCase(caseRecord);
-      if (partnerDecision === 'Accepted') {
-        prototypeStore.prepareClientWorkspace(client.id, selectedEng.year);
-      }
-      triggerNotice('success', `Acceptance evaluation case ${caseRecord.id} persisted. Client workspace prepared.`);
+      setPartnerDecision('Pending');
+      triggerNotice('success', `Recommendation for case ${caseRecord.id} saved. Partner decision is pending.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
   };
 
-  const allChecksPass = independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed;
+  const handleRecordPartnerDecision = () => {
+    if (!existingCase || partnerDecision === 'Pending') return;
+    try {
+      prototypeStore.decideAcceptanceCase(existingCase.id, partnerDecision, partnerRationale);
+      if (partnerDecision === 'Accepted' && client) prototypeStore.prepareClientWorkspace(client.id, selectedEng.year, selectedEng.id);
+      triggerNotice('success', `Partner ${partnerDecision.toLowerCase()} decision recorded for ${existingCase.id}.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const allChecksPass = riskRating !== 'Prohibited' && independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed;
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -133,8 +136,8 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           <p>Annual continuance evaluation, independence verification, engagement conditions, and partner sign-off trail.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={handleSaveEvaluation}>
-            <Icon name="check" /> Persist Evaluation &amp; Decision
+          <button className="btn primary sm" onClick={handleSaveEvaluation} disabled={!['onboarding', 'compliance', 'manager', 'reviewer'].includes(state.currentRole)}>
+            <Icon name="check" /> Save Recommendation
           </button>
         </div>
       </div>
@@ -307,11 +310,12 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
               <select
                 className="input"
                 value={partnerDecision}
+                disabled={state.currentRole !== 'partner' || !existingCase}
                 onChange={e => setPartnerDecision(e.target.value as any)}
               >
+                <option value="Pending">Pending Further Clarifications / Conditions</option>
                 <option value="Accepted">Accept &amp; Continue Engagement Mandate</option>
                 <option value="Declined">Decline Professional Mandate</option>
-                <option value="Pending">Pending Further Clarifications / Conditions</option>
               </select>
             </div>
             <div>
@@ -326,15 +330,17 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
               className="input"
               rows={2}
               value={partnerRationale}
+              disabled={state.currentRole !== 'partner'}
               onChange={e => setPartnerRationale(e.target.value)}
             />
           </div>
 
           <button
             className="btn primary sm mt16"
-            onClick={handleSaveEvaluation}
+            onClick={handleRecordPartnerDecision}
+            disabled={state.currentRole !== 'partner' || !existingCase || partnerDecision === 'Pending'}
           >
-            Record Partner Acceptance Sign-off
+            Record Partner Decision
           </button>
         </div>
       </div>

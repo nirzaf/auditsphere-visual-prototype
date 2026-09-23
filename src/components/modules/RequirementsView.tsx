@@ -1,6 +1,6 @@
 // Module coverage & traceability — VP-001 (scope) + VP-064 (evidence)
 // Verbatim 64-story acceptance backlog (VP-001–VP-064) and 39-module traceability matrix.
-// Statuses are derived from executed test suites and interactive prototype verification.
+// Rows stay Partial until each original acceptance journey has direct evidence.
 // Excluded surfaces (AI, payments, eSignatures, tax/payroll, Purview) are absent.
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
@@ -15,7 +15,7 @@ interface StoryRow {
   moduleId: string;
   moduleName: string;
   route: RouteKey;
-  status: 'Verified' | 'Demonstrated' | 'Partial';
+  status: 'Partial';
   criteriaSummary: string;
 }
 
@@ -24,117 +24,117 @@ interface ModuleRow {
   module: string;
   stories: string;
   route: RouteKey;
-  status: 'Demonstrated' | 'Partial';
+  status: 'Partial';
   notes: string;
 }
 
 const MODULE_ROWS: ModuleRow[] = [
-  { moduleId: '01', module: 'Practice Dashboard', stories: 'VP-005, VP-060', route: 'overview', status: 'Demonstrated', notes: 'Computed counters with drill-downs; finance sections gated by visibility.' },
-  { moduleId: '02', module: 'CRM & Client Management', stories: 'VP-006, VP-007, VP-008', route: 'clients', status: 'Demonstrated', notes: 'Profiles, contacts, non-authorizing relationship groups, custom fields, 360 client workspace.' },
-  { moduleId: '03', module: 'Leads & Opportunities', stories: 'VP-009', route: 'acquisition', status: 'Demonstrated', notes: 'Inquiry → qualification → won/lost with reason; conversion never sets professional acceptance.' },
-  { moduleId: '04', module: 'Proposals & Engagements', stories: 'VP-010, VP-011, VP-012', route: 'proposals', status: 'Demonstrated', notes: 'Service catalogue, revision-bound commercial review/response, activation handoff.' },
-  { moduleId: '05', module: 'Jobs & Tasks', stories: 'VP-013, VP-014', route: 'jobs', status: 'Demonstrated', notes: 'Manual states; exactly one subtask level; child completion required before parent completion.' },
-  { moduleId: '06', module: 'Job Templates', stories: 'VP-015', route: 'job-templates', status: 'Demonstrated', notes: 'Draft/Published/Retired lifecycle; published immutable; explicit create-job-from-template.' },
-  { moduleId: '07', module: 'Team Collaboration', stories: 'VP-016, VP-027', route: 'communications', status: 'Demonstrated', notes: 'Internal notes/mentions (in-app notices only) + manual communication register.' },
-  { moduleId: '08', module: 'Client Portal', stories: 'VP-025', route: 'portal', status: 'Demonstrated', notes: 'Scoped projection; explicitly shared records only; no internal review or firm cost leakage.' },
-  { moduleId: '09', module: 'Client Requests / PBC', stories: 'VP-023, VP-024', route: 'portal', status: 'Demonstrated', notes: 'Draft → presented → client upload response → separate acceptance; replacement re-review.' },
-  { moduleId: '10', module: 'Document Management', stories: 'VP-020, VP-021', route: 'documents', status: 'Demonstrated', notes: 'SharePoint-first browser; versions; OneDrive import keeps SharePoint canonical.' },
-  { moduleId: '11', module: 'Communications', stories: 'VP-026, VP-027', route: 'communications', status: 'Demonstrated', notes: 'Outgoing simulation (accepted/failed/unknown) + manual incoming communication notes.' },
-  { moduleId: '12', module: 'Time Tracking', stories: 'VP-028', route: 'my-time', status: 'Demonstrated', notes: 'Draft → submit → approve/return; self-approval denied; correction revisions.' },
-  { moduleId: '13', module: 'Budgets', stories: 'VP-029', route: 'budgets', status: 'Demonstrated', notes: 'Versioned budgets; billing vs cost rates; §5.5 variance arithmetic and unknown cost handling.' },
-  { moduleId: '14', module: 'Billing & Invoicing', stories: 'VP-030, VP-031', route: 'billing', status: 'Demonstrated', notes: 'Source-linked drafts; independent review; immutable issued state; partial credits.' },
-  { moduleId: '15', module: 'Receivables', stories: 'VP-032, VP-033', route: 'receivables', status: 'Demonstrated', notes: 'Offline receipts, allocations, reversals; as-of aging per §5.5 with Current/1-30/31-60/61-90/90+.' },
-  { moduleId: '16', module: 'Reporting & Analytics', stories: 'VP-060', route: 'reports', status: 'Demonstrated', notes: 'Deterministic reports with CSV export; no external BI or AI integration.' },
-  { moduleId: '17', module: 'Search & Centralized Client View', stories: 'VP-008, VP-061', route: 'clients', status: 'Demonstrated', notes: 'Scoped deterministic search; requirements text indexed separately from client data.' },
-  { moduleId: '18', module: 'Microsoft 365 Integration', stories: 'VP-017, VP-020, VP-021, VP-022, VP-026', route: 'm365-setup', status: 'Demonstrated', notes: 'Simulated only; liveConnected=false; selectable tenant/sites; independent readiness; no Purview.' },
-  { moduleId: '19', module: 'Identity & Access Management', stories: 'VP-018, VP-019', route: 'administration', status: 'Demonstrated', notes: 'Simulated identities; explicit scoped grants; SoD checks by immutable person ID.' },
-  { moduleId: '20', module: 'Accounting', stories: 'VP-034, VP-037', route: 'accounting-setup', status: 'Demonstrated', notes: 'Profiles, periods/books, charts, dimensions, versioned statement mappings.' },
-  { moduleId: '21', module: 'Trial Balance & GL', stories: 'VP-035, VP-036', route: 'accounting-setup', status: 'Demonstrated', notes: 'Genuine CSV/XLSX intake; GL tie-out; union accounts checked; opening+movement=closing.' },
-  { moduleId: '22', module: 'Adjustments & Journals', stories: 'VP-038', route: 'accounting-setup', status: 'Demonstrated', notes: 'General journals; reflection states; no double-count on source-reflected TB.' },
-  { moduleId: '23', module: 'Reconciliations', stories: 'VP-039', route: 'accounting-setup', status: 'Demonstrated', notes: 'Manual schedules; timing items vs proposed corrections; residual blocks clearance.' },
-  { moduleId: '24', module: 'Financial Statements', stories: 'VP-040, VP-041', route: 'financial-statements', status: 'Demonstrated', notes: 'SFP/P&L/equity/cash-flow; comparatives; disclosure notes with applicability.' },
-  { moduleId: '25', module: 'Financial Packages', stories: 'VP-042', route: 'financial-packages', status: 'Demonstrated', notes: 'Versioned builder; genuine XLSX/DOCX/PDF demo artifacts with watermark.' },
-  { moduleId: '26', module: 'Consolidation', stories: 'VP-043, VP-044, VP-045, VP-046', route: 'consolidation', status: 'Demonstrated', notes: 'Group/perimeter, pinned packages, FX table, balanced eliminations once, detail-header tie.' },
-  { moduleId: '27', module: 'Client Acceptance', stories: 'VP-047', route: 'onboarding', status: 'Demonstrated', notes: 'Evaluation cases; separate collection/recommendation/decision; manual continuance.' },
-  { moduleId: '28', module: 'Audit Planning', stories: 'VP-048', route: 'audit-planning', status: 'Demonstrated', notes: 'Versioned plan; user-entered materiality assumptions and rationale.' },
-  { moduleId: '29', module: 'Risks & Audit Programs', stories: 'VP-049', route: 'audit-risks', status: 'Demonstrated', notes: 'Risk register; reusable program templates; reciprocal procedure linkage.' },
-  { moduleId: '30', module: 'Audit Fieldwork', stories: 'VP-050', route: 'audit-risks', status: 'Demonstrated', notes: 'Procedure execution grid; exceptions stay visible; separate clearance.' },
-  { moduleId: '31', module: 'Populations & Sampling', stories: 'VP-051', route: 'sampling', status: 'Demonstrated', notes: 'Source-bound populations; manual sample selection; per-item test results.' },
-  { moduleId: '32', module: 'Workpapers', stories: 'VP-052', route: 'audit', status: 'Demonstrated', notes: 'Six-tab workspace; replacement version history; lead schedules; clearance notes.' },
-  { moduleId: '33', module: 'Evidence', stories: 'VP-053', route: 'evidence', status: 'Demonstrated', notes: 'Shared version-aware catalogue; exact-version pins; adequacy tracking.' },
-  { moduleId: '34', module: 'Findings & Differences', stories: 'VP-054', route: 'findings', status: 'Demonstrated', notes: 'Separate from review points; gross/net monetary totals; corrected/uncorrected.' },
-  { moduleId: '35', module: 'Review Points', stories: 'VP-055', route: 'reviews', status: 'Demonstrated', notes: 'Raise/respond/clear/reopen; responder cannot self-clear.' },
-  { moduleId: '36', module: 'Reviews & Approvals', stories: 'VP-056', route: 'approvals', status: 'Demonstrated', notes: 'Revision-bound queues; per-engagement EQR concerns; partner/EQR separation.' },
-  { moduleId: '37', module: 'Completion & Release', stories: 'VP-057, VP-058', route: 'delivery', status: 'Demonstrated', notes: 'Checklist gates; frozen candidate; dispatch simulation; amendment lineage.' },
-  { moduleId: '38', module: 'Records & Archive', stories: 'VP-059', route: 'records', status: 'Demonstrated', notes: 'Logical archive index; application hold/retention metadata; no Purview.' },
-  { moduleId: '39', module: 'Administration', stories: 'VP-019, VP-062', route: 'administration', status: 'Demonstrated', notes: 'Firm settings; numbering prospective; no excluded toggles.' }
+  { moduleId: '01', module: 'Practice Dashboard', stories: 'VP-005, VP-060', route: 'overview', status: 'Partial', notes: 'Computed counters with drill-downs; finance sections gated by visibility.' },
+  { moduleId: '02', module: 'CRM & Client Management', stories: 'VP-006, VP-007, VP-008', route: 'clients', status: 'Partial', notes: 'Profiles, contacts, non-authorizing relationship groups, custom fields, 360 client workspace.' },
+  { moduleId: '03', module: 'Leads & Opportunities', stories: 'VP-009', route: 'acquisition', status: 'Partial', notes: 'Inquiry → qualification → won/lost with reason; conversion never sets professional acceptance.' },
+  { moduleId: '04', module: 'Proposals & Engagements', stories: 'VP-010, VP-011, VP-012', route: 'proposals', status: 'Partial', notes: 'Service catalogue, revision-bound commercial review/response, activation handoff.' },
+  { moduleId: '05', module: 'Jobs & Tasks', stories: 'VP-013, VP-014', route: 'jobs', status: 'Partial', notes: 'Manual states; exactly one subtask level; child completion required before parent completion.' },
+  { moduleId: '06', module: 'Job Templates', stories: 'VP-015', route: 'job-templates', status: 'Partial', notes: 'Draft/Published/Retired lifecycle; published immutable; explicit create-job-from-template.' },
+  { moduleId: '07', module: 'Team Collaboration', stories: 'VP-016, VP-027', route: 'communications', status: 'Partial', notes: 'Internal notes/mentions (in-app notices only) + manual communication register.' },
+  { moduleId: '08', module: 'Client Portal', stories: 'VP-025', route: 'portal', status: 'Partial', notes: 'Scoped projection; explicitly shared records only; no internal review or firm cost leakage.' },
+  { moduleId: '09', module: 'Client Requests / PBC', stories: 'VP-023, VP-024', route: 'portal', status: 'Partial', notes: 'Draft → presented → client upload response → separate acceptance; replacement re-review.' },
+  { moduleId: '10', module: 'Document Management', stories: 'VP-020, VP-021', route: 'documents', status: 'Partial', notes: 'SharePoint-first browser; versions; OneDrive import keeps SharePoint canonical.' },
+  { moduleId: '11', module: 'Communications', stories: 'VP-026, VP-027', route: 'communications', status: 'Partial', notes: 'Outgoing simulation (accepted/failed/unknown) + manual incoming communication notes.' },
+  { moduleId: '12', module: 'Time Tracking', stories: 'VP-028', route: 'my-time', status: 'Partial', notes: 'Draft → submit → approve/return; self-approval denied; correction revisions.' },
+  { moduleId: '13', module: 'Budgets', stories: 'VP-029', route: 'budgets', status: 'Partial', notes: 'Versioned budgets; billing vs cost rates; §5.5 variance arithmetic and unknown cost handling.' },
+  { moduleId: '14', module: 'Billing & Invoicing', stories: 'VP-030, VP-031', route: 'billing', status: 'Partial', notes: 'Source-linked drafts; independent review; immutable issued state; partial credits.' },
+  { moduleId: '15', module: 'Receivables', stories: 'VP-032, VP-033', route: 'receivables', status: 'Partial', notes: 'Offline receipts, allocations, reversals; as-of aging per §5.5 with Current/1-30/31-60/61-90/90+.' },
+  { moduleId: '16', module: 'Reporting & Analytics', stories: 'VP-060', route: 'reports', status: 'Partial', notes: 'Deterministic reports with CSV export; no external BI or AI integration.' },
+  { moduleId: '17', module: 'Search & Centralized Client View', stories: 'VP-008, VP-061', route: 'clients', status: 'Partial', notes: 'Scoped deterministic search; requirements text indexed separately from client data.' },
+  { moduleId: '18', module: 'Microsoft 365 Integration', stories: 'VP-017, VP-020, VP-021, VP-022, VP-026', route: 'm365-setup', status: 'Partial', notes: 'Simulated only; liveConnected=false; selectable tenant/sites; independent readiness; no Purview.' },
+  { moduleId: '19', module: 'Identity & Access Management', stories: 'VP-018, VP-019', route: 'administration', status: 'Partial', notes: 'Simulated identities; explicit scoped grants; SoD checks by immutable person ID.' },
+  { moduleId: '20', module: 'Accounting', stories: 'VP-034, VP-037', route: 'accounting-setup', status: 'Partial', notes: 'Profiles, periods/books, charts, dimensions, versioned statement mappings.' },
+  { moduleId: '21', module: 'Trial Balance & GL', stories: 'VP-035, VP-036', route: 'accounting-setup', status: 'Partial', notes: 'Genuine CSV/XLSX intake; GL tie-out; union accounts checked; opening+movement=closing.' },
+  { moduleId: '22', module: 'Adjustments & Journals', stories: 'VP-038', route: 'accounting-setup', status: 'Partial', notes: 'General journals; reflection states; no double-count on source-reflected TB.' },
+  { moduleId: '23', module: 'Reconciliations', stories: 'VP-039', route: 'accounting-setup', status: 'Partial', notes: 'Manual schedules; timing items vs proposed corrections; residual blocks clearance.' },
+  { moduleId: '24', module: 'Financial Statements', stories: 'VP-040, VP-041', route: 'financial-statements', status: 'Partial', notes: 'SFP/P&L/equity/cash-flow; comparatives; disclosure notes with applicability.' },
+  { moduleId: '25', module: 'Financial Packages', stories: 'VP-042', route: 'financial-packages', status: 'Partial', notes: 'Versioned builder; genuine XLSX/DOCX/PDF demo artifacts with watermark.' },
+  { moduleId: '26', module: 'Consolidation', stories: 'VP-043, VP-044, VP-045, VP-046', route: 'consolidation', status: 'Partial', notes: 'Group/perimeter, pinned packages, FX table, balanced eliminations once, detail-header tie.' },
+  { moduleId: '27', module: 'Client Acceptance', stories: 'VP-047', route: 'onboarding', status: 'Partial', notes: 'Evaluation cases; separate collection/recommendation/decision; manual continuance.' },
+  { moduleId: '28', module: 'Audit Planning', stories: 'VP-048', route: 'audit-planning', status: 'Partial', notes: 'Versioned plan; user-entered materiality assumptions and rationale.' },
+  { moduleId: '29', module: 'Risks & Audit Programs', stories: 'VP-049', route: 'audit-risks', status: 'Partial', notes: 'Risk register; reusable program templates; reciprocal procedure linkage.' },
+  { moduleId: '30', module: 'Audit Fieldwork', stories: 'VP-050', route: 'audit-risks', status: 'Partial', notes: 'Procedure execution grid; exceptions stay visible; separate clearance.' },
+  { moduleId: '31', module: 'Populations & Sampling', stories: 'VP-051', route: 'sampling', status: 'Partial', notes: 'Source-bound populations; manual sample selection; per-item test results.' },
+  { moduleId: '32', module: 'Workpapers', stories: 'VP-052', route: 'audit', status: 'Partial', notes: 'Six-tab workspace; replacement version history; lead schedules; clearance notes.' },
+  { moduleId: '33', module: 'Evidence', stories: 'VP-053', route: 'evidence', status: 'Partial', notes: 'Shared version-aware catalogue; exact-version pins; adequacy tracking.' },
+  { moduleId: '34', module: 'Findings & Differences', stories: 'VP-054', route: 'findings', status: 'Partial', notes: 'Separate from review points; gross/net monetary totals; corrected/uncorrected.' },
+  { moduleId: '35', module: 'Review Points', stories: 'VP-055', route: 'reviews', status: 'Partial', notes: 'Raise/respond/clear/reopen; responder cannot self-clear.' },
+  { moduleId: '36', module: 'Reviews & Approvals', stories: 'VP-056', route: 'approvals', status: 'Partial', notes: 'Revision-bound queues; per-engagement EQR concerns; partner/EQR separation.' },
+  { moduleId: '37', module: 'Completion & Release', stories: 'VP-057, VP-058', route: 'delivery', status: 'Partial', notes: 'Checklist gates; frozen candidate; dispatch simulation; amendment lineage.' },
+  { moduleId: '38', module: 'Records & Archive', stories: 'VP-059', route: 'records', status: 'Partial', notes: 'Logical archive index; application hold/retention metadata; no Purview.' },
+  { moduleId: '39', module: 'Administration', stories: 'VP-019, VP-062', route: 'administration', status: 'Partial', notes: 'Firm settings; numbering prospective; no excluded toggles.' }
 ];
 
 const STORY_ROWS: StoryRow[] = [
-  { id: 'VP-001', title: 'Freeze scope and remove excluded product surfaces', moduleId: '00', moduleName: 'Foundation', route: 'requirements', status: 'Verified', criteriaSummary: 'No excluded module offered; historical references disclaimed; tests verify target-facing code.' },
-  { id: 'VP-002', title: 'Introduce a single typed state and legacy/React route bridge', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Single store owns state; subscriptions update once; no duplicate renders.' },
-  { id: 'VP-003', title: 'Unify navigation, scoped views and reusable form behaviour', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Scoped navigation; client roles restricted from internal views; forms validate context.' },
-  { id: 'VP-004', title: 'Version fixtures, migrate existing demo state and provide scenario recovery', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Schema migrations versioned; malformed state prompts recovery; multi-tab conflict detected.' },
-  { id: 'VP-005', title: 'Build a real practice dashboard with scoped drill-downs', moduleId: '01', moduleName: 'Practice Dashboard', route: 'overview', status: 'Demonstrated', criteriaSummary: 'Counters computed from demo records; drill-down to filtered lists; as-of date respected.' },
-  { id: 'VP-006', title: 'Complete client profile creation, editing and lifecycle', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Normalized client codes unique; soft archival; status transitions validated.' },
-  { id: 'VP-007', title: 'Add contacts, relationship groups and bounded custom fields', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Multiple contacts with one primary; non-authorizing groups; typed custom fields.' },
-  { id: 'VP-008', title: 'Complete the centralized client workspace', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Tabs for complete client lifecycle; context preserved in navigation; scoped data.' },
-  { id: 'VP-009', title: 'Finish the leads and opportunities pipeline', moduleId: '03', moduleName: 'Leads & Opportunities', route: 'acquisition', status: 'Demonstrated', criteriaSummary: 'Lead qualification → won/lost with reason; conversion to prospect without auto-acceptance.' },
-  { id: 'VP-010', title: 'Build reusable services and complete proposal drafting', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Demonstrated', criteriaSummary: 'Service catalogue; proposal revisions; arithmetic reconciled; no tax/eSign.' },
-  { id: 'VP-011', title: 'Record proposal review, presentation and manual client acceptance', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Verified', criteriaSummary: 'Preparer cannot self-approve; response binds to presented revision; manual acceptance.' },
-  { id: 'VP-012', title: 'Complete engagement creation and lifecycle handoff', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'engagements', status: 'Demonstrated', criteriaSummary: 'Creation from accepted proposal; explicit activation check; change history preserved.' },
-  { id: 'VP-013', title: 'Add the simple job register and job detail workspace', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Demonstrated', criteriaSummary: 'Manual job CRUD modal; filters by client/status; completion requires finished tasks.' },
-  { id: 'VP-014', title: 'Implement tasks and exactly one level of subtasks', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Verified', criteriaSummary: 'One level of subtasks enforced; parent completion blocks on unfinished children; reassignment history.' },
-  { id: 'VP-015', title: 'Implement job-template authoring and manual instantiation', moduleId: '06', moduleName: 'Job Templates', route: 'job-templates', status: 'Demonstrated', criteriaSummary: 'Draft/Published/Retired authoring; applying requires Published; fresh IDs created once.' },
-  { id: 'VP-016', title: 'Add contextual internal notes, comments and basic mentions', moduleId: '07', moduleName: 'Team Collaboration', route: 'communications', status: 'Demonstrated', notes: 'Internal visibility default; client cannot see internal comments or mentions.' } as any,
-  { id: 'VP-017', title: 'Create the simplified Microsoft 365 setup wizard', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Verified', criteriaSummary: 'Simulated configuration; selectable site/library/root; liveConnected=false; no Purview.' },
-  { id: 'VP-018', title: 'Represent Microsoft sign-in and user lifecycle honestly', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Demonstrated', criteriaSummary: 'Clear simulated identity indicators; disabling user prevents commands; no live OAuth.' },
-  { id: 'VP-019', title: 'Add editable application-role grants and scope administration', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Verified', criteriaSummary: 'Scoped grants enforced on commands; narrow engagement user restricted from sibling data.' },
-  { id: 'VP-020', title: 'Build the SharePoint-first document browser and client folders', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Demonstrated', criteriaSummary: 'SharePoint canonical library; client workspace preparation idempotent; simulated preview.' },
-  { id: 'VP-021', title: 'Add document versions, existing-file linking and optional OneDrive selection', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Demonstrated', criteriaSummary: 'Version history; pinned evidence version unaffected by newer file; OneDrive optional.' },
-  { id: 'VP-022', title: 'Complete Microsoft configuration failure, reconnect and disconnect journeys', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Demonstrated', criteriaSummary: 'Independent readiness; config change stales test; failure recovery selectable.' },
-  { id: 'VP-023', title: 'Complete PBC request creation, editing and ownership', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Demonstrated', criteriaSummary: 'Draft → presentation; due dates and assignees; cancellation preserves history.' },
-  { id: 'VP-024', title: 'Finish PBC submission, clarification and evidence acceptance', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Verified', criteriaSummary: 'Real local upload; response is not acceptance; uploader cannot self-accept.' },
-  { id: 'VP-025', title: 'Unify the client portal across all agreed client functions', moduleId: '08', moduleName: 'Client Portal', route: 'portal', status: 'Demonstrated', criteriaSummary: 'Client sees only their scoped records; issued invoices only; no internal draft leakage.' },
-  { id: 'VP-026', title: 'Implement basic outgoing Microsoft email and templates', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Demonstrated', criteriaSummary: 'Local simulated send (accepted/failed/unknown); template placeholders; no real mail egress.' },
-  { id: 'VP-027', title: 'Add a complete communication register and manual incoming notes', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Demonstrated', criteriaSummary: 'Manual logging of calls/emails; client vs internal visibility; audit trail.' },
-  { id: 'VP-028', title: 'Complete time entry, review and correction workflows', moduleId: '12', moduleName: 'Time Tracking', route: 'my-time', status: 'Verified', criteriaSummary: 'Draft/submit/approve; preparer cannot self-approve; approved correction revisions.' },
-  { id: 'VP-029', title: 'Implement simple budgets with distinct billing and cost rates', moduleId: '13', moduleName: 'Budgets', route: 'budgets', status: 'Verified', criteriaSummary: 'Billing rate separate from cost rate; §5.5 variance math; missing cost is unknown.' },
-  { id: 'VP-030', title: 'Complete billing accounts and invoice drafting from explicit sources', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Demonstrated', criteriaSummary: 'Drafting from approved time/services; source revision pinned; duplicate billing prevented.' },
-  { id: 'VP-031', title: 'Finish invoice review, issue and credit-note workflows', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Verified', criteriaSummary: 'Independent review; immutable issued invoice; credits bounded by remaining balance.' },
-  { id: 'VP-032', title: 'Implement offline receipt records, allocation and correction', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Verified', criteriaSummary: 'Receipts allocate across issued invoices; over-allocation & cross-client blocked; reversal.' },
-  { id: 'VP-033', title: 'Add receivables aging and client account statements', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Verified', criteriaSummary: 'Aging buckets Current/1-30/31-60/61-90/90+; drafts excluded; as-of receipts respected.' },
-  { id: 'VP-034', title: 'Add accounting profiles, periods, books, charts and dimensions', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Demonstrated', criteriaSummary: 'Client accounting profile, legal entity, reporting periods/books, chart with posting flag.' },
-  { id: 'VP-035', title: 'Complete bounded CSV and genuine XLSX trial-balance intake', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'Genuine XLSX workbook parsing; row limits enforced; unbalanced/formula rows rejected.' },
-  { id: 'VP-036', title: 'Add GL intake, transaction browsing and TB completeness', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'GL accounts union with TB; unknown opening balance caught; opening+movement=closing tie-out.' },
-  { id: 'VP-037', title: 'Extend account mappings and reporting validation', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Demonstrated', criteriaSummary: 'Source account to statement line mappings; unmapped queue; split conservation.' },
-  { id: 'VP-038', title: 'Generalize adjustment journals and source-reflection decisions', moduleId: '22', moduleName: 'Adjustments & Journals', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'General journal lines; reflection status; no double counting when source already adjusted.' },
-  { id: 'VP-039', title: 'Implement editable manual reconciliation schedules', moduleId: '23', moduleName: 'Reconciliations', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'Manual schedules; timing items vs proposed corrections; corrections cannot clear residual.' },
-  { id: 'VP-040', title: 'Build configurable financial statements and comparatives', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Verified', criteriaSummary: 'SFP/P&L/equity/cash-flow; arithmetic ties out; statements include approved adjustments.' },
-  { id: 'VP-041', title: 'Complete notes, cash-flow support and disclosure review', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Demonstrated', criteriaSummary: 'Notes with applicability; movement schedules; client preview excludes internal notes.' },
-  { id: 'VP-042', title: 'Complete financial-package assembly and genuine exports', moduleId: '25', moduleName: 'Financial Packages', route: 'financial-packages', status: 'Verified', criteriaSummary: 'Genuine XLSX/DOCX/PDF exports; watermark included on all formats; exact revision recorded.' },
-  { id: 'VP-043', title: 'Create consolidation groups and effective perimeters', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Demonstrated', criteriaSummary: 'Group entity, perimeter revision, component links; no source client balance mutated.' },
-  { id: 'VP-044', title: 'Select component packages and demonstrate currency translation', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Demonstrated', criteriaSummary: 'Pinned component packages; manual FX rate table; translation difference explicit.' },
-  { id: 'VP-045', title: 'Implement manual eliminations and group adjustment review', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Verified', criteriaSummary: 'Debit/credit eliminations applied once; detail lines and total headers strictly tie out.' },
-  { id: 'VP-046', title: 'Produce, review and export consolidated output', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Verified', criteriaSummary: 'Consolidated = components + adjustments; demo exports contain watermark; no firm ledger mutation.' },
-  { id: 'VP-047', title: 'Complete client evaluation, conditions and manual continuance', moduleId: '27', moduleName: 'Client Acceptance', route: 'onboarding', status: 'Demonstrated', criteriaSummary: 'Evaluation questionnaires; compliance recommendation; partner decision with rationale.' },
-  { id: 'VP-048', title: 'Build a complete audit planning workspace', moduleId: '28', moduleName: 'Audit Planning', route: 'audit-planning', status: 'Verified', criteriaSummary: 'User-entered materiality percentages & rationale; ISA 320 calculations; audit plan scope.' },
-  { id: 'VP-049', title: 'Add editable risks, audit programs and procedure linkage', moduleId: '29', moduleName: 'Risks & Programs', route: 'audit-risks', status: 'Demonstrated', criteriaSummary: 'Risk registers with assertion mapping; program templates; reciprocal procedure linkage.' },
-  { id: 'VP-050', title: 'Implement procedure-level fieldwork execution', moduleId: '30', moduleName: 'Audit Fieldwork', route: 'audit-risks', status: 'Demonstrated', criteriaSummary: 'Procedure execution grid; exceptions stay visible; separate preparer and reviewer sign-off.' },
-  { id: 'VP-051', title: 'Complete populations, manual sample selection and test results', moduleId: '31', moduleName: 'Sampling', route: 'sampling', status: 'Demonstrated', criteriaSummary: 'Source-bound populations; manual sample selection; per-item test results and exceptions.' },
-  { id: 'VP-052', title: 'Complete workpaper creation, template administration and reassignment', moduleId: '32', moduleName: 'Workpapers', route: 'audit', status: 'Demonstrated', criteriaSummary: '6-tab workspace; replacement version history; lead schedules tie out; clearance notes.' },
-  { id: 'VP-053', title: 'Add a reusable, version-aware evidence catalogue', moduleId: '33', moduleName: 'Evidence', route: 'evidence', status: 'Verified', criteriaSummary: 'Catalogue of evidence; pinned exact revisions; adequacy status requires rationale.' },
-  { id: 'VP-054', title: 'Implement findings and differences as separate professional records', moduleId: '34', moduleName: 'Findings', route: 'findings', status: 'Demonstrated', criteriaSummary: 'Separate from review points; gross/net monetary totals; open findings gate release.' },
-  { id: 'VP-055', title: 'Extend review-point assignment, filtering and response evidence', moduleId: '35', moduleName: 'Review Points', route: 'reviews', status: 'Demonstrated', criteriaSummary: 'Raise/respond/clear/reopen; responder cannot self-clear; filtered by engagement.' },
-  { id: 'VP-056', title: 'Complete reusable human approvals and independent EQR', moduleId: '36', moduleName: 'Reviews & Approvals', route: 'approvals', status: 'Verified', criteriaSummary: 'Role eligibility enforced; partner cannot sign off EQR; per-engagement EQR concerns.' },
-  { id: 'VP-057', title: 'Complete the human-controlled completion and release workspace', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Demonstrated', criteriaSummary: 'Checklist gates verify workpapers, reviews, findings, approvals; frozen candidate manifest.' },
-  { id: 'VP-058', title: 'Demonstrate corrections, amendments and reissue lineage', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Demonstrated', criteriaSummary: 'Amendment increments revision and generation, stales partner sign-off, retains history.' },
-  { id: 'VP-059', title: 'Finish Records & Archive without Microsoft Purview', moduleId: '38', moduleName: 'Records & Archive', route: 'records', status: 'Demonstrated', criteriaSummary: 'Logical archive index; application hold/retention metadata; no external Purview lock claims.' },
-  { id: 'VP-060', title: 'Create a practical report centre with reconciled metrics', moduleId: '16', moduleName: 'Reporting', route: 'reports', status: 'Demonstrated', criteriaSummary: 'Operational and financial reports; aging and budget variances tie out; CSV export.' },
-  { id: 'VP-061', title: 'Implement ordinary global search and safe cross-links', moduleId: '17', moduleName: 'Search', route: 'clients', status: 'Verified', criteriaSummary: 'Deterministic scoped search; respects person grants; excludes unauthorized snippets.' },
-  { id: 'VP-062', title: 'Complete firm and application administration', moduleId: '39', moduleName: 'Administration', route: 'administration', status: 'Demonstrated', criteriaSummary: 'Firm configuration; numbering prospective; role grants; no excluded feature toggles.' },
-  { id: 'VP-063', title: 'Add executable cross-module browser acceptance and regression tests', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Verified', criteriaSummary: 'npm run test:unit and test:e2e pass; network egress tests verify no live external calls.' },
-  { id: 'VP-064', title: 'Publish module coverage, demonstration guide and implementation evidence', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Verified', criteriaSummary: 'Authoritative coverage matrix in Requirements view and docs/prototype/ documentation.' }
+  { id: 'VP-001', title: 'Freeze scope and remove excluded product surfaces', moduleId: '00', moduleName: 'Foundation', route: 'requirements', status: 'Partial', criteriaSummary: 'No excluded module offered; historical references disclaimed; tests verify target-facing code.' },
+  { id: 'VP-002', title: 'Introduce a single typed state and legacy/React route bridge', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Partial', criteriaSummary: 'Single store owns state; subscriptions update once; no duplicate renders.' },
+  { id: 'VP-003', title: 'Unify navigation, scoped views and reusable form behaviour', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Partial', criteriaSummary: 'Scoped navigation; client roles restricted from internal views; forms validate context.' },
+  { id: 'VP-004', title: 'Version fixtures, migrate existing demo state and provide scenario recovery', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Partial', criteriaSummary: 'Schema migrations versioned; malformed state prompts recovery; multi-tab conflict detected.' },
+  { id: 'VP-005', title: 'Build a real practice dashboard with scoped drill-downs', moduleId: '01', moduleName: 'Practice Dashboard', route: 'overview', status: 'Partial', criteriaSummary: 'Counters computed from demo records; drill-down to filtered lists; as-of date respected.' },
+  { id: 'VP-006', title: 'Complete client profile creation, editing and lifecycle', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Normalized client codes unique; soft archival; status transitions validated.' },
+  { id: 'VP-007', title: 'Add contacts, relationship groups and bounded custom fields', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Multiple contacts with one primary; non-authorizing groups; typed custom fields.' },
+  { id: 'VP-008', title: 'Complete the centralized client workspace', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Partial', criteriaSummary: 'Tabs for complete client lifecycle; context preserved in navigation; scoped data.' },
+  { id: 'VP-009', title: 'Finish the leads and opportunities pipeline', moduleId: '03', moduleName: 'Leads & Opportunities', route: 'acquisition', status: 'Partial', criteriaSummary: 'Lead qualification → won/lost with reason; conversion to prospect without auto-acceptance.' },
+  { id: 'VP-010', title: 'Build reusable services and complete proposal drafting', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Partial', criteriaSummary: 'Service catalogue; proposal revisions; arithmetic reconciled; no tax/eSign.' },
+  { id: 'VP-011', title: 'Record proposal review, presentation and manual client acceptance', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Partial', criteriaSummary: 'Preparer cannot self-approve; response binds to presented revision; manual acceptance.' },
+  { id: 'VP-012', title: 'Complete engagement creation and lifecycle handoff', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'engagements', status: 'Partial', criteriaSummary: 'Creation from accepted proposal; explicit activation check; change history preserved.' },
+  { id: 'VP-013', title: 'Add the simple job register and job detail workspace', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Partial', criteriaSummary: 'Manual job CRUD modal; filters by client/status; completion requires finished tasks.' },
+  { id: 'VP-014', title: 'Implement tasks and exactly one level of subtasks', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Partial', criteriaSummary: 'One level of subtasks enforced; parent completion blocks on unfinished children; reassignment history.' },
+  { id: 'VP-015', title: 'Implement job-template authoring and manual instantiation', moduleId: '06', moduleName: 'Job Templates', route: 'job-templates', status: 'Partial', criteriaSummary: 'Draft/Published/Retired authoring; applying requires Published; fresh IDs created once.' },
+  { id: 'VP-016', title: 'Add contextual internal notes, comments and basic mentions', moduleId: '07', moduleName: 'Team Collaboration', route: 'communications', status: 'Partial', notes: 'Internal visibility default; client cannot see internal comments or mentions.' } as any,
+  { id: 'VP-017', title: 'Create the simplified Microsoft 365 setup wizard', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Partial', criteriaSummary: 'Simulated configuration; selectable site/library/root; liveConnected=false; no Purview.' },
+  { id: 'VP-018', title: 'Represent Microsoft sign-in and user lifecycle honestly', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Partial', criteriaSummary: 'Clear simulated identity indicators; disabling user prevents commands; no live OAuth.' },
+  { id: 'VP-019', title: 'Add editable application-role grants and scope administration', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Partial', criteriaSummary: 'Scoped grants enforced on commands; narrow engagement user restricted from sibling data.' },
+  { id: 'VP-020', title: 'Build the SharePoint-first document browser and client folders', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Partial', criteriaSummary: 'SharePoint canonical library; client workspace preparation idempotent; simulated preview.' },
+  { id: 'VP-021', title: 'Add document versions, existing-file linking and optional OneDrive selection', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Partial', criteriaSummary: 'Version history; pinned evidence version unaffected by newer file; OneDrive optional.' },
+  { id: 'VP-022', title: 'Complete Microsoft configuration failure, reconnect and disconnect journeys', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Partial', criteriaSummary: 'Independent readiness; config change stales test; failure recovery selectable.' },
+  { id: 'VP-023', title: 'Complete PBC request creation, editing and ownership', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Partial', criteriaSummary: 'Draft → presentation; due dates and assignees; cancellation preserves history.' },
+  { id: 'VP-024', title: 'Finish PBC submission, clarification and evidence acceptance', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Partial', criteriaSummary: 'Real local upload; response is not acceptance; uploader cannot self-accept.' },
+  { id: 'VP-025', title: 'Unify the client portal across all agreed client functions', moduleId: '08', moduleName: 'Client Portal', route: 'portal', status: 'Partial', criteriaSummary: 'Client sees only their scoped records; issued invoices only; no internal draft leakage.' },
+  { id: 'VP-026', title: 'Implement basic outgoing Microsoft email and templates', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Partial', criteriaSummary: 'Local simulated send (accepted/failed/unknown); template placeholders; no real mail egress.' },
+  { id: 'VP-027', title: 'Add a complete communication register and manual incoming notes', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Partial', criteriaSummary: 'Manual logging of calls/emails; client vs internal visibility; audit trail.' },
+  { id: 'VP-028', title: 'Complete time entry, review and correction workflows', moduleId: '12', moduleName: 'Time Tracking', route: 'my-time', status: 'Partial', criteriaSummary: 'Draft/submit/approve; preparer cannot self-approve; approved correction revisions.' },
+  { id: 'VP-029', title: 'Implement simple budgets with distinct billing and cost rates', moduleId: '13', moduleName: 'Budgets', route: 'budgets', status: 'Partial', criteriaSummary: 'Billing rate separate from cost rate; §5.5 variance math; missing cost is unknown.' },
+  { id: 'VP-030', title: 'Complete billing accounts and invoice drafting from explicit sources', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Partial', criteriaSummary: 'Drafting from approved time/services; source revision pinned; duplicate billing prevented.' },
+  { id: 'VP-031', title: 'Finish invoice review, issue and credit-note workflows', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Partial', criteriaSummary: 'Independent review; immutable issued invoice; credits bounded by remaining balance.' },
+  { id: 'VP-032', title: 'Implement offline receipt records, allocation and correction', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Partial', criteriaSummary: 'Receipts allocate across issued invoices; over-allocation & cross-client blocked; reversal.' },
+  { id: 'VP-033', title: 'Add receivables aging and client account statements', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Partial', criteriaSummary: 'Aging buckets Current/1-30/31-60/61-90/90+; drafts excluded; as-of receipts respected.' },
+  { id: 'VP-034', title: 'Add accounting profiles, periods, books, charts and dimensions', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'Client accounting profile, legal entity, reporting periods/books, chart with posting flag.' },
+  { id: 'VP-035', title: 'Complete bounded CSV and genuine XLSX trial-balance intake', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'Genuine XLSX workbook parsing; row limits enforced; unbalanced/formula rows rejected.' },
+  { id: 'VP-036', title: 'Add GL intake, transaction browsing and TB completeness', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'GL accounts union with TB; unknown opening balance caught; opening+movement=closing tie-out.' },
+  { id: 'VP-037', title: 'Extend account mappings and reporting validation', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'Source account to statement line mappings; unmapped queue; split conservation.' },
+  { id: 'VP-038', title: 'Generalize adjustment journals and source-reflection decisions', moduleId: '22', moduleName: 'Adjustments & Journals', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'General journal lines; reflection status; no double counting when source already adjusted.' },
+  { id: 'VP-039', title: 'Implement editable manual reconciliation schedules', moduleId: '23', moduleName: 'Reconciliations', route: 'accounting-setup', status: 'Partial', criteriaSummary: 'Manual schedules; timing items vs proposed corrections; corrections cannot clear residual.' },
+  { id: 'VP-040', title: 'Build configurable financial statements and comparatives', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Partial', criteriaSummary: 'SFP/P&L/equity/cash-flow; arithmetic ties out; statements include approved adjustments.' },
+  { id: 'VP-041', title: 'Complete notes, cash-flow support and disclosure review', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Partial', criteriaSummary: 'Notes with applicability; movement schedules; client preview excludes internal notes.' },
+  { id: 'VP-042', title: 'Complete financial-package assembly and genuine exports', moduleId: '25', moduleName: 'Financial Packages', route: 'financial-packages', status: 'Partial', criteriaSummary: 'Genuine XLSX/DOCX/PDF exports; watermark included on all formats; exact revision recorded.' },
+  { id: 'VP-043', title: 'Create consolidation groups and effective perimeters', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Partial', criteriaSummary: 'Group entity, perimeter revision, component links; no source client balance mutated.' },
+  { id: 'VP-044', title: 'Select component packages and demonstrate currency translation', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Partial', criteriaSummary: 'Pinned component packages; manual FX rate table; translation difference explicit.' },
+  { id: 'VP-045', title: 'Implement manual eliminations and group adjustment review', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Partial', criteriaSummary: 'Debit/credit eliminations applied once; detail lines and total headers strictly tie out.' },
+  { id: 'VP-046', title: 'Produce, review and export consolidated output', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Partial', criteriaSummary: 'Consolidated = components + adjustments; demo exports contain watermark; no firm ledger mutation.' },
+  { id: 'VP-047', title: 'Complete client evaluation, conditions and manual continuance', moduleId: '27', moduleName: 'Client Acceptance', route: 'onboarding', status: 'Partial', criteriaSummary: 'Evaluation questionnaires; compliance recommendation; partner decision with rationale.' },
+  { id: 'VP-048', title: 'Build a complete audit planning workspace', moduleId: '28', moduleName: 'Audit Planning', route: 'audit-planning', status: 'Partial', criteriaSummary: 'User-entered materiality percentages & rationale; ISA 320 calculations; audit plan scope.' },
+  { id: 'VP-049', title: 'Add editable risks, audit programs and procedure linkage', moduleId: '29', moduleName: 'Risks & Programs', route: 'audit-risks', status: 'Partial', criteriaSummary: 'Risk registers with assertion mapping; program templates; reciprocal procedure linkage.' },
+  { id: 'VP-050', title: 'Implement procedure-level fieldwork execution', moduleId: '30', moduleName: 'Audit Fieldwork', route: 'audit-risks', status: 'Partial', criteriaSummary: 'Procedure execution grid; exceptions stay visible; separate preparer and reviewer sign-off.' },
+  { id: 'VP-051', title: 'Complete populations, manual sample selection and test results', moduleId: '31', moduleName: 'Sampling', route: 'sampling', status: 'Partial', criteriaSummary: 'Source-bound populations; manual sample selection; per-item test results and exceptions.' },
+  { id: 'VP-052', title: 'Complete workpaper creation, template administration and reassignment', moduleId: '32', moduleName: 'Workpapers', route: 'audit', status: 'Partial', criteriaSummary: '6-tab workspace; replacement version history; lead schedules tie out; clearance notes.' },
+  { id: 'VP-053', title: 'Add a reusable, version-aware evidence catalogue', moduleId: '33', moduleName: 'Evidence', route: 'evidence', status: 'Partial', criteriaSummary: 'Catalogue of evidence; pinned exact revisions; adequacy status requires rationale.' },
+  { id: 'VP-054', title: 'Implement findings and differences as separate professional records', moduleId: '34', moduleName: 'Findings', route: 'findings', status: 'Partial', criteriaSummary: 'Separate from review points; gross/net monetary totals; open findings gate release.' },
+  { id: 'VP-055', title: 'Extend review-point assignment, filtering and response evidence', moduleId: '35', moduleName: 'Review Points', route: 'reviews', status: 'Partial', criteriaSummary: 'Raise/respond/clear/reopen; responder cannot self-clear; filtered by engagement.' },
+  { id: 'VP-056', title: 'Complete reusable human approvals and independent EQR', moduleId: '36', moduleName: 'Reviews & Approvals', route: 'approvals', status: 'Partial', criteriaSummary: 'Role eligibility enforced; partner cannot sign off EQR; per-engagement EQR concerns.' },
+  { id: 'VP-057', title: 'Complete the human-controlled completion and release workspace', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Partial', criteriaSummary: 'Checklist gates verify workpapers, reviews, findings, approvals; frozen candidate manifest.' },
+  { id: 'VP-058', title: 'Demonstrate corrections, amendments and reissue lineage', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Partial', criteriaSummary: 'Amendment increments revision and generation, stales partner sign-off, retains history.' },
+  { id: 'VP-059', title: 'Finish Records & Archive without Microsoft Purview', moduleId: '38', moduleName: 'Records & Archive', route: 'records', status: 'Partial', criteriaSummary: 'Logical archive index; application hold/retention metadata; no external Purview lock claims.' },
+  { id: 'VP-060', title: 'Create a practical report centre with reconciled metrics', moduleId: '16', moduleName: 'Reporting', route: 'reports', status: 'Partial', criteriaSummary: 'Operational and financial reports; aging and budget variances tie out; CSV export.' },
+  { id: 'VP-061', title: 'Implement ordinary global search and safe cross-links', moduleId: '17', moduleName: 'Search', route: 'clients', status: 'Partial', criteriaSummary: 'Deterministic scoped search; respects person grants; excludes unauthorized snippets.' },
+  { id: 'VP-062', title: 'Complete firm and application administration', moduleId: '39', moduleName: 'Administration', route: 'administration', status: 'Partial', criteriaSummary: 'Firm configuration; numbering prospective; role grants; no excluded feature toggles.' },
+  { id: 'VP-063', title: 'Add executable cross-module browser acceptance and regression tests', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Partial', criteriaSummary: 'npm run test:unit and test:e2e pass; network egress tests verify no live external calls.' },
+  { id: 'VP-064', title: 'Publish module coverage, demonstration guide and implementation evidence', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Partial', criteriaSummary: 'Authoritative coverage matrix in Requirements view and docs/prototype/ documentation.' }
 ];
 
 export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }) => {
@@ -161,16 +161,15 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
         <div>
           <h1>Prototype Requirements &amp; Verification Evidence</h1>
           <p>
-            Complete 64-story gap-closure backlog (VP-001–VP-064) and 39-module traceability matrix.
-            All statuses are derived from actual local commands, forms, and executed automated tests.
+            Original 64-story backlog (VP-001–VP-064) and 39-module map. Every row is Partial because route smoke and focused tests do not prove each complete acceptance journey.
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <span className="badge green" style={{ padding: '6px 12px', fontSize: 13 }}>
-            64 User Stories Mapped
+          <span className="badge amber" style={{ padding: '6px 12px', fontSize: 13 }}>
+            64 Stories Mapped
           </span>
-          <span className="badge teal" style={{ padding: '6px 12px', fontSize: 13 }}>
-            39 Modules Covered
+          <span className="badge amber" style={{ padding: '6px 12px', fontSize: 13 }}>
+            39 Modules Mapped
           </span>
         </div>
       </div>
@@ -235,7 +234,7 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
                     <td><b>{s.title}</b></td>
                     <td><span className="caption">{s.moduleName}</span></td>
                     <td>
-                      <span className={`badge ${s.status === 'Verified' ? 'green' : s.status === 'Demonstrated' ? 'teal' : 'amber'}`}>
+                      <span className="badge amber">
                         {s.status}
                       </span>
                     </td>
@@ -262,7 +261,7 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
                   <th>Functional Module</th>
                   <th>Required Stories</th>
                   <th style={{ width: 120 }}>Status</th>
-                  <th>Demonstrated Capabilities</th>
+                  <th>Implementation Notes (not acceptance evidence)</th>
                   <th style={{ width: 100 }}>Action</th>
                 </tr>
               </thead>
@@ -273,7 +272,7 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
                     <td><b>{r.module}</b></td>
                     <td><span className="mono" style={{ fontSize: 12 }}>{r.stories}</span></td>
                     <td>
-                      <span className={`badge ${r.status === 'Demonstrated' ? 'green' : 'amber'}`}>
+                      <span className="badge amber">
                         {r.status}
                       </span>
                     </td>

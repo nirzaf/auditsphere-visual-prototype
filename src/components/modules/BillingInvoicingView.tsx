@@ -28,7 +28,8 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const [creditReason, setCreditReason] = useState('Commercial fee adjustment approved by partner');
 
   const invoices = state.invoices;
-  const client = state.clients[0];
+  const selectedEngagement = state.engagements.find(e => e.id === state.selectedEngagement);
+  const client = state.clients.find(c => c.id === selectedEngagement?.client);
 
   const handleCreateDraft = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +49,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       due,
       status: 'Draft',
       preparedBy: state.currentPerson,
-      lines: []
+      lines: [{ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' }]
     };
 
     prototypeStore.addInvoice(newInv);
@@ -82,16 +83,31 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       amount: creditAmount,
       currency: selectedInvoice.currency,
       reason: creditReason,
-      status: 'Approved',
-      issueDate: new Date().toISOString().split('T')[0],
+      status: 'Draft',
+      issueDate: state.asOfDate,
       date: new Date().toISOString().split('T')[0],
       preparedBy: state.currentPerson,
-      issuedBy: state.currentPerson
+      issuedBy: undefined
     };
 
-    prototypeStore.addCreditNote(newCredit);
-    setShowCreditModal(false);
-    setSelectedInvoice(null);
+    try {
+      prototypeStore.addCreditNote(newCredit);
+      setNotice({ type: 'success', text: `Credit note ${newCredit.creditNumber} saved as a draft for independent review.` });
+      setShowCreditModal(false);
+      setSelectedInvoice(null);
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleReviewCredit = (creditId: string) => {
+    try { prototypeStore.reviewCreditNote(creditId, true); setNotice({ type: 'success', text: 'Credit note approved for issue.' }); }
+    catch (err: any) { setNotice({ type: 'error', text: err.message }); }
+  };
+
+  const handleIssueCredit = (creditId: string) => {
+    try { prototypeStore.issueCreditNote(creditId); setNotice({ type: 'success', text: 'Credit note issued in the local prototype.' }); }
+    catch (err: any) { setNotice({ type: 'error', text: err.message }); }
   };
 
   const handleExportPDF = (inv: InvoiceRecord) => {
@@ -216,7 +232,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       {state.creditNotes.length > 0 && (
         <div className="panel">
           <div className="panel-head">
-            <h3>Credit Notes Issued ({state.creditNotes.length})</h3>
+            <h3>Credit Notes ({state.creditNotes.length})</h3>
           </div>
           <div className="tablewrap">
             <table>
@@ -227,7 +243,9 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   <th>Amount</th>
                   <th>Reason</th>
                   <th>Date</th>
-                  <th>Issued By</th>
+                  <th>Status</th>
+                  <th>Prepared / Reviewed / Issued</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,7 +256,12 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                     <td><b>{formatCurrency(cn.amount, cn.currency)}</b></td>
                     <td>{cn.reason}</td>
                     <td>{cn.date}</td>
-                    <td>{cn.issuedBy}</td>
+                    <td>{cn.status}</td>
+                    <td>{[cn.preparedBy, cn.reviewedBy, cn.issuedBy].filter(Boolean).join(' / ') || '—'}</td>
+                    <td>
+                      {cn.status === 'Draft' && <button className="btn sm" onClick={() => handleReviewCredit(cn.id)}>Approve</button>}
+                      {cn.status === 'Approved' && <button className="btn sm primary" onClick={() => handleIssueCredit(cn.id)}>Issue</button>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

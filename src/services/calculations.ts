@@ -193,10 +193,10 @@ export interface BudgetAnalysis {
   plannedFees: number;
   approvedMinutes: number;
   approvedHours: number;
-  actualBillableValue: number;
+  actualBillableValue: number | null;
   knownDeliveryCost: number | null;
   varianceHours: number;
-  varianceFees: number;
+  varianceFees: number | null;
 }
 
 export function calculateBudgetVsActual(
@@ -218,12 +218,12 @@ export function calculateBudgetVsActual(
     };
   }
 
+  const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
   let plannedMinutes = 0;
   let plannedFees = 0;
   budget.lines.forEach(line => {
-    plannedMinutes += (line as any).plannedMinutes || ((line as any).plannedHours ? (line as any).plannedHours * 60 : 0);
-    const hours = (line as any).plannedMinutes ? (line as any).plannedMinutes / 60 : ((line as any).plannedHours || 0);
-    plannedFees += Math.round(hours * ((line as any).billingRatePerHour || (line as any).billingRate || 200));
+    plannedMinutes += line.plannedMinutes;
+    plannedFees += roundMoney(line.plannedMinutes / 60 * line.billingRatePerHour);
   });
 
   const engApprovedTimes = timeEntries.filter(
@@ -232,22 +232,23 @@ export function calculateBudgetVsActual(
 
   let approvedMinutes = 0;
   let actualBillableValue = 0;
+  let hasMissingBillingRate = false;
   let hasMissingCostRate = false;
   let totalCost = 0;
 
   engApprovedTimes.forEach(entry => {
     approvedMinutes += entry.durationMinutes;
-    const line = budget.lines.find(l => ((l as any).roleOrActivity || (l as any).role || '').toLowerCase() === entry.activity.toLowerCase()) || budget.lines[0];
-    const rate = line ? ((line as any).billingRatePerHour || (line as any).billingRate || 200) : 200;
-    const costRate = line ? ((line as any).costRatePerHour || (line as any).costRate) : 100;
-
     const hours = entry.durationMinutes / 60;
     if (entry.billable) {
-      actualBillableValue += Math.round(hours * rate);
+      if (entry.billingRatePerHour !== undefined && Number.isFinite(entry.billingRatePerHour) && entry.billingRatePerHour >= 0) {
+        actualBillableValue += roundMoney(hours * entry.billingRatePerHour);
+      } else {
+        hasMissingBillingRate = true;
+      }
     }
 
-    if (costRate !== undefined && costRate !== null) {
-      totalCost += Math.round(hours * costRate);
+    if (entry.costRatePerHour !== undefined && Number.isFinite(entry.costRatePerHour) && entry.costRatePerHour >= 0) {
+      totalCost += roundMoney(hours * entry.costRatePerHour);
     } else {
       hasMissingCostRate = true;
     }
@@ -256,7 +257,8 @@ export function calculateBudgetVsActual(
   const plannedHours = plannedMinutes / 60;
   const approvedHours = approvedMinutes / 60;
   const varianceHours = Number((approvedHours - plannedHours).toFixed(2));
-  const varianceFees = actualBillableValue - plannedFees;
+  const billed = hasMissingBillingRate ? null : actualBillableValue;
+  const varianceFees = billed === null ? null : roundMoney(billed - plannedFees);
 
   return {
     plannedMinutes,
@@ -264,7 +266,7 @@ export function calculateBudgetVsActual(
     plannedFees,
     approvedMinutes,
     approvedHours,
-    actualBillableValue,
+    actualBillableValue: billed,
     knownDeliveryCost: hasMissingCostRate ? null : totalCost,
     varianceHours,
     varianceFees
@@ -528,6 +530,13 @@ export function calculateConsolidatedBalanceSheet(
   let subsidiaryEquity = 0;
   let totalEliminationDebits = 0;
   let totalEliminationCredits = 0;
+  const effects = eliminations.flatMap(e => {
+    if (Array.isArray(e.lines)) return e.lines.map((line: any) => ({ ...line, id: e.id }));
+    const lines = [];
+    if (e.debitAccount) lines.push({ id: e.id, account: e.debitAccount, type: 'debit', amount: e.amount });
+    if (e.creditAccount) lines.push({ id: e.id, account: e.creditAccount, type: 'credit', amount: e.amount });
+    return lines;
+  }).filter(line => Number.isFinite(line.amount) && line.amount > 0 && (line.type === 'debit' || line.type === 'credit'));
 
   const lines = allCodes.map(code => {
     const parentRow = parentRows.find(r => r.code === code);
@@ -539,50 +548,28 @@ export function calculateConsolidatedBalanceSheet(
     const subsidiaryBalance = subRow ? subRow.balance : 0;
     const combinedBalance = parentBalance + subsidiaryBalance;
 
-    // Check specific debit/credit eliminations for this account (by code or exact name)
+    // Posted balances are signed: debit adds and credit subtracts for every account.
     let elimDebit = 0;
     let elimCredit = 0;
 
-    eliminations.forEach(e => {
-      const isDebitMatch = (e.debitAccount && (e.debitAccount === code || e.debitAccount.toLowerCase() === name.toLowerCase())) ||
-        (e.description && e.description.toLowerCase().includes(name.toLowerCase()) && (category === 'liability' || category === 'equity'));
-      const isCreditMatch = (e.creditAccount && (e.creditAccount === code || e.creditAccount.toLowerCase() === name.toLowerCase())) ||
-        (e.description && e.description.toLowerCase().includes(name.toLowerCase()) && category === 'asset');
-
-      if (isDebitMatch) {
-        elimDebit += e.amount || 0;
-      }
-      if (isCreditMatch) {
-        elimCredit += e.amount || 0;
+    effects.forEach(line => {
+      if (line.account === code || String(line.account).trim().toLowerCase() === name.trim().toLowerCase()) {
+        if (line.type === 'debit') elimDebit += line.amount;
+        else elimCredit += line.amount;
       }
     });
 
     totalEliminationDebits += elimDebit;
     totalEliminationCredits += elimCredit;
 
-    // Consolidated balance calculation:
-    // Assets (Debit balance): Debits increase, Credits decrease
-    // Liabilities & Equity (Credit balance in Signed TB where credit is negative or absolute):
-    let consolidatedBalance = combinedBalance;
+    const consolidatedBalance = combinedBalance + elimDebit - elimCredit;
     if (category === 'asset') {
-      consolidatedBalance = combinedBalance + elimDebit - elimCredit;
       parentAssets += parentBalance;
       subsidiaryAssets += subsidiaryBalance;
     } else if (category === 'liability') {
-      // If signed TB (liabilities are negative), debit brings it closer to 0
-      if (combinedBalance < 0) {
-        consolidatedBalance = combinedBalance + elimDebit - elimCredit;
-      } else {
-        consolidatedBalance = combinedBalance - elimDebit + elimCredit;
-      }
       parentLiabilities += Math.abs(parentBalance);
       subsidiaryLiabilities += Math.abs(subsidiaryBalance);
     } else if (category === 'equity') {
-      if (combinedBalance < 0) {
-        consolidatedBalance = combinedBalance + elimDebit - elimCredit;
-      } else {
-        consolidatedBalance = combinedBalance - elimDebit + elimCredit;
-      }
       parentEquity += Math.abs(parentBalance);
       subsidiaryEquity += Math.abs(subsidiaryBalance);
     }
@@ -654,4 +641,3 @@ export function calculateMateriality(
     rationale
   };
 }
-

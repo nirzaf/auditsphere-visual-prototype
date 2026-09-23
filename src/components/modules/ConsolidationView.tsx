@@ -1,6 +1,6 @@
 // Module 26: Multi-Entity Consolidation & Eliminations (VP-043 through VP-046)
 import React, { useState } from 'react';
-import { RouteKey, ConsolidationGroupRecord } from '../../types';
+import { RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateConsolidatedBalanceSheet, formatCurrency } from '../../services/calculations';
@@ -13,35 +13,30 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'perimeter' | 'grid' | 'eliminations' | 'fx'>('grid');
 
-  const group = state.consolidationGroups[0] || {
-    id: 'GRP-01',
-    name: 'Example Group Holdings',
-    parentClientId: 'CL-001',
-    presentationCurrency: 'QAR',
-    components: [
-      { clientId: 'CL-001', role: 'Parent', ownershipPct: 100, functionalCurrency: 'QAR', pinnedPackageRev: 3 },
-      { clientId: 'CL-002', role: 'Associate', ownershipPct: 80, functionalCurrency: 'QAR', pinnedPackageRev: 1 }
-    ],
-    eliminations: [
-      { id: 'ELIM-01', debitAccount: 'Trade payables (Intercompany)', creditAccount: 'Trade receivables (Intercompany)', amount: 50000, description: 'Eliminate intercompany trading balance between CL-001 and CL-002' }
-    ]
-  };
+  const group = state.consolidationGroups[0];
+  if (!group) return <div className="panel panel-pad"><h3>No consolidation group is configured.</h3><p className="sub">Create a group and select its component packages before reviewing an output.</p></div>;
 
-  const parentComp = group.components.find(c => c.role === 'Parent') || group.components[0];
-  const subComp = group.components.find(c => c.role !== 'Parent') || group.components[1];
+  const parentComp = group.components.find(c => c.role === 'Parent');
+  const subComp = group.components.find(c => c !== parentComp && c.role);
+  const parentEng = parentComp && state.engagements.find(e => e.id === parentComp.componentId);
+  const subEng = subComp && state.engagements.find(e => e.id === subComp.componentId);
+  const groupCurrency = group.presentationCurrency || group.currency;
+  const fxRate = (component: NonNullable<typeof parentComp>) => component.currency === groupCurrency ? 1 : group.fxRates[component.currency];
+  const missingPackage = !parentComp?.packageRows?.length || !subComp?.packageRows?.length || !parentEng || !subEng || !parentComp.packageRevisionPinned || !subComp.packageRevisionPinned;
+  const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
 
-  const parentEng = state.engagements.find(e => e.client === parentComp?.clientId);
-  const subEng = state.engagements.find(e => e.client === subComp?.clientId);
-
-  if (!parentEng || !subEng) {
+  if (missingPackage || missingRate) {
+    const missingComponent = group.components.find(c => !state.engagements.some(e => e.id === c.componentId) || !c.packageRows?.length)?.componentId;
     const missingClient = !parentEng ? parentComp?.clientId : subComp?.clientId;
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
         <Icon name="layers" size="xl" className="text-muted mb16" />
-        <h3>Incomplete Consolidation Perimeter</h3>
+        <h3>{missingPackage ? 'Pinned Component Package Required' : 'Currency Rate Required'}</h3>
         <p className="sub max-w-md mx-auto mt8">
-          Cannot perform group consolidation: Required component engagement for client {missingClient} is missing.
-          Consolidation requires eligible, pinned component packages and does not fabricate substitute balances.
+          {missingPackage
+            ? `Component ${missingComponent || '(unspecified)'} has no exact engagement and reporting-package snapshot.`
+            : `No valid rate is configured to translate each component into ${groupCurrency}.`}
+          {' '}Live engagement balances are never substituted for missing pinned data.
         </p>
         <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
           Go to Engagements
@@ -50,18 +45,24 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
     );
   }
 
+  const translate = (rows: TrialBalanceRow[], rate: number) => rows.map(row => ({ ...row, balance: Math.round(row.balance * rate * 100) / 100 }));
+  const approvedEliminations = group.eliminations.filter(e => e.status === 'Approved');
   const consolidated = calculateConsolidatedBalanceSheet(
-    parentEng.rows,
-    subEng.rows,
-    group.eliminations
+    translate(parentComp!.packageRows!, fxRate(parentComp!)),
+    translate(subComp!.packageRows!, fxRate(subComp!)),
+    approvedEliminations
   );
+  const parentClient = state.clients.find(c => c.id === parentEng!.client);
+  const subClient = state.clients.find(c => c.id === subEng!.client);
+  const availableAccounts = new Set([...parentComp!.packageRows!, ...subComp!.packageRows!].flatMap(row => [row.code, row.name.toLowerCase()]));
+  const unmatchedEliminationLines = approvedEliminations.flatMap(e => e.lines.filter(line => !availableAccounts.has(line.account) && !availableAccounts.has(line.account.trim().toLowerCase())).map(line => `${e.id}: ${line.account}`));
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
           <h1>Group Consolidation Workbench</h1>
-          <p>Group entity perimeter, version-pinned component packages, intercompany eliminations, and consolidated reporting.</p>
+          <p>Calculation from the stored component snapshots and approved manual eliminations shown below.</p>
         </div>
       </div>
 
@@ -70,9 +71,9 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
           <div>
             <span className="eyebrow">CONSOLIDATION GROUP · {group.id}</span>
             <h2>{group.name}</h2>
-            <p className="sub">Presentation Currency: {group.presentationCurrency} · Components: {group.components.length}</p>
+            <p className="sub">Presentation Currency: {groupCurrency} · Components: {group.components.length} · Period: {group.period}</p>
           </div>
-          <span className="badge teal">Consolidated</span>
+          <span className="badge amber">Local calculation · not independently reviewed</span>
         </div>
 
         <div className="tabs mt16">
@@ -94,6 +95,10 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {/* Grid Tab */}
       {activeTab === 'grid' && (
         <div className="stack" style={{ gap: 16 }}>
+          {unmatchedEliminationLines.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
+            <b>Some approved elimination accounts do not match the pinned packages.</b>
+            <div className="sub mt4">These lines were excluded from the calculation: {unmatchedEliminationLines.join('; ')}</div>
+          </div>}
           <div className="panel panel-pad" style={{ background: consolidated.isBalanced ? '#f0fdf4' : '#fef2f2' }}>
             <div className="between">
               <div>
@@ -114,8 +119,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                 <thead>
                   <tr>
                     <th>Classification / Line Item</th>
-                    <th style={{ textAlign: 'right' }}>Parent (CL-001)</th>
-                    <th style={{ textAlign: 'right' }}>Subsidiary (CL-002)</th>
+                    <th style={{ textAlign: 'right' }}>{parentClient?.name || parentEng!.id} (v{parentComp!.packageRevisionPinned})</th>
+                    <th style={{ textAlign: 'right' }}>{subClient?.name || subEng!.id} (v{subComp!.packageRevisionPinned})</th>
                     <th style={{ textAlign: 'right' }}>Eliminations</th>
                     <th style={{ textAlign: 'right' }}>Consolidated Total</th>
                   </tr>
@@ -207,7 +212,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
               </thead>
               <tbody>
                 {group.components.map((c: any) => {
-                  const clientRecord = state.clients.find(x => x.id === (c.clientId || c.componentId));
+                  const componentEngagement = state.engagements.find(e => e.id === c.componentId);
+                  const clientRecord = state.clients.find(x => x.id === componentEngagement?.client);
                   return (
                     <tr key={c.componentId || c.clientId}>
                       <td><b>{clientRecord?.name || c.legalEntityName || c.componentId}</b></td>
@@ -215,7 +221,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                       <td>{c.ownershipPercent ?? c.ownershipPct ?? 100}%</td>
                       <td>{c.functionalCurrency || c.currency}</td>
                       <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b></td>
-                      <td><span className="badge green">Pinned</span></td>
+                      <td><span className={`badge ${c.packageRows ? 'green' : 'red'}`}>{c.packageRows ? 'Pinned snapshot' : 'Missing snapshot'}</span></td>
                     </tr>
                   );
                 })}
@@ -249,12 +255,12 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {activeTab === 'fx' && (
         <div className="panel panel-pad">
           <h3>Currency Translation Rates</h3>
-          <p className="sub" style={{ marginBottom: 12 }}>All components currently operate in native presentation currency (QAR).</p>
-          <div className="borderbox" style={{ padding: 12 }}>
-            <div className="between">
-              <span>QAR / QAR (Base Parity)</span>
-              <b>1.0000</b>
-            </div>
+          <p className="sub" style={{ marginBottom: 12 }}>Stored group rates translate the pinned component snapshots into {groupCurrency}; rates are not fetched externally.</p>
+          <div className="stack" style={{ gap: 8 }}>
+            {group.components.map(component => <div key={component.componentId} className="borderbox" style={{ padding: 12 }}>
+              <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{fxRate(component)} ×</b></div>
+              <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · translation source: local group rate table</div>
+            </div>)}
           </div>
         </div>
       )}

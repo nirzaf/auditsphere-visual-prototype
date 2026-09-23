@@ -2,7 +2,7 @@
 // Simulated identity directory, explicit scoped grants, grant authoring & revocation, and 14-role RBAC catalogue.
 
 import React, { useState } from 'react';
-import { RouteKey, UserPersona, RoleKey } from '../../types';
+import { RouteKey, UserPersona } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -18,7 +18,6 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
   const [grantScopeKind, setGrantScopeKind] = useState<'Global' | 'Client' | 'Engagement'>('Client');
   const [grantClientId, setGrantClientId] = useState(state.clients[0]?.id || 'CL-001');
   const [grantEngagementId, setGrantEngagementId] = useState(state.engagements[0]?.id || 'ENG-26001');
-  const [grantRole, setGrantRole] = useState<RoleKey>('manager');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -37,9 +36,9 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
     if (!selectedUser) return;
     try {
       const scopeId = grantScopeKind === 'Client' ? grantClientId : grantScopeKind === 'Engagement' ? grantEngagementId : undefined;
-      prototypeStore.grantAccess(selectedUser.name, grantRole, grantScopeKind, scopeId, 'Administrative assignment');
+      prototypeStore.grantAccess(selectedUser.id, selectedUser.role, grantScopeKind, scopeId, 'Approved scoped access request');
       setShowGrantModal(false);
-      triggerNotice('success', `Granted ${grantScopeKind} scope to ${selectedUser.name} as ${grantRole}.`);
+      triggerNotice('success', `Granted ${grantScopeKind} scope to ${selectedUser.name} as ${selectedUser.role}.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -54,7 +53,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
     }
   };
 
-  const userGrants = (u: UserPersona) => state.roleGrants.filter(g => g.userId === u.name);
+  const userGrants = (u: UserPersona) => state.roleGrants.filter(g => g.userId === u.id);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -128,7 +127,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
                     <tr
                       key={u.id}
                       style={{
-                        background: u.name === state.currentPerson ? '#f0fdf4' : 'inherit',
+                        background: u.id === state.currentUserId ? '#f0fdf4' : 'inherit',
                         cursor: 'pointer'
                       }}
                       onClick={() => setSelectedUser(u)}
@@ -138,7 +137,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
                           <div className="firmavatar sm">{u.name.split(' ').map(n => n[0]).join('')}</div>
                           <div>
                             <b>{u.name}</b>
-                            {u.name === state.currentPerson && <span className="tag green" style={{ marginLeft: 6 }}>Active Persona</span>}
+                            {u.id === state.currentUserId && <span className="tag green" style={{ marginLeft: 6 }}>Active Persona</span>}
                           </div>
                         </div>
                       </td>
@@ -164,12 +163,11 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
                           >
                             + Grant Scope
                           </button>
-                          {u.name !== state.currentPerson && (
+                          {u.id !== state.currentUserId && (
                             <button
                               className="btn sm ghost"
                               onClick={() => {
-                                prototypeStore.setRole(u.role);
-                                prototypeStore.setPerson(u.name);
+                                prototypeStore.setPersona(u.id);
                                 triggerNotice('success', `Switched active session persona to ${u.name} (${u.role}).`);
                               }}
                             >
@@ -308,7 +306,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
               <div><label>Practice Role</label><span>{selectedUser.label}</span></div>
               <div><label>Role Code</label><span className="mono">{selectedUser.role}</span></div>
               <div><label>Email</label><span className="mono">{selectedUser.email}</span></div>
-              <div><label>Account Status</label><span className="badge green">{selectedUser.status}</span></div>
+              <div><label>Account Status</label><span className={`badge ${selectedUser.status === 'Active' ? 'green' : 'red'}`}>{selectedUser.status}</span></div>
             </div>
 
             <div className="divider mt16" />
@@ -411,27 +409,15 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
               )}
 
               <div>
-                <label className="caption">Acting Role</label>
-                <select
-                  className="input"
-                  value={grantRole}
-                  onChange={e => setGrantRole(e.target.value as any)}
-                >
-                  <option value="manager">Engagement Manager</option>
-                  <option value="partner">Engagement Partner</option>
-                  <option value="preparer">Audit Preparer</option>
-                  <option value="reviewer">Senior Reviewer</option>
-                  <option value="billing">Billing Officer</option>
-                  <option value="admin">System Administrator</option>
-                  <option value="client">Client Approver</option>
-                </select>
+                <label className="caption">Requested persona role</label>
+                <input className="input" value={selectedUser.role} readOnly />
               </div>
             </div>
 
             <div className="row mt20" style={{ gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn sm ghost" onClick={() => setShowGrantModal(false)}>Cancel</button>
               <button className="btn primary sm" onClick={handleGrantAccess}>
-                Authorize &amp; Grant Scope
+                Record approved grant
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
+import { sha256OfFile } from '../../services/fileMetadata';
 
 interface ClientPortalViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -19,7 +20,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices'>('home');
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadPbcModal, setUploadPbcModal] = useState<PbcRequestItem | null>(null);
-  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // Client resolution supporting multi-entity grants (VP-025)
   const allowedClientIds = visibleClientIds(state);
@@ -31,11 +32,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     availableClients[0]?.id || ''
   );
 
-  const client = availableClients.find(c => c.id === selectedClientId) || availableClients[0] || null;
+  const client = availableClients.find(c => c.id === selectedClientId) || null;
   const allowedEngIds = visibleEngagementIds(state);
-  const eng = client
-    ? (state.engagements.find(e => e.client === client.id && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(e.id))) || null)
-    : null;
+  const availableEngagements = client ? state.engagements.filter(e => e.client === client.id && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(e.id))) : [];
+  const [selectedEngagementId, setSelectedEngagementId] = useState(
+    availableEngagements.find(e => e.id === state.selectedEngagement)?.id || availableEngagements[0]?.id || ''
+  );
+  const eng = availableEngagements.find(e => e.id === selectedEngagementId) || null;
 
   // Strictly filter by client grant and exclude unissued/drafts from client visibility (VP-025, VP-033)
   const invoices = client ? state.invoices.filter(i => i.clientId === client.id && (i.status === 'Issued' || i.status === 'Paid')) : [];
@@ -67,23 +70,24 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const handleDownloadSharedDoc = (docName: string, version: number) => {
     exportService.exportPDF(
       `${docName}_v${version}`,
-      `Client Document Preview: ${docName}`,
+      `Sample metadata preview: ${docName}`,
       [
+        'SAMPLE PREVIEW ONLY — original file bytes are not stored or reproduced by this browser prototype.',
         `Document: ${docName}`,
         `Version: v${version}`,
         `Client: ${client?.name}`,
-        `Verification Status: Authentic record`,
-        `Archive Reference: SharePoint Canonical / Client Shared`
+        'Source: local metadata registry; original content not available.'
       ]
     );
-    triggerNotice(`Downloaded authentic preview for ${docName}.`);
+    triggerNotice(`Downloaded a sample metadata preview for ${docName}; it is not the original file.`);
   };
 
   const handleDownloadPackage = (relId: string, gen: number) => {
     exportService.exportPDF(
       `Deliverable_${relId}_Gen${gen}`,
-      `Audited Financial Report Package - ${client?.name}`,
+      `Sample release preview - ${client?.name}`,
       [
+        'SAMPLE PREVIEW ONLY — no released original bytes or external delivery are represented.',
         `Release Reference: ${relId}`,
         `Generation: Gen ${gen}`,
         `Client Entity: ${client?.name}`,
@@ -91,21 +95,23 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
         `Lead Audit Partner: ${eng?.partner}`
       ]
     );
-    triggerNotice(`Downloaded official release deliverable ${relId}.`);
+    triggerNotice(`Downloaded a local sample preview for release ${relId}.`);
   };
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadPbcModal || !uploadFileName.trim() || !eng) return;
+    if (!uploadPbcModal || !uploadFile || !eng) return;
 
     try {
+      const sha256 = await sha256OfFile(uploadFile);
       prototypeStore.uploadPbcResponse(eng.id, uploadPbcModal.id, {
-        name: uploadFileName.trim(),
-        size: 52000
+        name: uploadFile.name,
+        size: uploadFile.size,
+        sha256
       });
-      triggerNotice(`Successfully uploaded "${uploadFileName.trim()}" for request "${uploadPbcModal.title}". Status updated to Received.`);
+      triggerNotice(`Recorded ${uploadFile.name} (${uploadFile.size} bytes, SHA-256 ${sha256.slice(0, 12)}…). Only metadata is retained; the original bytes are not saved.`);
       setUploadPbcModal(null);
-      setUploadFileName('');
+      setUploadFile(null);
     } catch (err: any) {
       triggerNotice(`Upload error: ${err.message}`);
     }
@@ -149,13 +155,25 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                   className="input sm"
                   style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }}
                   value={selectedClientId}
-                  onChange={e => setSelectedClientId(e.target.value)}
+                  onChange={e => {
+                    const nextClientId = e.target.value;
+                    setSelectedClientId(nextClientId);
+                    setSelectedEngagementId(state.engagements.find(item => item.client === nextClientId && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(item.id)))?.id || '');
+                  }}
                 >
                   {availableClients.map(c => (
                     <option key={c.id} value={c.id} style={{ color: '#000' }}>
                       {c.name} ({c.code || c.id})
                     </option>
                   ))}
+                </select>
+              </div>
+            )}
+            {availableEngagements.length > 1 && (
+              <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <span className="caption" style={{ color: '#90a8ab' }}>Engagement:</span>
+                <select className="input sm" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }} value={selectedEngagementId} onChange={e => setSelectedEngagementId(e.target.value)}>
+                  {availableEngagements.map(item => <option key={item.id} value={item.id} style={{ color: '#000' }}>{item.id} · {item.service} · FY{item.year}</option>)}
                 </select>
               </div>
             )}
@@ -298,9 +316,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                       <td>
                         <button
                           className="btn sm"
+                          disabled={!['Requested', 'Needs clarification', 'Received', 'Accepted'].includes(p.status)}
                           onClick={() => {
                             setUploadPbcModal(p);
-                            setUploadFileName(`${p.title.replace(/[^a-zA-Z0-9]/g, '_')}_Schedule.xlsx`);
+                            setUploadFile(null);
                           }}
                         >
                           <Icon name="plus" size="sm" /> Upload Document
@@ -470,23 +489,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                   <div className="cell-sub">{uploadPbcModal.category} · Due {uploadPbcModal.due}</div>
                 </div>
                 <div>
-                  <label className="caption">File Name / Schedule Attachment</label>
+                  <label className="caption">Choose a local file</label>
                   <input
-                    type="text"
+                    type="file"
                     className="input"
-                    value={uploadFileName}
-                    onChange={e => setUploadFileName(e.target.value)}
-                    placeholder="e.g. Bank_Reconciliations_Dec2026.xlsx"
+                    onChange={e => setUploadFile(e.target.files?.[0] || null)}
                     required
                   />
                   <span className="caption" style={{ color: 'var(--muted)', display: 'block', marginTop: 4 }}>
-                    Simulates secure upload directly to canonical SharePoint client folder.
+                    The browser computes a SHA-256 digest. Original bytes are not persisted or uploaded to SharePoint.
                   </span>
                 </div>
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setUploadPbcModal(null)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Confirm Upload</button>
+                <button type="submit" className="btn primary sm" disabled={!uploadFile}>Record response metadata</button>
               </div>
             </form>
           </div>

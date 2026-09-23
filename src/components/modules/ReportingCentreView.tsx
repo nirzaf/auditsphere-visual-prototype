@@ -8,6 +8,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
+import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 
 interface ReportingCentreViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -20,34 +21,39 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
   const [drillDownEng, setDrillDownEng] = useState<EngagementRecord | null>(null);
 
   // Filtered engagements
-  const filteredEngs = state.engagements.filter(
-    e => clientFilter === 'ALL' || e.client === clientFilter
+  const allowedClientIds = visibleClientIds(state);
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const scopedClients = state.clients.filter(c => allowedClientIds === 'ALL' || allowedClientIds.includes(c.id));
+  const scopedEngagements = state.engagements.filter(e =>
+    (allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id)) &&
+    (allowedClientIds === 'ALL' || allowedClientIds.includes(e.client))
   );
+  const filteredEngs = scopedEngagements.filter(e => clientFilter === 'ALL' || e.client === clientFilter);
 
   // Compute live WIP rows from demo records
   const wipRows = filteredEngs.map(eng => {
     const cl = state.clients.find(c => c.id === eng.client);
     const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
     const totalMinutes = approvedTimes.reduce((sum, t) => sum + t.durationMinutes, 0);
-    const billableMinutes = approvedTimes.filter(t => t.billable).reduce((sum, t) => sum + t.durationMinutes, 0);
-
-    // Compute fee value (using budget lines or standard rate 350 QAR/hr)
+    // Only exact approved activity rates contribute; missing rates remain unknown.
     const bdg = state.budgets.find(b => b.engagementId === eng.id);
-    const recordedWipValue = approvedTimes.reduce((sum, t) => {
-      const line = bdg?.lines.find(l => l.roleOrActivity.toLowerCase() === t.activity.toLowerCase());
-      const rate = line?.billingRatePerHour || 350;
-      return sum + Math.round((t.durationMinutes / 60) * rate);
-    }, 0);
+    const wipValues = approvedTimes.filter(t => t.billable).map(t => {
+      const line = bdg?.lines.find(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase());
+      return line ? (t.durationMinutes / 60) * line.billingRatePerHour : null;
+    });
+    const recordedWipValue = wipValues.some(v => v === null) ? null : Math.round((wipValues as number[]).reduce((sum, v) => sum + v, 0) * 100) / 100;
 
-    // Invoices issued for this client
-    const clientInvoices = state.invoices.filter(i => i.clientId === eng.client && i.status !== 'Draft');
+    // Only issued invoices pinned to this engagement count; draft/approved and
+    // sibling engagement invoices cannot reduce this row.
+    const clientInvoices = state.invoices.filter(i => i.engagementId === eng.id && (i.status === 'Issued' || i.status === 'Paid'));
     const billedAmount = clientInvoices.reduce((sum, i) => sum + i.amount, 0);
-    const unbilledWip = Math.max(0, recordedWipValue - billedAmount);
+    const unbilledWip = recordedWipValue === null ? null : Math.max(0, recordedWipValue - billedAmount);
 
     return {
       eng,
       clientName: cl?.name || eng.client,
       service: eng.service,
+      currency: eng.currency,
       approvedTimes,
       totalHours: formatMinutesToHours(totalMinutes),
       recordedWipValue,
@@ -56,14 +62,15 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
     };
   });
 
-  const totalWipValue = wipRows.reduce((sum, r) => sum + r.recordedWipValue, 0);
-  const totalBilled = wipRows.reduce((sum, r) => sum + r.billedAmount, 0);
-  const totalUnbilled = wipRows.reduce((sum, r) => sum + r.unbilledWip, 0);
+  const oneCurrency = new Set(wipRows.map(r => r.currency)).size <= 1;
+  const totalWipValue = oneCurrency && wipRows.every(r => r.recordedWipValue !== null) ? wipRows.reduce((sum, r) => sum + r.recordedWipValue!, 0) : null;
+  const totalBilled = oneCurrency ? wipRows.reduce((sum, r) => sum + r.billedAmount, 0) : null;
+  const totalUnbilled = oneCurrency && wipRows.every(r => r.unbilledWip !== null) ? wipRows.reduce((sum, r) => sum + r.unbilledWip!, 0) : null;
 
   // Compute live staff utilization from state.times
   const usersWithTimes = state.users.filter(u => u.group === 'Professional');
   const utilizationRows = usersWithTimes.map(user => {
-    const userTimes = state.times.filter(t => t.person === user.name && t.status === 'Approved');
+    const userTimes = state.times.filter(t => t.person === user.name && t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
     const billableMinutes = userTimes.filter(t => t.billable).reduce((sum, t) => sum + t.durationMinutes, 0);
     const nonBillableMinutes = userTimes.filter(t => !t.billable).reduce((sum, t) => sum + t.durationMinutes, 0);
     const totalUserMinutes = billableMinutes + nonBillableMinutes;
@@ -84,12 +91,13 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
 
   const handleExportCSV = () => {
     if (selectedReport === 'wip') {
-      const headers = ['Client Name', 'Engagement Service', 'Total WIP Hours', 'Recorded WIP Value (QAR)', 'Billed Fees (QAR)', 'Unbilled WIP (QAR)'];
+      const headers = ['Client Name', 'Engagement Service', 'Currency', 'Total WIP Hours', 'Recorded WIP Value', 'Billed Fees', 'Unbilled WIP'];
       const dataRows = wipRows.map(r => [
         r.clientName,
         r.service,
+        r.currency,
         r.totalHours,
-        String(r.recordedWipValue),
+        r.recordedWipValue === null ? 'Unknown (unmatched activity rate)' : String(r.recordedWipValue),
         String(r.billedAmount),
         String(r.unbilledWip)
       ]);
@@ -151,7 +159,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
             style={{ width: 180 }}
           >
             <option value="ALL">All Clients ({state.clients.length})</option>
-            {state.clients.map(c => (
+            {scopedClients.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
@@ -164,17 +172,17 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
           <div className="metric-grid">
             <div className="metric">
               <span className="metric-label">Unbilled WIP Total</span>
-              <div className="metric-val">{formatCurrency(totalUnbilled)}</div>
+              <div className="metric-val">{totalUnbilled === null ? 'Unknown' : formatCurrency(totalUnbilled, wipRows[0]?.currency || 'QAR')}</div>
               <span className="metric-sub">From approved timesheets</span>
             </div>
             <div className="metric blue">
               <span className="metric-label">Total Incurred Fees</span>
-              <div className="metric-val">{formatCurrency(totalWipValue)}</div>
+              <div className="metric-val">{totalWipValue === null ? 'Unknown' : formatCurrency(totalWipValue, wipRows[0]?.currency || 'QAR')}</div>
               <span className="metric-sub">Across {filteredEngs.length} mandate(s)</span>
             </div>
             <div className="metric green">
               <span className="metric-label">Billed Collections</span>
-              <div className="metric-val">{formatCurrency(totalBilled)}</div>
+              <div className="metric-val">{totalBilled === null ? 'Unknown' : formatCurrency(totalBilled, wipRows[0]?.currency || 'QAR')}</div>
               <span className="metric-sub">Issued tax invoices</span>
             </div>
           </div>
@@ -206,11 +214,11 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
                       <td><b>{r.clientName}</b></td>
                       <td>{r.service}</td>
                       <td>{r.totalHours}</td>
-                      <td><b>{formatCurrency(r.recordedWipValue)}</b></td>
-                      <td>{formatCurrency(r.billedAmount)}</td>
+                      <td><b>{r.recordedWipValue === null ? 'Unknown' : formatCurrency(r.recordedWipValue, r.currency)}</b></td>
+                      <td>{formatCurrency(r.billedAmount, r.currency)}</td>
                       <td>
-                        <span className={`badge ${r.unbilledWip > 0 ? 'amber' : 'green'}`}>
-                          {formatCurrency(r.unbilledWip)}
+                        <span className={`badge ${r.unbilledWip === null ? 'amber' : r.unbilledWip > 0 ? 'amber' : 'green'}`}>
+                          {r.unbilledWip === null ? 'Unknown' : formatCurrency(r.unbilledWip, r.currency)}
                         </span>
                       </td>
                       <td>
@@ -229,9 +237,9 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
                     <td><b>Filtered Totals</b></td>
                     <td>—</td>
                     <td>—</td>
-                    <td><b>{formatCurrency(totalWipValue)}</b></td>
-                    <td><b>{formatCurrency(totalBilled)}</b></td>
-                    <td><b>{formatCurrency(totalUnbilled)}</b></td>
+                    <td><b>{totalWipValue === null ? 'Unknown' : formatCurrency(totalWipValue, wipRows[0]?.currency || 'QAR')}</b></td>
+                    <td><b>{totalBilled === null ? 'Unknown' : formatCurrency(totalBilled, wipRows[0]?.currency || 'QAR')}</b></td>
+                    <td><b>{totalUnbilled === null ? 'Unknown' : formatCurrency(totalUnbilled, wipRows[0]?.currency || 'QAR')}</b></td>
                     <td>—</td>
                   </tr>
                 </tfoot>

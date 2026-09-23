@@ -37,7 +37,9 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   const [mailSender, setMailSender] = useState(config.mailSenderAccount);
   const [oneDriveEnabled, setOneDriveEnabled] = useState(config.oneDriveEnabled);
   const [dirty, setDirty] = useState(false);
-  const [results, setResults] = useState<Partial<Record<CardKey, { outcome: SimOutcome; at: string; stale: boolean }>>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement);
+  const workspaceClient = state.clients.find(c => c.id === selectedEng?.client);
 
   const markDirty = () => setDirty(true);
 
@@ -54,26 +56,19 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
       oneDriveEnabled,
       status: config.status === 'Not configured' ? 'Not configured' : config.status
     });
-    // A configuration change stales prior test results (VP-022).
-    setResults(prev => {
-      const next: typeof prev = {};
-      (Object.keys(prev) as CardKey[]).forEach(k => {
-        const r = prev[k];
-        if (r) next[k] = { ...r, stale: true };
-      });
-      return next;
-    });
     setDirty(false);
   };
 
   const runTest = (card: CardKey, outcome: SimOutcome) => {
-    if (card === 'onedrive' && !oneDriveEnabled) return;
-    setResults(prev => ({ ...prev, [card]: { outcome, at: new Date().toISOString(), stale: false } }));
-    if (outcome === 'success') {
-      prototypeStore.simulateM365Verification();
-      if (card === 'sharepoint') {
-        state.clients.forEach(c => prototypeStore.prepareClientWorkspace(c.id));
-      }
+    if (dirty) {
+      setNotice('Save the selected configuration before running its local verification.');
+      return;
+    }
+    try {
+      prototypeStore.simulateM365Verification(card, outcome);
+      setNotice(`${card} result saved for configuration revision ${prototypeStore.getSnapshot().m365Config.configRevision}.`);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Verification could not be recorded.');
     }
   };
 
@@ -83,9 +78,9 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   };
 
   const cardStatus = (card: CardKey): string => {
-    const r = results[card];
-    if (!r) return 'Not tested in this session';
-    return `${r.outcome}${r.stale ? ' (stale — configuration changed)' : ''} · ${new Date(r.at).toLocaleString('en-GB')}`;
+    const r = config.verificationResults?.[card];
+    if (!r) return 'Not tested';
+    return `${r.outcome}${r.configRevision !== (config.configRevision || 1) ? ' (stale — configuration changed)' : ''} · ${new Date(r.testedAt).toLocaleString('en-GB')}`;
   };
 
   return (
@@ -97,6 +92,8 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
         </div>
         <span className="tag blue">liveConnected: false</span>
       </div>
+
+      {notice && <div role="status" className="panel panel-pad">{notice}</div>}
 
       <div className="panel panel-pad" style={{ background: '#f8fafc', borderLeft: '4px solid var(--teal)' }}>
         <b>Simulation boundary</b>
@@ -140,7 +137,8 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
         <h3>3 · Optional mail sender</h3>
         <div>
           <label className="caption">Exchange Online outbound sender (synthetic mailbox label)</label>
-          <input type="email" className="input" value={mailSender} onChange={e => { setMailSender(e.target.value); markDirty(); }} required />
+          <input type="email" className="input" value={mailSender} onChange={e => { setMailSender(e.target.value); markDirty(); }} />
+          <span className="caption">Leave blank to disable simulated outbound email.</span>
         </div>
 
         <h3>4 · Optional bounded OneDrive access (disabled by default)</h3>
@@ -171,7 +169,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
                 key={o.key}
                 type="button"
                 className="btn sm ghost"
-                disabled={card === 'onedrive' && !oneDriveEnabled}
+                disabled={dirty || (card === 'onedrive' && !oneDriveEnabled) || (card === 'mail' && !mailSender.trim())}
                 onClick={() => runTest(card, o.key)}
                 title={o.detail}
               >
@@ -179,11 +177,31 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
               </button>
             ))}
           </div>
-          {results[card] && results[card]!.outcome !== 'success' && (
+          {card === 'sharepoint' && (
+            <div className="mt12">
+              <button
+                type="button"
+                className="btn sm primary"
+                disabled={dirty || !workspaceClient || config.verificationResults?.sharepoint?.outcome !== 'success' || config.verificationResults.sharepoint.configRevision !== (config.configRevision || 1)}
+                onClick={() => {
+                  if (!workspaceClient) return;
+                  try {
+                    if (!selectedEng) return;
+                    prototypeStore.prepareClientWorkspace(workspaceClient.id, selectedEng.year, selectedEng.id);
+                    setNotice(`Canonical local workspace prepared for ${workspaceClient.name}.`);
+                  } catch (err) {
+                    setNotice(err instanceof Error ? err.message : 'Workspace preparation failed.');
+                  }
+                }}
+              >Prepare selected client workspace</button>
+              <span className="caption" style={{ marginLeft: 8 }}>{workspaceClient?.name || 'No scoped client selected'}</span>
+            </div>
+          )}
+          {config.verificationResults?.[card] && config.verificationResults[card]!.outcome !== 'success' && (
             <div className="borderbox mt8" style={{ background: '#fef2f2', padding: 12 }}>
               <b>Recovery (local, no background polling): </b>
-              <span>{OUTCOMES.find(o => o.key === results[card]!.outcome)?.detail} </span>
-              <button type="button" className="btn sm" style={{ marginLeft: 8 }} onClick={() => runTest(card, 'success')}>
+              <span>{OUTCOMES.find(o => o.key === config.verificationResults?.[card]?.outcome)?.detail} </span>
+              <button type="button" className="btn sm" style={{ marginLeft: 8 }} disabled={dirty || (card === 'mail' && !mailSender.trim())} onClick={() => runTest(card, 'success')}>
                 Retry with success fixture
               </button>
             </div>

@@ -48,5 +48,5 @@ visible, never plugged (unit-tested).
 2. Failure/rework: blocked task needs reason; PBC replacement needs re-review;
    self-approval denied by person; stale revision rejected; TB error preview keeps
    old source; mail failure fixture + retry; disconnect keeps local work.
-3. Full AT-01…AT-54 browser journeys are scripted under VP-063; see
-   `verification.md` for executed results.
+3. These are presenter journey descriptions, not scripted or fully accepted journeys.
+   `verification.md` lists the five static checks and four actual Chrome checks currently run; route rendering does not prove each workflow.

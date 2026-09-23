@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { RouteKey } from './types';
 import { prototypeStore } from './store/prototypeStore';
-import { isClientRole } from './services/guards';
+import { canOpenRoute, isClientRole } from './services/guards';
 import { Shell } from './components/layout/Shell';
 
 // Practice & CRM Modules
@@ -68,22 +68,26 @@ export const App: React.FC = () => {
 
   const state = prototypeStore.getSnapshot();
   const isClient = isClientRole(state.currentRole);
-  const effectiveRoute: RouteKey = isClient && currentRoute !== 'portal' && currentRoute !== 'requirements'
-    ? 'portal'
-    : currentRoute;
+  const navigate = (route: RouteKey) => {
+    const role = prototypeStore.getSnapshot().currentRole;
+    setCurrentRoute(canOpenRoute(role, route) ? route : isClientRole(role) ? 'portal' : 'overview');
+  };
+  const effectiveRoute: RouteKey = isClient
+    ? currentRoute === 'requirements' ? 'requirements' : 'portal'
+    : canOpenRoute(state.currentRole, currentRoute) ? currentRoute : 'overview';
 
   const renderModule = () => {
     switch (effectiveRoute) {
       // Practice & CRM
       case 'overview':
-        return <DashboardView onNavigate={setCurrentRoute} />;
+        return <DashboardView onNavigate={navigate} />;
       case 'clients':
         return (
           <ClientsView
-            onNavigate={setCurrentRoute}
+            onNavigate={navigate}
             onSelectClientDetail={(cid) => {
               setSelectedClientId(cid);
-              setCurrentRoute('client-detail');
+              navigate('client-detail');
             }}
           />
         );
@@ -92,40 +96,40 @@ export const App: React.FC = () => {
           <ClientDetailView
             clientId={selectedClientId}
             onBack={() => setCurrentRoute('clients')}
-            onNavigate={setCurrentRoute}
+            onNavigate={navigate}
           />
         );
       case 'acquisition':
       case 'crm' as any:
-        return <LeadsPipelineView onNavigate={setCurrentRoute} />;
+        return <LeadsPipelineView onNavigate={navigate} />;
       case 'proposals':
-        return <ProposalsView onNavigate={setCurrentRoute} />;
+        return <ProposalsView onNavigate={navigate} />;
       case 'engagements':
-        return <EngagementsView onNavigate={setCurrentRoute} />;
+        return <EngagementsView onNavigate={navigate} />;
       case 'onboarding':
       case 'audit-acceptance' as any:
-        return <AuditAcceptanceView onNavigate={setCurrentRoute} />;
+        return <AuditAcceptanceView onNavigate={navigate} />;
 
       // Work & Collaboration
       case 'jobs':
-        return <JobsTasksView onNavigate={setCurrentRoute} />;
+        return <JobsTasksView onNavigate={navigate} />;
       case 'job-templates':
-        return <JobTemplatesView onNavigate={setCurrentRoute} />;
+        return <JobTemplatesView onNavigate={navigate} />;
       case 'documents':
-        return <DocumentsLibraryView onNavigate={setCurrentRoute} />;
+        return <DocumentsLibraryView onNavigate={navigate} />;
       case 'communications':
-        return <CommunicationsView onNavigate={setCurrentRoute} />;
+        return <CommunicationsView onNavigate={navigate} />;
 
       // Economics & Billing
       case 'my-time':
       case 'time-tracking' as any:
-        return <TimeTrackingView onNavigate={setCurrentRoute} />;
+        return <TimeTrackingView onNavigate={navigate} />;
       case 'budgets':
-        return <BudgetsView onNavigate={setCurrentRoute} />;
+        return <BudgetsView onNavigate={navigate} />;
       case 'billing':
-        return <BillingInvoicingView onNavigate={setCurrentRoute} />;
+        return <BillingInvoicingView onNavigate={navigate} />;
       case 'receivables':
-        return <ReceivablesView onNavigate={setCurrentRoute} />;
+        return <ReceivablesView onNavigate={navigate} />;
 
       // Accounting Workbench
       case 'accounting-setup':
@@ -134,62 +138,62 @@ export const App: React.FC = () => {
       case 'account-mappings':
       case 'adjustments':
       case 'reconciliations':
-        return <AccountingWorkbenchView onNavigate={setCurrentRoute} />;
+        return <AccountingWorkbenchView onNavigate={navigate} />;
       case 'financial-statements':
-        return <FinancialStatementsView onNavigate={setCurrentRoute} />;
+        return <FinancialStatementsView onNavigate={navigate} />;
       case 'financial-packages':
       case 'packages' as any:
-        return <FinancialPackagesView onNavigate={setCurrentRoute} />;
+        return <FinancialPackagesView onNavigate={navigate} />;
       case 'consolidation':
-        return <ConsolidationView onNavigate={setCurrentRoute} />;
+        return <ConsolidationView onNavigate={navigate} />;
 
       // Audit & Assurance
       case 'audit-planning':
-        return <AuditPlanningView onNavigate={setCurrentRoute} />;
+        return <AuditPlanningView onNavigate={navigate} />;
       case 'audit-risks':
       case 'audit-fieldwork':
-        return <AuditRisksProgramsView onNavigate={setCurrentRoute} />;
+        return <AuditRisksProgramsView onNavigate={navigate} />;
       case 'sampling':
-        return <SamplingView onNavigate={setCurrentRoute} />;
+        return <SamplingView onNavigate={navigate} />;
       case 'audit':
-        return <WorkpapersView onNavigate={setCurrentRoute} />;
+        return <WorkpapersView onNavigate={navigate} />;
       case 'evidence':
-        return <EvidenceCatalogueView onNavigate={setCurrentRoute} />;
+        return <EvidenceCatalogueView onNavigate={navigate} />;
       case 'findings':
-        return <FindingsView onNavigate={setCurrentRoute} />;
+        return <FindingsView onNavigate={navigate} />;
       case 'reviews':
-        return <ReviewDeskView onNavigate={setCurrentRoute} />;
+        return <ReviewDeskView onNavigate={navigate} />;
       case 'approvals':
       case 'quality':
-        return <ApprovalsEQRView onNavigate={setCurrentRoute} />;
+        return <ApprovalsEQRView onNavigate={navigate} />;
       case 'delivery':
-        return <ReleaseCompletionView onNavigate={setCurrentRoute} />;
+        return <ReleaseCompletionView onNavigate={navigate} />;
       case 'records':
-        return <RecordsArchiveView onNavigate={setCurrentRoute} />;
+        return <RecordsArchiveView onNavigate={navigate} />;
 
       // Client Services & Admin
       case 'portal':
       case 'client-portal' as any:
-        return <ClientPortalView onNavigate={setCurrentRoute} />;
+        return <ClientPortalView onNavigate={navigate} />;
       case 'reports':
       case 'reporting-centre' as any:
-        return <ReportingCentreView onNavigate={setCurrentRoute} />;
+        return <ReportingCentreView onNavigate={navigate} />;
       case 'administration':
       case 'services':
-        return <AdministrationView onNavigate={setCurrentRoute} />;
+        return <AdministrationView onNavigate={navigate} />;
       case 'm365-setup':
-        return <M365SetupView onNavigate={setCurrentRoute} />;
+        return <M365SetupView onNavigate={navigate} />;
       case 'requirements':
       case 'role-guide':
-        return <RequirementsView onNavigate={setCurrentRoute} />;
+        return <RequirementsView onNavigate={navigate} />;
 
       default:
-        return <DashboardView onNavigate={setCurrentRoute} />;
+        return <DashboardView onNavigate={navigate} />;
     }
   };
 
   return (
-    <Shell currentRoute={effectiveRoute} onRouteChange={setCurrentRoute}>
+    <Shell currentRoute={effectiveRoute} onRouteChange={navigate}>
       {renderModule()}
     </Shell>
   );

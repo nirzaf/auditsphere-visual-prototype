@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { sha256OfFile } from '../../services/fileMetadata';
 
 interface WorkpapersViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -14,6 +15,20 @@ interface WorkpapersViewProps {
 export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const workpapers = selectedEng?.workpapers || [];
+  const [selectedWpId, setSelectedWpId] = useState<string>(workpapers[0]?.id || '');
+  const [activeTab, setActiveTab] = useState<'overview' | 'guidelines' | 'template' | 'preview' | 'evidence' | 'clearance'>('overview');
+  const [clearanceNotes, setClearanceNotes] = useState('Satisfactory completion of all testing procedures and evidence tie-out.');
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [newRevisionFile, setNewRevisionFile] = useState<File | null>(null);
+  const wp = workpapers.find(w => w.id === selectedWpId) || workpapers[0];
+  const csvData = (() => {
+    if (!wp?.template?.csv) return null;
+    const lines = wp.template.csv.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) return null;
+    return { headers: lines[0].split(',').map(h => h.trim()), rows: lines.slice(1).map(line => line.split(',').map(c => c.trim())) };
+  })();
 
   if (!selectedEng) {
     return (
@@ -29,19 +44,6 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
       </div>
     );
   }
-
-  const workpapers = selectedEng.workpapers || [];
-  const [selectedWpId, setSelectedWpId] = useState<string>(workpapers[0]?.id || 'WP-A1');
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'guidelines' | 'template' | 'preview' | 'evidence' | 'clearance'
-  >('overview');
-
-  const [clearanceNotes, setClearanceNotes] = useState('Satisfactory completion of all testing procedures and evidence tie-out.');
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [newRevisionFile, setNewRevisionFile] = useState('');
-
-  const wp = workpapers.find(w => w.id === selectedWpId) || workpapers[0];
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -59,39 +61,30 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
 
   const handleToggleApplicability = () => {
     const updated = !wp.applicable;
-    prototypeStore.updateWorkpaper(selectedEng.id, wp.id, {
-      applicable: updated,
-      status: updated ? 'In progress' : 'Not applicable'
-    });
+    const rationale = updated ? undefined : window.prompt('Why is this workpaper not applicable?');
+    if (!updated && rationale === null) return;
+    prototypeStore.updateWorkpaper(selectedEng.id, wp.id, { applicable: updated, rationale: rationale || undefined });
     triggerNotice('success', `Workpaper ${wp.id} marked as ${updated ? 'applicable' : 'not applicable'}.`);
   };
 
-  const handleUploadRevisionSubmit = (e: React.FormEvent) => {
+  const handleUploadRevisionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRevisionFile.trim()) return;
+    if (!newRevisionFile) return;
 
     try {
+      const sha256 = await sha256OfFile(newRevisionFile);
       prototypeStore.replaceWorkpaperRevision(selectedEng.id, wp.id, {
-        name: newRevisionFile.trim(),
-        size: 58000
+        name: newRevisionFile.name,
+        size: newRevisionFile.size,
+        sha256
       });
-      triggerNotice('success', `Replacement revision uploaded. Version is now v${wp.version + 1}; status reset to In progress.`);
+      triggerNotice('success', `Replacement metadata recorded for v${wp.version + 1}; digest ${sha256.slice(0, 12)}…. Original bytes are not persisted.`);
       setShowUploadModal(false);
-      setNewRevisionFile('');
+      setNewRevisionFile(null);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
   };
-
-  // Parse CSV template data if present
-  const csvData = React.useMemo(() => {
-    if (!wp?.template?.csv) return null;
-    const lines = wp.template.csv.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length === 0) return null;
-    const headers = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map(line => line.split(',').map(c => c.trim()));
-    return { headers, rows };
-  }, [wp?.template?.csv]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -363,7 +356,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   <button
                     className="btn sm primary"
                     onClick={() => {
-                      setNewRevisionFile(`${wp.id}_Revision_v${wp.version + 1}.xlsx`);
+                      setNewRevisionFile(null);
                       setShowUploadModal(true);
                     }}
                   >
@@ -374,7 +367,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   <div className="between">
                     <b>{wp.workingPaper?.name || wp.documentName || `${wp.id}_Fieldwork.xlsx`}</b>
                     <span className="mono">
-                      SHA: {wp.workingPaper?.sha?.slice(0, 16) || '9988aabbcc112233'}...
+                      {wp.workingPaper?.sha ? `SHA-256: ${wp.workingPaper.sha.slice(0, 16)}…` : 'No file digest recorded'}
                     </span>
                   </div>
                   <p className="sub mt12" style={{ fontFamily: 'monospace', fontSize: 13 }}>
@@ -404,7 +397,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                           <Icon name="file" />
                           <div>
                             <b>{ref}</b>
-                            <div className="cell-sub">SharePoint Document Service · Verified Checksum</div>
+                            <div className="cell-sub">{state.documents.find(d => d.id === ref)?.sha ? 'Recorded SHA-256 for in-session source file' : 'Sample evidence metadata · original bytes not available'}</div>
                           </div>
                         </div>
                         <span className="badge green">Adequate</span>
@@ -503,22 +496,21 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   <div><b>{wp.id} · {wp.title}</b> (Current v{wp.version})</div>
                 </div>
                 <div>
-                  <label className="caption">Replacement File Name</label>
+                  <label className="caption">Choose replacement file</label>
                   <input
-                    type="text"
+                    type="file"
                     className="input"
-                    value={newRevisionFile}
-                    onChange={e => setNewRevisionFile(e.target.value)}
+                    onChange={e => setNewRevisionFile(e.target.files?.[0] || null)}
                     required
                   />
                   <span className="caption" style={{ color: 'var(--muted)', display: 'block', marginTop: 4 }}>
-                    Uploading a new revision invalidates prior clearances and transitions the workpaper to 'In progress'.
+                    The browser records a digest and size; original bytes are not uploaded or saved. A replacement invalidates prior clearances.
                   </span>
                 </div>
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowUploadModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Upload Revision v{wp.version + 1}</button>
+                <button type="submit" className="btn primary sm" disabled={!newRevisionFile}>Record Revision v{wp.version + 1} Metadata</button>
               </div>
             </form>
           </div>

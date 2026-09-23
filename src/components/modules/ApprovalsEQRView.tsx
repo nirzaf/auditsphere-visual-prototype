@@ -13,6 +13,9 @@ interface ApprovalsEQRViewProps {
 export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const [newConcern, setNewConcern] = useState('');
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!selectedEng) {
     return (
@@ -31,8 +34,6 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
 
   const approvals = selectedEng.approvals;
   const eqrConcerns = selectedEng.eqrConcerns || [];
-  const [newConcern, setNewConcern] = useState('');
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -64,6 +65,16 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
   const handleToggleConcern = (id: string) => {
     try {
       prototypeStore.toggleEqrConcern(selectedEng.id, id);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const handleRespondConcern = (id: string) => {
+    try {
+      prototypeStore.respondEqrConcern(selectedEng.id, id, responses[id] || '');
+      setResponses(prev => ({ ...prev, [id]: '' }));
+      triggerNotice('success', 'EQR response saved for independent review.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -236,6 +247,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                   <input
                     type="checkbox"
                     checked={c.resolved}
+                    disabled={state.currentRole !== 'eqr' || (!c.resolved && !c.response)}
                     onChange={() => handleToggleConcern(c.id)}
                   />
                   <div>
@@ -244,6 +256,19 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                       {c.id} · Raised by {c.raisedBy} on {new Date(c.raisedAt).toLocaleDateString('en-GB')}
                       {c.resolved && c.resolvedBy && (
                         <span> · Resolved by {c.resolvedBy}</span>
+                      )}
+                      {c.response && <div>Response by {c.responseBy}: {c.response}</div>}
+                      {!c.resolved && (
+                        <div className="row mt8" style={{ gap: 8 }}>
+                          <input
+                            className="input sm"
+                            aria-label={`Response to ${c.id}`}
+                            placeholder="Team response for EQR review"
+                            value={responses[c.id] || ''}
+                            onChange={e => setResponses(prev => ({ ...prev, [c.id]: e.target.value }))}
+                          />
+                          <button type="button" className="btn sm" onClick={() => handleRespondConcern(c.id)}>Record response</button>
+                        </div>
                       )}
                     </div>
                   </div>

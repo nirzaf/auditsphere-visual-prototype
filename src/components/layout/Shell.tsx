@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { RouteKey, RoleKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
+import { canOpenRoute, visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
 import { SCENARIO_DEFINITIONS, ScenarioName } from '../../store/scenarios';
 import { Icon } from '../common/Icons';
 
@@ -22,9 +22,13 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
 
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const allowedClientIds = visibleClientIds(state);
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const scopedClients = state.clients.filter(c => allowedClientIds === 'ALL' || allowedClientIds.includes(c.id));
+  const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
+  const selectedEng = scopedEngagements.find(e => e.id === state.selectedEngagement) || scopedEngagements[0];
   const selectedClient = state.clients.find(c => c.id === selectedEng?.client);
-  const currentPersona = state.users.find(u => u.role === state.currentRole) || state.users[0];
+  const currentPersona = state.users.find(u => u.id === state.currentUserId) || state.users[0];
 
   const triggerToast = (text: string, type = '') => {
     const id = Date.now();
@@ -41,20 +45,20 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
       'PRACTICE',
       [
         { key: 'overview', label: 'Practice Overview', icon: 'grid' },
-        { key: 'clients', label: 'Client Portfolio', icon: 'users', count: state.clients.length },
+        { key: 'clients', label: 'Client Portfolio', icon: 'users', count: scopedClients.length },
         { key: 'acquisition', label: 'Acquisition & Pipeline', icon: 'target', count: state.leads.filter(l => l.stage !== 'Won').length },
         { key: 'proposals', label: 'Proposals & Terms', icon: 'receipt' },
-        { key: 'engagements', label: 'Engagements', icon: 'brief', count: state.engagements.length },
+        { key: 'engagements', label: 'Engagements', icon: 'brief', count: scopedEngagements.length },
         { key: 'onboarding', label: 'Acceptance & KYC', icon: 'shield' }
       ]
     ],
     [
       'WORK & COLLABORATION',
       [
-        { key: 'jobs', label: 'Jobs & Tasks', icon: 'checkboard', count: state.jobs.length },
+        { key: 'jobs', label: 'Jobs & Tasks', icon: 'checkboard', count: state.jobs.filter(j => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(j.engagementId)).length },
         { key: 'job-templates', label: 'Job Templates', icon: 'layers' },
         { key: 'communications', label: 'Team & Client Comms', icon: 'message' },
-        { key: 'documents', label: 'Documents & SharePoint', icon: 'folder', count: state.documents.length }
+        { key: 'documents', label: 'Documents & SharePoint', icon: 'folder', count: state.documents.filter(d => d.clientId && (allowedClientIds === 'ALL' || allowedClientIds.includes(d.clientId))).length }
       ]
     ],
     [
@@ -62,7 +66,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
       [
         { key: 'my-time', label: 'Time Tracking', icon: 'clock' },
         { key: 'budgets', label: 'Budgets & Variances', icon: 'calculator' },
-        { key: 'billing', label: 'Billing & Invoices', icon: 'receipt', count: state.invoices.filter(i => i.status === 'Issued').length },
+        { key: 'billing', label: 'Billing & Invoices', icon: 'receipt', count: state.invoices.filter(i => i.status === 'Issued' && (allowedClientIds === 'ALL' || allowedClientIds.includes(i.clientId))).length },
         { key: 'receivables', label: 'Receivables & Receipts', icon: 'receipt' }
       ]
     ],
@@ -83,7 +87,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
         { key: 'sampling', label: 'Sampling & Populations', icon: 'checkboard' },
         { key: 'audit', label: 'Audit Workpapers', icon: 'checkboard', count: selectedEng?.workpapers?.length },
         { key: 'evidence', label: 'Evidence Catalogue', icon: 'folder' },
-        { key: 'findings', label: 'Findings & Differences', icon: 'target', count: state.findings.length },
+        { key: 'findings', label: 'Findings & Differences', icon: 'target', count: state.findings.filter(f => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(f.engagementId)).length },
         { key: 'reviews', label: 'Review Desk', icon: 'message', count: selectedEng?.reviews?.filter(r => r.status !== 'Cleared').length },
         { key: 'approvals', label: 'Sign-offs & EQR', icon: 'shield' },
         { key: 'delivery', label: 'Release & Completion', icon: 'archive' },
@@ -112,10 +116,12 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     ]
   ];
 
-  const navGroups = clientMode ? clientNavGroups : staffNavGroups;
+  const navGroups = clientMode ? clientNavGroups : staffNavGroups
+    .map(([name, items]) => [name, items.filter(item => canOpenRoute(state.currentRole, item.key))] as [string, typeof items])
+    .filter(([, items]) => items.length > 0);
 
-  const handleRoleChange = (personName: string) => {
-    prototypeStore.setPersona(personName);
+  const handleRoleChange = (userId: string) => {
+    prototypeStore.setPersona(userId);
     const snap = prototypeStore.getSnapshot();
     if (isClientRole(snap.currentRole)) {
       onRouteChange('portal');
@@ -143,50 +149,70 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     const allowedClients = visibleClientIds(state);
     const allowedEngs = visibleEngagementIds(state);
     const clientAllowed = (id?: string) =>
-      !id || allowedClients === 'ALL' || (id && (allowedClients as string[]).includes(id));
+      allowedClients === 'ALL' || (!!id && allowedClients.includes(id));
     const engAllowed = (id?: string) =>
-      !id || allowedEngs === 'ALL' || (id && (allowedEngs as string[]).includes(id));
+      allowedEngs === 'ALL' || (!!id && allowedEngs.includes(id));
     const clientRole = isClientRole(state.currentRole);
-    const out: Array<{ title: string; sub: string; route: RouteKey }> = [];
+    const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string }> = [];
     state.clients.filter(c => clientAllowed(c.id) && c.name.toLowerCase().includes(q))
-      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'clients' }));
+      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'clients', objectId: c.id, clientId: c.id }));
     state.contacts.filter(c => clientAllowed(c.clientId) && c.name.toLowerCase().includes(q))
-      .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'clients' }));
+      .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
     state.engagements.filter(e => engAllowed(e.id) && (e.service.toLowerCase().includes(q) || e.id.toLowerCase().includes(q)))
-      .forEach(e => out.push({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements' }));
+      .forEach(e => out.push({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements', objectId: e.id, clientId: e.client, engagementId: e.id }));
     state.jobs.filter(j => engAllowed(j.engagementId) && j.title.toLowerCase().includes(q))
-      .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs' }));
+      .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs', objectId: j.id, clientId: j.clientId, engagementId: j.engagementId }));
     if (!clientRole) {
-      state.documents.filter(d => clientAllowed(d.clientId) && d.name.toLowerCase().includes(q))
-        .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents' }));
+      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.name.toLowerCase().includes(q))
+        .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
       state.jobTasks.filter(t => {
         const job = state.jobs.find(j => j.id === t.jobId);
         return job && engAllowed(job.engagementId) && t.title.toLowerCase().includes(q);
-      }).forEach(t => out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs' }));
+      }).forEach(t => { const j = state.jobs.find(x => x.id === t.jobId)!; out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs', objectId: t.id, clientId: j.clientId, engagementId: j.engagementId }); });
       state.invoices.filter(i => clientAllowed(i.clientId) && i.invoiceNumber.toLowerCase().includes(q))
-        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing' }));
+        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId }));
       state.communications.filter(c => clientAllowed(c.clientId) && (c.summary.toLowerCase().includes(q) || c.participants.toLowerCase().includes(q)))
-        .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications' }));
+        .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications', objectId: c.id, clientId: c.clientId, engagementId: c.engagementId }));
       state.findings.filter(f => {
         const eng = state.engagements.find(e => e.id === f.engagementId);
         return eng && engAllowed(eng.id) && f.title.toLowerCase().includes(q);
-      }).forEach(f => out.push({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings' }));
+      }).forEach(f => out.push({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings', objectId: f.id, engagementId: f.engagementId }));
       state.engagements.filter(e => engAllowed(e.id)).forEach(e => {
         e.workpapers.filter(w => w.title.toLowerCase().includes(q))
-          .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit' }));
+          .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit', objectId: w.id, clientId: e.client, engagementId: e.id }));
         e.pbc.filter(p => p.title.toLowerCase().includes(q))
-          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'portal' }));
+          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'portal', objectId: p.id, clientId: e.client, engagementId: e.id }));
       });
     } else {
       // Client projection: only explicitly shared documents/packages surface.
-      state.documents.filter(d => clientAllowed(d.clientId) && d.visibility === 'Client shared' && d.name.toLowerCase().includes(q))
-        .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal' }));
+      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.visibility === 'Client shared' && d.name.toLowerCase().includes(q))
+        .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
     }
     return out.slice(0, 30);
   })();
 
   return (
     <div id="app-root">
+      {(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode()) && (
+        <div role="status" className="panel panel-pad" style={{ background: '#fff7ed', color: '#9a3412', margin: 12 }}>
+          {prototypeStore.getLoadError() || 'Browser storage is unavailable; changes last only for this session.'}
+        </div>
+      )}
+      {prototypeStore.hasStorageConflict() && (
+        <div role="alert" className="panel panel-pad" style={{ background: '#fef2f2', color: '#991b1b', margin: 12 }}>
+          <b>Another tab saved newer demo data.</b> This tab will not overwrite it until you resolve the conflict.
+          <div className="row mt8" style={{ gap: 8 }}>
+            <button className="btn sm primary" onClick={() => {
+              try { prototypeStore.resolveStorageConflict('reload'); window.location.reload(); }
+              catch (e) { triggerToast(e instanceof Error ? e.message : 'Reload failed', 'error'); }
+            }}>Reload newer state</button>
+            <button className="btn sm ghost" onClick={() => {
+              try { prototypeStore.resolveStorageConflict('keep-local'); }
+              catch (e) { triggerToast(e instanceof Error ? e.message : 'Could not preserve the other tab state', 'error'); }
+            }}>Keep this tab and replace newer state</button>
+          </div>
+        </div>
+      )}
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div
@@ -306,11 +332,11 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
                 <label htmlFor="role-select">SIMULATED IDENTITY (NOT LIVE AUTH)</label>
                 <select
                   id="role-select"
-                  value={state.currentPerson}
+                  value={state.currentUserId}
                   onChange={e => handleRoleChange(e.target.value)}
                 >
                   {state.users.map(u => (
-                    <option key={`${u.name}-${u.role}`} value={u.name}>
+                    <option key={u.id} value={u.id}>
                       {u.label} — {u.name}{u.status !== 'Active' ? ' (disabled)' : ''}
                     </option>
                   ))}
@@ -325,11 +351,13 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
           <div className="context-item">
             <label>Client / Engagement</label>
             <select
-              value={state.selectedEngagement}
+              value={selectedEng?.id || ''}
               onChange={e => handleEngagementChange(e.target.value)}
               aria-label="Selected engagement"
+              disabled={!scopedEngagements.length}
             >
-              {state.engagements.map(eng => {
+              {!scopedEngagements.length && <option value="">No permitted engagement</option>}
+              {scopedEngagements.map(eng => {
                 const c = state.clients.find(x => x.id === eng.client);
                 return (
                   <option key={eng.id} value={eng.id}>
