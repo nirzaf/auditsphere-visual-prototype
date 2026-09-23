@@ -17,6 +17,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   internal communication and can find a shared document; unit coverage checks
   document-name grant scoping. Other client/person grant combinations, result
   cross-links and search types still need direct journey coverage.
+- **VP-060 — reporting:** WIP now values approved time using its approval-pinned
+  rate; missing rates remain unknown instead of using a later budget version.
+  A fixed calculation check covers approved, unapproved and missing-rate rows.
+  Reconciliation across all 16 reports against their source registers remains
+  incomplete.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   to an issued invoice and reverses it with a reason while preserving prior
   settlements. Multi-invoice receipt allocation and the complete statement

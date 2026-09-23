@@ -27,6 +27,12 @@ export function formatMinutesToHours(minutes: number): string {
   return `${hrs.toFixed(1)} hrs`;
 }
 
+export function calculateRecordedWipValue(entries: TimeEntryItem[]): number | null {
+  const billable = entries.filter(entry => entry.status === 'Approved' && entry.billable);
+  if (billable.some(entry => !Number.isFinite(entry.billingRatePerHour) || entry.billingRatePerHour! < 0)) return null;
+  return Math.round(billable.reduce((sum, entry) => sum + entry.durationMinutes / 60 * entry.billingRatePerHour!, 0) * 100) / 100;
+}
+
 export function applyReportingAdjustments(rows: TrialBalanceRow[], journals: AdjustmentJournalItem[]) {
   const adjustedRows = structuredClone(rows);
   const applied: string[] = [];

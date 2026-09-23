@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey, EngagementRecord, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 
@@ -48,13 +48,8 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
     const cl = state.clients.find(c => c.id === eng.client);
     const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
     const totalMinutes = approvedTimes.reduce((sum, t) => sum + t.durationMinutes, 0);
-    // Only exact approved activity rates contribute; missing rates remain unknown.
-    const bdg = state.budgets.find(b => b.engagementId === eng.id);
-    const wipValues = approvedTimes.filter(t => t.billable).map(t => {
-      const line = bdg?.lines.find(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase());
-      return line ? (t.durationMinutes / 60) * line.billingRatePerHour : null;
-    });
-    const recordedWipValue = wipValues.some(v => v === null) ? null : Math.round((wipValues as number[]).reduce((sum, v) => sum + v, 0) * 100) / 100;
+    // Use the rate pinned when time was approved; missing rates remain unknown.
+    const recordedWipValue = calculateRecordedWipValue(approvedTimes);
 
     // Only issued invoices pinned to this engagement count; draft/approved and
     // sibling engagement invoices cannot reduce this row.

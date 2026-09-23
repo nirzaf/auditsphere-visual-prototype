@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   calculateTrialBalanceTotals,
   calculateBudgetVsActual,
+  calculateRecordedWipValue,
   calculateReceivablesAging,
   calculateConsolidatedBalanceSheet,
   calculateMateriality,
@@ -107,6 +108,19 @@ describe('budget fixed example (AT-29)', () => {
     const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 60, billable: true, activity: 'Audit fieldwork', budgetVersion: 1, billingRatePerHour: 200 }];
     const a = calculateBudgetVsActual(budget, times, 'E');
     assert.equal(a.knownDeliveryCost, null);
+  });
+});
+
+describe('recorded WIP report rates (VP-060)', () => {
+  it('uses approved-time rate snapshots and leaves missing rates unknown', () => {
+    const entries: any[] = [
+      { status: 'Approved', billable: true, durationMinutes: 180, billingRatePerHour: 200 },
+      { status: 'Approved', billable: true, durationMinutes: 60, billingRatePerHour: 100 },
+      { status: 'Approved', billable: false, durationMinutes: 60 },
+      { status: 'Submitted', billable: true, durationMinutes: 60, billingRatePerHour: 900 }
+    ];
+    assert.equal(calculateRecordedWipValue(entries), 700);
+    assert.equal(calculateRecordedWipValue([...entries, { status: 'Approved', billable: true, durationMinutes: 30 }]), null);
   });
 });
 
