@@ -64,8 +64,14 @@ describe('accounting setup guards (AT-34)', () => {
     profile.legalEntityName = `${client.name} Holdings`;
     profile.accounts.push({ code: '9900', name: 'New account', type: 'asset', posting: true, active: true });
     const book = profile.periodBooks.find(item => item.id === engagement.accountingPeriodBookId)!;
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: [...profile.accounts, { ...profile.accounts[0] }] }, engagement.id, book.id), /uniquely coded/);
     assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, periodBooks: profile.periodBooks.map(item => item.id === book.id ? { ...item, endDate: '2025-12-31' } : item) }, engagement.id, book.id), /valid ranges/);
     assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: profile.accounts.map(item => item.code === '9900' ? { ...item, parentCode: '9900' } : item) }, engagement.id, book.id), /Invalid chart parent|cycle/);
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, accounts: profile.accounts.map(item => item.code === '9900' ? { ...item, parentCode: profile.accounts[0].code } : item) }, engagement.id, book.id), /Invalid chart parent/);
+    const foreignEngagement = current.engagements.find(item => item.client !== client.id)!;
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, periodBooks: profile.periodBooks.map(item => item.id === book.id ? { ...item, ownerEngagementId: foreignEngagement.id } : item) }, engagement.id, book.id), /owner engagement for this client/);
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, periodBooks: profile.periodBooks.map(item => item.id === book.id ? { ...item, status: 'Closed' as const } : item) }, engagement.id, book.id), /open period book/);
+    assert.throws(() => prototypeStore.saveAccountingProfile(client.id, { ...profile, dimensions: [{ id: 'dept', name: 'Department', values: ['Sales', ' sales '], active: true }] }, engagement.id, book.id), /unique dimension values/);
     const revision = prototypeStore.saveAccountingProfile(client.id, profile, engagement.id, book.id);
     assert.equal(revision, 2);
     assert.equal(client.accountingProfile!.history.at(-1)?.revision, 1);

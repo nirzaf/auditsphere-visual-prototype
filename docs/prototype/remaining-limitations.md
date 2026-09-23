@@ -14,8 +14,9 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   pins; and setup revision history are implemented. Trial-balance imports show
   this context and reject incomplete setup or codes absent from the active
   posting chart. AT-34 Chrome and unit checks cover save/reload, retained prior
-  revision, invalid date ranges, duplicate codes, hierarchy cycles, and invalid
-  import accounts. The full mapping, unmapped-account, comparative statement
+  revision, invalid date ranges, duplicate codes, hierarchy cycles, posting
+  parents, cross-client period owners, closed books, duplicate dimension values
+  and invalid import accounts. The full mapping, unmapped-account, comparative statement
   lineage and downstream rework matrix remains incomplete, so Module 20 remains
   Partial. Migrated legacy records keep reporting basis unselected until an
   authorized person configures it.

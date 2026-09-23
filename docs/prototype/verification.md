@@ -387,5 +387,7 @@ from source commit `109bc39` in the existing `steaudit-prototype` project on
 `bd38e283eca45299658f7c5663f0c6cc53fba33d56bc8cf54b3114c36100a550`. Both
 bundles contain the setup editor and guarded-import controls. Wrangler reports
 the same production deployment/source SHA. Verification: 139/139 unit tests,
+including duplicate-code, chart-parent, foreign-period-owner, closed-book and
+dimension-value rejection; and
 58/58 build/static/Chrome checks, and `git diff --check` passed. Build retains
 the existing >500 kB chunk advisory.
