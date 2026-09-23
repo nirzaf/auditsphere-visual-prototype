@@ -16,7 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 115/115 | Schema v13 adds acceptance evidence references; the report WIP check uses approved-time pinned rates and returns unknown when a rate is missing. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 116/116 | Schema v13 adds acceptance evidence references; legacy approvals preserve history while losing unsupported active authority; the report WIP check uses approved-time pinned rates. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 40/40 | Five static checks and 35 actual Chrome checks. VP-019 verifies scoped grant and reasoned revocation in browser-visible durable history; VP-051 imports/replaces CSV source and retains tested predecessors. |
 | 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.03 MB (575.64 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `b086b99` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `06cf7853-08e5-4e7d-b01e-2ebbc70bfa8d`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-DWvk2a2d.js`. Served bundle contains durable grant/revocation history. |
@@ -174,3 +174,13 @@ on `production` as release `88464b68-b541-44c7-8c63-7cb4798f02ec`. The release
 and `prototype.steaudit.com` returned HTTP 200 and served
 `assets/index-BQWlY3JI.js`. The full 16-report source reconciliation is still
 incomplete; the 64-story and 39-module ledger remains **Partial**.
+
+The legacy acceptance follow-up keeps historical accepted decisions visible
+while marking them as requiring evidence review and suppressing continuance
+actions until a valid current-period approval exists. Unit migration checks and
+the 40/40 Chrome suite pass; the build passes with the existing bundle advisory.
+Commit `c3485e6` is deployed to the existing `steaudit-prototype` Pages project
+on `production` as release `6a7ecd3a-9b9c-4c88-8d87-6ea2fe768394`.
+`prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-BgHw1Ss-.js`, including the legacy-review notice and required
+screening-reference controls. Overall acceptance remains **Partial**.

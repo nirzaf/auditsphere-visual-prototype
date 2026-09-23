@@ -147,7 +147,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 115/115 unit checks and 40/40 E2E checks passed. E2E
+Latest recorded run: 116/116 unit checks and 40/40 E2E checks passed. E2E
 includes five static checks and 35 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
