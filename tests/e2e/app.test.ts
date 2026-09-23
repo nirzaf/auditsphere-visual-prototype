@@ -628,6 +628,23 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-27: logs a received meeting note manually and keeps the internal record out of the client portal', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Team & Client Comms'));if(!b)throw Error('Missing communications route');b.click();})()`);
+    await clickButton('Log Call / Meeting Note');
+    const setNoteField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.parentElement?.querySelector('input,textarea');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setNoteField('Summary Header', 'AT27 Received meeting note');
+    await setNoteField('Discussion Notes', 'Client confirmed the inventory count date.',);
+    await clickButton('Save Note');
+    const saved = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.find(c=>c.summary==='AT27 Received meeting note')`);
+    assert.equal(saved.direction, 'Inbound');
+    assert.equal(saved.visibility, 'Internal');
+    assert.equal(saved.body, 'Client confirmed the inventory count date.');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Messages & Mail');
+    assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /AT27 Received meeting note|Client confirmed the inventory count date/);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

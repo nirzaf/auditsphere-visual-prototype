@@ -9,6 +9,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
   authorized staff mention stay absent from the client portal. Comment editing,
   moderation and recipient-specific notification browsing remain incomplete.
+- **AT-27 — manual communications:** Chrome records an inbound meeting note with
+  internal visibility and confirms the client portal omits it. Broader activity
+  linking across communication/client/job views remains incomplete.
 
 - **AT-11/12 — jobs and tasks:** Chrome verifies that open subtasks block parent
   completion and that reassignment changes the real assignee with a retained
