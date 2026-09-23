@@ -229,13 +229,13 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,170.35 kB,
-  605.92 kB gzip in the latest deployed build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,180.64 kB,
+  608.73 kB gzip in the latest deployed build).
 
 ## Verification snapshot
 
-Latest recorded run: 136/136 unit checks and 57/57 E2E checks passed. E2E
-includes five static checks and 52 Chrome journeys. VP-009, VP-018, VP-037,
+Latest recorded run: 138/138 unit checks and 58/58 E2E checks passed. E2E
+includes five static checks and 53 Chrome journeys. VP-009, VP-018, VP-037,
 VP-051 and VP-052 are Verified; 59 of 64 stories and 36 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
