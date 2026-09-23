@@ -16,9 +16,9 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; existing large-main-chunk advisory remains (2.14 MB, 600.15 kB gzip). |
-| 2026-09-23 | `fbeae22` | `npm run test:unit` | PASS — 133/133 | Includes schema v0–v19 migration, statement revision review/staleness, won-opportunity conversion idempotence and Prospect status, plus mapping, sampling, package, finance and release guards. |
-| 2026-09-23 | `fbeae22` | `npm run test:e2e` | PASS — 56/56 | Five static checks plus 51 serial Chrome journeys. AT-07 now covers inquiry metadata/editing, reasoned Lost/Unqualified outcomes, list/requalification history, Won-to-Prospect conversion and existing-client linking; AT-37 saves/reviews comparative statements. VP-009, VP-051 and VP-052 are Verified; overall coverage remains Partial. |
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; main bundle 2,149.68 kB (601.93 kB gzip), with the existing >500 kB advisory. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 134/134 | Includes schema v0–v19 migration, VP-012 pending-acceptance/lifecycle guards and terminal states, statement revision review/staleness, opportunity guards, mapping, sampling, package, finance and release checks. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks plus 52 serial Chrome journeys. VP-012 verifies reasoned suspend/resume/cancel history; AT-07 covers inquiry editing, Lost/Unqualified reasons, list/rework, Won conversion and existing-client linking; AT-37 saves/reviews comparative statements. VP-009, VP-051 and VP-052 are Verified; overall coverage remains Partial. |
 | 2026-09-23 | `fbeae22` | Wrangler Pages production deploy + live HTTP/bundle check | PASS | Existing `steaudit-prototype` project, production branch; release `584a714a-2672-4463-bfca-fcc7de38d418`, source `fbeae22`. Both `prototype.steaudit.com` and `584a714a.steaudit-prototype.pages.dev` returned HTTP 200 and served `assets/index-CtFJs6M2.js`, SHA-256 `07cb8406e05a8395a6c68f470bb36c08d629176dc73d6c5d49ff031466e71da5` (2,145,428 bytes). |
 | 2026-09-23 | `8208d48` | Wrangler Pages production deploy + live HTTP/bundle check | PASS | Existing `steaudit-prototype` production branch, release `e675b376-84b6-44ba-8a27-40c39aaa5176`; release and `prototype.steaudit.com` returned HTTP 200 and served identical `assets/index-BZplP356.js` (SHA-256 `de41b524129c077b7c1de4092a27fe817c7fead905ad9d25b6fb5b57584bb293`). Bundle contains Won-to-Prospect conversion UI and guard. |
 | 2026-09-23 | `7c46768` | Wrangler Pages production deploy + Chrome check | PASS | Deployed to the existing `steaudit-prototype` production project; release `148c2362.steaudit-prototype.pages.dev`, Wrangler source `7c46768`. Reloaded `prototype.steaudit.com` in Chrome; the AuditSphere app shell remained rendered. |
@@ -195,7 +195,7 @@ journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
 remaining end-to-end acceptance journeys across the modules (R12); and browser
 storage limits on the explicitly local archive scope (R14). Purview/provider
 retention locks and physical deletion controls are excluded acceptance scope. The
-current checks cover schema migrations 0–18 and browser storage conflict/quota
+current checks cover schema migrations 0–19 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to
 source/bundle probes and exercised Chrome journeys. The prototype remains

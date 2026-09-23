@@ -127,9 +127,12 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   revision. The client portal records accept/decline/withdraw responses with an
   authorized contact and explicit evidence reference without auto-creating an
   engagement. AT-10 creates one draft from the accepted revision and separately
-  requires partner acceptance evidence before activation. Other qualification
-  edge paths, suspension, close and change applicability remain
-  unverified.
+  requires partner acceptance evidence before activation. VP-012 now supports
+  reasoned suspension, resumption, cancellation and closure; suspended or
+  terminal engagements block scoped professional commands, while billing and
+  archive operations remain permitted. Unit and Chrome checks cover the
+  lifecycle and retained history. Full scope/period/team edit UI and affected
+  review-applicability journeys remain incomplete.
 
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to
@@ -204,12 +207,12 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
 - **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.15 MB,
-  601.02 kB gzip in the latest build).
+  601.93 kB gzip in the latest build).
 
 ## Verification snapshot
 
-Latest recorded run: 133/133 unit checks and 56/56 E2E checks passed. E2E
-includes five static checks and 51 Chrome journeys. VP-009, VP-051 and VP-052
+Latest recorded run: 134/134 unit checks and 57/57 E2E checks passed. E2E
+includes five static checks and 52 Chrome journeys. VP-009, VP-051 and VP-052
 are Verified; 36 modules remain Partial because full criterion-by-criterion
 acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

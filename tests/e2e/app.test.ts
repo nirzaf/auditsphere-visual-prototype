@@ -2320,4 +2320,30 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
   });
+
+  it('VP-012: suspends and resumes an engagement with reasoned persisted history', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButtonStartingWith('Engagements');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Engagement Portfolio")'), true);
+      const engagementId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement`);
+      await browserTab!.evaluate(`window.prompt=()=> 'Temporary conflict review.'`);
+      await clickButton('Suspend Engagement');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Suspended'`), true);
+      assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText || document.body.innerText'), /Active → Suspended by Layla Rahman: Temporary conflict review/);
+      await browserTab!.evaluate(`window.prompt=()=> 'Conflict review cleared.'`);
+      await clickButton('Resume Engagement');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Active'`), true);
+      await browserTab!.evaluate(`window.prompt=()=> 'Client requested termination.'`);
+      await clickButton('Cancel Engagement');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Cancelled'`), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).events.filter(e=>e.type==='lifecycle').length===3`), true);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
 });

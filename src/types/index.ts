@@ -292,6 +292,7 @@ export interface EngagementRecord {
   client: string;
   service: string;
   stage: string;
+  lifecycleStatus?: 'Active' | 'Suspended' | 'Cancelled' | 'Closed';
   year: number;
   mode: string;
   period: string;

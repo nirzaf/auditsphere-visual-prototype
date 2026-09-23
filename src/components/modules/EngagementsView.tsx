@@ -26,6 +26,13 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
+  const lifecycleStatus = selectedEng?.lifecycleStatus || 'Active';
+  const updateLifecycle = (status: NonNullable<EngagementRecord['lifecycleStatus']>) => {
+    const reason = window.prompt(`Reason for ${status.toLowerCase()} engagement:`);
+    if (!reason?.trim()) return;
+    try { prototypeStore.setEngagementLifecycle(selectedEng!.id, status, reason); }
+    catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+  };
 
   const steps = ['Acceptance', 'Planning', 'Production', 'Review', 'Release', 'Archive'];
   const currentStepIndex = selectedEng?.archive
@@ -115,7 +122,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
               <h2 className="mt8">{client?.name}</h2>
               <p className="sub">{selectedEng.service} · {selectedEng.period} · {selectedEng.mode}</p>
             </div>
-            <span className="badge purple">{selectedEng.stage}</span>
+            <div className="stack" style={{ justifyItems: 'end', gap: 6 }}><span className="badge purple">{selectedEng.stage}</span><span className={`badge ${lifecycleStatus === 'Active' ? 'green' : lifecycleStatus === 'Suspended' ? 'amber' : 'red'}`}>{lifecycleStatus}</span></div>
           </div>
 
           {/* Lifecycle Bar */}
@@ -142,6 +149,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
 
           <div className="row mt20 wrap" style={{ gap: 10 }}>
             {selectedEng.stage === 'Draft' && <button className="btn primary sm" onClick={() => { const evidence = window.prompt('Professional acceptance evidence reference:'); if (evidence?.trim()) { try { prototypeStore.activateEngagement(selectedEng.id, evidence); } catch (error: any) { window.alert(error.message); } } }}>Activate Engagement</button>}
+            {lifecycleStatus === 'Active' && <><button className="btn sm" onClick={() => updateLifecycle('Suspended')}>Suspend Engagement</button><button className="btn sm danger" onClick={() => updateLifecycle('Cancelled')}>Cancel Engagement</button><button className="btn sm ghost" onClick={() => updateLifecycle('Closed')}>Close Engagement</button></>}
+            {lifecycleStatus === 'Suspended' && <><button className="btn sm primary" onClick={() => updateLifecycle('Active')}>Resume Engagement</button><button className="btn sm danger" onClick={() => updateLifecycle('Cancelled')}>Cancel Engagement</button><button className="btn sm ghost" onClick={() => updateLifecycle('Closed')}>Close Engagement</button></>}
             <button className="btn sm" onClick={() => onNavigate('accounting-setup')}>
               <Icon name="calculator" /> Accounting Workbench
             </button>
@@ -155,6 +164,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
               <Icon name="layers" /> View Scope & Duties
             </button>
           </div>
+          {selectedEng.events?.some(event => event.type === 'lifecycle' || event.text.startsWith('Engagement administration changed')) && <div className="borderbox mt16"><b>Engagement lifecycle and change history</b><ul className="mt8">{selectedEng.events.filter(event => event.type === 'lifecycle' || event.text.startsWith('Engagement administration changed')).slice().reverse().map((event, index) => <li key={`${event.time}-${index}`}>{new Date(event.time).toLocaleString('en-GB')} · {event.text}</li>)}</ul></div>}
         </div>
       )}
 

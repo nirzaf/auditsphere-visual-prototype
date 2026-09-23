@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, GuardError } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, GuardError } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition } from './packageFixture.js';
@@ -461,6 +461,51 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
   });
 });
 
+describe('engagement lifecycle suspension (VP-012)', () => {
+  it('requires rationale, blocks professional work, keeps billing and records available, and preserves terminal history', async () => {
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const engagement = target.state.engagements.find((item: any) => item.id === 'ENG-26001');
+    const generation = engagement.generation;
+    assert.throws(() => target.setEngagementLifecycle(engagement.id, 'Suspended', '  '), /requires a reason/);
+    target.setEngagementLifecycle(engagement.id, 'Suspended', 'Awaiting client access approval.');
+    assert.equal(engagement.lifecycleStatus, 'Suspended');
+    assert.match(engagement.events.at(-1).text, /Active → Suspended by Layla Rahman: Awaiting client access approval/);
+    assert.equal(engagement.generation, generation + 1);
+    assert.throws(() => requireEngagementScope(target.state, engagement.id), /professional work is blocked/);
+    assert.doesNotThrow(() => requireEngagementScope(target.state, engagement.id, 'billing'));
+    assert.doesNotThrow(() => requireEngagementScope(target.state, engagement.id, 'records'));
+    const job = { ...structuredClone(target.state.jobs[0]), id: 'JOB-SUSPENDED-NEW' };
+    assert.throws(() => target.addJob(job), /professional work is blocked/);
+    target.setEngagementLifecycle(engagement.id, 'Active', 'Client access restored.');
+    target.setEngagementLifecycle(engagement.id, 'Closed', 'Final records indexed.');
+    assert.throws(() => target.setEngagementLifecycle(engagement.id, 'Active', 'Reopen'), /cannot transition/);
+    assert.throws(() => target.updateEngagement(engagement), /immutable/);
+    assert.deepEqual(engagement.events.filter((event: any) => event.type === 'lifecycle').map((event: any) => event.text), [
+      'Active → Suspended by Layla Rahman: Awaiting client access approval.',
+      'Suspended → Active by Layla Rahman: Client access restored.',
+      'Active → Closed by Layla Rahman: Final records indexed.'
+    ]);
+
+    const cancelled = target.state.engagements.find((item: any) => item.id === 'ENG-26002');
+    target.setEngagementLifecycle(cancelled.id, 'Cancelled', 'Client withdrew before fieldwork.');
+    assert.throws(() => target.setEngagementLifecycle(cancelled.id, 'Active', 'Reopen'), /cannot transition/);
+
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const editable = target.state.engagements[0];
+    const originalGeneration = editable.generation;
+    const edit = structuredClone(editable);
+    edit.due = '2026-10-05';
+    target.updateEngagement(edit);
+    const updated = target.state.engagements.find((item: any) => item.id === editable.id);
+    assert.equal(updated.due, '2026-10-05');
+    assert.equal(updated.generation, originalGeneration + 1);
+    assert.match(updated.events.at(-1).text, /changed by Layla Rahman: due/);
+  });
+});
+
 describe('proposal to engagement handoff (AT-10)', () => {
   it('creates one draft per accepted proposal and requires partner evidence to activate', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
@@ -477,12 +522,14 @@ describe('proposal to engagement handoff (AT-10)', () => {
     assert.equal(created.id, 'ENG-AT10');
     assert.equal(duplicate.id, created.id);
     assert.equal(state.engagements.filter((item: any) => item.proposalId === proposal.id).length, 1);
+    assert.throws(() => target.addJob({ ...structuredClone(state.jobs[0]), id: 'JOB-BEFORE-AT10', clientId: created.client, engagementId: created.id }), /pending professional acceptance/);
     setPersona(state, 'Daniel James');
     assert.throws(() => target.activateEngagement(created.id, ''), /evidence reference/);
     target.activateEngagement(created.id, 'PARTNER-ACCEPT-AT10');
     assert.equal(created.stage, 'Planning');
     assert.equal(created.professionalAcceptance.evidenceRef, 'PARTNER-ACCEPT-AT10');
     assert.equal(created.professionalAcceptance.proposalRevision, proposal.revision);
+    assert.doesNotThrow(() => target.addJob({ ...structuredClone(state.jobs[0]), id: 'JOB-AFTER-AT10', clientId: created.client, engagementId: created.id }));
   });
 });
 

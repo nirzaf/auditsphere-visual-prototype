@@ -84,10 +84,16 @@ export function requireClientScope(state: PrototypeState, clientId: string): voi
   }
 }
 
-export function requireEngagementScope(state: PrototypeState, engagementId: string): void {
+export function requireEngagementScope(state: PrototypeState, engagementId: string, action: 'professional' | 'activation' | 'billing' | 'records' | 'administrative' = 'professional'): void {
   const visible = visibleEngagementIds(state);
   if (visible !== 'ALL' && !visible.includes(engagementId)) {
     throw new GuardError('FORBIDDEN_SCOPE', `Engagement "${engagementId}" is outside the current scoped grant.`);
+  }
+  if (action !== 'administrative' && action !== 'billing' && action !== 'records') {
+    const engagement = state.engagements.find(item => item.id === engagementId);
+    const status = engagement?.lifecycleStatus || 'Active';
+    if (status !== 'Active') throw new GuardError('INVALID_STATE', `Engagement ${engagementId} is ${status.toLowerCase()}; professional work is blocked.`);
+    if (action === 'professional' && ['Draft', 'Acceptance'].includes(engagement?.stage || '') && engagement?.proposalId && !engagement.professionalAcceptance) throw new GuardError('INVALID_STATE', `Engagement ${engagementId} is pending professional acceptance; work is blocked.`);
   }
 }
 

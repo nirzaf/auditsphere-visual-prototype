@@ -800,7 +800,7 @@ class PrototypeStore {
     requireRole(this.state, ['partner'], 'professionally accept engagements');
     const eng = this.state.engagements.find(item => item.id === engagementId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" was not found.`);
-    requireEngagementScope(this.state, eng.id);
+    requireEngagementScope(this.state, eng.id, 'activation');
     if (!['Draft', 'Acceptance'].includes(eng.stage)) throw new GuardError('INVALID_STATE', 'Only a draft engagement can be activated.');
     const proposal = this.state.proposals.find(item => item.id === eng.proposalId);
     if (!proposal || proposal.state !== 'Accepted' || !proposal.clientResponse?.evidenceRef || proposal.presentedSnapshot?.revision !== proposal.revision) throw new GuardError('INVALID_STATE', 'Activation requires the current accepted proposal revision and client evidence.');
@@ -820,16 +820,44 @@ class PrototypeStore {
     const index = this.state.engagements.findIndex(e => e.id === eng.id);
     if (index < 0) throw new GuardError('INVALID_STATE', `Engagement "${eng.id}" was not found.`);
     requireRole(this.state, ['manager', 'partner'], 'edit engagement administration fields');
-    requireEngagementScope(this.state, eng.id);
+    requireEngagementScope(this.state, eng.id, 'administrative');
     const current = this.state.engagements[index];
+    if (['Cancelled', 'Closed'].includes(current.lifecycleStatus || 'Active')) throw new GuardError('INVALID_STATE', 'Cancelled or closed engagements are immutable.');
     if (eng.client !== current.client) throw new GuardError('INVALID_STATE', 'An engagement cannot be reassigned to another client.');
     if (!this.state.users.some(u => u.status === 'Active' && u.role === 'manager' && u.name === eng.manager) || !this.state.users.some(u => u.status === 'Active' && u.role === 'partner' && u.name === eng.partner)) throw new GuardError('INVALID_STATE', 'Engagement manager and partner must be active assigned personas.');
     const updated = { ...current, stage: eng.stage, due: eng.due, manager: eng.manager, partner: eng.partner, team: [...eng.team], opinion: eng.opinion };
+    if (new Set(updated.team).size !== updated.team.length || updated.team.some(name => !this.state.users.some(user => user.status === 'Active' && user.name === name)) || !updated.team.includes(updated.manager) || !updated.team.includes(updated.partner)) throw new GuardError('INVALID_STATE', 'The engagement team must contain unique active personas, including its manager and partner.');
     if (JSON.stringify(updated) !== JSON.stringify(current)) {
+      const changed = (['stage', 'due', 'manager', 'partner', 'team', 'opinion'] as const).filter(key => JSON.stringify(current[key]) !== JSON.stringify(updated[key]));
+      updated.events = [...(current.events || []), { text: `Engagement administration changed by ${this.state.currentPerson}: ${changed.join(', ')}`, ref: eng.id, time: new Date().toISOString(), type: 'history' }];
       this.state.engagements[index] = updated;
       this.invalidateReleaseBasis(updated);
+      this.logEvent(`Engagement ${eng.id} changed (${changed.join(', ')}); release approvals reset`, eng.id, 'history');
       this.notify();
     }
+  }
+
+  public setEngagementLifecycle(engagementId: string, status: NonNullable<EngagementRecord['lifecycleStatus']>, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'change engagement lifecycle');
+    requireEngagementScope(this.state, engagementId, 'administrative');
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    if (!engagement) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" was not found.`);
+    if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An engagement lifecycle decision requires a reason.');
+    const current = engagement.lifecycleStatus || 'Active';
+    const valid = current === 'Active'
+      ? ['Suspended', 'Cancelled', 'Closed'].includes(status)
+      : current === 'Suspended'
+        ? ['Active', 'Cancelled', 'Closed'].includes(status)
+        : false;
+    if (!valid) throw new GuardError('INVALID_STATE', `${current} engagement cannot transition to ${status}.`);
+    if (status === 'Active' && ['Draft', 'Acceptance'].includes(engagement.stage) && engagement.proposalId && !engagement.professionalAcceptance) throw new GuardError('INVALID_STATE', 'Cannot resume an engagement without current professional acceptance.');
+    engagement.lifecycleStatus = status;
+    engagement.events ||= [];
+    engagement.events.push({ text: `${current} → ${status} by ${this.state.currentPerson}: ${reason.trim()}`, ref: engagement.id, time: new Date().toISOString(), type: 'lifecycle' });
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Engagement ${engagement.id} ${status.toLowerCase()}: ${reason.trim()}`, engagement.id, 'history');
+    this.notify();
   }
 
   // --- Jobs & Tasks (VP-013, VP-014, VP-015) ---
@@ -1275,7 +1303,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['billing', 'manager', 'partner'], 'draft invoices');
     requireClientScope(this.state, inv.clientId);
-    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId);
+    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
     if (!isValidMoney(inv.amount, true) || !Array.isArray(inv.lines) || Math.abs(inv.lines.reduce((s, line) => s + line.amount, 0) - inv.amount) > 0.005) throw new GuardError('INVALID_STATE', 'Invoice total must match its line items.');
     if (inv.status !== 'Draft') throw new GuardError('INVALID_STATE', 'New invoices must begin as drafts.');
     if (this.state.invoices.some(i => i.id === inv.id || i.invoiceNumber === inv.invoiceNumber)) throw new GuardError('INVALID_STATE', 'Invoice ID and number must be unique.');
@@ -1318,7 +1346,7 @@ class PrototypeStore {
     const inv = this.state.invoices.find(i => i.id === invId);
     if (!inv) throw new GuardError('INVALID_STATE', `Invoice "${invId}" was not found.`);
     requireClientScope(this.state, inv.clientId);
-    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId);
+    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
     if (inv.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only draft invoices can be reviewed.');
     if (approved) requireIndependentActor(inv.preparedBy, this.state.currentPerson, 'approve their own invoice', this.state);
     inv.status = approved ? 'Approved' : 'Draft';
@@ -1337,7 +1365,7 @@ class PrototypeStore {
     const inv = this.state.invoices.find(i => i.id === invId);
     if (!inv) throw new GuardError('INVALID_STATE', `Invoice "${invId}" was not found.`);
     requireClientScope(this.state, inv.clientId);
-    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId);
+    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
     if (inv.status !== 'Approved' || !inv.commercialApproval) throw new GuardError('INVALID_STATE', 'Only an independently reviewed invoice can be issued.');
     requireIndependentActor(inv.commercialApproval.by, this.state.currentPerson, 'issue an invoice they reviewed', this.state);
     inv.status = 'Issued';
@@ -1353,7 +1381,7 @@ class PrototypeStore {
     if (!inv) throw new GuardError('INVALID_STATE', 'Credit note must link to an existing invoice.');
     if (inv.clientId !== credit.clientId) throw new GuardError('FORBIDDEN_SCOPE', 'Cross-client credits are rejected.');
     requireClientScope(this.state, credit.clientId);
-    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId);
+    if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
     if (!isValidMoney(credit.amount)) throw new GuardError('INVALID_STATE', 'Credit amount must be finite, positive, and use at most two decimal places.');
     if ((credit.currency || inv.currency) !== inv.currency) throw new GuardError('INVALID_STATE', 'Credit note currency must match the invoice currency.');
     if (inv.status !== 'Issued' && inv.status !== 'Paid') throw new GuardError('INVALID_STATE', 'Credit notes can be created only for issued invoices.');
@@ -1379,7 +1407,7 @@ class PrototypeStore {
     if (!credit) throw new GuardError('INVALID_STATE', `Credit note "${creditId}" was not found.`);
     requireClientScope(this.state, credit.clientId);
     const invoice = this.state.invoices.find(i => i.id === credit.invoiceId);
-    if (invoice?.engagementId) requireEngagementScope(this.state, invoice.engagementId);
+    if (invoice?.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
     if (credit.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a draft credit note can be reviewed.');
     if (approved) requireIndependentActor(credit.preparedBy, this.state.currentPerson, 'approve their own credit note', this.state);
     credit.status = approved ? 'Approved' : 'Draft';
@@ -1397,7 +1425,7 @@ class PrototypeStore {
     const invoice = this.state.invoices.find(i => i.id === credit.invoiceId);
     if (!invoice || (invoice.status !== 'Issued' && invoice.status !== 'Paid')) throw new GuardError('INVALID_STATE', 'Credit note invoice is no longer eligible for credit.');
     if ((credit.currency || invoice.currency) !== invoice.currency) throw new GuardError('INVALID_STATE', 'Credit note currency must match the invoice currency.');
-    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId);
+    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
     if (credit.status !== 'Approved' || !credit.reviewedBy) throw new GuardError('INVALID_STATE', 'Credit note must receive independent review before issue.');
     requireIndependentActor(credit.reviewedBy, this.state.currentPerson, 'issue the credit note they reviewed', this.state);
     const alreadyIssued = this.state.creditNotes.filter(c => c.invoiceId === invoice.id && c.status === 'Issued').reduce((sum, c) => sum + c.amount, 0);
@@ -1434,7 +1462,7 @@ class PrototypeStore {
     if (receipt.clientId !== invoice.clientId) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Cross-client allocation is rejected.');
     }
-    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId);
+    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
     if (receipt.currency !== invoice.currency) {
       throw new GuardError('INVALID_STATE', 'Cross-currency allocation is rejected.');
     }
@@ -1500,7 +1528,7 @@ class PrototypeStore {
     if (alloc.reversed) return;
     const invoice = this.state.invoices.find(i => i.id === alloc.invoiceId);
     if (!invoice) throw new GuardError('INVALID_STATE', 'The allocated invoice no longer exists.');
-    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId);
+    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
 
     alloc.reversed = true;
     alloc.reversalDate = new Date().toISOString().split('T')[0];
@@ -3043,7 +3071,7 @@ class PrototypeStore {
   public archiveEngagement(engId: string, releaseId: string, retentionUntil?: string, onHold = false, holdReason?: string, artifactCopies?: ArchivedArtifactRecord[]) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['records', 'manager', 'partner'], 'create or update local archive metadata');
-    requireEngagementScope(this.state, engId);
+    requireEngagementScope(this.state, engId, 'records');
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" not found.`);
 
@@ -3104,7 +3132,7 @@ class PrototypeStore {
   public recordArchiveHandover(engId: string, requester: string, reason: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner', 'records'], 'record an archive handover request');
-    requireEngagementScope(this.state, engId);
+    requireEngagementScope(this.state, engId, 'records');
     const archive = this.state.archives?.find(a => a.engagementId === engId);
     if (!archive) throw new GuardError('INVALID_STATE', 'The engagement must have a local archive index first.');
     if (archive.onHold) throw new GuardError('INVALID_STATE', 'An active application hold blocks the handover request.');
