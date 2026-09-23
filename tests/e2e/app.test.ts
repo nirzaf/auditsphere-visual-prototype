@@ -345,6 +345,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.querySelector("nav button")?.innerText.includes("Client Experience Portal")'), true);
     const nav = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("nav button")].map(x => x.innerText.trim())');
     assert.deepEqual(nav, ['Client Experience Portal', 'Specifications & PRD']);
+    await clickButton('Client Experience Portal');
+    await clickButton('Shared Documents');
+    assert.equal(await waitForBrowser('document.querySelector("main#main")?.innerText.includes("Bank_Statement_December.pdf")'), true, 'client-visible source documents remain available');
+    assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector("main#main")?.innerText.includes("WP-A1_Cash_and_Bank_Audit_Schedule.xlsx")'), true, 'internal evidence and working-paper document names stay out of the client projection');
     assert.equal(browserTab!.exceptions.length, 0);
   });
 

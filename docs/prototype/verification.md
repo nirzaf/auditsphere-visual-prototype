@@ -4,7 +4,7 @@ Updated 2026-09-23. This record distinguishes executed checks from planned
 acceptance assertions. The latest source and Pages release are recorded below;
 the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
-| 2026-09-23 | AT-53 dialog keyboard behavior | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 139/139 unit, 58/58 E2E | Chrome verifies route rendering and no horizontal overflow at 320px, 390px and 768px; the client dialog has an accessible name, initial focus, Tab wrap, Escape cancel, and trigger focus restoration. Build passed with the existing large-bundle warning. VP-003 remains Partial; this does not cover every dialog or unsaved-change flow. |
+| 2026-09-23 | AT-53 dialog keyboard behavior | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 139/139 unit, 58/58 E2E | Chrome verifies route rendering and no horizontal overflow at 320px, 390px and 768px; the client dialog has an accessible name, initial focus, Tab wrap, Escape cancel, and trigger focus restoration. Client portal projection also confirms shared documents appear while an internal workpaper stays hidden. Build passed with the existing large-bundle warning. VP-003 remains Partial; this does not cover every dialog or unsaved-change flow. |
 
 ## Commands
 
@@ -18,6 +18,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | working tree after `3de0366` | `npm run test:e2e` | PASS — 58/58 | Five static checks and 53 Chrome journeys. AT-18/AT-25 now opens Shared Documents and confirms the client-shared bank statement is visible while the engagement's internal working-paper document is not. No app code changed; the verified production release remains `aa201f0c`. |
 | 2026-09-23 | `dfded0f` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` project; release `aa201f0c` (`https://aa201f0c.steaudit-prototype.pages.dev`). Release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-Cb1eqTbH.js` (2,197,471 bytes, SHA-256 `c97ef51b76ae68eb183be5865c7ea32636ca678108456ad8e538d51297f9d106`), matching the local production bundle. |
 | 2026-09-23 | `545c15a` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` Pages project; release `b941fa73` (`https://b941fa73.steaudit-prototype.pages.dev`). Release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-Bup50Yz5.js` (2,180,640 bytes, SHA-256 `dec0772afaf45ed8834df947ef1e1f7814c96e1fa395b4f7fda2c35c3ccfc6fd`), matching the local production bundle. |
 | 2026-09-23 | AT-26 recipient and attempt controls | `npm run test:unit` + `npm run test:e2e` | PASS — 138/138 unit, 58/58 E2E | Unit and Chrome reject out-of-client recipients without creating records; each accepted, failed or unknown manual attempt stores a unique local reference and evidence explicitly disclaiming provider receipt. No external mail request or automatic retry occurs. |

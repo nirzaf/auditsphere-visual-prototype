@@ -106,7 +106,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   intact when only a procedure relation is removed.
   Unit checks cover stale-link rejection and dependent invalidation; Chrome covers
   the unlink flow. Client projection isolation for internal evidence tags and
-  issued-package provenance after unlink still need a full journey.
+  issued-package provenance after unlink still need a full journey. Chrome now
+  confirms the client Shared Documents view includes a shared bank statement
+  and hides the engagement's internal working-paper document; it does not yet
+  inspect evidence tags or an issued package after an evidence unlink.
 
 - **VP-054 — findings:** the findings register now writes through guarded store
   commands, validates scoped source references, preserves promoted sample
