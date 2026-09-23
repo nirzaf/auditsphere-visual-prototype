@@ -43,6 +43,8 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 106/106, 25 suites | No unit behavior changed in this increment. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 29/29 | Five static checks and 24 actual Chrome checks. AT-26 resolves client/contact/request/date placeholders, records each selected accepted/failed/unknown outcome once, and detects no external HTTP(S) mail request. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 30/30 | Five static checks and 25 actual Chrome checks. AT-21 proves OneDrive is disabled by default; after explicit enablement and a current simulated success, selected import records local metadata under the SharePoint canonical hierarchy without external HTTP(S) calls. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 107/107, 25 suites | AT-20 store guard preserves the prior document and exact evidence pin, requires the expected next version, and prevents branching a revision chain. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 31/31 | Five static checks and 26 actual Chrome checks. AT-20 selects a local replacement file, records v2 with a digest, keeps EVD-01 pinned to DOC-002 v1 and displays a newer-version indicator. |
 | 2026-09-23 | `8eed12e` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `dd704f82-1a24-40b3-90f0-6cd5dfe02ca5`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-C0d5PfYS.js`. |
 | 2026-09-23 | `c3f5fe9` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `5fde9bc0-31e4-481d-a835-2f2135293b5f`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-DCcknJ1g.js`. |
 | 2026-09-23 | `b78505c` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `f07dad8c-7302-447b-9245-dc20a53e93b0`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BCLU5nQI.js`. |
@@ -80,6 +82,10 @@ The AT-21 journey keeps OneDrive disabled by default, enables it in saved
 configuration, verifies a current simulated success, then explicitly selects a
 sample. The resulting metadata remains in the canonical SharePoint engagement
 folder; this does not represent a real OneDrive download or SharePoint upload.
+The AT-20 journey selects a local replacement, retains the prior document row,
+adds a separately identified v2 with SHA-256 metadata and leaves EVD-01 pinned
+to DOC-002 v1. The evidence catalogue flags that a newer version is available;
+it does not automatically re-clear dependent procedures or workpapers.
 The AT-26 journey selects the PBC request template and confirms all placeholders
 resolve in the subject/body. It records accepted, failed and unknown outcomes
 as separate local communication records and confirms the sends create no

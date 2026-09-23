@@ -815,6 +815,36 @@ class PrototypeStore {
     this.notify();
   }
 
+  public replaceDocumentRevision(documentId: string, file: { name: string; size: number; sha256: string }): DocumentItem {
+    requireActiveIdentity(this.state);
+    const previous = this.state.documents.find(doc => doc.id === documentId);
+    if (!previous) throw new GuardError('INVALID_STATE', 'Document to replace was not found.');
+    requireClientScope(this.state, previous.clientId);
+    if (previous.engagementId) requireEngagementScope(this.state, previous.engagementId);
+    if (!file.name.trim() || !Number.isFinite(file.size) || file.size < 0 || !/^[a-f0-9]{64}$/i.test(file.sha256)) throw new GuardError('INVALID_STATE', 'Replacement requires a file name, valid size and SHA-256 digest.');
+    if (this.state.documents.some(doc => doc.supersedesDocumentId === previous.id)) throw new GuardError('STALE_REVISION', 'This document already has a replacement. Select its current revision.');
+    const revision: DocumentItem = {
+      ...previous,
+      id: `DOC-${crypto.randomUUID()}`,
+      name: file.name,
+      version: previous.version + 1,
+      size: file.size,
+      sha: file.sha256,
+      source: 'Local In-Session',
+      uploadedBy: this.state.currentPerson,
+      uploadedAt: new Date().toISOString(),
+      supersedesDocumentId: previous.id,
+      spSiteId: undefined,
+      spDriveId: undefined,
+      spItemId: undefined,
+      brokenLink: undefined
+    };
+    this.state.documents.push(revision);
+    this.logEvent(`Document ${previous.name} superseded by ${revision.name} (v${revision.version}); prior revision retained`, revision.id);
+    this.notify();
+    return revision;
+  }
+
   // --- Communications (VP-026, VP-027) ---
   public addCommunication(comm: CommunicationItem) {
     requireActiveIdentity(this.state);

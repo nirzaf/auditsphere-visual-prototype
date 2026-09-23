@@ -701,6 +701,25 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-20: registers a replacement file without silently changing its pinned evidence reference', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Open in M365');if(!b)return false;b.click();return true;})()`);
+    assert.equal(opened, true, 'linked bank statement can be opened');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');if(!input)throw Error('Replacement file input missing');const transfer=new DataTransfer();transfer.items.add(new File(['replacement bank statement'], 'Bank_Statement_December_v2.pdf', {type:'application/pdf'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Record Replacement v2');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.some(d=>d.supersedesDocumentId==='DOC-002')`), true, 'replacement revision recorded');
+    const stateAfter = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {old:s.documents.find(d=>d.id==='DOC-002'),next:s.documents.find(d=>d.supersedesDocumentId==='DOC-002'),evidence:s.evidenceCatalogue.find(e=>e.id==='EVD-01')};})()`);
+    assert.equal(stateAfter.old.version, 1);
+    assert.equal(stateAfter.next.version, 2);
+    assert.equal(stateAfter.evidence.documentId, 'DOC-002');
+    assert.equal(stateAfter.evidence.version, 1);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Evidence Catalogue'));if(!b)throw Error('Evidence Catalogue navigation missing');b.click();})()`);
+    const evidenceView = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(evidenceView, /Pinned v1/);
+    assert.match(evidenceView, /Newer version available/);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

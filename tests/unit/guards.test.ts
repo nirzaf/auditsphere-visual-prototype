@@ -374,6 +374,23 @@ describe('evidence adequacy (AT-20/46)', () => {
       'Adequate'
     );
   });
+
+  it('retains the exact evidence pin when a document revision supersedes it (AT-20)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const evidence = state.evidenceCatalogue.find(item => item.id === 'EVD-01')!;
+    const originalId = evidence.documentId;
+    const original = state.documents.find(doc => doc.id === originalId)!;
+    const revision = prototypeStore.replaceDocumentRevision(originalId, { name: 'Bank_Statement_December_v2.pdf', size: 42, sha256: 'a'.repeat(64) });
+    assert.equal(evidence.documentId, originalId);
+    assert.equal(evidence.version, 1);
+    assert.equal(state.documents.find(doc => doc.id === originalId)?.name, original.name, 'prior revision remains available');
+    assert.equal(revision.version, original.version + 1);
+    assert.equal(revision.supersedesDocumentId, originalId);
+    assert.throws(() => prototypeStore.replaceDocumentRevision(originalId, { name: 'duplicate.pdf', size: 1, sha256: 'b'.repeat(64) }), /already has a replacement/);
+  });
 });
 
 describe('money guards (AT-30/31/32)', () => {

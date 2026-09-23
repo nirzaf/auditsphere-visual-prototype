@@ -477,6 +477,7 @@ export interface DocumentItem {
   linkedJobId?: string;
   linkedPbcId?: string;
   linkedWorkpaperId?: string;
+  supersedesDocumentId?: string;
   uploadedBy: string;
   uploadedAt: string;
   brokenLink?: boolean;

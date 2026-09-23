@@ -19,6 +19,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
 
   // New file form
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [classification, setClassification] = useState<DocumentItem['classification']>('Working paper');
   const [folderPath, setFolderPath] = useState('/Engagements/2026/Audit/');
 
@@ -92,6 +93,17 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
 
     prototypeStore.addDocument(newDoc);
     setShowOneDriveModal(false);
+  };
+
+  const handleReplacementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!previewDoc || !replacementFile) return;
+    try {
+      const sha = await sha256OfFile(replacementFile);
+      const revision = prototypeStore.replaceDocumentRevision(previewDoc.id, { name: replacementFile.name, size: replacementFile.size, sha256: sha });
+      setNotice(`Replacement v${revision.version} recorded. ${previewDoc.name} v${previewDoc.version} remains pinned for existing evidence; file bytes are not uploaded.`);
+      setReplacementFile(null);
+    } catch (err) { setNotice(err instanceof Error ? err.message : 'Document replacement could not be recorded.'); }
   };
 
   return (
@@ -248,6 +260,12 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                   Linked to engagement: {previewDoc.engagementId || 'No engagement'}
                 </p>
               </div>
+              <form className="borderbox stack" style={{ padding: 16, gap: 10 }} onSubmit={handleReplacementSubmit}>
+                <b>Register a replacement revision</b>
+                <label className="caption">Choose replacement file<input type="file" className="input" onChange={e => setReplacementFile(e.target.files?.[0] || null)} required /></label>
+                <span className="caption">The new revision is registered separately. Evidence stays pinned to this exact version until reviewed.</span>
+                <button className="btn sm" type="submit" disabled={!replacementFile}>Record Replacement v{previewDoc.version + 1}</button>
+              </form>
             </div>
             <div className="modal-foot">
               <button className="btn sm ghost" onClick={() => setPreviewDoc(null)}>Close Viewer</button>

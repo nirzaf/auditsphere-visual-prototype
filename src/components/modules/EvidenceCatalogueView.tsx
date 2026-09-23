@@ -11,6 +11,15 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
   const state = prototypeStore.getSnapshot();
   const evidenceList = state.evidenceCatalogue;
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const latestDocument = (documentId: string) => {
+    let latest = state.documents.find(doc => doc.id === documentId);
+    while (latest) {
+      const replacement = state.documents.find(doc => doc.supersedesDocumentId === latest!.id);
+      if (!replacement) return latest;
+      latest = replacement;
+    }
+    return undefined;
+  };
 
   const handleToggleAdequacy = (id: string, current: EvidenceItem['adequacyStatus']) => {
     try {
@@ -83,7 +92,10 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                     <b>{item.name || item.title}</b>
                     <div className="cell-sub">{item.id}</div>
                   </td>
-                  <td><span className="mono">{item.documentId}</span></td>
+                  <td>
+                    <span className="mono">{item.documentId}</span>
+                    <div className="cell-sub">Pinned v{item.version}{(latestDocument(item.documentId)?.version ?? item.version) > item.version && <span className="tag amber"> Newer version available</span>}</div>
+                  </td>
                   <td>{item.provider || item.owner}</td>
                   <td><span className="mono" style={{ fontSize: 10 }}>{item.sha ? `${item.sha.slice(0, 16)}…` : 'No file digest recorded'}</span></td>
                   <td>
