@@ -2327,6 +2327,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButtonStartingWith('Engagements');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Engagement Portfolio")'), true);
       const engagementId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement`);
+      await clickButton('Edit Engagement Details');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Engagement target date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-10-05');input.dispatchEvent(new Event('input',{bubbles:true}));const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Nadia Rahman'));const checkbox=label?.querySelector('input[type=checkbox]');if(!checkbox)throw Error('Missing Nadia team assignment');checkbox.click();})()`);
+      await clickButton('Save Engagement Details');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)});return e.due==='2026-10-05'&&e.team.includes('Nadia Rahman')&&e.events.some(x=>x.text.includes('changed by Layla Rahman: due, team'));})()`), true, 'due date/team change is scoped and retained in history');
       await browserTab!.evaluate(`window.prompt=()=> 'Temporary conflict review.'`);
       await clickButton('Suspend Engagement');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Suspended'`), true);

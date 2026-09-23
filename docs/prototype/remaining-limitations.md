@@ -131,8 +131,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   reasoned suspension, resumption, cancellation and closure; suspended or
   terminal engagements block scoped professional commands, while billing and
   archive operations remain permitted. Unit and Chrome checks cover the
-  lifecycle and retained history. Full scope/period/team edit UI and affected
-  review-applicability journeys remain incomplete.
+  lifecycle and retained history. The administration editor records due-date
+  and team changes, validates active grants, and clears release approvals.
+  Service/period scope edits and complete affected review-applicability journeys
+  remain incomplete.
 
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to

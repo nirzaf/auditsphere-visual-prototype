@@ -476,7 +476,7 @@ export function createInitialState(): PrototypeState {
         due: '2026-10-15',
         manager: 'Layla Rahman',
         partner: 'Daniel James',
-        team: ['Layla Rahman', 'Adam Khan'],
+        team: ['Layla Rahman', 'Daniel James', 'Adam Khan'],
         agreedFee: 150000,
         currency: 'QAR',
         acceptance: true,

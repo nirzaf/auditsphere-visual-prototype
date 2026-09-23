@@ -503,6 +503,10 @@ describe('engagement lifecycle suspension (VP-012)', () => {
     assert.equal(updated.due, '2026-10-05');
     assert.equal(updated.generation, originalGeneration + 1);
     assert.match(updated.events.at(-1).text, /changed by Layla Rahman: due/);
+    const sibling = target.state.engagements.find((item: any) => item.id === 'ENG-26002');
+    const invalidTeam = structuredClone(sibling);
+    invalidTeam.team = [...invalidTeam.team, 'Mona Khalil'];
+    assert.throws(() => target.updateEngagement(invalidTeam), /does not have an active grant/);
   });
 });
 

@@ -826,7 +826,12 @@ class PrototypeStore {
     if (eng.client !== current.client) throw new GuardError('INVALID_STATE', 'An engagement cannot be reassigned to another client.');
     if (!this.state.users.some(u => u.status === 'Active' && u.role === 'manager' && u.name === eng.manager) || !this.state.users.some(u => u.status === 'Active' && u.role === 'partner' && u.name === eng.partner)) throw new GuardError('INVALID_STATE', 'Engagement manager and partner must be active assigned personas.');
     const updated = { ...current, stage: eng.stage, due: eng.due, manager: eng.manager, partner: eng.partner, team: [...eng.team], opinion: eng.opinion };
-    if (new Set(updated.team).size !== updated.team.length || updated.team.some(name => !this.state.users.some(user => user.status === 'Active' && user.name === name)) || !updated.team.includes(updated.manager) || !updated.team.includes(updated.partner)) throw new GuardError('INVALID_STATE', 'The engagement team must contain unique active personas, including its manager and partner.');
+    if (new Set(updated.team).size !== updated.team.length || updated.team.some(name => !this.state.users.some(user => user.status === 'Active' && user.group === 'Professional' && user.name === name)) || !updated.team.includes(updated.manager) || !updated.team.includes(updated.partner)) throw new GuardError('INVALID_STATE', 'The engagement team must contain unique active professional personas, including its manager and partner.');
+    for (const name of updated.team) {
+      const user = this.state.users.find(item => item.status === 'Active' && item.group === 'Professional' && item.name === name)!;
+      const visible = visibleEngagementIds(this.state, user.id);
+      if (visible !== 'ALL' && !visible.includes(eng.id)) throw new GuardError('FORBIDDEN_SCOPE', `${name} does not have an active grant to engagement ${eng.id}.`);
+    }
     if (JSON.stringify(updated) !== JSON.stringify(current)) {
       const changed = (['stage', 'due', 'manager', 'partner', 'team', 'opinion'] as const).filter(key => JSON.stringify(current[key]) !== JSON.stringify(updated[key]));
       updated.events = [...(current.events || []), { text: `Engagement administration changed by ${this.state.currentPerson}: ${changed.join(', ')}`, ref: eng.id, time: new Date().toISOString(), type: 'history' }];

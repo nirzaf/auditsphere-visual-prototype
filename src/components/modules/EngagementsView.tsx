@@ -13,6 +13,11 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   const state = prototypeStore.getSnapshot();
   const [showNewEngModal, setShowNewEngModal] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
+  const [showEditAdminModal, setShowEditAdminModal] = useState(false);
+  const [editDue, setEditDue] = useState('');
+  const [editManager, setEditManager] = useState('');
+  const [editPartner, setEditPartner] = useState('');
+  const [editTeam, setEditTeam] = useState<string[]>([]);
 
   // New engagement form
   const [clientId, setClientId] = useState(state.clients[0]?.id || '');
@@ -33,6 +38,23 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
     try { prototypeStore.setEngagementLifecycle(selectedEng!.id, status, reason); }
     catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   };
+  const openAdminEditor = () => {
+    if (!selectedEng) return;
+    setEditDue(selectedEng.due);
+    setEditManager(selectedEng.manager);
+    setEditPartner(selectedEng.partner);
+    setEditTeam([...selectedEng.team]);
+    setShowEditAdminModal(true);
+  };
+  const saveAdminChanges = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedEng) return;
+    try {
+      prototypeStore.updateEngagement({ ...selectedEng, due: editDue, manager: editManager, partner: editPartner, team: editTeam });
+      setShowEditAdminModal(false);
+    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+  };
+  const assignedPeople = state.users.filter(user => user.status === 'Active' && user.group === 'Professional');
 
   const steps = ['Acceptance', 'Planning', 'Production', 'Review', 'Release', 'Archive'];
   const currentStepIndex = selectedEng?.archive
@@ -148,6 +170,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
           </div>
 
           <div className="row mt20 wrap" style={{ gap: 10 }}>
+            {!['Cancelled', 'Closed'].includes(lifecycleStatus) && <button className="btn sm" onClick={openAdminEditor}>Edit Engagement Details</button>}
             {selectedEng.stage === 'Draft' && <button className="btn primary sm" onClick={() => { const evidence = window.prompt('Professional acceptance evidence reference:'); if (evidence?.trim()) { try { prototypeStore.activateEngagement(selectedEng.id, evidence); } catch (error: any) { window.alert(error.message); } } }}>Activate Engagement</button>}
             {lifecycleStatus === 'Active' && <><button className="btn sm" onClick={() => updateLifecycle('Suspended')}>Suspend Engagement</button><button className="btn sm danger" onClick={() => updateLifecycle('Cancelled')}>Cancel Engagement</button><button className="btn sm ghost" onClick={() => updateLifecycle('Closed')}>Close Engagement</button></>}
             {lifecycleStatus === 'Suspended' && <><button className="btn sm primary" onClick={() => updateLifecycle('Active')}>Resume Engagement</button><button className="btn sm danger" onClick={() => updateLifecycle('Cancelled')}>Cancel Engagement</button><button className="btn sm ghost" onClick={() => updateLifecycle('Closed')}>Close Engagement</button></>}
@@ -165,6 +188,24 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
             </button>
           </div>
           {selectedEng.events?.some(event => event.type === 'lifecycle' || event.text.startsWith('Engagement administration changed')) && <div className="borderbox mt16"><b>Engagement lifecycle and change history</b><ul className="mt8">{selectedEng.events.filter(event => event.type === 'lifecycle' || event.text.startsWith('Engagement administration changed')).slice().reverse().map((event, index) => <li key={`${event.time}-${index}`}>{new Date(event.time).toLocaleString('en-GB')} · {event.text}</li>)}</ul></div>}
+        </div>
+      )}
+
+      {showEditAdminModal && selectedEng && (
+        <div className="modal-backdrop" onClick={() => setShowEditAdminModal(false)}>
+          <form className="modal" style={{ maxWidth: 620 }} onSubmit={saveAdminChanges} onClick={event => event.stopPropagation()}>
+            <div className="modal-head"><h2>Edit Engagement Details</h2><button type="button" className="icon-btn" onClick={() => setShowEditAdminModal(false)}>✕</button></div>
+            <div className="modal-body stack" style={{ gap: 12 }}>
+              <label>Target date<input aria-label="Engagement target date" className="input" type="date" value={editDue} onChange={event => setEditDue(event.target.value)} required /></label>
+              <div className="grid2">
+                <label>Engagement manager<select aria-label="Engagement manager" className="input" value={editManager} onChange={event => setEditManager(event.target.value)}>{assignedPeople.filter(user => user.role === 'manager').map(user => <option key={user.id}>{user.name}</option>)}</select></label>
+                <label>Signing partner<select aria-label="Signing partner" className="input" value={editPartner} onChange={event => setEditPartner(event.target.value)}>{assignedPeople.filter(user => user.role === 'partner').map(user => <option key={user.id}>{user.name}</option>)}</select></label>
+              </div>
+              <fieldset className="stack"><legend>Assigned professional team</legend>{assignedPeople.filter(user => ['manager', 'partner', 'preparer', 'reviewer', 'eqr'].includes(user.role)).map(user => <label key={user.id}><input type="checkbox" checked={editTeam.includes(user.name)} onChange={event => setEditTeam(current => event.target.checked ? [...new Set([...current, user.name])] : current.filter(name => name !== user.name))} /> {user.label} — {user.name}</label>)}</fieldset>
+              <p className="sub">Changes are recorded and invalidate prior release approvals. Team members need active access to this engagement.</p>
+            </div>
+            <div className="modal-foot"><button type="button" className="btn sm ghost" onClick={() => setShowEditAdminModal(false)}>Cancel</button><button type="submit" className="btn sm primary">Save Engagement Details</button></div>
+          </form>
         </div>
       )}
 
