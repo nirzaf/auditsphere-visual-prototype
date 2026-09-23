@@ -108,6 +108,9 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.
+  Grants now record approved-request references and effective/expiry dates;
+  scheduled authority is excluded until its effective date, and the original
+  window remains in grant history after revocation.
   The M365 wizard also saves permitted-person and initial role mappings without
   creating access grants. Local identity creation, disable/reactivate history,
   and simulated invite/revoke/accept actions are covered; external invitations

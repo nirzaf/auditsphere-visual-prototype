@@ -1242,6 +1242,7 @@ export interface PrototypeState {
     scopeId?: string;
     effectiveFrom?: string;
     expiresAt?: string;
+    requestRef?: string;
     grantedAt?: string;
     grantedBy?: string;
     reason?: string;
@@ -1256,6 +1257,9 @@ export interface PrototypeState {
     actorUserId: string;
     at: string;
     reason?: string;
+    effectiveFrom?: string;
+    expiresAt?: string;
+    requestRef?: string;
   }>;
   folders?: Array<{
     path: string;

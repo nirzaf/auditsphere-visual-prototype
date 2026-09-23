@@ -375,6 +375,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(target, 'ENG-26002');
       target.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
+    await browserTab!.evaluate(`(() => {const ref=document.querySelector('[aria-label="Approved access request reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(ref,'AR-2026-0041');ref.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Scoped engagement assignment');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
     await clickButton('Record approved grant');
     const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
@@ -399,10 +400,16 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
       client.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
+    await browserTab!.evaluate(`(() => {
+      const set=(selector,value)=>{const input=document.querySelector(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));};
+      set('[aria-label="Approved access request reference"]','AR-2026-0042');
+      set('[aria-label="Grant expiry date"]','2027-09-22');
+      const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Quarterly management approval responsibility');reason.dispatchEvent(new Event('input',{bubbles:true}));
+    })()`);
     await clickButton('Record approved grant');
-    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='client' && g.scopeKind==='Client' && g.scopeId==='CL-002')`), true, 'management approver receives only the explicitly approved client scope');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const g=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.find(g=>g.userId==='client'&&g.scopeKind==='Client'&&g.scopeId==='CL-002');return g?.requestRef==='AR-2026-0042'&&g?.expiresAt==='2027-09-22'&&g?.reason==='Quarterly management approval responsibility';})()`), true, 'approved request, reason, and expiry persist with the scope grant');
     await clickButton('Access History (2)');
-    assert.equal(await waitForBrowser(`document.body.innerText.includes('Approved scoped access request')&&document.body.innerText.includes('Mona Khalil')`), true, 'grant events retain approver, target and recorded reason');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('AR-2026-0042')&&document.body.innerText.includes('Quarterly management approval responsibility')&&document.body.innerText.includes('Mona Khalil')`), true, 'grant events retain request, approver, target and recorded reason');
     await browserTab!.evaluate(`(() => [...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Active Access Grants')).click())()`);
     assert.equal(await waitForBrowser(`document.querySelector('.panel-head h3')?.innerText==='Explicit Access Grants Register'`), true, 'active grants table opened');
     await browserTab!.evaluate(`(() => {window.prompt=()=> 'Assignment ended';const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('group-user')&&x.innerText.includes('ENG-26002'));const revoke=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Revoke Grant');if(!revoke)throw Error('target grant not listed');revoke.click();})()`);

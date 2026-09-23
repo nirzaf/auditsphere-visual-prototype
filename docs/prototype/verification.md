@@ -247,3 +247,12 @@ existing `steaudit-prototype` Pages project on production as release
 Both the release URL and `https://prototype.steaudit.com` returned HTTP 200 and
 served `assets/index-Cbjjq6p3.js`, which contains the mapping gate and corrected
 package mapping revision content.
+
+VP-019 follow-up: grant authoring now requires an approved-request reference
+and reason, supports an effective date and optional expiry, rejects invalid or
+reversed date windows, and preserves the request and date window in grant
+history after revocation. A scheduled grant is not included in the user's
+visible engagement scope before its effective date. Unit checks passed 131/131;
+E2E passed 56/56, including the Chrome grant form, history, and scoped access
+journey. The wider professional-role approval and group-scope matrix remains
+open, so Module 19 remains Partial. Production deployment evidence follows.

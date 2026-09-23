@@ -265,14 +265,19 @@ describe('access grant history (VP-018/019)', () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     prototypeStore.resetState();
     prototypeStore.setPersona('admin');
-    prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Approved request AR-42');
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment'), /request reference/);
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2027-09-23', expiresAt: '2027-09-22', requestRef: 'AR-42' }), /expiry cannot precede/);
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2026-02-30', requestRef: 'AR-42' }), /valid/);
+    prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2999-01-01', expiresAt: '2999-12-31', requestRef: 'AR-42' });
+    assert.equal(visibleEngagementIds(prototypeStore.getSnapshot(), 'group-user').includes('ENG-26002'), false, 'scheduled grant does not authorize before its effective date');
     assert.throws(() => prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', ''), /revocation reason/);
     prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', 'Assignment ended');
     const history = prototypeStore.getSnapshot().roleGrantHistory.slice(-2);
     assert.deepEqual(history.map(event => [event.action, event.actorUserId, event.userId, event.scopeId, event.reason]), [
-      ['Granted', 'admin', 'group-user', 'ENG-26002', 'Approved request AR-42'],
+      ['Granted', 'admin', 'group-user', 'ENG-26002', 'Quarterly assignment'],
       ['Revoked', 'admin', 'group-user', 'ENG-26002', 'Assignment ended']
     ]);
+    assert.deepEqual([history[0].requestRef, history[0].effectiveFrom, history[0].expiresAt], ['AR-42', '2999-01-01', '2999-12-31']);
     assert.ok(history.every(event => Number.isFinite(Date.parse(event.at))));
     assert.equal(prototypeStore.getSnapshot().roleGrants.some(grant => grant.userId === 'group-user' && grant.scopeId === 'ENG-26002'), false);
   });

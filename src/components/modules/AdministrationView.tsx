@@ -18,6 +18,10 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
   const [grantScopeKind, setGrantScopeKind] = useState<'Global' | 'Client' | 'Engagement'>('Client');
   const [grantClientId, setGrantClientId] = useState(state.clients[0]?.id || 'CL-001');
   const [grantEngagementId, setGrantEngagementId] = useState(state.engagements[0]?.id || 'ENG-26001');
+  const [grantEffectiveFrom, setGrantEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [grantExpiresAt, setGrantExpiresAt] = useState('');
+  const [grantRequestRef, setGrantRequestRef] = useState('');
+  const [grantReason, setGrantReason] = useState('');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [identityName, setIdentityName] = useState('');
   const [identityEmail, setIdentityEmail] = useState('');
@@ -41,7 +45,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
     if (!selectedUser) return;
     try {
       const scopeId = grantScopeKind === 'Client' ? grantClientId : grantScopeKind === 'Engagement' ? grantEngagementId : undefined;
-      prototypeStore.grantAccess(selectedUser.id, selectedUser.role, grantScopeKind, scopeId, 'Approved scoped access request');
+      prototypeStore.grantAccess(selectedUser.id, selectedUser.role, grantScopeKind, scopeId, grantReason, { effectiveFrom: grantEffectiveFrom, expiresAt: grantExpiresAt || undefined, requestRef: grantRequestRef });
       setShowGrantModal(false);
       triggerNotice('success', `Granted ${grantScopeKind} scope to ${selectedUser.name} as ${selectedUser.role}.`);
     } catch (err: any) {
@@ -259,6 +263,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
                       {g.scopeKind === 'Global' && <span>Firm-wide unrestricted practice</span>}
                       {g.scopeKind === 'Client' && <b>Client: {g.scopeId}</b>}
                       {g.scopeKind === 'Engagement' && <b>Engagement: {g.scopeId}</b>}
+                      <div className="caption">Effective {g.effectiveFrom || 'immediately'}{g.expiresAt ? ` · expires ${g.expiresAt}` : ' · no expiry'} · Request {g.requestRef || 'legacy'}</div>
                     </td>
                     <td>
                       <button
@@ -279,12 +284,12 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
       {activeTab === 'history' && (
         <div className="panel">
           <div className="panel-head"><h3>Immutable Access Grant History</h3><span className="caption">New grants append here; revocation never erases its grant event.</span></div>
-          <div className="tablewrap"><table><thead><tr><th>Time</th><th>Action</th><th>Person</th><th>Role</th><th>Scope</th><th>Actor</th><th>Reason</th></tr></thead><tbody>
+          <div className="tablewrap"><table><thead><tr><th>Time</th><th>Action</th><th>Person</th><th>Role</th><th>Scope</th><th>Actor</th><th>Effective window</th><th>Request / reason</th></tr></thead><tbody>
             {[...state.roleGrantHistory].reverse().map(event => <tr key={event.id}>
               <td>{event.at}</td><td><span className={`badge ${event.action === 'Granted' ? 'green' : 'amber'}`}>{event.action}</span></td>
               <td>{state.users.find(user => user.id === event.userId)?.name || event.userId}</td><td>{event.role}</td>
               <td>{event.scopeKind}{event.scopeId ? ` · ${event.scopeId}` : ''}</td>
-              <td>{state.users.find(user => user.id === event.actorUserId)?.name || event.actorUserId}</td><td>{event.reason || '—'}</td>
+              <td>{state.users.find(user => user.id === event.actorUserId)?.name || event.actorUserId}</td><td>{event.effectiveFrom || 'Immediate'}{event.expiresAt ? ` – ${event.expiresAt}` : ''}</td><td>{event.requestRef && <b>{event.requestRef} · </b>}{event.reason || '—'}</td>
             </tr>)}
           </tbody></table></div>
           {state.roleGrantHistory.length === 0 && <p className="sub panel-pad">No access changes have been recorded in this browser state.</p>}
@@ -415,7 +420,7 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
               <h3>Grant Access Scope</h3>
               <button className="btn sm ghost" onClick={() => setShowGrantModal(false)}>✕</button>
             </div>
-            <p className="sub mt4">Author explicit scope grant for {selectedUser.name}.</p>
+            <p className="sub mt4">Author an approved, dated scope grant for {selectedUser.name}.</p>
 
             <div className="stack mt16" style={{ gap: 12 }}>
               <div>
@@ -465,6 +470,12 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
                 <label className="caption">Requested persona role</label>
                 <input className="input" value={selectedUser.role} readOnly />
               </div>
+              <div className="grid2">
+                <label className="caption">Effective from<input className="input mt4" aria-label="Grant effective from" type="date" required value={grantEffectiveFrom} onChange={e => setGrantEffectiveFrom(e.target.value)} /></label>
+                <label className="caption">Expires on (optional)<input className="input mt4" aria-label="Grant expiry date" type="date" value={grantExpiresAt} onChange={e => setGrantExpiresAt(e.target.value)} /></label>
+              </div>
+              <label className="caption">Approved request reference<input className="input mt4" aria-label="Approved access request reference" required value={grantRequestRef} onChange={e => setGrantRequestRef(e.target.value)} placeholder="e.g. AR-2026-0042" /></label>
+              <label className="caption">Reason<textarea className="input mt4" aria-label="Access grant reason" required value={grantReason} onChange={e => setGrantReason(e.target.value)} placeholder="Why this person needs this role and scope" /></label>
             </div>
 
             <div className="row mt20" style={{ gap: 10, justifyContent: 'flex-end' }}>

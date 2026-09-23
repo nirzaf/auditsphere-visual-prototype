@@ -334,7 +334,7 @@ class PrototypeStore {
   }
 
   /** Explicit scoped grants (VP-019). Admin alone never grants professional authority. */
-  public grantAccess(userId: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement', scopeId?: string, reason = '') {
+  public grantAccess(userId: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement', scopeId?: string, reason = '', dates: { effectiveFrom?: string; expiresAt?: string; requestRef?: string } = {}) {
     requireActiveIdentity(this.state);
     requireGlobalAdmin(this.state, 'grant access');
     const user = this.state.users.find(u => u.id === userId && u.status === 'Active');
@@ -342,6 +342,13 @@ class PrototypeStore {
     const actor = this.state.users.find(u => u.id === this.state.currentUserId)!;
     if ((actor.personId || actor.id) === (user.personId || user.id)) throw new GuardError('FORBIDDEN_SCOPE', 'Administrators cannot grant access to their own person.');
     if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An approved request reason is required.');
+    const validDate = (value?: string) => {
+      if (!value) return true;
+      const parsed = Date.parse(`${value}T00:00:00Z`);
+      return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+    };
+    if (!validDate(dates.effectiveFrom) || !validDate(dates.expiresAt) || dates.effectiveFrom && dates.expiresAt && dates.expiresAt < dates.effectiveFrom) throw new GuardError('INVALID_STATE', 'Grant effective and expiry dates must be valid, and expiry cannot precede the effective date.');
+    if (!dates.requestRef?.trim()) throw new GuardError('INVALID_STATE', 'An approved access-request reference is required.');
     if ((scopeKind === 'Client' || scopeKind === 'Engagement') && !scopeId) {
       throw new GuardError('INVALID_STATE', 'Scoped grants require a scope ID.');
     }
@@ -351,9 +358,9 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', 'That scope is already granted to this persona.');
     }
     const at = new Date().toISOString();
-    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, grantedAt: at, grantedBy: actor.id, reason: reason.trim() });
+    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim(), grantedAt: at, grantedBy: actor.id, reason: reason.trim() });
     this.state.roleGrantHistory ||= [];
-    this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Granted', userId, role, scopeKind, scopeId, actorUserId: actor.id, at, reason: reason.trim() });
+    this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Granted', userId, role, scopeKind, scopeId, actorUserId: actor.id, at, reason: reason.trim(), effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim() });
     this.logEvent(`Access granted: ${user.name} → ${role} (${scopeKind}${scopeId ? ':' + scopeId : ''}) — ${reason}`, scopeId || user.id);
     this.notify();
   }
@@ -366,7 +373,7 @@ class PrototypeStore {
       if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An access-revocation reason is required.');
       const grant = this.state.roleGrants[idx];
       this.state.roleGrantHistory ||= [];
-      this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Revoked', userId, role, scopeKind: grant.scopeKind, scopeId: grant.scopeId, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
+      this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Revoked', userId, role, scopeKind: grant.scopeKind, scopeId: grant.scopeId, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim(), effectiveFrom: grant.effectiveFrom, expiresAt: grant.expiresAt, requestRef: grant.requestRef });
       this.state.roleGrants.splice(idx, 1);
       this.logEvent(`Access revoked: ${this.state.users.find(u => u.id === userId)?.name || userId} → ${role}${scopeId ? ' (' + scopeId + ')' : ''} — ${reason.trim()}`, scopeId || userId);
       this.notify();
