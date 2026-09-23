@@ -287,4 +287,9 @@ checks the QAR 2,250,000 current / QAR 800,000 comparative cash line and both
 source-account lists. Unit checks passed 131/131; E2E passed 56/56 (five static
 checks and 51 Chrome journeys); the build passed with the existing large-bundle
 advisory. Persisted statement revisions, independent statement review and
-stale-review behavior remain open; production deployment evidence follows.
+stale-review behavior remain open. Commit `6bce149` was pushed to `main` and
+deployed to the existing `steaudit-prototype` production Pages project as
+release `c35c6d38-09da-4045-aa7c-bf0bb57bc829`. A no-cache request to both the
+release URL and `https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-BMBC8qpe.js`, containing the paired comparative columns, source
+references and unavailable-state handling.
