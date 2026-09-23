@@ -85,6 +85,13 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
     catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not link evidence.'); }
   };
 
+  const handleUnlinkEvidence = (documentId: string) => {
+    const reason = window.prompt(`Why remove ${documentId} from ${wp.id}?`);
+    if (reason === null) return;
+    try { prototypeStore.unlinkWorkpaperEvidence(selectedEng.id, wp.id, documentId, reason); triggerNotice('success', `${documentId} removed; the reason is retained in history.`); }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not remove evidence.'); }
+  };
+
   const handleReassign = () => {
     try { prototypeStore.reassignWorkpaper(selectedEng.id, wp.id, assignmentRole, assignmentUserId, assignmentReason); setAssignmentReason(''); triggerNotice('success', `${assignmentRole} assignment updated.`); }
     catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not reassign workpaper.'); }
@@ -463,12 +470,14 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                           </div>
                         </div>
                         <span className="badge green">Adequate</span>
+                        <button className="btn sm ghost" aria-label={`Unpin ${ref} from ${wp.id}`} onClick={() => handleUnlinkEvidence(ref)}>Unpin</button>
                       </div>
                     ))
                   ) : (
                     <div className="cell-sub text-muted">No external evidence attachments pinned yet.</div>
                   )}
                 </div>
+                {(wp.evidenceLinkHistory || []).length > 0 && <div className="caption mt12">Evidence link history: {(wp.evidenceLinkHistory || []).map(item => `${item.action} ${item.documentId} v${item.version} by ${state.users.find(user => user.id === item.actorId)?.name || item.actorId} · ${item.reason}`).join(' · ')}</div>}
               </div>
             )}
 

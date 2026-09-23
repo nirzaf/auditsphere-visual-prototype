@@ -1085,6 +1085,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const option=[...s.options].find(x=>x.textContent.includes('Senior reviewer — Sara'));if(!option)throw Error('Independent reviewer identity is missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,option.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await browserTab!.evaluate(`(() => {const select=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PRC-01')).querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Cleared');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Cleared'&&p.reviewedByUserId==='reviewer'&&!!p.reviewedAt;})()`), true, 'independent reviewer re-clears the reassessed work');
+
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Audit preparer — Adam Khan'));if(!o)throw Error('Assigned workpaper preparer is missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentPerson==='Adam Khan'`), true);
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
+    await clickButtonStartingWith('Audit Workpapers');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Engagement Workpapers")'), true);
+    await clickButton('5. Pinned Evidence');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Superseded by reviewed current bank statement v2.';const b=document.querySelector('[aria-label="Unpin DOC-002 from WP-A1"]');if(!b)throw Error('Stale WP-A1 evidence pin cannot be removed');b.click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const w=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(x=>x.id==='WP-A1');return !w.evidenceRefs.includes('DOC-002')&&w.evidenceLinkHistory.at(-1).action==='Unlinked'&&w.evidenceLinkHistory.at(-1).reason.includes('Superseded');})()`), true, 'stale workpaper pin is removed with actor-attributed reason history');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Workpaper evidence document"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(stateAfter.next.id)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Pin evidence revision');
+    assert.equal(await waitForBrowser(`(() => {const w=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(x=>x.id==='WP-A1');return w.evidenceRefs.length===1&&w.evidenceRefs[0]===${JSON.stringify(stateAfter.next.id)}&&w.evidenceRevisions[${JSON.stringify(stateAfter.next.id)}]===2;})()`), true, 'workpaper now pins only the reviewed current document revision');
+    await clickButton('1. Objective & Scope');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;for(const [label,value] of [['Workpaper scope','Cash and bank balances reassessed to the reviewed replacement statement v2.'],['Work performed','Reconciled the new statement v2 and retested the confirmation/cut-off evidence.'],['Workpaper conclusion','The replacement statement agrees to the ledger; no exceptions remain.']]){const field=document.querySelector('[aria-label="'+label+'"]');set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+    await clickButton('Save workpaper revision');
+    await clickButton('4. Artifact & Revision');
+    await clickButton('Upload Replacement Revision');
+    await browserTab!.evaluate(`(async() => {const response=await fetch('/templates/WP-A1_Cash_and_Bank_Audit_Template.xlsx');const bytes=await response.arrayBuffer();const file=new File([bytes],'WP-A1_Replacement_Statement_v2.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const input=document.querySelector('.modal-backdrop input[type=file]');const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop form').requestSubmit()`);
+    assert.equal(await waitForBrowser(`(() => {const w=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(x=>x.id==='WP-A1');return w.workingPaper.version===w.version&&w.workingPaper.name==='WP-A1_Replacement_Statement_v2.xlsx';})()`), true, 'a new workbook revision is pinned to the updated workpaper version');
+    await clickButton('1. Objective & Scope');
+    await clickButton('Submit for independent review');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id==='WP-A1').status==='Submitted'`), true, 'reassessed workpaper submits with current evidence and current workbook');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Senior reviewer — Sara'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('6. Clearance & History');
+    await clickButton('Sign & Clear Workpaper');
+    assert.equal(await waitForBrowser(`(() => {const w=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(x=>x.id==='WP-A1');return w.status==='Cleared'&&w.clearance.clearedBy==='Sara Malik'&&w.evidenceLinkHistory.at(-1).action==='Linked';})()`), true, 'independent reviewer re-clears the replacement workpaper revision');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

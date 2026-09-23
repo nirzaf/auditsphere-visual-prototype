@@ -1004,6 +1004,7 @@ export interface WorkpaperItem {
   assignmentHistory?: Array<{ role: 'preparer' | 'reviewer'; from?: string; to: string; assignedBy: string; reason: string; assignedAt: string }>;
   evidenceRefs?: string[];
   evidenceRevisions?: Record<string, number>;
+  evidenceLinkHistory?: Array<{ documentId: string; version: number; action: 'Linked' | 'Unlinked'; actorId: string; reason: string; at: string }>;
   preparer: string;
   reviewer: string;
   conclusion: string;

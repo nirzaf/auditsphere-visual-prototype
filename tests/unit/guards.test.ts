@@ -788,6 +788,7 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     assert.equal(replacementEvidence.adequacyStatus, 'Pending verification');
     assert.deepEqual(evidence.linkedProcedures, ['PRC-01', 'PRC-02'], 'prior evidence links stay pinned to the prior revision');
     assert.deepEqual(replacementEvidence.linkedProcedures, [], 'replacement starts without inheriting fieldwork links');
+    assert.throws(() => prototypeStore.linkWorkpaperEvidence('ENG-26001', 'WP-A1', originalId), /latest document revision/);
     const procedure = state.auditPrograms.flatMap(program => program.procedures).find(item => item.id === 'PRC-01')!;
     assert.equal(procedure.evidenceReassessmentRequired, true);
     assert.equal(procedure.status, 'In progress');
@@ -799,6 +800,10 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     assert.equal(workpaper.clearanceHistory.length, 1);
     prototypeStore.setEvidenceAdequacy(replacementEvidence.id, 'Adequate');
     prototypeStore.linkEvidenceProcedure(replacementEvidence.id, procedure.id);
+    prototypeStore.unlinkWorkpaperEvidence('ENG-26001', 'WP-A1', originalId, 'Replaced by reviewed current statement.');
+    prototypeStore.linkWorkpaperEvidence('ENG-26001', 'WP-A1', revision.id);
+    assert.deepEqual(workpaper.evidenceRefs, [revision.id]);
+    assert.deepEqual(workpaper.evidenceLinkHistory?.map(item => item.action), ['Unlinked', 'Linked']);
     prototypeStore.updateAuditProcedureExecution('ENG-26001', procedure.id, 'Rechecked the replacement statement.', 'Agrees after reassessment.', '');
     prototypeStore.updateAuditProcedureStatus('ENG-26001', procedure.id, 'Submitted');
     assert.equal(procedure.evidenceReassessmentRequired, false);

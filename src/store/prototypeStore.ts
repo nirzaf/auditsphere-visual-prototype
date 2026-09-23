@@ -147,6 +147,10 @@ class PrototypeStore {
     eng.approvals.eqr = null;
   }
 
+  private hasNewerDocumentRevision(documentId: string) {
+    return this.state.documents.some(document => document.supersedesDocumentId === documentId);
+  }
+
   private staleReconciliation(rec: ReconciliationSchedule) {
     if (rec.status === 'Stale') return;
     if (rec.preparedAt) {
@@ -1988,9 +1992,14 @@ class PrototypeStore {
     const workpaper = engagement?.workpapers.find(item => item.id === wpId);
     const document = this.state.documents.find(item => item.id === documentId && item.engagementId === engId);
     if (!workpaper || !document) throw new GuardError('INVALID_STATE', 'Evidence must be a document in this engagement.');
+    if (this.hasNewerDocumentRevision(document.id)) throw new GuardError('STALE_REVISION', 'Pin the latest document revision before reassessing this workpaper.');
     workpaper.evidenceRefs ||= [];
     workpaper.evidenceRevisions ||= {};
-    if (!workpaper.evidenceRefs.includes(document.id)) workpaper.evidenceRefs.push(document.id);
+    if (!workpaper.evidenceRefs.includes(document.id)) {
+      workpaper.evidenceRefs.push(document.id);
+      workpaper.evidenceLinkHistory ||= [];
+      workpaper.evidenceLinkHistory.push({ documentId: document.id, version: document.version, action: 'Linked', actorId: this.state.currentUserId, reason: 'Pinned current document revision', at: new Date().toISOString() });
+    }
     workpaper.evidenceRevisions[document.id] = document.version;
     workpaper.version++;
     workpaper.status = 'In progress';
@@ -2000,6 +2009,28 @@ class PrototypeStore {
     workpaper.clearance = null;
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Document ${document.id} v${document.version} linked to workpaper ${wpId} v${workpaper.version}`, engId);
+    this.notify();
+  }
+
+  public unlinkWorkpaperEvidence(engId: string, wpId: string, documentId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'partner'], 'unlink workpaper evidence');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const workpaper = engagement?.workpapers.find(item => item.id === wpId);
+    const document = this.state.documents.find(item => item.id === documentId && item.engagementId === engId);
+    if (!workpaper || !document || !workpaper.evidenceRefs?.includes(documentId) || !reason.trim()) throw new GuardError('INVALID_STATE', 'A pinned workpaper document and removal reason are required.');
+    workpaper.evidenceLinkHistory ||= [];
+    workpaper.evidenceLinkHistory.push({ documentId, version: workpaper.evidenceRevisions?.[documentId] ?? document.version, action: 'Unlinked', actorId: this.state.currentUserId, reason: reason.trim(), at: new Date().toISOString() });
+    workpaper.evidenceRefs = workpaper.evidenceRefs.filter(id => id !== documentId);
+    if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+    workpaper.clearance = null;
+    workpaper.submittedBy = undefined;
+    workpaper.submittedVersion = undefined;
+    workpaper.version++;
+    workpaper.status = 'In progress';
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Document ${documentId} unpinned from workpaper ${wpId}: ${reason.trim()}`, engId);
     this.notify();
   }
 
@@ -2014,7 +2045,7 @@ class PrototypeStore {
     if (!workpaper.workPerformed?.trim() || !workpaper.conclusion.trim() || !workpaper.scope?.trim() || !workpaper.workingPaper || workpaper.workingPaper.version !== workpaper.version || !(workpaper.evidenceRefs || []).length) throw new GuardError('INVALID_STATE', 'Record work performed, scope, conclusion, a current workbook and linked evidence before submission.');
     if ((workpaper.evidenceRefs || []).some(id => {
       const document = this.state.documents.find(item => item.id === id && item.engagementId === engId);
-      return !document || workpaper.evidenceRevisions?.[id] !== document.version;
+      return !document || this.hasNewerDocumentRevision(id) || workpaper.evidenceRevisions?.[id] !== document.version;
     })) throw new GuardError('INVALID_STATE', 'Refresh every evidence link to its current same-engagement document revision before submission.');
     if ((workpaper.evidenceRefs || []).some(id => this.state.evidenceCatalogue.some(item => item.documentId === id && (item.adequacyStatus !== 'Adequate' || item.version !== this.state.documents.find(document => document.id === id)?.version)))) throw new GuardError('STALE_REVISION', 'Evidence must be adequate and pinned to its current document revision before submission.');
     workpaper.submittedBy = this.state.currentUserId;
@@ -2510,7 +2541,7 @@ class PrototypeStore {
     if (doc.clientId) requireClientScope(this.state, doc.clientId);
     if (doc.engagementId && doc.engagementId !== eng.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
     if (doc.clientId !== eng.client) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same client.');
-    if (ev.adequacyStatus !== 'Adequate' || doc.version !== ev.version) throw new GuardError('STALE_REVISION', 'Only an adequate evidence record pinned to the current document revision can be linked.');
+    if (ev.adequacyStatus !== 'Adequate' || doc.version !== ev.version || this.hasNewerDocumentRevision(doc.id)) throw new GuardError('STALE_REVISION', 'Only an adequate evidence record pinned to the current document revision can be linked.');
     if (!ev.linkedProcedures.includes(procedureId)) {
       ev.linkedProcedures.push(procedureId);
       ev.linkedProcedureHistory ||= [];
@@ -2584,12 +2615,7 @@ class PrototypeStore {
         if (!e.linkedProcedures.includes(procedureId) || e.adequacyStatus !== 'Adequate') return false;
         let document = this.state.documents.find(d => d.id === e.documentId);
         if (!document || document.clientId !== this.state.engagements.find(item => item.id === engId)?.client || (document.engagementId && document.engagementId !== engId) || document.version !== e.version) return false;
-        while (true) {
-          const newer = this.state.documents.find(d => d.supersedesDocumentId === document!.id);
-          if (!newer) break;
-          document = newer;
-        }
-        return document.id === e.documentId;
+        return !this.hasNewerDocumentRevision(document.id);
       });
       if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');
       if (procedure.scopeReassessmentRequired) throw new GuardError('STALE_REVISION', 'Planning scope changed; re-record this procedure before submitting.');

@@ -16,14 +16,6 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   stales the live schedule; Chrome verifies draft creation, self-approval
   denial and independent approval. Browser return/rework and the full
   evidence-to-source lifecycle need direct evidence.
-- **AT-20 — document replacement:** Chrome verifies a replacement revision is
-  registered separately, preserves the prior document and evidence pin, and
-  shows reviewers that a newer version exists. The replacement evidence starts
-  unlinked and pending verification; Chrome now records a manager adequacy
-  decision, links the current revision to PRC-01, records preparer reassessment,
-  and verifies independent reviewer re-clearance. Dependent workpaper clearance
-  is invalidated and its dedicated reassessment/re-clearance journey remains
-  open. Original bytes remain local.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.
