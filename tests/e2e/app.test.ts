@@ -1960,6 +1960,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(approved.mappings.length, (await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(x=>x.id===s.selectedEngagement).rows.length})()`)));
       await clickButton('Financial Statements');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Cash and cash equivalents · Source 1000 · Mapping Cash and cash equivalents/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Comparative period unavailable; 2025 accounts lack a complete independently approved mapping/);
+      await setRole('preparer');
+      await clickButton('Accounting Workbench');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26003');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Statement Mappings');
+      await browserTab!.evaluate(`(() => {
+        const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+        const e=s.engagements.find(x=>x.id==='ENG-26003');
+        const targets={asset:'Cash and cash equivalents',liability:'Trade payables',equity:'Share capital and reserves',revenue:'Revenue',expense:'Operating expenses'};
+        for(const row of e.rows){const select=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,targets[row.type]);select.dispatchEvent(new Event('change',{bubbles:true}));}
+      })()`);
+      await clickButton('Save New Revision');
+      await setRole('reviewer');
+      const priorApproved = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Approve Revision v'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(priorApproved, true, 'prior-period mapping is independently approved');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Financial Statements');
+      const comparative = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(comparative, /2026 current \(QAR\)/i);
+      assert.match(comparative, /2025 comparative \(QAR\)/i);
+      assert.match(comparative, /Total assets\s+QAR 2,250,000\.00\s+QAR 800,000\.00/i, 'comparative totals reconcile to the independently mapped periods');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

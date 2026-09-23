@@ -152,6 +152,13 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   treated as legacy classifications. The AT-37 Chrome journey verifies blocking
   and an approved mapping path; the remaining chart/period/dimension and
   downstream rework matrix remains open.
+- **VP-040 — comparative statements:** the statement workspace now selects an
+  earlier engagement for the same client/currency and shows current/prior asset,
+  liability, equity, revenue and profit totals only when both mappings are
+  independently approved. Missing or unmapped prior data is labeled unavailable,
+  not zero. Chrome maps and approves both periods and reconciles the comparative
+  asset totals. Detailed comparative statement exports and versioned/reviewed
+  statement-output revisions remain incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-

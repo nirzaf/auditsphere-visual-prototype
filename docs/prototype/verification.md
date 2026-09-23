@@ -262,3 +262,14 @@ Commit `256c83a` was pushed to `main` and deployed to the existing
 URL and `https://prototype.steaudit.com` returned HTTP 200 and served
 `assets/index-DStF5-hW.js`; that bundle contains the required request-reference
 and effective-date grant controls.
+
+VP-040 follow-up: the financial-statement workspace now selects a prior
+engagement for the same client and currency and displays comparative asset,
+liability, equity, revenue and profit totals only when both periods have fully
+approved mappings. Missing/unmapped prior data is explicitly unavailable, not
+zero. Chrome verified the unavailable state, independently mapped and approved
+the 2025 period, and reconciled current/prior assets at QAR 2,250,000 and QAR
+800,000. Full verification passed: 131/131 unit checks and 56/56 E2E checks
+(five static checks and 51 Chrome journeys); build passed with the existing
+large-bundle advisory. Comparative detail exports and persisted/reviewed
+statement-output versions remain open. Production deployment evidence follows.

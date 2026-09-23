@@ -13,6 +13,7 @@ interface FinancialStatementsViewProps {
 export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [statementType, setStatementType] = useState<'bs' | 'is' | 'equity' | 'cashflow'>('bs');
+  const [comparativeEngagementId, setComparativeEngagementId] = useState('');
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -38,8 +39,8 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const mappedAccounts = currentMapping?.mappings || [];
   const unmappedRows = selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code));
   const mappingReady = Boolean(currentMapping?.status === 'Approved' && !unmappedRows.length);
-  const mapRow = (row: TrialBalanceRow): TrialBalanceRow[] => {
-    const targets = mappedAccounts.find(mapping => mapping.accountCode === row.code)?.targets || [];
+  const mapRows = (rows: TrialBalanceRow[], mappings: typeof mappedAccounts): TrialBalanceRow[] => rows.flatMap(row => {
+    const targets = mappings.find(mapping => mapping.accountCode === row.code)?.targets || [];
     let allocatedCents = 0;
     return targets.map((target, index) => {
       const cents = index === targets.length - 1 ? Math.round(row.balance * 100) - allocatedCents : Math.round(row.balance * 100 * target.percentage / 100);
@@ -53,12 +54,21 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
         mappedStatementLine: target.statementLine
       };
     });
-  };
+  });
   const statementRows: TrialBalanceRow[] = mappingReady
-    ? adjustmentResult.rows.flatMap(mapRow)
+    ? mapRows(adjustmentResult.rows, mappedAccounts)
     : adjustmentResult.rows;
   const bs = calculateBalanceSheet(statementRows);
   const is = calculateIncomeStatement(statementRows);
+  const priorPeriods = state.engagements.filter(eng => eng.client === selectedEng.client && eng.currency === selectedEng.currency && eng.year < selectedEng.year).sort((a, b) => b.year - a.year);
+  const comparativeEngagement = priorPeriods.find(eng => eng.id === comparativeEngagementId) || priorPeriods[0];
+  const priorMapping = comparativeEngagement && [...(state.accountMappingRevisions || []).filter(item => item.engagementId === comparativeEngagement.id)].sort((a, b) => b.revision - a.revision)[0];
+  const priorUnmapped = comparativeEngagement?.rows.filter(row => !priorMapping?.mappings.some(mapping => mapping.accountCode === row.code)) || [];
+  const priorMappingReady = Boolean(priorMapping?.status === 'Approved' && priorUnmapped.length === 0);
+  const priorAdjustmentResult = comparativeEngagement && applyReportingAdjustments(comparativeEngagement.rows, state.adjustmentJournals.filter(j => j.engagementId === comparativeEngagement.id));
+  const priorRows = comparativeEngagement && priorMappingReady && priorAdjustmentResult ? mapRows(priorAdjustmentResult.rows, priorMapping!.mappings) : [];
+  const priorBalanceSheet = priorRows.length ? calculateBalanceSheet(priorRows) : null;
+  const priorIncomeStatement = priorRows.length ? calculateIncomeStatement(priorRows) : null;
 
   const handleExportXLSX = () => {
     const data = [
@@ -132,6 +142,20 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       </div>
 
       {!mappingReady && <div role="alert" className="badge danger" style={{ display: 'block', padding: 12 }}>Statement generation is blocked until the latest mapping revision is independently approved and covers all trial balance accounts. Unmapped: {unmappedRows.map(row => row.code).join(', ') || 'none'}.</div>}
+
+      <section className="panel panel-pad" aria-label="Comparative period summary">
+        <div className="between"><div><h3>Comparative Period</h3><p className="sub">Choose an earlier source period for this client and currency. Missing or unmapped periods remain unavailable.</p></div>
+          <select className="input" aria-label="Comparative period" value={comparativeEngagement?.id || ''} onChange={e => setComparativeEngagementId(e.target.value)} style={{ maxWidth: 320 }}>
+            {priorPeriods.length ? priorPeriods.map(eng => <option key={eng.id} value={eng.id}>{eng.year} · {eng.period}</option>) : <option value="">No prior period</option>}
+          </select>
+        </div>
+        {!mappingReady ? <p role="status" className="badge amber mt12">Current period unavailable until its mapping is independently approved.</p>
+          : !comparativeEngagement ? <p role="status" className="badge amber mt12">Comparative period unavailable; no earlier source period exists for this client and currency.</p>
+          : !priorMappingReady ? <p role="status" className="badge amber mt12">Comparative period unavailable; {comparativeEngagement.year} accounts lack a complete independently approved mapping. No zero amounts are substituted.</p>
+          : priorBalanceSheet && priorIncomeStatement && <div className="tablewrap mt12"><table><thead><tr><th>Statement total</th><th>{selectedEng.year} current ({selectedEng.currency})</th><th>{comparativeEngagement.year} comparative ({selectedEng.currency})</th></tr></thead><tbody>
+            {[["Total assets", bs.totalAssets, priorBalanceSheet.totalAssets], ["Total liabilities", bs.totalLiabilities, priorBalanceSheet.totalLiabilities], ["Total equity", bs.totalEquity, priorBalanceSheet.totalEquity], ["Revenue", is.revenue, priorIncomeStatement.revenue], ["Net profit", is.netProfit, priorIncomeStatement.netProfit]].map(([label, current, prior]) => <tr key={String(label)}><td>{label}</td><td>{formatCurrency(Number(current))}</td><td>{formatCurrency(Number(prior))}</td></tr>)}
+          </tbody></table></div>}
+      </section>
 
       {adjustmentResult.unapplied.length > 0 && <div role="status" className="badge danger" style={{ display: 'block', padding: 12 }}>
         Some management-accepted adjustments were excluded because their source reflection or account mapping needs review: {adjustmentResult.unapplied.map(item => `${item.journalId}: ${item.reason}`).join(' ')}
