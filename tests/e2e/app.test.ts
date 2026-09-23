@@ -667,6 +667,40 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-21: keeps OneDrive optional until enabled and preserves SharePoint as canonical storage', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'admin');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId === 'admin'`), true, 'administrator persona is active');
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('nav button')].some(x=>x.innerText.trim()==='Microsoft 365 Setup')`), true, 'administrator can open M365 setup');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Microsoft 365 Setup');if(!b)throw Error('Microsoft 365 Setup navigation is missing');b.click();})()`);
+    assert.equal(await waitForBrowser('document.querySelector(".crumb")?.innerText.includes("M365 SETUP")'), true, 'M365 setup route opened');
+    const setupText = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(setupText, /OneDrive/, 'M365 setup renders the optional OneDrive section');
+    const disabled = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Enable bounded OneDrive'));return [...label.closest('.panel').querySelectorAll('button')].filter(x=>x.innerText.includes('Success (simulated)')).every(x=>x.disabled);})()`);
+    assert.equal(disabled, true, 'optional OneDrive verification is disabled by default');
+    await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Enable bounded OneDrive'));const input=label.querySelector('input[type=checkbox]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'checked').set.call(input,true);input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save simulated configuration');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.oneDriveEnabled === true`), true, 'optional import selection was saved');
+    const cardText = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(cardText, /OneDrive \(optional\)/i);
+    await clickPanelButton('onedrive (optional)', 'Simulate: Success (simulated)');
+    const configBefore = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {enabled:c.oneDriveEnabled,site:c.sharePointSite,root:c.folderRoot,revision:c.configRevision};})()`);
+    assert.equal(configBefore.enabled, true);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId === 'manager'`), true);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
+    assert.equal(await waitForBrowser('document.querySelector(".crumb")?.innerText.includes("DOCUMENTS")'), true, 'document library route opened');
+    await clickButton('Import from OneDrive');
+    await clickButton('Record sample metadata');
+    const imported = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const d=s.documents.find(x=>x.source==='OneDrive Import');return {doc:d,config:s.m365Config};})()`);
+    assert.ok(imported.doc, 'explicit sample selection registers one local document record');
+    assert.equal(imported.doc.folderPath, '/Engagements/2026/Audit/');
+    assert.equal(imported.doc.clientId, 'CL-001');
+    assert.equal(imported.config.sharePointSite, configBefore.site, 'OneDrive import does not change the canonical SharePoint site');
+    assert.equal(imported.config.folderRoot, configBefore.root);
+    assert.deepEqual(browserTab!.requests.filter(url => /^https?:/.test(url) && !url.startsWith(baseUrl)), []);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

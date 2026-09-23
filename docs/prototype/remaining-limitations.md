@@ -16,6 +16,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   accepted, failed and unknown outcomes locally without external mail requests.
   Recipient validation, delivery evidence and retry/duplicate policy remain
   incomplete.
+- **AT-21 — optional OneDrive:** Chrome verifies disabled-by-default gating,
+  saved enablement, current simulated success and a selected local metadata
+  import under the SharePoint canonical hierarchy. Real file transfer and
+  version freshness remain outside the prototype.
 
 - **AT-11/12 — jobs and tasks:** Chrome verifies that open subtasks block parent
   completion and that reassignment changes the real assignee with a retained
