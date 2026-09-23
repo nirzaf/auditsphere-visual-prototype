@@ -298,3 +298,21 @@ release `c35c6d38-09da-4045-aa7c-bf0bb57bc829`. A no-cache request to both the
 release URL and `https://prototype.steaudit.com` returned HTTP 200 and served
 `assets/index-BMBC8qpe.js`, containing the paired comparative columns, source
 references and unavailable-state handling.
+
+VP-012 administration follow-up: engagement administrators can edit due date,
+manager, partner and professional team. Team membership requires unique active
+professional personas and a current engagement grant; saving records the change
+and invalidates existing release approvals. Chrome verifies a due-date change,
+adds a currently granted teammate, reloads the saved history, then suspends,
+resumes and cancels the engagement. `npm run test:unit` passed 134/134 and
+`npm run test:e2e` passed 57/57 (five static checks and 52 Chrome journeys);
+`npm run build` passed with the existing large-bundle advisory. Service/period
+scope edits and the complete affected-review applicability matrix remain open,
+so VP-012 is still Partial. Commit `fe9b703` was pushed to `main` and deployed
+to the existing `steaudit-prototype` Pages project on `production` as release
+`eeca0c1f` (`https://eeca0c1f.steaudit-prototype.pages.dev`). Both the release
+URL and `https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-BWkktXve.js` (2,152,630 bytes, SHA-256
+`a286b81a60b3dcbd5f1d89a90c0c5a083c64b1c9591f8a9664a24fb59e69edcd`), containing
+the engagement details editor. Overall acceptance remains Partial: 36 modules
+and 61 stories still require complete criterion-by-criterion evidence.
