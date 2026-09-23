@@ -12,3 +12,21 @@
 .runtime-status[hidden] {
   display: none;
 }
+@media print {
+  body * { visibility: hidden !important; }
+  .receivables-statement,
+  .receivables-statement * { visibility: visible !important; }
+  .receivables-statement {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    border: 0;
+    box-shadow: none;
+    color: #111;
+    background: #fff;
+  }
+  .receivables-statement .tablewrap { overflow: visible; }
+  .receivables-statement table { width: 100%; border-collapse: collapse; }
+  .receivables-statement th,
+  .receivables-statement td { border: 1px solid #777; padding: 6px; color: #111; }
+}

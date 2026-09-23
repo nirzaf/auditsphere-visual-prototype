@@ -33,7 +33,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   statement with issued invoices, credits and receipts; Draft and other-client
   invoices are excluded. Client, as-of date and currency filters drive the
   balances, including historical balances before a later receipt. Printable
-  statements and amount drill-downs remain incomplete; the integration is
+  layout and native print action are implemented, though OS print/PDF output is
+  not captured. Amount drill-downs remain incomplete; the integration is
   offline-only.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time

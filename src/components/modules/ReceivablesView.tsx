@@ -53,6 +53,34 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   );
 
   const aging = calculateReceivablesAging(invoices, credits, receiptLedger, asOfDate, clientFilter === 'ALL' ? undefined : clientFilter);
+  const invoicePaymentsAsOf = (invoice: InvoiceRecord) => {
+    const ledger = receiptLedger.flatMap(rec => rec.allocations
+      .filter(allocation => allocation.invoiceId === invoice.id)
+      .map(allocation => ({ allocation, receiptDate: rec.date })));
+    if (!ledger.length) return invoice.paid;
+    return ledger.filter(({ allocation, receiptDate }) => {
+      const allocatedDate = (allocation.date || allocation.allocatedAt || receiptDate).slice(0, 10);
+      return allocatedDate <= asOfDate && (!allocation.reversed || !allocation.reversalDate || allocation.reversalDate > asOfDate);
+    }).reduce((sum, item) => sum + item.allocation.amount, 0);
+  };
+  const statementInvoices = clientFilter === 'ALL' ? [] : invoices.filter(inv => inv.clientId === client?.id && (inv.status === 'Issued' || inv.status === 'Paid') && (inv.issueDate || inv.due) <= asOfDate);
+  const statementCredits = clientFilter === 'ALL' ? [] : credits.filter(credit => credit.clientId === client?.id && credit.status === 'Issued' && credit.issueDate <= asOfDate);
+  const statementReceipts = clientFilter === 'ALL' ? [] : receipts.filter(rec => rec.clientId === client?.id && rec.date <= asOfDate);
+  const statementRows = [
+    ['Document No', 'Date', 'Type', 'Currency', 'Billed Amount', 'Paid / Allocated', 'Balance'],
+    ...statementInvoices.map(inv => {
+      const paid = invoicePaymentsAsOf(inv);
+      return [inv.invoiceNumber, inv.issueDate || inv.due || '', 'Invoice', inv.currency, inv.amount.toString(), paid.toString(), (inv.amount - paid).toString()];
+    }),
+    ...statementCredits.map(credit => [credit.creditNumber, credit.issueDate, 'Credit note', credit.currency || currencyFilter, String(-credit.amount), '0', String(-credit.amount)]),
+    ...statementReceipts.map(rec => {
+      const allocated = rec.allocations.filter(allocation => {
+        const allocatedDate = (allocation.date || allocation.allocatedAt || rec.date).slice(0, 10);
+        return allocatedDate <= asOfDate && (!allocation.reversed || !allocation.reversalDate || allocation.reversalDate > asOfDate);
+      }).reduce((sum, allocation) => sum + allocation.amount, 0);
+      return [rec.receiptNumber, rec.date, 'Receipt', rec.currency, `-${rec.amount}`, allocated.toString(), (rec.amount - allocated).toString()];
+    })
+  ];
 
   const handleAddReceipt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,40 +126,8 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   };
 
   const handleExportStatementCSV = () => {
-    const statementInvoices = invoices.filter(inv => inv.clientId === client?.id && (inv.status === 'Issued' || inv.status === 'Paid') && (inv.issueDate || inv.due) <= asOfDate);
-    const statementReceipts = receipts.filter(rec => rec.clientId === client?.id && rec.date <= asOfDate);
-    const rows = [
-      ['Document No', 'Date', 'Type', 'Currency', 'Billed Amount', 'Paid / Allocated', 'Balance'],
-      ...statementInvoices.map(inv => [
-        inv.invoiceNumber,
-        inv.issueDate || inv.due || '',
-        'Invoice',
-        inv.currency,
-        inv.amount.toString(),
-        inv.paid.toString(),
-        (inv.amount - inv.paid).toString()
-      ]),
-      ...credits.filter(credit => credit.clientId === client?.id && credit.status === 'Issued' && credit.issueDate <= asOfDate).map(credit => [
-        credit.creditNumber,
-        credit.issueDate,
-        'Credit note',
-        credit.currency || currencyFilter,
-        String(-credit.amount),
-        '0',
-        String(-credit.amount)
-      ]),
-      ...statementReceipts.map(rec => [
-        rec.receiptNumber,
-        rec.date,
-        'Receipt',
-        rec.currency,
-        `-${rec.amount}`,
-        rec.allocatedAmount.toString(),
-        (rec.amount - rec.allocatedAmount).toString()
-      ])
-    ];
-
-    exportService.exportCSV('Client_Statement_Example_Trading', rows);
+    if (clientFilter === 'ALL') return;
+    exportService.exportCSV(`Client_Statement_${client?.id}_${asOfDate}`, statementRows);
   };
 
   return (
@@ -161,6 +157,9 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
           <button className="btn sm ghost" onClick={handleExportStatementCSV} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to export a statement.' : undefined}>
             <Icon name="download" /> Export Statement CSV
           </button>
+          <button className="btn sm ghost" onClick={() => window.print()} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to print a statement.' : undefined}>
+            Print Statement
+          </button>
           <button className="btn primary sm" onClick={() => setShowReceiptModal(true)} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to record a receipt.' : undefined}>
             <Icon name="plus" /> Record Offline Receipt
           </button>
@@ -172,6 +171,20 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
           {notice.text}
         </div>
       )}
+
+      <div className="panel panel-pad receivables-statement">
+        <div className="panel-head">
+          <div>
+            <h3>Client Account Statement</h3>
+            {clientFilter !== 'ALL' && <span className="caption">{client?.name} · {currencyFilter} · As of {asOfDate}</span>}
+          </div>
+          {clientFilter === 'ALL' && <span className="caption">Select one permitted client to view or print a statement.</span>}
+        </div>
+        {clientFilter !== 'ALL' && <div className="tablewrap"><table>
+          <thead><tr>{statementRows[0].map(header => <th key={header}>{header}</th>)}</tr></thead>
+          <tbody>{statementRows.slice(1).map((row, i) => <tr key={`${row[0]}-${i}`}>{row.map((value, col) => <td key={col}>{value}</td>)}</tr>)}</tbody>
+        </table></div>}
+      </div>
 
       {/* Aging Metric Cards */}
       <div className="metric-grid">
