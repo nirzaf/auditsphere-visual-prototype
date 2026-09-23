@@ -15,6 +15,7 @@ interface AccountingWorkbenchViewProps {
 export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations'>('tb');
+  const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -48,6 +49,10 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
   const tbTotals = calculateTrialBalanceTotals(selectedEng.rows);
   const glVerify = verifyGLCompleteness(state.glTransactions, selectedEng.rows);
+  const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
+  const activeMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
+  const activeMappings = activeMapping?.mappings || [];
+  const statementLines = ['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment', 'Trade payables', 'Borrowings', 'Share capital and reserves', 'Revenue', 'Cost of sales', 'Operating expenses', 'Finance costs', 'Income tax'];
 
   const handleSaveTBRow = (code: string) => {
     const updatedRows = selectedEng.rows.map(r => r.code === code ? { ...r, balance: editBalance } : r);
@@ -277,10 +282,21 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
       {/* Tab 3: Account Mappings */}
       {activeTab === 'mappings' && (
+        <div className="stack" style={{ gap: 12 }}>
+        <div className="panel panel-pad">
+          <div className="between">
+            <div><h3>Account mapping revision {activeMapping?.revision ?? '—'}</h3><p className="sub">Chart version: Trial Balance v{selectedEng.sourceVersion} · {activeMapping?.status || 'No saved revision'}{activeMapping?.reviewedBy ? ` · reviewed by ${state.users.find(u => u.id === activeMapping.reviewedBy)?.name || activeMapping.reviewedBy}` : ''}</p></div>
+            <div className="row" style={{ gap: 8 }}>
+              {activeMapping?.status === 'Draft' && state.currentRole !== 'preparer' && state.currentRole !== 'manager' && <button className="btn sm primary" onClick={() => prototypeStore.approveAccountMappings(selectedEng.id, activeMapping.revision)}>Approve revision</button>}
+              <button className="btn sm primary" onClick={() => prototypeStore.saveAccountMappings(selectedEng.id, selectedEng.rows.flatMap(row => { const prior = activeMappings.find(item => item.accountCode === row.code); const target = mappingTargets[row.code]; return Object.hasOwn(mappingTargets, row.code) ? target ? [{ accountCode: row.code, targets: [{ statementLine: target, percentage: 100 }] }] : [] : prior ? [{ accountCode: row.code, targets: prior.targets }] : []; }))}>Save new revision</button>
+            </div>
+          </div>
+          <p className="caption">Unmapped accounts: {selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).length} · Unmapped net balance: {formatCurrency(selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).reduce((sum, row) => sum + row.balance, 0))}. Any edit creates a new draft revision and stales dependent output.</p>
+        </div>
         <div className="panel">
           <div className="panel-head">
             <h3>Statement Line Mappings</h3>
-            <span className="caption">Financial Statement Groupings</span>
+            <span className="caption">Unmapped accounts remain visible</span>
           </div>
           <div className="tablewrap">
             <table>
@@ -288,21 +304,21 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 <tr>
                   <th>Account Code</th>
                   <th>Account Name</th>
-                  <th>Statement Type</th>
-                  <th>Financial Statement Group</th>
+                  <th>Statement Line / Note</th>
+                  <th>Allocation</th>
                   <th>Balance</th>
                 </tr>
               </thead>
               <tbody>
                 {selectedEng.rows.map(r => {
-                  const isBS = r.type === 'asset' || r.type === 'liability' || r.type === 'equity';
-                  const group = r.type === 'asset' ? 'Current / Non-Current Assets' : r.type === 'liability' ? 'Liabilities' : r.type === 'equity' ? 'Equity' : 'Operating Profit / Loss';
+                  const targets = activeMappings.find(item => item.accountCode === r.code)?.targets || [];
+                  const target = mappingTargets[r.code] ?? targets[0]?.statementLine ?? '';
                   return (
                     <tr key={r.code}>
                       <td><span className="mono">{r.code}</span></td>
                       <td><b>{r.name}</b></td>
-                      <td><span className="tag gray">{isBS ? 'Balance Sheet' : 'Income Statement'}</span></td>
-                      <td><b>{group}</b></td>
+                      <td><select className="input" aria-label={`Statement line for account ${r.code}`} value={target} onChange={e => setMappingTargets({ ...mappingTargets, [r.code]: e.target.value })}><option value="">Unmapped</option>{statementLines.map(line => <option key={line} value={line}>{line}</option>)}</select></td>
+                      <td>{targets.length ? targets.map(item => `${item.statementLine} ${item.percentage}%`).join(' + ') : 'Unmapped'}</td>
                       <td>{formatCurrency(r.balance)}</td>
                     </tr>
                   );
@@ -310,7 +326,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
               </tbody>
             </table>
           </div>
-        </div>
+        </div></div>
       )}
 
       {/* Tab 4: Adjustments */}

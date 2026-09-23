@@ -1302,6 +1302,37 @@ class PrototypeStore {
     this.notify();
   }
 
+  public saveAccountMappings(engagementId: string, mappings: NonNullable<PrototypeState['accountMappingRevisions']>[number]['mappings']) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'edit account mappings');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(e => e.id === engagementId);
+    const validTargets = new Set(['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment', 'Trade payables', 'Borrowings', 'Share capital and reserves', 'Revenue', 'Cost of sales', 'Operating expenses', 'Finance costs', 'Income tax']);
+    if (!engagement || !Array.isArray(mappings) || new Set(mappings.map(m => m.accountCode)).size !== mappings.length || mappings.some(m => !engagement.rows.some(r => r.code === m.accountCode) || !m.targets.length || m.targets.some(t => !validTargets.has(t.statementLine) || !Number.isFinite(t.percentage) || t.percentage <= 0) || Math.abs(m.targets.reduce((sum, t) => sum + t.percentage, 0) - 100) > 0.0001)) throw new GuardError('INVALID_STATE', 'Mappings must reference unique source accounts and valid statement targets whose allocations total exactly 100%.');
+    this.state.accountMappingRevisions ||= [];
+    const history = this.state.accountMappingRevisions.filter(r => r.engagementId === engagementId);
+    const revision = history.length ? Math.max(...history.map(r => r.revision)) + 1 : 1;
+    this.state.accountMappingRevisions.push({ engagementId, revision, mappings: structuredClone(mappings), status: 'Draft', preparedBy: this.state.currentUserId });
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Account mappings saved for ${engagementId} (Mapping v${revision}); dependent output is stale`, engagementId);
+    this.notify();
+  }
+
+  public approveAccountMappings(engagementId: string, revision: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'partner'], 'approve account mappings');
+    requireEngagementScope(this.state, engagementId);
+    const mapping = this.state.accountMappingRevisions?.find(r => r.engagementId === engagementId && r.revision === revision);
+    const engagement = this.state.engagements.find(e => e.id === engagementId);
+    if (!mapping || !engagement || mapping.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only an existing draft mapping revision can be approved.');
+    requireIndependentActor(mapping.preparedBy, this.state.currentUserId, 'approve account mappings', this.state);
+    mapping.status = 'Approved';
+    mapping.reviewedBy = this.state.currentUserId;
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Account mappings v${revision} independently approved for ${engagementId}`, engagementId);
+    this.notify();
+  }
+
   public addAdjustmentJournal(journal: AdjustmentJournalItem) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'create adjustment journals');
@@ -2148,7 +2179,8 @@ class PrototypeStore {
     }
 
     const packageDefinition = eng.packageHistory?.find(p => p.revision === eng.packageRevision);
-    if (!packageDefinition || packageDefinition.generation !== eng.generation || packageDefinition.sourceVersion !== eng.sourceVersion || packageDefinition.mappingRevision !== eng.sourceVersion || !packageDefinition.validation.passed || packageDefinition.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Cannot prepare release candidate: assemble a valid current package revision with XLSX, DOCX and PDF artifacts first.');
+    const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === engId).map(r => r.revision));
+    if (!packageDefinition || packageDefinition.generation !== eng.generation || packageDefinition.sourceVersion !== eng.sourceVersion || packageDefinition.mappingRevision !== mappingRevision || !packageDefinition.validation.passed || packageDefinition.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Cannot prepare release candidate: assemble a valid current package revision with current source/mapping and XLSX, DOCX and PDF artifacts first.');
     if (eng.candidate && eng.candidate.generation === eng.generation && eng.candidate.sourceVersion === eng.sourceVersion && eng.candidate.packageRevision === eng.packageRevision && eng.candidate.packageDefinitionId === packageDefinition.id) {
       return eng.candidate;
     }
@@ -2175,7 +2207,8 @@ class PrototypeStore {
     requireEngagementScope(this.state, record.engagementId);
     const eng = this.state.engagements.find(e => e.id === record.engagementId);
     const requiredKinds = ['XLSX', 'DOCX', 'PDF'];
-    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== eng.sourceVersion || record.noteRevision !== record.revision || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, unique ordered sections, and genuine XLSX/DOCX/PDF artifact digests.');
+    const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === record.engagementId).map(r => r.revision));
+    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
     eng.packageHistory ||= [];
     if (eng.packageHistory.some(p => p.revision === record.revision || p.id === record.id) || this.state.engagements.some(other => other.packageHistory?.some(p => p.artifacts.some(a => record.artifacts.some(n => n.id === a.id))))) throw new GuardError('INVALID_STATE', 'Package revision or artifact identity already exists.');
     eng.packageHistory.push(structuredClone(record));

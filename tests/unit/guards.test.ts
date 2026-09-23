@@ -69,7 +69,7 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 13);
+    assert.equal(migrated.schema, 14);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -88,9 +88,9 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v13 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v14 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 12; version++) {
+    for (let version = 0; version <= 13; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -106,7 +106,7 @@ describe('fixture integrity (AT-02/54)', () => {
       if (version < 12) delete legacy.roleGrantHistory;
       if (version < 13) legacy.acceptanceCases?.forEach((item: any) => delete item.screeningEvidence);
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 13, `schema ${version} should reach v13`);
+      assert.equal(migrated.schema, 14, `schema ${version} should reach v14`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -634,6 +634,30 @@ describe('money guards (AT-30/31/32)', () => {
 });
 
 describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('versions account mappings, conserves split allocations and requires independent approval', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const eng = prototypeStore.getSnapshot().engagements[0];
+    prototypeStore.setPersona('preparer');
+    const split = [{ accountCode: eng.rows[0].code, targets: [{ statementLine: 'Cash and cash equivalents', percentage: 60 }, { statementLine: 'Other current assets', percentage: 40 }] }];
+    assert.throws(() => prototypeStore.saveAccountMappings(eng.id, [{ ...split[0], targets: [{ statementLine: 'Cash and cash equivalents', percentage: 70 }] }]), /total exactly 100%/);
+    assert.throws(() => prototypeStore.saveAccountMappings(eng.id, [{ accountCode: 'missing', targets: [{ statementLine: 'Cash and cash equivalents', percentage: 100 }] }]), /reference unique source accounts/);
+    assert.throws(() => prototypeStore.saveAccountMappings(eng.id, [{ accountCode: eng.rows[0].code, targets: [{ statementLine: 'Miscellaneous', percentage: 100 }] }]), /valid statement targets/);
+    prototypeStore.saveAccountMappings(eng.id, split);
+    (prototypeStore as any).state.accountMappingRevisions[0].preparedBy = 'reviewer';
+    prototypeStore.setPersona('reviewer');
+    assert.throws(() => prototypeStore.approveAccountMappings(eng.id, 1), /same person cannot review their own work/);
+    prototypeStore.setPersona('preparer');
+    (prototypeStore as any).state.accountMappingRevisions[0].preparedBy = 'preparer';
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.approveAccountMappings(eng.id, 1);
+    prototypeStore.setPersona('preparer');
+    prototypeStore.saveAccountMappings(eng.id, split);
+    const history = prototypeStore.getSnapshot().accountMappingRevisions!;
+    assert.deepEqual(history.map(item => [item.revision, item.status]), [[1, 'Approved'], [2, 'Draft']]);
+    assert.equal(history[0].mappings[0].targets.reduce((sum, item) => sum + item.percentage, 0), 100);
+  });
+
   it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();

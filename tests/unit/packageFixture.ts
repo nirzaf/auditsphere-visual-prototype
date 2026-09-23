@@ -10,7 +10,7 @@ export function seedPackageDefinition(engagement: any) {
     revision: engagement.packageRevision,
     generation: engagement.generation,
     sourceVersion: engagement.sourceVersion,
-    mappingRevision: engagement.sourceVersion,
+    mappingRevision: 0,
     notes: 'Test package',
     noteRevision: engagement.packageRevision,
     sections: [{ id: 'rpt', title: 'Report', desc: 'Test', enabled: true, order: 1 }],

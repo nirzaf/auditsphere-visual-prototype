@@ -646,6 +646,15 @@ export interface TrialBalanceRow {
   mappedNoteRef?: string;
 }
 
+export interface AccountMappingRevision {
+  engagementId: string;
+  revision: number;
+  mappings: Array<{ accountCode: string; targets: Array<{ statementLine: string; percentage: number }> }>;
+  status: 'Draft' | 'Approved';
+  preparedBy: string;
+  reviewedBy?: string;
+}
+
 export interface GLTransactionItem {
   id: string;
   journalId: string;
@@ -1101,6 +1110,7 @@ export interface PrototypeState {
   creditNotes: CreditNoteRecord[];
   receipts: ReceiptRecord[];
   glTransactions: GLTransactionItem[];
+  accountMappingRevisions?: AccountMappingRevision[];
   adjustmentJournals: AdjustmentJournalItem[];
   consolidationGroups: ConsolidationGroupRecord[];
   auditRisks: AuditRiskItem[];

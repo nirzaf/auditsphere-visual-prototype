@@ -1009,6 +1009,8 @@ describe('actual Chrome browser acceptance', () => {
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'),true);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'billing');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Receivables & Receipts'));if(!b)throw Error('Receivables navigation is missing');b.click();})()`);
+    const filtersReady = await waitForBrowser('!!document.querySelector(`[aria-label="Receivables client"]`)');
+    assert.ok(filtersReady, await browserTab!.evaluate<string>('document.body.innerText.slice(0,1600)'));
     await browserTab!.evaluate(`(() => {const client=document.querySelector('[aria-label="Receivables client"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(client,'CL-001');client.dispatchEvent(new Event('change',{bubbles:true}));const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-01');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const currencyOptions = await browserTab!.evaluate<string[]>(`[...document.querySelector('[aria-label="Receivables currency"]').options].map(o=>o.value)`);
     assert.deepEqual(currencyOptions,['QAR','USD'],'currency selector should expose each permitted balance currency separately');
@@ -1066,6 +1068,11 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(visibleStatement,statementSource.slice(1),'printable statement table must match its exported rows');
     await browserTab!.evaluate(`(() => {window.__printCalled=false;window.print=()=>{window.__printCalled=true;};const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Print Statement');if(!b)throw Error('Print Statement button missing');b.click();})()`);
     assert.equal(await browserTab!.evaluate<boolean>('window.__printCalled'),true,'print control should open the browser print flow');
+    await browserTab!.evaluate('delete window.print');
+    const printedPdf = await browserTab!.command('Page.printToPDF',{printBackground:true,preferCSSPageSize:true});
+    const printedBytes = Buffer.from(printedPdf.data,'base64');
+    assert.equal(printedBytes.subarray(0,4).toString(),'%PDF','statement print stylesheet should produce a browser PDF');
+    assert.ok(printedBytes.length>1000,'printed statement PDF should contain rendered content');
     await browserTab!.evaluate(`(() => {window.__statementBlob=null;URL.createObjectURL=blob=>{window.__statementBlob=blob;return 'blob:statement-test';};const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('Export Statement CSV'));if(!b)throw Error('Statement export control is missing');b.click();})()`);
     const statementText = await browserTab!.evaluate<string>(`window.__statementBlob ? window.__statementBlob.text() : ''`);
     const statement = parseCsv(statementText);
@@ -1197,7 +1204,7 @@ describe('actual Chrome browser acceptance', () => {
       return { revision: pack.revision, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
     })()`);
     assert.equal(persisted.revision, 2);
-    assert.equal(persisted.sourceVersion, persisted.mappingRevision);
+    assert.equal(persisted.mappingRevision, 0, 'mapping revision is independent of source revision when no mapping history exists');
     assert.equal(persisted.validation, true);
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
     for (const file of persisted.files) {

@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 13;
+export const CURRENT_SCHEMA = 14;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -221,6 +221,7 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     }
     warnings.push('Added explicit acceptance screening evidence references; legacy approvals without references no longer authorize engagement work (v13).');
   }
+  state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };
 }

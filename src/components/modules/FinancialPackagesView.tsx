@@ -65,8 +65,12 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const findingsImmaterial = state.findings.filter(
     f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)
   ).length === 0;
+  const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
+  const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
+  const unmappedAccounts = currentMapping?.mappings ? selectedEng.rows.filter(row => !currentMapping.mappings.some(mapping => mapping.accountCode === row.code)) : [];
+  const mappingsReady = !currentMapping || (currentMapping.status === 'Approved' && unmappedAccounts.length === 0);
 
-  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0;
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady;
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -147,7 +151,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         revision,
         generation: selectedEng.generation + 1,
         sourceVersion: selectedEng.sourceVersion,
-        mappingRevision: selectedEng.sourceVersion,
+        mappingRevision: currentMapping?.revision || 0,
         notes: packageNotes,
         noteRevision: revision,
         sections: sections.map((s, order) => ({ ...s, order: order + 1 })),
@@ -255,6 +259,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
             {allValid ? 'All Gates Cleared' : 'Action Required'}
           </span>
         </div>
+        {!mappingsReady && <div role="alert" className="badge danger mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: account mappings must be independently approved and cover every trial balance account. Unmapped: {unmappedAccounts.map(row => row.code).join(', ') || 'none'}.</div>}
 
         <div className="grid4 mt16" style={{ gap: 12 }}>
           <div className="borderbox" style={{ padding: 12 }}>
