@@ -2083,6 +2083,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(statementRevision.comparativeEngagementId, 'ENG-26003');
       assert.equal(statementRevision.totals.assets, 2250000);
       assert.equal(statementRevision.comparativeTotals.assets, 800000);
+      await setRole('preparer');
+      await clickButton('Accounting Workbench');
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'ENG-26003');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Statement Mappings');
+      await clickButton('Save New Revision');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).statementSetRevisions.find(x=>x.engagementId==='ENG-26001').status==='Stale'`), true, 'changing the comparative mapping stales a reviewed statement set');
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'ENG-26001');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Financial Statements');
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Financial Statements');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Latest: v1 · Stale/);
+      assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(button=>button.innerText.includes('Review statement revision v1'))`), false, 'stale statement set cannot be reviewed again');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

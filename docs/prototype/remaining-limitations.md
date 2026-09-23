@@ -179,7 +179,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   asset totals. XLSX/PDF exports carry paired mapped statement lines, values
   and source-account references. Saved statement-set revisions now pin source,
   current/prior mapping revisions, totals and line sources; independent review
-  is required and changed source/mapping selections display or persist as stale.
+  is required. Chrome now changes the prior period's mapping after review and
+  verifies that the saved current-period statement becomes durably stale and
+  cannot be reviewed again; the guard also has a unit check. Comparative source
+  and current mapping changes are covered by the shared stale-revision path.
   Full layout/disclosure/cash-flow acceptance remains incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output

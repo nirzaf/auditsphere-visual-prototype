@@ -1067,6 +1067,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Reviewed');
     prototypeStore.staleStatementRevisionsForComparativeChange(engagement.id, 'ENG-26003');
     assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
+    assert.throws(() => prototypeStore.reviewStatementSetRevision(engagement.id, 1), /no longer current/);
+    assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
     prototypeStore.setPersona('preparer');
     prototypeStore.updateTrialBalanceRows(engagement.id, engagement.rows.map((row: any, index: number) => ({ ...row, balance: row.balance + (index === 0 ? 1 : 0) })));
     assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
