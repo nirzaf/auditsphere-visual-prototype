@@ -1,0 +1,156 @@
+// AuditSphere Genuine File Export Service
+// Supports XLSX, DOCX, and PDF creation with watermark
+// VP-035, VP-041, VP-042, VP-046
+
+import * as XLSX from 'xlsx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import { jsPDF } from 'jspdf';
+
+export function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+// 1. Genuine XLSX Export
+export function exportToXLSX(
+  title: string,
+  sheetData: Array<Array<string | number>> | Array<Record<string, any>>,
+  fileName = 'AuditSphere_Export.xlsx'
+) {
+  const wb = XLSX.utils.book_new();
+
+  let ws: XLSX.WorkSheet;
+  if (Array.isArray(sheetData) && sheetData.length > 0 && !Array.isArray(sheetData[0])) {
+    ws = XLSX.utils.json_to_sheet(sheetData as Array<Record<string, any>>);
+  } else {
+    // Prepend title and watermark
+    const rows: Array<Array<string | number>> = [
+      ['AuditSphere · Synthetic Role Prototype'],
+      [`Artifact: ${title}`],
+      ['WATERMARK: DEMONSTRATION RECORD ONLY — NO LEGAL CERTIFICATION'],
+      ['Generated on:', new Date().toISOString()],
+      [],
+      ...(sheetData as Array<Array<string | number>>)
+    ];
+    ws = XLSX.utils.aoa_to_sheet(rows);
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Financial Data');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadBlob(blob, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+}
+
+// 2. Genuine DOCX Export
+export async function exportToDOCX(
+  fileName = 'AuditSphere_Package.docx',
+  title = 'AuditSphere Deliverable Package',
+  lines: string[] = []
+) {
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            text: 'AuditSphere Practice Platform',
+            heading: HeadingLevel.TITLE
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: 'DEMONSTRATION RECORD ONLY · SYNTHETIC DATA',
+                bold: true,
+                color: '777777',
+                size: 20
+              })
+            ]
+          }),
+          new Paragraph({
+            text: title,
+            heading: HeadingLevel.HEADING_1
+          }),
+          new Paragraph({
+            text: `Generated: ${new Date().toLocaleDateString('en-GB')} · Scope: Demonstrative only`
+          }),
+          ...lines.map(line => new Paragraph({ text: line }))
+        ]
+      }
+    ]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  downloadBlob(blob, fileName.endsWith('.docx') ? fileName : `${fileName}.docx`);
+}
+
+// 3. Genuine PDF Export
+export function exportToPDF(
+  fileName = 'AuditSphere_Statement.pdf',
+  title = 'AuditSphere Statement',
+  lines: string[] = []
+) {
+  const doc = new jsPDF();
+
+  // Watermark header
+  doc.setFontSize(16);
+  doc.setTextColor(9, 126, 116); // --teal
+  doc.text('AuditSphere · Role Portals', 20, 20);
+
+  doc.setFontSize(9);
+  doc.setTextColor(150, 150, 150);
+  doc.text('DEMONSTRATION RECORD ONLY — NOT A LEGAL OPINION', 20, 28);
+
+  doc.setFontSize(14);
+  doc.setTextColor(24, 46, 52); // --ink
+  doc.text(title, 20, 40);
+
+  doc.setFontSize(10);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Generated: ${new Date().toISOString()} · Status: Local Demo Release`, 20, 48);
+
+  // Content lines
+  let y = 60;
+  lines.forEach(line => {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(line, 20, y);
+    y += 8;
+  });
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setTextColor(170, 170, 170);
+  doc.text('AuditSphere Prototype v2.0 · Qatar Synthetic Accounting & Audit Scenario', 20, 285);
+
+  doc.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+}
+
+// 4. CSV Helper
+export function exportToCSV(fileName = 'AuditSphere_Export.csv', dataOrRows: string[][] | string = '') {
+  let content = '';
+  if (typeof dataOrRows === 'string') {
+    content = dataOrRows;
+  } else if (Array.isArray(dataOrRows)) {
+    content = dataOrRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  }
+
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, fileName.endsWith('.csv') ? fileName : `${fileName}.csv`);
+}
+
+export const exportService = {
+  exportPDF: (fileName: string, title: string, lines: string[]) => exportToPDF(fileName, title, lines),
+  exportDOCX: (fileName: string, title: string, lines: string[]) => exportToDOCX(fileName, title, lines),
+  exportXLSX: (fileName: string, title: string, data: any) => exportToXLSX(title, data, fileName),
+  exportCSV: (fileName: string, rows: string[][]) => exportToCSV(fileName, rows)
+};

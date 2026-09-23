@@ -4,10 +4,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    allowedHosts: true,
+  },
   build: {
-    // Keep the existing Cloudflare Pages artifact in dist/ untouched while
-    // the React migration is verified independently.
-    outDir: 'dist-vite',
+    outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
   },

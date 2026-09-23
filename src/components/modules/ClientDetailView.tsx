@@ -1,0 +1,593 @@
+// Module 02 & 17: Centralized Client 360 Workspace (VP-008)
+// 12 Tabs: Overview, Contacts, Engagements, Jobs, Documents, Requests, Communications, Time/Budgets, Billing, Accounting, Audit, Activity
+
+import React, { useState } from 'react';
+import { RouteKey, ClientContact } from '../../types';
+import { prototypeStore } from '../../store/prototypeStore';
+import { Icon } from '../common/Icons';
+import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+
+interface ClientDetailViewProps {
+  clientId: string;
+  onBack: () => void;
+  onNavigate: (route: RouteKey) => void;
+}
+
+export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, onBack, onNavigate }) => {
+  const state = prototypeStore.getSnapshot();
+  const [activeTab, setActiveTab] = useState<
+    | 'overview'
+    | 'contacts'
+    | 'engagements'
+    | 'jobs'
+    | 'documents'
+    | 'requests'
+    | 'communications'
+    | 'time'
+    | 'billing'
+    | 'accounting'
+    | 'audit'
+    | 'activity'
+  >('overview');
+
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactTitle, setContactTitle] = useState('');
+
+  const client = state.clients.find(c => c.id === clientId) || state.clients[0];
+  const contacts = state.contacts.filter(c => c.clientId === client.id);
+  const engagements = state.engagements.filter(e => e.client === client.id);
+  const jobs = state.jobs.filter(j => j.clientId === client.id);
+  const documents = state.documents.filter(d => d.clientId === client.id);
+  const communications = state.communications.filter(c => c.clientId === client.id);
+  const times = state.times.filter(t => t.clientId === client.id);
+  const invoices = state.invoices.filter(i => i.clientId === client.id);
+  const receipts = state.receipts.filter(r => r.clientId === client.id);
+
+  const pbcRequests = engagements.flatMap(e => e.pbc);
+  const workpapers = engagements.flatMap(e => e.workpapers);
+
+  const tabs: Array<{ key: typeof activeTab; label: string; count?: number }> = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'contacts', label: 'Contacts', count: contacts.length },
+    { key: 'engagements', label: 'Engagements', count: engagements.length },
+    { key: 'jobs', label: 'Jobs', count: jobs.length },
+    { key: 'documents', label: 'Documents', count: documents.length },
+    { key: 'requests', label: 'PBC Requests', count: pbcRequests.length },
+    { key: 'communications', label: 'Communications', count: communications.length },
+    { key: 'time', label: 'Time & Budgets' },
+    { key: 'billing', label: 'Billing & AR', count: invoices.length },
+    { key: 'accounting', label: 'Accounting' },
+    { key: 'audit', label: 'Audit & Reviews', count: workpapers.length },
+    { key: 'activity', label: 'Audit Log' }
+  ];
+
+  const handleAddContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactName.trim()) return;
+    const newContact: ClientContact = {
+      id: `CNT-${Date.now().toString().slice(-4)}`,
+      clientId: client.id,
+      name: contactName,
+      email: contactEmail,
+      title: contactTitle,
+      isPrimary: contacts.length === 0,
+      active: true,
+      portalAccessRequested: true
+    };
+    state.contacts.push(newContact);
+    prototypeStore.logEvent(`Added contact ${contactName} to ${client.name}`, client.id);
+    setShowAddContact(false);
+    setContactName('');
+    setContactEmail('');
+    setContactTitle('');
+  };
+
+  return (
+    <div className="stack" style={{ gap: 16 }}>
+      {/* Top breadcrumb & back button */}
+      <div className="between">
+        <button className="btn sm ghost" onClick={onBack}>
+          <Icon name="arrow" /> Back to Portfolio
+        </button>
+        <span className="caption">Client ID: {client.id} · Code: {client.code}</span>
+      </div>
+
+      {/* Client Header Card */}
+      <div className="panel panel-pad">
+        <div className="between">
+          <div className="row" style={{ gap: 16 }}>
+            <div className="firmavatar" style={{ width: 48, height: 48, fontSize: 18 }}>
+              {client.initials}
+            </div>
+            <div>
+              <h2>{client.name}</h2>
+              <div className="cell-sub">{client.tradingName || client.industry} · {client.jurisdiction}</div>
+            </div>
+          </div>
+          <div className="row" style={{ gap: 10 }}>
+            <span className={`badge ${client.status === 'Active' ? 'green' : 'gray'}`}>
+              {client.status}
+            </span>
+            <span className={`badge ${client.risk === 'Low' ? 'green' : 'amber'}`}>
+              {client.risk} Risk
+            </span>
+          </div>
+        </div>
+
+        {/* Workspace Tab Bar */}
+        <div className="tabs mt16">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              className={`tab-btn ${activeTab === tab.key ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="count" style={{ marginLeft: 6 }}>{tab.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab 1: Overview */}
+      {activeTab === 'overview' && (
+        <div className="grid-main">
+          <div className="stack" style={{ gap: 16 }}>
+            <div className="panel panel-pad">
+              <h3>Legal Entity Information</h3>
+              <div className="info-grid mt12">
+                <div><label>Registration Number</label><span>{client.registrationNumber || 'N/A'}</span></div>
+                <div><label>Jurisdiction</label><span>{client.jurisdiction}</span></div>
+                <div><label>Industry</label><span>{client.industry}</span></div>
+                <div><label>Annual Revenue</label><span>{formatCurrency(client.revenue)}</span></div>
+                <div><label>Relationship Owner</label><span>{client.relationshipOwner}</span></div>
+                <div><label>Engagement Partner</label><span>{client.partner || 'Daniel James'}</span></div>
+              </div>
+            </div>
+
+            <div className="panel panel-pad">
+              <h3>Custom Bounded Fields</h3>
+              <div className="info-grid mt12">
+                {client.customFields && Object.entries(client.customFields).map(([k, v]) => (
+                  <div key={k}><label>{k}</label><span>{String(v)}</span></div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="stack" style={{ gap: 16 }}>
+            <div className="panel panel-pad">
+              <h3>Quick Actions</h3>
+              <div className="stack mt12" style={{ gap: 8 }}>
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    prototypeStore.prepareClientWorkspace(client.id);
+                  }}
+                >
+                  <Icon name="folder" /> Prepare SharePoint Workspace
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    onNavigate('portal');
+                  }}
+                >
+                  <Icon name="globe" /> Preview Client Portal
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    onNavigate('acquisition');
+                  }}
+                >
+                  <Icon name="target" /> View Commercial Pipeline
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Contacts */}
+      {activeTab === 'contacts' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Registered Contacts ({contacts.length})</h3>
+            <button className="btn primary sm" onClick={() => setShowAddContact(true)}>
+              <Icon name="plus" /> Add Contact
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Title</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Role</th>
+                  <th>Portal Access</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map(c => (
+                  <tr key={c.id}>
+                    <td><b>{c.name}</b> {c.isPrimary && <span className="tag blue">Primary</span>}</td>
+                    <td>{c.title || 'Finance'}</td>
+                    <td>{c.email}</td>
+                    <td>{c.phone || '—'}</td>
+                    <td>Management Contact</td>
+                    <td>
+                      <span className={`badge ${c.portalAccessRequested ? 'green' : 'gray'}`}>
+                        {c.portalAccessRequested ? 'Authorized' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Engagements */}
+      {activeTab === 'engagements' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Active & Historical Engagements</h3>
+            <button className="btn primary sm" onClick={() => onNavigate('engagements')}>
+              <Icon name="plus" /> New Engagement
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Engagement ID</th>
+                  <th>Service</th>
+                  <th>Period</th>
+                  <th>Stage</th>
+                  <th>Manager</th>
+                  <th>Agreed Fee</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {engagements.map(e => (
+                  <tr key={e.id}>
+                    <td><b>{e.id}</b></td>
+                    <td>{e.service}</td>
+                    <td>{e.period}</td>
+                    <td><span className="badge teal">{e.stage}</span></td>
+                    <td>{e.manager}</td>
+                    <td>{formatCurrency(e.agreedFee, e.currency)}</td>
+                    <td>
+                      <button
+                        className="btn sm"
+                        onClick={() => {
+                          prototypeStore.setSelectedEngagement(e.id);
+                          onNavigate('engagements');
+                        }}
+                      >
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Jobs */}
+      {activeTab === 'jobs' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Jobs & Delivery Containers</h3>
+            <button className="btn primary sm" onClick={() => onNavigate('jobs')}>
+              <Icon name="plus" /> Go to Jobs
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job Title</th>
+                  <th>Owner</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Budget</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map(j => (
+                  <tr key={j.id}>
+                    <td><b>{j.title}</b><div className="cell-sub">{j.id}</div></td>
+                    <td>{j.owner}</td>
+                    <td>{j.dueDate}</td>
+                    <td><span className="badge gray">{j.status}</span></td>
+                    <td>{j.budgetHours ? `${j.budgetHours} hrs` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Documents */}
+      {activeTab === 'documents' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>SharePoint Document Repository</h3>
+            <button className="btn sm" onClick={() => onNavigate('documents')}>
+              <Icon name="folder" /> Open Document Browser
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>File Name</th>
+                  <th>Path</th>
+                  <th>Version</th>
+                  <th>Classification</th>
+                  <th>Uploaded By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map(d => (
+                  <tr key={d.id}>
+                    <td><b>{d.name}</b></td>
+                    <td><span className="mono">{d.folderPath}</span></td>
+                    <td>v{d.version}</td>
+                    <td><span className="tag gray">{d.classification}</span></td>
+                    <td>{d.uploadedBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 6: Requests */}
+      {activeTab === 'requests' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>PBC Information Requests</h3>
+            <span className="caption">Total: {pbcRequests.length}</span>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Request Title</th>
+                  <th>Category</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Current File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pbcRequests.map(p => (
+                  <tr key={p.id}>
+                    <td><b>{p.title}</b><div className="cell-sub">{p.id}</div></td>
+                    <td>{p.category}</td>
+                    <td>{p.due}</td>
+                    <td><span className="badge blue">{p.status}</span></td>
+                    <td>{p.file || 'Awaiting upload'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 7: Communications */}
+      {activeTab === 'communications' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Client Communications Register</h3>
+            <button className="btn primary sm" onClick={() => onNavigate('communications')}>
+              <Icon name="message" /> Compose Email / Note
+            </button>
+          </div>
+          <div className="stack panel-pad" style={{ gap: 12 }}>
+            {communications.map(c => (
+              <div key={c.id} className="borderbox" style={{ padding: 12 }}>
+                <div className="between">
+                  <b>{c.summary}</b>
+                  <span className="tag gray">{c.channel} · {c.direction}</span>
+                </div>
+                <p className="sub mt8" style={{ whiteSpace: 'pre-line' }}>{c.body}</p>
+                <div className="cell-sub mt8">{c.author} · {new Date(c.date).toLocaleDateString('en-GB')}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 8: Time */}
+      {activeTab === 'time' && (
+        <div className="panel panel-pad">
+          <h3>Logged Staff Hours</h3>
+          <p className="sub" style={{ marginBottom: 12 }}>Total recorded time for this client.</p>
+          <div className="metric-grid">
+            <div className="metric">
+              <span className="metric-label">Approved Minutes</span>
+              <div className="metric-val">{times.reduce((s, t) => s + (t.status === 'Approved' ? t.durationMinutes : 0), 0)} min</div>
+              <span className="metric-sub">{formatMinutesToHours(times.reduce((s, t) => s + (t.status === 'Approved' ? t.durationMinutes : 0), 0))}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 9: Billing */}
+      {activeTab === 'billing' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Invoices & Receipts</h3>
+            <button className="btn primary sm" onClick={() => onNavigate('billing')}>
+              <Icon name="receipt" /> Go to Billing Desk
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Description</th>
+                  <th>Amount</th>
+                  <th>Paid</th>
+                  <th>Status</th>
+                  <th>Due Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map(inv => (
+                  <tr key={inv.id}>
+                    <td><b>{inv.invoiceNumber}</b></td>
+                    <td>{inv.description}</td>
+                    <td>{formatCurrency(inv.amount, inv.currency)}</td>
+                    <td>{formatCurrency(inv.paid, inv.currency)}</td>
+                    <td><span className={`badge ${inv.status === 'Paid' ? 'green' : 'amber'}`}>{inv.status}</span></td>
+                    <td>{inv.due}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 10: Accounting */}
+      {activeTab === 'accounting' && (
+        <div className="panel panel-pad">
+          <h3>Trial Balance & Ledgers</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Imported accounting books for active external audit.</p>
+          <button className="btn primary sm" onClick={() => onNavigate('accounting-setup')}>
+            <Icon name="calculator" /> Open Accounting Workbench
+          </button>
+        </div>
+      )}
+
+      {/* Tab 11: Audit */}
+      {activeTab === 'audit' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Assurance Workpapers ({workpapers.length})</h3>
+            <button className="btn primary sm" onClick={() => onNavigate('audit')}>
+              <Icon name="checkboard" /> Open Workpaper Desk
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>WP Ref</th>
+                  <th>Title</th>
+                  <th>Objective</th>
+                  <th>Status</th>
+                  <th>Reviewer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workpapers.map(w => (
+                  <tr key={w.id}>
+                    <td><b>{w.id}</b></td>
+                    <td>{w.title}</td>
+                    <td>{w.objective}</td>
+                    <td><span className={`badge ${w.status === 'Cleared' ? 'green' : 'amber'}`}>{w.status}</span></td>
+                    <td>{w.reviewer}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 12: Activity */}
+      {activeTab === 'activity' && (
+        <div className="panel panel-pad">
+          <h3>Client Activity & Audit Events</h3>
+          <div className="stack mt12" style={{ gap: 8 }}>
+            {state.events.filter(e => e.ref.includes('CL-001') || e.ref.includes('ENG-26001')).map((ev, i) => (
+              <div key={i} className="activity">
+                <div className="activity-dot"><Icon name={ev.type} size="sm" /></div>
+                <div>
+                  <p>{ev.text}</p>
+                  <small>{ev.ref} · {ev.time}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Contact Modal */}
+      {showAddContact && (
+        <div className="modal-backdrop" onClick={() => setShowAddContact(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Add Contact to {client.name}</h2>
+              <button className="icon-btn" onClick={() => setShowAddContact(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddContact}>
+              <div className="modal-body stack" style={{ gap: 12 }}>
+                <div>
+                  <label className="caption">Full Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Fatima Al-Kuwari"
+                    value={contactName}
+                    onChange={e => setContactName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="caption">Job Title</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Finance Controller"
+                    value={contactTitle}
+                    onChange={e => setContactTitle(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="caption">Email Address</label>
+                  <input
+                    type="email"
+                    className="input"
+                    placeholder="fatima@client.demo"
+                    value={contactEmail}
+                    onChange={e => setContactEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn ghost sm" onClick={() => setShowAddContact(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn primary sm">
+                  Save Contact
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

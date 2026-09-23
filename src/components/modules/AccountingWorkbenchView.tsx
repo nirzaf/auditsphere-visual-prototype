@@ -1,0 +1,498 @@
+// Modules 20–23: Accounting Workbench (VP-034 through VP-039)
+// 5 Tabs: Trial Balance, General Ledger, Mappings, Adjustments, Reconciliations
+
+import React, { useState } from 'react';
+import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule } from '../../types';
+import { prototypeStore } from '../../store/prototypeStore';
+import { Icon } from '../common/Icons';
+import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
+
+interface AccountingWorkbenchViewProps {
+  onNavigate: (route: RouteKey) => void;
+}
+
+export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate }) => {
+  const state = prototypeStore.getSnapshot();
+  const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations'>('tb');
+
+  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  // TB State
+  const [editRowCode, setEditRowCode] = useState<string | null>(null);
+  const [editBalance, setEditBalance] = useState<number>(0);
+
+  // Adjustment form state
+  const [showAddAdjModal, setShowAddAdjModal] = useState(false);
+  const [adjTitle, setAdjTitle] = useState('Accrued audit fees and advisory expenses');
+  const [adjDebitAccount, setAdjDebitAccount] = useState('5100');
+  const [adjCreditAccount, setAdjCreditAccount] = useState('2100');
+  const [adjAmount, setAdjAmount] = useState(35000);
+  const [adjRationale, setAdjRationale] = useState('Record unbilled professional audit and consulting fees.');
+
+  const tbTotals = calculateTrialBalanceTotals(selectedEng.rows);
+  const glVerify = verifyGLCompleteness(state.glTransactions, selectedEng.rows);
+
+  const handleSaveTBRow = (code: string) => {
+    const updatedRows = selectedEng.rows.map(r => r.code === code ? { ...r, balance: editBalance } : r);
+    prototypeStore.updateTrialBalanceRows(selectedEng.id, updatedRows);
+    setEditRowCode(null);
+  };
+
+  const handleAddAdjustment = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const newAdj: AdjustmentJournalItem = {
+      id: `AJ-2600${state.adjustmentJournals.length + 1}`,
+      engagementId: selectedEng.id,
+      title: adjTitle,
+      status: 'Draft',
+      reflectionStatus: 'Not reflected',
+      lines: [
+        { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
+        { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
+      ],
+      state: 'Proposed',
+      reflectedInClientBooks: false,
+      preparedBy: state.currentPerson,
+      rationale: adjRationale
+    };
+
+    prototypeStore.addAdjustmentJournal(newAdj);
+    setShowAddAdjModal(false);
+  };
+
+  const handleToggleReflected = (adj: AdjustmentJournalItem) => {
+    prototypeStore.updateAdjustmentJournal({
+      ...adj,
+      reflectedInClientBooks: !adj.reflectedInClientBooks,
+      state: !adj.reflectedInClientBooks ? 'Reflected' : 'Approved'
+    });
+  };
+
+  return (
+    <div className="stack" style={{ gap: 20 }}>
+      <div className="pagehead">
+        <div>
+          <h1>Accounting Workbench</h1>
+          <p>Deterministic trial balance verification, complete GL tie-out, adjustments, and reconciliation schedules.</p>
+        </div>
+        <div className="row" style={{ gap: 10 }}>
+          <span className="tag blue">Source v{selectedEng.sourceVersion}</span>
+          <button className="btn primary sm" onClick={() => onNavigate('financial-statements')}>
+            <Icon name="file" /> Generate Financial Statements
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs">
+        <button className={`tab-btn ${activeTab === 'tb' ? 'active' : ''}`} onClick={() => setActiveTab('tb')}>
+          Trial Balance & Intake
+        </button>
+        <button className={`tab-btn ${activeTab === 'gl' ? 'active' : ''}`} onClick={() => setActiveTab('gl')}>
+          General Ledger & Completeness
+          {!glVerify.isComplete && <span className="tag amber" style={{ marginLeft: 6 }}>Mismatch</span>}
+        </button>
+        <button className={`tab-btn ${activeTab === 'mappings' ? 'active' : ''}`} onClick={() => setActiveTab('mappings')}>
+          Statement Mappings
+        </button>
+        <button className={`tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`} onClick={() => setActiveTab('adjustments')}>
+          Adjustments ({state.adjustmentJournals.length})
+        </button>
+        <button className={`tab-btn ${activeTab === 'reconciliations' ? 'active' : ''}`} onClick={() => setActiveTab('reconciliations')}>
+          Reconciliations ({selectedEng.reconciliations.length})
+        </button>
+      </div>
+
+      {/* Tab 1: Trial Balance */}
+      {activeTab === 'tb' && (
+        <div className="stack" style={{ gap: 16 }}>
+          {/* Status banner */}
+          <div className="panel panel-pad" style={{ background: tbTotals.isBalanced ? '#f0fdf4' : '#fef2f2' }}>
+            <div className="between">
+              <div>
+                <b>{tbTotals.isBalanced ? 'Trial Balance is Balanced (Net Zero)' : 'Trial Balance Imbalance Detected!'}</b>
+                <p className="sub" style={{ fontSize: 13, marginTop: 4 }}>
+                  Debits: {formatCurrency(tbTotals.totalDebits)} · Credits: {formatCurrency(tbTotals.totalCredits)} · Net Difference: {formatCurrency(tbTotals.netDifference)}
+                </p>
+              </div>
+              <span className={`badge ${tbTotals.isBalanced ? 'green' : 'amber'}`}>
+                {tbTotals.isBalanced ? 'Balanced' : 'Imbalance'}
+              </span>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Trial Balance Accounts ({selectedEng.rows.length})</h3>
+              <span className="caption">Click balance to edit in-memory</span>
+            </div>
+            <div className="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Account Code</th>
+                    <th>Account Name</th>
+                    <th>Classification</th>
+                    <th>Debit (QAR)</th>
+                    <th>Credit (QAR)</th>
+                    <th>Net Balance</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedEng.rows.map(row => (
+                    <tr key={row.code}>
+                      <td><span className="mono">{row.code}</span></td>
+                      <td><b>{row.name}</b></td>
+                      <td><span className="tag gray">{row.type}</span></td>
+                      <td>{row.balance > 0 ? formatCurrency(row.balance) : '—'}</td>
+                      <td>{row.balance < 0 ? formatCurrency(Math.abs(row.balance)) : '—'}</td>
+                      <td>
+                        {editRowCode === row.code ? (
+                          <input
+                            type="number"
+                            className="input sm"
+                            style={{ width: 120 }}
+                            value={editBalance}
+                            onChange={e => setEditBalance(Number(e.target.value))}
+                          />
+                        ) : (
+                          <b>{formatCurrency(row.balance)}</b>
+                        )}
+                      </td>
+                      <td>
+                        {editRowCode === row.code ? (
+                          <div className="row" style={{ gap: 4 }}>
+                            <button className="btn sm primary" onClick={() => handleSaveTBRow(row.code)}>Save</button>
+                            <button className="btn sm ghost" onClick={() => setEditRowCode(null)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn sm ghost"
+                            onClick={() => {
+                              setEditRowCode(row.code);
+                              setEditBalance(row.balance);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3}><b>Total Practice Trial Balance</b></td>
+                    <td><b>{formatCurrency(tbTotals.totalDebits)}</b></td>
+                    <td><b>{formatCurrency(tbTotals.totalCredits)}</b></td>
+                    <td><b>{formatCurrency(tbTotals.netDifference)}</b></td>
+                    <td>—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: General Ledger Completeness */}
+      {activeTab === 'gl' && (
+        <div className="stack" style={{ gap: 16 }}>
+          <div className="panel panel-pad">
+            <div className="between">
+              <div>
+                <h3>General Ledger Completeness Verification</h3>
+                <p className="sub">
+                  Ensures all underlying GL transactions sum exactly to the Trial Balance line figures.
+                </p>
+              </div>
+              <span className={`badge ${glVerify.isComplete ? 'green' : 'amber'}`}>
+                {glVerify.isComplete ? 'GL Fully Reconciled to TB' : `${glVerify.discrepancies.length} Discrepancies`}
+              </span>
+            </div>
+            {glVerify.discrepancies.length > 0 && (
+              <div className="borderbox mt12" style={{ background: '#fffbeb', padding: 12 }}>
+                <b>Discrepancies found:</b>
+                {glVerify.discrepancies.map(d => (
+                  <div key={d.accountCode} className="cell-sub" style={{ color: '#b45309' }}>
+                    Account {d.accountCode} ({d.accountName}): GL Sum = {formatCurrency(d.glSum)}, TB Balance = {formatCurrency(d.tbBalance)}, Diff = {formatCurrency(d.difference)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>GL Detailed Transactions ({state.glTransactions.length})</h3>
+            </div>
+            <div className="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Account</th>
+                    <th>Reference</th>
+                    <th>Description</th>
+                    <th>Debit (QAR)</th>
+                    <th>Credit (QAR)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.glTransactions.map(tx => (
+                    <tr key={tx.id}>
+                      <td>{tx.date}</td>
+                      <td><span className="mono">{tx.accountCode}</span></td>
+                      <td><span className="mono">{tx.reference}</span></td>
+                      <td>{tx.description}</td>
+                      <td>{tx.debit > 0 ? formatCurrency(tx.debit) : '—'}</td>
+                      <td>{tx.credit > 0 ? formatCurrency(tx.credit) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Account Mappings */}
+      {activeTab === 'mappings' && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Statement Line Mappings</h3>
+            <span className="caption">Financial Statement Groupings</span>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account Code</th>
+                  <th>Account Name</th>
+                  <th>Statement Type</th>
+                  <th>Financial Statement Group</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedEng.rows.map(r => {
+                  const isBS = r.type === 'asset' || r.type === 'liability' || r.type === 'equity';
+                  const group = r.type === 'asset' ? 'Current / Non-Current Assets' : r.type === 'liability' ? 'Liabilities' : r.type === 'equity' ? 'Equity' : 'Operating Profit / Loss';
+                  return (
+                    <tr key={r.code}>
+                      <td><span className="mono">{r.code}</span></td>
+                      <td><b>{r.name}</b></td>
+                      <td><span className="tag gray">{isBS ? 'Balance Sheet' : 'Income Statement'}</span></td>
+                      <td><b>{group}</b></td>
+                      <td>{formatCurrency(r.balance)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Adjustments */}
+      {activeTab === 'adjustments' && (
+        <div className="stack" style={{ gap: 16 }}>
+          <div className="panel panel-pad">
+            <div className="between">
+              <div>
+                <h3>Proposed Audit Adjustments & Corrections</h3>
+                <p className="sub">
+                  Proposed correcting journals. State tracks whether the client reflected the adjustment in their source ledger.
+                </p>
+              </div>
+              <button className="btn primary sm" onClick={() => setShowAddAdjModal(true)}>
+                <Icon name="plus" /> Propose Adjustment Journal
+              </button>
+            </div>
+          </div>
+
+          <div className="stack" style={{ gap: 12 }}>
+            {state.adjustmentJournals.map(adj => (
+              <div key={adj.id} className="panel panel-pad">
+                <div className="between">
+                  <div>
+                    <b>{adj.title}</b>
+                    <div className="cell-sub">{adj.id} · Proposed by {adj.preparedBy}</div>
+                  </div>
+                  <div className="row" style={{ gap: 8 }}>
+                    <span className={`badge ${adj.state === 'Reflected' ? 'green' : 'amber'}`}>
+                      {adj.state}
+                    </span>
+                    <button
+                      className="btn sm ghost"
+                      onClick={() => handleToggleReflected(adj)}
+                    >
+                      {adj.reflectedInClientBooks ? 'Mark Unreflected' : 'Mark Reflected in Books'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="tablewrap mt12">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Account Code</th>
+                        <th>Account Name</th>
+                        <th>Debit (QAR)</th>
+                        <th>Credit (QAR)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adj.lines.map((l, i) => (
+                        <tr key={i}>
+                          <td><span className="mono">{l.accountCode}</span></td>
+                          <td>{l.accountName}</td>
+                          <td>{(l.debit || 0) > 0 ? formatCurrency(l.debit || 0) : '—'}</td>
+                          <td>{(l.credit || 0) > 0 ? formatCurrency(l.credit || 0) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {adj.rationale && (
+                  <div className="cell-sub mt8">
+                    <strong>Rationale:</strong> {adj.rationale}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Reconciliations */}
+      {activeTab === 'reconciliations' && (
+        <div className="stack" style={{ gap: 16 }}>
+          {(selectedEng.reconciliations || []).map((rec: any) => {
+            const variance = calculateReconciliationVariance(rec);
+            return (
+              <div key={rec.id || rec.ref} className="panel panel-pad">
+                <div className="between">
+                  <div>
+                    <h3>{rec.title || rec.name}</h3>
+                    <div className="cell-sub">Reconciliation Ref: {rec.id || rec.ref} · Account: {rec.accountCode || 'N/A'}</div>
+                  </div>
+                  <span className={`badge ${variance.isReconciled ? 'green' : 'amber'}`}>
+                    {variance.isReconciled ? 'Reconciled (Residual 0.00)' : `Unexplained Diff: ${formatCurrency(variance.unexplainedDifference)}`}
+                  </span>
+                </div>
+
+                <div className="info-grid mt16">
+                  <div><label>General Ledger Balance</label><b>{formatCurrency(rec.glBalance || rec.sourceBalance || 0)}</b></div>
+                  <div><label>External Statement Balance</label><b>{formatCurrency(rec.statementBalance || rec.supportingBalance || 0)}</b></div>
+                  <div><label>Total Timing Adjustments</label><span>{formatCurrency(variance.timingSum)}</span></div>
+                  <div><label>Unexplained Variance</label><b>{formatCurrency(variance.unexplainedDifference)}</b></div>
+                </div>
+
+                <h4 className="mt16">Timing / Reconciling Items</h4>
+                <div className="tablewrap mt8">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Description</th>
+                        <th>Amount (QAR)</th>
+                        <th>Clearance Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(rec.items || []).map((item: any) => (
+                        <tr key={item.id}>
+                          <td>{item.description}</td>
+                          <td><b>{formatCurrency(item.amount)}</b></td>
+                          <td>{item.clearedDate || 'Outstanding'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add Adjustment Modal */}
+      {showAddAdjModal && (
+        <div className="modal-backdrop" onClick={() => setShowAddAdjModal(false)}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Propose Correcting Adjustment Journal</h2>
+              <button className="icon-btn" onClick={() => setShowAddAdjModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddAdjustment}>
+              <div className="modal-body stack" style={{ gap: 12 }}>
+                <div>
+                  <label className="caption">Journal Title</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={adjTitle}
+                    onChange={e => setAdjTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid2">
+                  <div>
+                    <label className="caption">Debit Account</label>
+                    <select
+                      className="input"
+                      value={adjDebitAccount}
+                      onChange={e => setAdjDebitAccount(e.target.value)}
+                    >
+                      {selectedEng.rows.map(r => (
+                        <option key={r.code} value={r.code}>{r.code} - {r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="caption">Credit Account</label>
+                    <select
+                      className="input"
+                      value={adjCreditAccount}
+                      onChange={e => setAdjCreditAccount(e.target.value)}
+                    >
+                      {selectedEng.rows.map(r => (
+                        <option key={r.code} value={r.code}>{r.code} - {r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="caption">Adjustment Amount (QAR)</label>
+                  <input
+                    type="number"
+                    className="input"
+                    value={adjAmount}
+                    onChange={e => setAdjAmount(Number(e.target.value))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="caption">Audit Rationale</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={adjRationale}
+                    onChange={e => setAdjRationale(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn ghost sm" onClick={() => setShowAddAdjModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary sm">Propose Journal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
