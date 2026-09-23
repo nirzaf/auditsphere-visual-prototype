@@ -1223,6 +1223,8 @@ export interface PrototypeState {
     receivedDate: string;
     owner: string;
     linkedProcedures: string[];
+    linkedProcedureHistory?: Array<{ procedureId: string; action: 'Linked' | 'Unlinked'; actorId: string; reason: string; at: string }>;
+    adequacyHistory?: Array<{ status: 'Adequate' | 'Pending verification' | 'Deficient'; actorId: string; rationale: string; at: string }>;
   }>;
   findings: FindingItem[];
   m365Config: M365SimulationConfig;

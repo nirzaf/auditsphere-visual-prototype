@@ -1794,6 +1794,7 @@ class PrototypeStore {
       const document = this.state.documents.find(item => item.id === id && item.engagementId === engId);
       return !document || workpaper.evidenceRevisions?.[id] !== document.version;
     })) throw new GuardError('INVALID_STATE', 'Refresh every evidence link to its current same-engagement document revision before submission.');
+    if ((workpaper.evidenceRefs || []).some(id => this.state.evidenceCatalogue.some(item => item.documentId === id && (item.adequacyStatus !== 'Adequate' || item.version !== this.state.documents.find(document => document.id === id)?.version)))) throw new GuardError('STALE_REVISION', 'Evidence must be adequate and pinned to its current document revision before submission.');
     workpaper.submittedBy = this.state.currentUserId;
     workpaper.submittedVersion = workpaper.version;
     workpaper.submissionHistory ||= [];
@@ -2241,8 +2242,33 @@ class PrototypeStore {
     }
     const changed = ev.adequacyStatus !== status;
     ev.adequacyStatus = status;
+    ev.adequacyHistory ||= [];
+    if (changed) ev.adequacyHistory.push({ status, actorId: this.state.currentUserId, rationale: rationale.trim(), at: new Date().toISOString() });
     const linkedEng = evidenceDocument?.engagementId && this.state.engagements.find(e => e.id === evidenceDocument.engagementId);
-    if (changed && linkedEng) this.invalidateReleaseBasis(linkedEng);
+    if (changed) {
+      for (const program of this.state.auditPrograms) for (const procedure of program.procedures) {
+        if (!ev.linkedProcedures.includes(procedure.id)) continue;
+        const engagement = this.state.engagements.find(item => item.id === (procedure.engagementId || program.engagementId || evidenceDocument.engagementId));
+        if (!engagement) continue;
+        procedure.evidenceReassessmentHistory ||= [];
+        procedure.evidenceReassessmentHistory.push({ documentId: ev.documentId, version: ev.version, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+        procedure.evidenceReassessmentRequired = true;
+        if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
+        procedure.reviewedByUserId = undefined;
+        procedure.reviewedAt = undefined;
+        this.invalidateReleaseBasis(engagement);
+      }
+      for (const engagement of this.state.engagements) for (const workpaper of engagement.workpapers) {
+        if (!workpaper.evidenceRefs?.includes(ev.documentId)) continue;
+        if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+        workpaper.clearance = null;
+        workpaper.submittedBy = undefined;
+        workpaper.submittedVersion = undefined;
+        workpaper.version++;
+        workpaper.status = 'Changes required';
+        this.invalidateReleaseBasis(engagement);
+      }
+    }
     this.logEvent(`Evidence ${evidenceId} adequacy set to ${status} by ${this.state.currentPerson}${rationale ? ': ' + rationale : ''}`, evidenceId);
     this.notify();
   }
@@ -2261,11 +2287,50 @@ class PrototypeStore {
     if (doc.clientId) requireClientScope(this.state, doc.clientId);
     if (doc.engagementId && doc.engagementId !== eng.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
     if (doc.clientId !== eng.client) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same client.');
+    if (ev.adequacyStatus !== 'Adequate' || doc.version !== ev.version) throw new GuardError('STALE_REVISION', 'Only an adequate evidence record pinned to the current document revision can be linked.');
     if (!ev.linkedProcedures.includes(procedureId)) {
       ev.linkedProcedures.push(procedureId);
+      ev.linkedProcedureHistory ||= [];
+      ev.linkedProcedureHistory.push({ procedureId, action: 'Linked', actorId: this.state.currentUserId, reason: 'Linked to scoped audit procedure', at: new Date().toISOString() });
       this.invalidateReleaseBasis(eng);
     }
     this.logEvent(`Evidence ${evidenceId} linked to procedure ${procedureId}`, evidenceId);
+    this.notify();
+  }
+
+  public unlinkEvidenceProcedure(evidenceId: string, procedureId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner', 'eqr'], 'unlink evidence from a procedure');
+    const evidence = this.state.evidenceCatalogue.find(item => item.id === evidenceId);
+    const document = evidence && this.state.documents.find(item => item.id === evidence.documentId);
+    if (!evidence || !document || !evidence.linkedProcedures.includes(procedureId) || !reason.trim()) throw new GuardError('INVALID_STATE', 'A linked evidence record, procedure and unlink rationale are required.');
+    const program = this.state.auditPrograms.find(item => item.procedures.some(procedure => procedure.id === procedureId));
+    const procedure = program?.procedures.find(item => item.id === procedureId);
+    const engagementId = procedure?.engagementId || program?.engagementId || document.engagementId;
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    if (!procedure || !engagement) throw new GuardError('INVALID_STATE', 'Procedure was not found in the evidence scope.');
+    requireEngagementScope(this.state, engagement.id);
+    if (document.clientId) requireClientScope(this.state, document.clientId);
+    if (document.engagementId && document.engagementId !== engagement.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
+    evidence.linkedProcedures = evidence.linkedProcedures.filter(id => id !== procedureId);
+    evidence.linkedProcedureHistory ||= [];
+    evidence.linkedProcedureHistory.push({ procedureId, action: 'Unlinked', actorId: this.state.currentUserId, reason: reason.trim(), at: new Date().toISOString() });
+    procedure.evidenceReassessmentHistory ||= [];
+    procedure.evidenceReassessmentHistory.push({ documentId: evidence.documentId, version: evidence.version, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+    procedure.evidenceReassessmentRequired = true;
+    if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
+    procedure.reviewedByUserId = undefined;
+    procedure.reviewedAt = undefined;
+    for (const workpaper of engagement.workpapers) if (workpaper.evidenceRefs?.includes(evidence.documentId)) {
+      if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+      workpaper.clearance = null;
+      workpaper.submittedBy = undefined;
+      workpaper.submittedVersion = undefined;
+      workpaper.version++;
+      workpaper.status = 'Changes required';
+    }
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Evidence ${evidenceId} unlinked from procedure ${procedureId}: ${reason.trim()}`, evidenceId);
     this.notify();
   }
 

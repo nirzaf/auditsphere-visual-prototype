@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 16;
+export const CURRENT_SCHEMA = 17;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -234,6 +234,13 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   if (from < 16) {
     state.workpaperTemplates = structuredClone(fresh.workpaperTemplates || []);
     warnings.push('Added the published workpaper template catalogue without copying execution or clearance state (v16).');
+  }
+  if (from < 17) {
+    for (const evidence of state.evidenceCatalogue || []) {
+      evidence.linkedProcedureHistory ||= [];
+      evidence.adequacyHistory ||= [];
+    }
+    warnings.push('Added evidence-link and adequacy history records (v17).');
   }
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];

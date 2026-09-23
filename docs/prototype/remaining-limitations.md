@@ -1,7 +1,11 @@
 # AuditSphere Visual Prototype — Remaining Limitations
 
 Updated 2026-09-23. Selected R01–R14 defects received code and regression
-coverage, but that does not constitute full acceptance. VP-051 is now verified; 38 of 39 modules remain Partial. See `verification.md` for exact executed checks.
+coverage, but that does not constitute full acceptance. VP-051 and VP-052 are
+verified; VP-053 gained reasoned unlink history and adequacy-driven invalidation,
+but its full projection/provenance matrix remains open. 37 of 39 modules remain
+Partial. Automated sources explicitly trace AT-01 through AT-54. See
+`verification.md` for exact executed checks.
 
 ## Known acceptance gaps
 
@@ -74,6 +78,14 @@ coverage, but that does not constitute full acceptance. VP-051 is now verified; 
   PRC-04 exception remains visible. Procedure template administration, detailed
   edit history, and the full exception rework matrix remain incomplete.
 
+- **VP-053 — shared evidence:** evidence links now preserve link/unlink actor,
+  time and reason; new links require an adequate current source revision. A
+  reasoned unlink or adequacy change stales linked cleared/submitted procedures,
+  moves linked workpaper clearance to history and requires a fresh submission.
+  Unit checks cover stale-link rejection and dependent invalidation; Chrome covers
+  the unlink flow. Client projection isolation for internal evidence tags and
+  issued-package provenance after unlink still need a full journey.
+
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
   RSK-01↔PRC-03 link after reload, and schema v9 repairs legacy unscoped links.
@@ -125,7 +137,7 @@ coverage, but that does not constitute full acceptance. VP-051 is now verified; 
   currency closing rate, rejects zero, saves a dated rate revision and verifies
   source rows remain unchanged. Perimeter edits and missing-component recovery
   remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–15 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–17 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -163,8 +175,7 @@ coverage, but that does not constitute full acceptance. VP-051 is now verified; 
 
 ## Verification snapshot
 
-Latest recorded run: 124/124 unit checks and 53/53 E2E checks passed. E2E
-includes five static checks and 48 actual Chrome journeys. VP-051 is Verified;
-38 modules remain Partial because full criterion-by-criterion acceptance
-evidence is not complete. See
+Latest recorded run: 128/128 unit checks and 55/55 E2E checks passed. E2E
+includes five static checks and 50 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
+because full criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

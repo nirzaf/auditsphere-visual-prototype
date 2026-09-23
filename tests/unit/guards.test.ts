@@ -70,7 +70,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 16);
+    assert.equal(migrated.schema, 17);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -89,9 +89,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v16 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v17 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 15; version++) {
+    for (let version = 0; version <= 16; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -108,8 +108,10 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 13) legacy.acceptanceCases?.forEach((item: any) => delete item.screeningEvidence);
       if (version < 15) legacy.samplePopulations.forEach((population: any) => { delete population.accountCode; delete population.period; delete population.currency; });
       if (version < 16) delete legacy.workpaperTemplates;
+      if (version < 17) legacy.evidenceCatalogue.forEach((item: any) => { delete item.linkedProcedureHistory; delete item.adequacyHistory; });
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 16, `schema ${version} should reach v16`);
+      assert.equal(migrated.schema, 17, `schema ${version} should reach v17`);
+      assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -551,11 +553,65 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     prototypeStore.setEvidenceAdequacy('EVD-01', 'Deficient', 'Bank confirmation missing signature page');
     const ev = (prototypeStore as any).state.evidenceCatalogue.find((e: any) => e.id === 'EVD-01');
     assert.equal(ev.adequacyStatus, 'Deficient');
+    assert.equal(ev.adequacyHistory.at(-1).rationale, 'Bank confirmation missing signature page');
     prototypeStore.setEvidenceAdequacy('EVD-01', 'Adequate');
     assert.equal(
       (prototypeStore as any).state.evidenceCatalogue.find((e: any) => e.id === 'EVD-01').adequacyStatus,
       'Adequate'
     );
+  });
+
+  it('records reasoned evidence unlink history and invalidates cleared dependent work', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    const procedure = state.auditPrograms.flatMap(program => program.procedures).find(item => item.id === 'PRC-01')!;
+    procedure.status = 'Cleared';
+    procedure.reviewedByUserId = 'reviewer';
+    procedure.reviewedAt = '2026-09-23T08:00:00.000Z';
+    setPersona(state, 'Layla Rahman');
+    assert.throws(() => prototypeStore.unlinkEvidenceProcedure('EVD-01', 'PRC-01', ''), /rationale/);
+    prototypeStore.unlinkEvidenceProcedure('EVD-01', 'PRC-01', 'New statement supersedes the prior source.');
+    const evidence = state.evidenceCatalogue.find(item => item.id === 'EVD-01')!;
+    assert.equal(evidence.linkedProcedures.includes('PRC-01'), false);
+    assert.equal(evidence.linkedProcedureHistory?.at(-1)?.reason, 'New statement supersedes the prior source.');
+    assert.equal(procedure.status, 'In progress');
+    assert.equal(procedure.evidenceReassessmentRequired, true);
+    assert.equal(procedure.reviewedAt, undefined);
+  });
+
+  it('links evidence to a current adequate revision and retains link history', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    prototypeStore.linkEvidenceProcedure('EVD-01', 'PRC-03');
+    const evidence = state.evidenceCatalogue.find(item => item.id === 'EVD-01')!;
+    assert.ok(evidence.linkedProcedures.includes('PRC-03'));
+    assert.deepEqual(evidence.linkedProcedureHistory?.map(item => [item.procedureId, item.action]), [['PRC-03', 'Linked']]);
+    const document = state.documents.find(item => item.id === evidence.documentId)!;
+    document.version++;
+    assert.throws(() => prototypeStore.linkEvidenceProcedure('EVD-01', 'PRC-02'), /current document revision/);
+  });
+
+  it('adequacy changes retain history and stale linked cleared procedures/workpapers', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Sara Malik');
+    const procedure = state.auditPrograms.flatMap(program => program.procedures).find(item => item.id === 'PRC-01')!;
+    procedure.status = 'Cleared';
+    procedure.reviewedByUserId = 'reviewer';
+    procedure.reviewedAt = '2026-09-23T08:00:00.000Z';
+    const workpaper = state.engagements.find(item => item.id === 'ENG-26001')!.workpapers.find(item => item.id === 'WP-A1')!;
+    const priorVersion = workpaper.version;
+    const priorHistory = workpaper.clearanceHistory.length;
+    prototypeStore.setEvidenceAdequacy('EVD-01', 'Deficient', 'Statement page is incomplete.');
+    assert.equal(procedure.status, 'In progress');
+    assert.equal(procedure.evidenceReassessmentRequired, true);
+    assert.equal(workpaper.status, 'Changes required');
+    assert.equal(workpaper.version, priorVersion + 1);
+    assert.equal(workpaper.clearanceHistory.length, priorHistory + 1);
   });
 
   it('retains the exact evidence pin when a document revision supersedes it (AT-20)', async () => {

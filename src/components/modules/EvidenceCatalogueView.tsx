@@ -39,6 +39,17 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
     }
   };
 
+  const handleUnlink = (evidenceId: string, procedureId: string) => {
+    const reason = prompt(`Why unlink ${procedureId} from ${evidenceId}?`);
+    if (reason === null) return;
+    try {
+      prototypeStore.unlinkEvidenceProcedure(evidenceId, procedureId, reason);
+      setNotice({ type: 'success', text: 'Evidence link removed; prior link retained in history and the procedure requires reassessment.' });
+    } catch (e) {
+      setNotice({ type: 'error', text: (e as Error).message });
+    }
+  };
+
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
@@ -101,8 +112,9 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                   <td><span className="mono" style={{ fontSize: 10 }}>{item.sha ? `${item.sha.slice(0, 16)}…` : 'No file digest recorded'}</span></td>
                   <td>
                     {(item.linkedProcedures || []).map((p: string) => (
-                      <span key={p} className="tag gray" style={{ marginRight: 4 }}>{p}</span>
+                      <span key={p} className="tag gray" style={{ marginRight: 4 }}>{p} <button className="btn sm ghost" aria-label={`Unlink ${p} from ${item.id}`} onClick={() => handleUnlink(item.id, p)}>×</button></span>
                     ))}
+                    {(item.linkedProcedureHistory || []).length > 0 && <div className="cell-sub">{item.linkedProcedureHistory.length} link history events</div>}
                   </td>
                   <td>
                     <span className={`badge ${item.adequacyStatus === 'Adequate' ? 'green' : 'amber'}`}>
