@@ -437,7 +437,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.ok(content.trim().length > 0, `route rendered no content: ${label}`);
     }
     try {
-      for (const width of [768, 390]) {
+      for (const width of [768, 390, 320]) {
         await browserTab!.command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 500 });
         await clickButtonStartingWith('Client Portfolio');
         const pageWidth = await browserTab!.evaluate<number>('document.documentElement.scrollWidth');
@@ -445,12 +445,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         await clickButton('Add Client Profile');
         const modal = await browserTab!.evaluate<any>(`(() => {const m=document.querySelector('.modal');const r=m?.getBoundingClientRect();return r&&{left:r.left,right:r.right,width:r.width,viewport:innerWidth,scrollHeight:m.scrollHeight,clientHeight:m.clientHeight};})()`);
         assert.ok(modal && modal.left >= 0 && modal.right <= width, `client form exceeds ${width}px viewport: ${JSON.stringify(modal)}`);
-        const tabOrder = await browserTab!.evaluate<boolean>(`(() => {const first=document.querySelector('.modal input');first.focus();return document.activeElement===first;})()`);
-        assert.equal(tabOrder, true, 'keyboard focus enters the open form');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.querySelector('[role="dialog"][aria-modal="true"]')?.contains(document.activeElement))()`), true, 'opening the dialog moves keyboard focus inside it');
+        await browserTab!.evaluate(`(() => {const controls=[...document.querySelectorAll('[role="dialog"] button,[role="dialog"] input,[role="dialog"] select,[role="dialog"] textarea')].filter(x=>!x.disabled);controls.at(-1).focus();})()`);
         await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
         await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
-        assert.equal(await browserTab!.evaluate<boolean>('!!document.querySelector(".modal")?.contains(document.activeElement)'), true, 'Tab keeps focus within the active modal controls');
-        await clickButton('✕');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement===document.querySelector('[role="dialog"] button'))()`), true, 'Tab from the last control wraps to the first dialog control');
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape cancels the dialog');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement===document.querySelector('.pagehead button'))()`), true, 'closing the dialog restores focus to its trigger');
       }
     } finally {
       await browserTab!.command('Emulation.clearDeviceMetricsOverride');

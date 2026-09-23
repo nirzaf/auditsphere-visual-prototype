@@ -4,7 +4,7 @@ Updated 2026-09-23. This record distinguishes executed checks from planned
 acceptance assertions. The latest source and Pages release are recorded below;
 the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
-| 2026-09-23 | VP-021 reference lifecycle | `npm run test:unit` + `npm run test:e2e` | PASS — 137/137 unit, 58/58 E2E | Unit and Chrome verify stable IDs across rename/move, invalid-folder rejection, reasoned unavailable state, blocked preview/evidence acceptance, and restoration. Production build passed with the existing large-bundle warning. |
+| 2026-09-23 | AT-53 dialog keyboard behavior | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 139/139 unit, 58/58 E2E | Chrome verifies route rendering and no horizontal overflow at 320px, 390px and 768px; the client dialog has an accessible name, initial focus, Tab wrap, Escape cancel, and trigger focus restoration. Build passed with the existing large-bundle warning. VP-003 remains Partial; this does not cover every dialog or unsaved-change flow. |
 
 ## Commands
 

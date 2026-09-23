@@ -1,5 +1,5 @@
 // Module 02: Client Portfolio & CRM (VP-006, VP-007, VP-008)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ClientRecord, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
@@ -13,6 +13,34 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
   const state = prototypeStore.getSnapshot();
   const [filterText, setFilterText] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const addClientButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+    const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-labelledby="add-client-title"]');
+    const controls = () => [...(modal?.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])]
+      .filter(control => !control.hasAttribute('disabled') && control.getAttribute('aria-hidden') !== 'true');
+    controls()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setShowAddModal(false);
+      } else if (event.key === 'Tab') {
+        const items = controls();
+        if (!items.length) return;
+        if (event.shiftKey && (document.activeElement === items[0] || !modal?.contains(document.activeElement))) {
+          event.preventDefault(); items.at(-1)?.focus();
+        } else if (!event.shiftKey && (document.activeElement === items.at(-1) || !modal?.contains(document.activeElement))) {
+          event.preventDefault(); items[0].focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (addClientButton.current?.isConnected) addClientButton.current.focus();
+    };
+  }, [showAddModal]);
 
   // New client form state
   const [name, setName] = useState('');
@@ -62,7 +90,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
           <h1>Client Portfolio</h1>
           <p>Separate legal relationships, entities, and multi-service engagement scopes.</p>
         </div>
-        <button className="btn primary sm" onClick={() => setShowAddModal(true)}>
+        <button ref={addClientButton} className="btn primary sm" onClick={() => setShowAddModal(true)}>
           <Icon name="plus" />
           Add Client Profile
         </button>
@@ -150,9 +178,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
       {/* Add Client Modal */}
       {showAddModal && (
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-client-title" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Create Synthetic Client Profile</h2>
+              <h2 id="add-client-title">Create Synthetic Client Profile</h2>
               <button className="icon-btn" onClick={() => setShowAddModal(false)}>✕</button>
             </div>
             <form onSubmit={handleAddClient}>
