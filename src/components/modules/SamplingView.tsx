@@ -44,6 +44,7 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
   const selected = population?.items.filter(item => item.selected).length || 0;
   const selectedValue = population?.items.filter(item => item.selected).reduce((sum, item) => sum + item.amount, 0) || 0;
   const tested = population?.items.filter(item => item.selected && item.tested).length || 0;
+  const canReviewSelection = ['reviewer', 'partner'].includes(state.users.find(user => user.id === state.currentUserId)?.role || '');
   const exceptions = population?.items.filter(item => item.selected && item.result === 'Exception noted').length || 0;
   const difference = population?.items.filter(item => item.selected).reduce((sum, item) => sum + (item.difference || 0), 0) || 0;
 
@@ -84,11 +85,11 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
           <div className="metric amber"><span className="metric-label">Exceptions</span><div className="metric-val">{exceptions}</div><span className="metric-sub">Net recorded difference: {formatCurrency(difference)}</span></div>
         </div>
       </div>
-      <div className="panel"><div className="panel-head between"><h3>Population items and test results</h3><span className="caption">Selection and fieldwork are saved in this engagement</span></div>
-        <div className="tablewrap"><table><thead><tr><th>Select</th><th>Reference / counterparty</th><th>Recorded</th><th>Audited amount</th><th>Difference</th><th>Result</th><th>Testing notes</th><th>Action</th></tr></thead><tbody>
+      <div className="panel"><div className="panel-head between"><h3>Population items and test results</h3><span className="caption">Selection and fieldwork are saved in this engagement · Remainder: {population.totalPopulationCount - selected} items / {formatCurrency(population.totalPopulationValue - selectedValue)}</span></div>
+        <div className="tablewrap"><table><thead><tr><th>Select</th><th>Selection rationale / reference</th><th>Recorded</th><th>Audited amount</th><th>Difference</th><th>Result</th><th>Testing notes</th><th>Action</th></tr></thead><tbody>
           {population.items.map(item => <tr key={item.id} data-sample-item={item.id}>
-            <td><input aria-label={`Select ${item.itemRef}`} type="checkbox" checked={Boolean(item.selected)} disabled={!frameReconciled} onChange={event => run(() => prototypeStore.setSampleItemSelected(population.id, item.id, event.target.checked))} /></td>
-            <td><b>{item.itemRef}</b><div className="cell-sub">{item.date} · {item.counterparty}</div></td>
+            <td><input aria-label={`Select ${item.itemRef}`} type="checkbox" checked={Boolean(item.selected)} disabled={!frameReconciled} onChange={event => run(() => prototypeStore.setSampleItemSelected(population.id, item.id, event.target.checked, event.currentTarget.closest('tr')?.querySelector<HTMLTextAreaElement>('[data-selection-rationale]')?.value || ''))} /></td>
+            <td><textarea className="input" data-selection-rationale rows={2} defaultValue={item.selectionRationale || ''} disabled={!frameReconciled || item.selected} aria-label={`Selection rationale ${item.itemRef}`} placeholder="Why this item was selected" /><b>{item.itemRef}</b><div className="cell-sub">{item.date} · {item.counterparty}</div></td>
             <td>{formatCurrency(item.recordedAmount ?? item.amount)}</td>
             <td><input className="input" data-audited-amount type="number" min="0" step="0.01" defaultValue={item.auditedAmount ?? item.recordedAmount ?? item.amount} disabled={!frameReconciled || !item.selected} /></td>
             <td>{item.difference ? formatCurrency(item.difference) : '—'}</td>
@@ -97,6 +98,12 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
             <td><button className="btn sm" disabled={!frameReconciled || !item.selected} onClick={event => { const row = (event.currentTarget as HTMLButtonElement).closest('tr'); const amount = Number(row?.querySelector<HTMLInputElement>('[data-audited-amount]')?.value); const notes = row?.querySelector<HTMLTextAreaElement>('[data-test-notes]')?.value || ''; run(() => prototypeStore.recordSampleItemTest(population.id, item.id, amount, notes)); }}>Record test</button>{item.findingId && <button className="btn sm ghost mt4" onClick={() => onNavigate('findings')}>Finding {item.findingId}</button>}</td>
           </tr>)}
         </tbody></table></div>
+      </div>
+      <div className="panel panel-pad"><h3>Selection review and evaluation</h3>
+        {(() => { const review = population.selectionReviews?.at(-1); const current = review && review.version === (population.selectionVersion || 0) && review.sourceRevision === (population.sourceRevision || 1); return <p className="caption">Selection v{population.selectionVersion || 0} · {current ? `Reviewed by ${review.reviewedBy}: ${review.testedCount} tested, ${review.untestedCount} untested, ${review.exceptionCount} exceptions` : 'Current selection requires independent review'}</p>; })()}
+        <textarea className="input" rows={3} aria-label="Sample selection evaluation" placeholder="Evaluate tested and untested items, exceptions, and limitations" />
+        <button className="btn sm mt8" disabled={!selected || !canReviewSelection} onClick={event => { const text = event.currentTarget.parentElement?.querySelector<HTMLTextAreaElement>('[aria-label="Sample selection evaluation"]')?.value || ''; run(() => prototypeStore.reviewSampleSelection(population.id, text)); }}>Record independent review</button>
+        {(population.selectionReviews || []).length > 0 && <details className="mt8"><summary>Selection review history ({population.selectionReviews!.length})</summary><ul>{population.selectionReviews!.map((review, index) => <li key={`${review.version}-${index}`}>Selection v{review.version} / source v{review.sourceRevision} · {review.reviewedBy} · {review.testedCount} tested · {review.untestedCount} untested · {review.exceptionCount} exceptions · {review.evaluation}</li>)}</ul></details>}
       </div>
     </> : <div className="panel panel-pad"><h3>No scoped population</h3><p className="sub">Create or assign a population to the selected engagement before sampling.</p></div>}
   </div>;

@@ -167,7 +167,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
 - **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.09 MB,
-  588.60 kB gzip in the latest build).
+  590.16 kB gzip in the latest build).
 
 ## Verification snapshot
 

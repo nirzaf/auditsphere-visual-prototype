@@ -2353,7 +2353,7 @@ class PrototypeStore {
     this.notify();
   }
 
-  public setSampleItemSelected(populationId: string, itemId: string, selected: boolean) {
+  public setSampleItemSelected(populationId: string, itemId: string, selected: boolean, rationale = '') {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['preparer', 'manager', 'reviewer', 'partner'], 'select substantive sample items');
     const population = this.state.samplePopulations.find(item => item.id === populationId);
@@ -2363,12 +2363,31 @@ class PrototypeStore {
     if (!isSampleFrameReconciled(this.state, population)) throw new GuardError('INVALID_STATE', 'Reconcile the complete population to its mapped GL balance, period and currency before selecting sample items.');
     const item = population.items.find(candidate => candidate.id === itemId);
     if (!item) throw new GuardError('INVALID_STATE', 'Sample item was not found in this population.');
+    if (selected && !rationale.trim()) throw new GuardError('INVALID_STATE', 'Selection rationale is required.');
     item.selected = selected;
+    item.selectionRationale = selected ? rationale.trim() : undefined;
+    population.selectionVersion = (population.selectionVersion || 0) + 1;
+    population.selectionPreparedBy = this.state.currentUserId;
     population.selectedCount = population.items.filter(candidate => candidate.selected).length;
     population.selectedValue = population.items.filter(candidate => candidate.selected).reduce((sum, candidate) => sum + candidate.amount, 0);
     const engagement = this.state.engagements.find(candidate => candidate.id === population.engagementId);
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Sample item ${itemId} ${selected ? 'selected' : 'removed from selection'}`, populationId);
+    this.notify();
+  }
+
+  public reviewSampleSelection(populationId: string, evaluation: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'partner'], 'review substantive sample selection');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId || !population.sourceComplete || !isSampleFrameReconciled(this.state, population)) throw new GuardError('INVALID_STATE', 'A complete, reconciled population is required before review.');
+    requireEngagementScope(this.state, population.engagementId);
+    if (!population.selectedCount || !evaluation.trim()) throw new GuardError('INVALID_STATE', 'Select items and record an evaluation before review.');
+    if (!population.selectionPreparedBy) throw new GuardError('INVALID_STATE', 'A preparer must save the current selection before review.');
+    requireIndependentActor(population.selectionPreparedBy, this.state.currentUserId, 'review sample selection', this.state);
+    population.selectionReviews ||= [];
+    population.selectionReviews.push({ version: population.selectionVersion || 0, sourceRevision: population.sourceRevision || 1, reviewedBy: this.state.currentUserId, reviewedAt: new Date().toISOString(), selectedCount: population.selectedCount, testedCount: population.items.filter(item => item.selected && item.tested).length, untestedCount: population.items.filter(item => item.selected && !item.tested).length, exceptionCount: population.items.filter(item => item.selected && item.result === 'Exception noted').length, evaluation: evaluation.trim() });
+    this.logEvent(`Sample selection v${population.selectionVersion || 0} independently reviewed`, populationId);
     this.notify();
   }
 
@@ -2425,6 +2444,8 @@ class PrototypeStore {
     population.totalPopulationValue = rows.reduce((sum, row) => sum + row.amount, 0);
     population.selectedCount = 0;
     population.selectedValue = 0;
+    population.selectionVersion = (population.selectionVersion || 0) + 1;
+    population.selectionPreparedBy = undefined;
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Population ${populationId} source replaced with revision ${population.sourceRevision}`, populationId);
     this.notify();
