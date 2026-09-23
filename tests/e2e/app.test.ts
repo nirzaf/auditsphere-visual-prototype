@@ -54,7 +54,7 @@ class CdpTab {
     const result = await this.command('Runtime.evaluate', {
       expression, returnByValue: true, awaitPromise: true, userGesture: true
     });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'JavaScript evaluation failed');
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'JavaScript evaluation failed');
     return result.result.value as T;
   }
 
@@ -511,6 +511,34 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(after.state, 'Accepted');
     assert.equal(after.response.evidenceRef, 'MAIL-AT09-2026-09-23');
     assert.equal(after.engagements, before.engagements);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('AT-10: creates a draft once from accepted proposal terms then requires partner activation evidence', async () => {
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));const p=structuredClone(s.proposals.find(x=>x.id==='PROP-001'));p.id='PROP-AT10';p.title='AT10 Accepted Proposal';p.state='Accepted';p.clientResponse={responseType:'Accepted',contact:'Omar Nasser',date:'2026-09-23',method:'Email',notes:'Accepted current revision.',evidenceRef:'MAIL-AT10-ACCEPTED'};p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Layla Rahman',presentedAt:'2026-09-23T10:00:00Z'};s.proposals.push(p);localStorage.setItem(key,JSON.stringify(s));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    const setPersona = async () => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement partner'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setPersona();
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Engagements'));if(!b)throw Error('Missing engagements route');b.click();})()`);
+    await clickButton('New Engagement');
+    await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('.modal-backdrop select')].find(e=>[...e.options].some(o=>o.value==='PROP-AT10'));if(!s)throw Error('Accepted proposal option missing: '+JSON.stringify({modal:!!document.querySelector('.modal-backdrop'),body:document.body.innerText.slice(-500),proposals:JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.filter(p=>p.id.startsWith('PROP-AT10'))}));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'PROP-AT10');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Create Engagement');
+    const draft = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.proposalId==='PROP-AT10');return {id:e?.id,stage:e?.stage,client:e?.client,fee:e?.agreedFee,currency:e?.currency,acceptance:e?.acceptance,terms:e?.terms,count:s.engagements.filter(x=>x.proposalId==='PROP-AT10').length};})()`);
+    assert.ok(draft.id);
+    assert.equal(draft.stage, 'Draft');
+    assert.equal(draft.client, 'CL-001');
+    assert.equal(draft.acceptance, false);
+    assert.equal(draft.terms, false);
+    assert.equal(draft.count, 1);
+    await browserTab!.evaluate(`window.prompt=()=> 'PARTNER-AT10-ACCEPTANCE';`);
+    await clickButton('Activate Engagement');
+    const active = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(draft.id)});return {stage:e.stage,acceptance:e.acceptance,terms:e.terms,record:e.professionalAcceptance};})()`);
+    assert.equal(active.stage, 'Planning');
+    assert.equal(active.acceptance, true);
+    assert.equal(active.terms, true);
+    assert.equal(active.record.evidenceRef, 'PARTNER-AT10-ACCEPTANCE');
+    assert.equal(active.record.proposalRevision, 2);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

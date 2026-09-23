@@ -523,15 +523,40 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'create engagements');
     requireClientScope(this.state, eng.client);
     if (!this.state.clients.some(c => c.id === eng.client)) throw new GuardError('INVALID_STATE', 'Engagement client was not found.');
-    if (!eng.acceptance || !eng.terms) throw new GuardError('INVALID_STATE', 'Commercial acceptance and agreed terms are required before engagement creation.');
     if (eng.proposalId) {
       const proposal = this.state.proposals.find(p => p.id === eng.proposalId);
-      if (!proposal || proposal.clientId !== eng.client || proposal.state !== 'Accepted') throw new GuardError('INVALID_STATE', 'Engagement must link to the same client’s manually accepted proposal.');
+      if (!proposal || proposal.clientId !== eng.client || proposal.state !== 'Accepted' || !proposal.clientResponse?.evidenceRef || proposal.presentedSnapshot?.revision !== proposal.revision) throw new GuardError('INVALID_STATE', 'Engagement must link to the same client’s accepted current proposal revision with evidence.');
+      const existing = this.state.engagements.find(e => e.proposalId === eng.proposalId);
+      if (existing) { requireClientScope(this.state, existing.client); return existing; }
+      if (!['Draft', 'Acceptance'].includes(eng.stage) && (!eng.acceptance || !eng.terms)) throw new GuardError('INVALID_STATE', 'Engagement activation requires a separate professional acceptance and agreed terms.');
+    } else if (!eng.acceptance || !eng.terms) {
+      throw new GuardError('INVALID_STATE', 'Engagements without an accepted proposal require recorded acceptance and terms.');
     }
     if (this.state.engagements.some(e => e.id === eng.id)) throw new GuardError('INVALID_STATE', `Engagement "${eng.id}" already exists.`);
     this.state.engagements.push(eng);
     this.state.selectedEngagement = eng.id;
     this.logEvent(`New engagement created: ${eng.service} FY${eng.year}`, eng.id);
+    this.notify();
+    return eng;
+  }
+
+  public activateEngagement(engagementId: string, evidenceRef: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['partner'], 'professionally accept engagements');
+    const eng = this.state.engagements.find(item => item.id === engagementId);
+    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" was not found.`);
+    requireEngagementScope(this.state, eng.id);
+    if (!['Draft', 'Acceptance'].includes(eng.stage)) throw new GuardError('INVALID_STATE', 'Only a draft engagement can be activated.');
+    const proposal = this.state.proposals.find(item => item.id === eng.proposalId);
+    if (!proposal || proposal.state !== 'Accepted' || !proposal.clientResponse?.evidenceRef || proposal.presentedSnapshot?.revision !== proposal.revision) throw new GuardError('INVALID_STATE', 'Activation requires the current accepted proposal revision and client evidence.');
+    if (eng.professionalAcceptance) throw new GuardError('INVALID_STATE', 'This engagement has already been professionally accepted.');
+    if (!evidenceRef.trim()) throw new GuardError('INVALID_STATE', 'Professional acceptance requires an evidence reference.');
+    requireIndependentActor(proposal.preparedBy, this.state.currentPerson, 'professionally accept this engagement', this.state);
+    eng.professionalAcceptance = { by: this.state.currentPerson, at: new Date().toISOString(), evidenceRef: evidenceRef.trim(), proposalRevision: proposal.revision };
+    eng.acceptance = true;
+    eng.terms = true;
+    eng.stage = 'Planning';
+    this.logEvent(`Engagement ${eng.id} professionally accepted against ${proposal.id} Rev ${proposal.revision}`, eng.id);
     this.notify();
   }
 

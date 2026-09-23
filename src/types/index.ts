@@ -252,6 +252,7 @@ export interface EngagementRecord {
   agreedFee: number;
   currency: string;
   proposalId?: string;
+  professionalAcceptance?: { by: string; at: string; evidenceRef: string; proposalRevision: number };
   acceptance: boolean;
   terms: boolean;
   planning: boolean;

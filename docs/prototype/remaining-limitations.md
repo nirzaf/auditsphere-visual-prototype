@@ -12,8 +12,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   stale-review reset on revision, and preservation of the exact presented
   revision. The client portal records accept/decline/withdraw responses with an
   authorized contact and explicit evidence reference without auto-creating an
-  engagement. Qualification/conversion edge paths and engagement activation
-  remain unverified.
+  engagement. AT-10 creates one draft from the accepted revision and separately
+  requires partner acceptance evidence before activation. Qualification and
+  conversion edge paths, suspension, close and change applicability remain
+  unverified.
 
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to

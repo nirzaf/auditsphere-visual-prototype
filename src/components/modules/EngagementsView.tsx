@@ -21,6 +21,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   const [manager, setManager] = useState('Layla Rahman');
   const [partner, setPartner] = useState('Daniel James');
   const [fee, setFee] = useState(500000);
+  const [proposalId, setProposalId] = useState('');
+  const acceptedProposals = state.proposals.filter(p => p.state === 'Accepted' && p.clientId && p.clientResponse?.evidenceRef && p.presentedSnapshot?.revision === p.revision);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -28,6 +30,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   const steps = ['Acceptance', 'Planning', 'Production', 'Review', 'Release', 'Archive'];
   const currentStepIndex = selectedEng?.archive
     ? 5
+    : selectedEng?.stage === 'Draft' || selectedEng?.stage === 'Acceptance'
+    ? 0
     : selectedEng?.releases.length
     ? 4
     : selectedEng?.stage === 'Review'
@@ -36,12 +40,14 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
 
   const handleCreateEngagement = (e: React.FormEvent) => {
     e.preventDefault();
+    const proposal = state.proposals.find(item => item.id === proposalId);
+    if (proposalId && !acceptedProposals.some(item => item.id === proposalId)) { window.alert('Select a currently accepted proposal with client response evidence.'); return; }
     const newId = `ENG-2600${state.engagements.length + 1}`;
     const newEng: EngagementRecord = {
       id: newId,
-      client: clientId,
-      service,
-      stage: 'Planning',
+      client: proposal?.clientId || clientId,
+      service: proposal?.items.map(item => item.serviceName).join(' + ') || service,
+      stage: proposal ? 'Draft' : 'Planning',
       year,
       mode: service === 'External audit' ? 'External books' : 'Client accounting records',
       period: `01 Jan – 31 Dec ${year}`,
@@ -49,10 +55,11 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
       manager,
       partner,
       team: [manager, partner, 'Adam Khan', 'Sara Malik'],
-      agreedFee: fee,
-      currency: 'QAR',
-      acceptance: true,
-      terms: true,
+      agreedFee: proposal?.totalAmount ?? fee,
+      currency: proposal?.currency || 'QAR',
+      proposalId: proposal?.id,
+      acceptance: !proposal,
+      terms: !proposal,
       planning: true,
       sourceAccepted: false,
       mappingApproved: false,
@@ -83,8 +90,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
       events: []
     };
 
-    prototypeStore.addEngagement(newEng);
-    setShowNewEngModal(false);
+    try { prototypeStore.addEngagement(newEng); setShowNewEngModal(false); setProposalId(''); }
+    catch (error: any) { window.alert(error.message); }
   };
 
   return (
@@ -128,12 +135,13 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
             <div><label>Engagement Manager</label><span>{selectedEng.manager}</span></div>
             <div><label>Professional Signatory</label><span>{selectedEng.partner}</span></div>
             <div><label>Management Contact</label><span>{client?.contact}</span></div>
-            <div><label>Effective Terms</label><span className="badge green">Recorded</span></div>
-            <div><label>Professional Acceptance</label><span className="badge green">Cleared</span></div>
+            <div><label>Effective Terms</label><span className={`badge ${selectedEng.terms ? 'green' : 'amber'}`}>{selectedEng.terms ? 'Recorded' : 'Pending'}</span></div>
+            <div><label>Professional Acceptance</label><span className={`badge ${selectedEng.professionalAcceptance ? 'green' : selectedEng.acceptance ? 'green' : 'amber'}`}>{selectedEng.professionalAcceptance ? `Accepted by ${selectedEng.professionalAcceptance.by}` : selectedEng.acceptance ? 'Recorded' : 'Pending'}</span></div>
             <div><label>Agreed Fee</label><span>{formatCurrency(selectedEng.agreedFee, selectedEng.currency)}</span></div>
           </div>
 
           <div className="row mt20 wrap" style={{ gap: 10 }}>
+            {selectedEng.stage === 'Draft' && <button className="btn primary sm" onClick={() => { const evidence = window.prompt('Professional acceptance evidence reference:'); if (evidence?.trim()) { try { prototypeStore.activateEngagement(selectedEng.id, evidence); } catch (error: any) { window.alert(error.message); } } }}>Activate Engagement</button>}
             <button className="btn sm" onClick={() => onNavigate('accounting-setup')}>
               <Icon name="calculator" /> Accounting Workbench
             </button>
@@ -240,6 +248,14 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
             </div>
             <form onSubmit={handleCreateEngagement}>
               <div className="modal-body stack" style={{ gap: 12 }}>
+                <div>
+                  <label className="caption">Accepted proposal (optional)</label>
+                  <select className="input" value={proposalId} onChange={e => { const id = e.target.value; setProposalId(id); const p = acceptedProposals.find(item => item.id === id); if (p) setClientId(p.clientId!); }}>
+                    <option value="">Create from separately recorded acceptance</option>
+                    {acceptedProposals.map(p => <option key={p.id} value={p.id}>{p.title} · Rev {p.revision} · {formatCurrency(p.totalAmount, p.currency)}</option>)}
+                  </select>
+                </div>
+                {proposalId && <p className="sub">A draft will inherit the accepted proposal’s client, service and fee. Partner activation remains a separate recorded decision.</p>}
                 <div>
                   <label className="caption">Client Entity</label>
                   <select

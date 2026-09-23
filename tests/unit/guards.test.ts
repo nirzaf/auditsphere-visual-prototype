@@ -239,6 +239,31 @@ describe('opportunity and proposal lifecycle (AT-07/08)', () => {
   });
 });
 
+describe('proposal to engagement handoff (AT-10)', () => {
+  it('creates one draft per accepted proposal and requires partner evidence to activate', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    const state = target.state;
+    const proposal = { ...structuredClone(state.proposals.find((item: any) => item.id === 'PROP-001')), id: 'PROP-AT10' };
+    proposal.presentedSnapshot = { revision: proposal.revision, title: proposal.title, currency: proposal.currency, totalAmount: proposal.totalAmount, items: structuredClone(proposal.items), terms: proposal.terms, presentedBy: 'Layla Rahman', presentedAt: '2026-09-23T10:00:00Z' };
+    state.proposals.push(proposal);
+    setPersona(state, 'Layla Rahman');
+    const draft = { ...structuredClone(state.engagements[0]), id: 'ENG-AT10', client: proposal.clientId, service: proposal.items.map((item: any) => item.serviceName).join(' + '), stage: 'Draft', proposalId: proposal.id, agreedFee: proposal.totalAmount, currency: proposal.currency, acceptance: false, terms: false, professionalAcceptance: undefined };
+    const created = target.addEngagement(draft);
+    const duplicate = target.addEngagement({ ...draft, id: 'ENG-AT10-DUP' });
+    assert.equal(created.id, 'ENG-AT10');
+    assert.equal(duplicate.id, created.id);
+    assert.equal(state.engagements.filter((item: any) => item.proposalId === proposal.id).length, 1);
+    setPersona(state, 'Daniel James');
+    assert.throws(() => target.activateEngagement(created.id, ''), /evidence reference/);
+    target.activateEngagement(created.id, 'PARTNER-ACCEPT-AT10');
+    assert.equal(created.stage, 'Planning');
+    assert.equal(created.professionalAcceptance.evidenceRef, 'PARTNER-ACCEPT-AT10');
+    assert.equal(created.professionalAcceptance.proposalRevision, proposal.revision);
+  });
+});
+
 describe('time correction lifecycle (AT-28)', () => {
   it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
