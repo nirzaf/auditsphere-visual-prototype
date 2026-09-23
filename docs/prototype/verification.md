@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `a19db6d` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `08a716b2` (`https://08a716b2.steaudit-prototype.pages.dev`). The release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index--45U9AhT.js` (2,171,515 bytes, SHA-256 `94c649ce97fc8a025fe041a111eb2b91e6cdf91516595924a78e5f7b5594a03b`), matching local `dist/`. The bundle contains the unavailable cash-flow disclosure and no longer contains the unsupported depreciation example. |
 | 2026-09-23 | VP-040 cash-flow truthfulness follow-up | `npm run test:unit` | PASS — 136/136 | Existing statement lifecycle and comparative invalidation guards remain green. |
 | 2026-09-23 | VP-040 cash-flow truthfulness follow-up | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. AT-37 verifies the cash-flow tab reports unavailable without classified movement data and displays no unsupported sample amounts; comparative mapping changes stale reviewed output. |
 | 2026-09-23 | VP-040 cash-flow truthfulness follow-up | `npm run build` | PASS | TypeScript and Vite production build passed with the existing >500 kB main-chunk advisory. |
