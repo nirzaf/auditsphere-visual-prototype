@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `bc66434` is deployed as Pages release
-`9b647364-9cab-46b1-910d-8fa3008faaf6` in the existing `steaudit-prototype`
+acceptance assertions. Commit `e7f41d1` is deployed as Pages release
+`80077bf7-795d-4752-8bbc-ad966d8c4f55` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -17,6 +17,9 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `e7f41d1` | `npm run test:unit` | PASS — 107/107, 25 suites | Independent invoice and credit approval/issue lifecycle invariants, alongside prior scope, package, reporting, accounting and workflow checks. |
+| 2026-09-23 | `e7f41d1` | `npm run test:e2e` | PASS — 33/33 | Five static checks and 28 actual Chrome checks. VP-031 denies invoice self-review, requires separate invoice and credit approval/issue, and updates outstanding balance after a partial credit. |
+| 2026-09-23 | `e7f41d1` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `80077bf7-795d-4752-8bbc-ad966d8c4f55`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-B7zPlDhB.js`. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.96 MB (559 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks, PBC clarification/replacement/acceptance, and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
