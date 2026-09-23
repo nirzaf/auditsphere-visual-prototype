@@ -94,6 +94,11 @@ The AT-13 journey also authors a two-phase Draft in Chrome, publishes it,
 instantiates one clean job and task tree, then retires the template while the
 created job remains unchanged. Published-revision editing and retry recovery
 remain unverified.
+The AT-22 journey selects a local file, persists only metadata and its digest,
+reloads, then verifies the preview explains that original bytes are unavailable
+and offers no misleading original-download action.
+The full current run contains five static checks and 27 actual Chrome checks;
+these focused journeys do not establish the remaining unexecuted AT criteria.
 The AT-26 journey selects the PBC request template and confirms all placeholders
 resolve in the subject/body. It records accepted, failed and unknown outcomes
 as separate local communication records and confirms the sends create no

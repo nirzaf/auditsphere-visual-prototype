@@ -742,6 +742,29 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-22: persists selected-file metadata across reload and explains that original bytes are unavailable', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
+    await clickButton('Register File');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');const transfer=new DataTransfer();transfer.items.add(new File(['AT22_BYTES_MUST_NOT_PERSIST'], 'AT22_Metadata_Only.txt', {type:'text/plain'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Record file metadata');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.some(d=>d.name==='AT22_Metadata_Only.txt')`), true);
+    const saved = await browserTab!.evaluate<any>(`(() => {const raw=localStorage.getItem('ste-auditsphere-role-portals-v2');const s=JSON.parse(raw);return {doc:s.documents.find(d=>d.name==='AT22_Metadata_Only.txt'),raw};})()`);
+    assert.match(saved.doc.sha, /^[a-f0-9]{64}$/i);
+    assert.equal(saved.doc.source, 'Local In-Session');
+    assert.equal(saved.raw.includes('AT22_BYTES_MUST_NOT_PERSIST'), false, 'file bytes are not persisted');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing after reload');b.click();})()`);
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('AT22_Metadata_Only.txt'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Open in M365');if(!b)return false;b.click();return true;})()`);
+    assert.equal(opened, true, 'selected file metadata remains visible after reload');
+    const preview = await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop").innerText');
+    assert.match(preview, /Original file content is unavailable/);
+    assert.match(preview, /No original file bytes are stored/);
+    assert.doesNotMatch(preview, /Download original/i);
+    assert.deepEqual(browserTab!.requests.filter(url => /^https?:/.test(url) && !url.startsWith(baseUrl)), []);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

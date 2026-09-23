@@ -10,6 +10,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   registered separately, preserves the prior document and evidence pin, and
   shows reviewers that a newer version exists. Original bytes remain local;
   dependent procedure/workpaper/review reassessment is manual.
+- **AT-22 — local document metadata:** Chrome registers a real selected local
+  file, reloads the browser, and confirms the original bytes are not stored or
+  presented as downloadable. Upload to a remote library is outside scope.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
   authorized staff mention stay absent from the client portal. Comment editing,
   moderation and recipient-specific notification browsing remain incomplete.
