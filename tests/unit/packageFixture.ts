@@ -1,4 +1,4 @@
-export function seedPackageDefinition(engagement: any) {
+export function seedPackageDefinition(engagement: any, mappingRevision = 1) {
   const artifacts = [
     ['XLSX', 'test.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     ['DOCX', 'test.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -10,7 +10,7 @@ export function seedPackageDefinition(engagement: any) {
     revision: engagement.packageRevision,
     generation: engagement.generation,
     sourceVersion: engagement.sourceVersion,
-    mappingRevision: 0,
+    mappingRevision,
     notes: 'Test package',
     noteRevision: engagement.packageRevision,
     sections: [{ id: 'rpt', title: 'Report', desc: 'Test', enabled: true, order: 1 }],

@@ -637,6 +637,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
   it('versions account mappings, conserves split allocations and requires independent approval', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.accountMappingRevisions = [];
     const eng = prototypeStore.getSnapshot().engagements[0];
     prototypeStore.setPersona('preparer');
     const split = [{ accountCode: eng.rows[0].code, targets: [{ statementLine: 'Cash and cash equivalents', percentage: 60 }, { statementLine: 'Other current assets', percentage: 40 }] }];
@@ -667,6 +668,31 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(current.auditRisks.find((risk: any) => risk.id === 'RSK-01').linkedProcedureIds.includes('PRC-03'));
     assert.ok(current.auditPrograms.flatMap((program: any) => program.procedures).find((procedure: any) => procedure.id === 'PRC-03').linkedRiskIds.includes('RSK-01'));
     assert.throws(() => prototypeStore.setAuditRiskProcedureLink('ENG-26002', 'RSK-01', 'PRC-03', true), /both belong to the selected engagement/);
+    const risk = current.auditRisks.find((item: any) => item.id === 'RSK-01');
+    prototypeStore.updateAuditRisk('ENG-26001', risk.id, { title: risk.title, area: risk.area, assertions: risk.assertions, description: risk.description, rationale: risk.rationale, response: `${risk.response} Reassess supporting detail.`, owner: risk.owner, rating: risk.rating });
+    assert.equal(risk.revisions.length, 1);
+    assert.equal(risk.revisions[0].response, risk.response);
+    assert.equal(risk.revisions[0].changedBy, 'Layla Rahman');
+  });
+
+  it('audit program templates preserve revisions and apply fresh work (VP-049)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    const template = { name: 'Revenue verification', area: 'Revenue', description: 'Test recorded revenue.', procedures: [{ title: 'Trace transactions', objective: 'Confirm occurrence', instructions: 'Trace to invoices.', defaultAssertions: ['Occurrence'], requiredEvidenceType: 'Invoice' }] };
+    const id = prototypeStore.createAuditProgramTemplate(template);
+    assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
+    prototypeStore.publishAuditProgramTemplate(id);
+    const programId = prototypeStore.applyAuditProgramTemplate('ENG-26001', id);
+    const applied = (prototypeStore as any).state.auditPrograms.find((item: any) => item.id === programId);
+    assert.equal(applied.sourceTemplateVersion, 1);
+    assert.equal(applied.procedures[0].status, 'Not started');
+    assert.equal(applied.procedures[0].workPerformed, '');
+    prototypeStore.reviseAuditProgramTemplate(id, { ...template, description: 'Updated purpose.' });
+    assert.equal((prototypeStore as any).state.auditProgramTemplates.find((item: any) => item.id === id).status, 'Draft');
+    assert.equal((prototypeStore as any).state.auditProgramTemplateHistory[0].status, 'Published');
+    assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
+    assert.equal(applied.sourceTemplateVersion, 1);
   });
 
   it('EQR sign-off blocked when unresolved EQR concerns exist (VP-056 / F03)', async () => {

@@ -860,6 +860,8 @@ export interface AuditProcedureItem {
 export interface AuditProgramItem {
   id: string;
   engagementId?: string;
+  sourceTemplateId?: string;
+  sourceTemplateVersion?: number;
   area: string;
   objective?: string;
   title?: string;
@@ -1170,6 +1172,7 @@ export interface PrototypeState {
   simulatedInvitations?: SimulatedInvitation[];
   identityStatusHistory?: IdentityStatusEvent[];
   auditProgramTemplates?: AuditProgramTemplate[];
+  auditProgramTemplateHistory?: AuditProgramTemplate[];
   adjustmentJournals: AdjustmentJournalItem[];
   consolidationGroups: ConsolidationGroupRecord[];
   auditRisks: AuditRiskItem[];

@@ -58,6 +58,28 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
           <label className="btn sm mt8">Import or replace CSV/XLSX source<input aria-label="Import population source CSV or XLSX" type="file" accept=".csv,.xlsx" hidden onChange={event => { void importSource(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>
           {(population.sourceHistory || []).length > 0 && <details className="mt8"><summary>Previous source revisions ({population.sourceHistory!.length})</summary><ul>{population.sourceHistory!.map(item => <li key={item.revision}>v{item.revision} · {item.fileName} · {item.totalPopulationCount} rows · {item.sha256 || 'seeded legacy source'} · {item.importedAt}</li>)}</ul></details>}
         </div>
+        {(() => {
+          const eng = state.engagements.find(e => e.id === population.engagementId);
+          const tbRow = eng?.rows.find(r => r.code === population.accountCode);
+          const frameValue = tbRow ? tbRow.balance : population.totalPopulationValue;
+          const frameDiff = Math.abs(frameValue - population.totalPopulationValue);
+          const isReconciled = frameDiff < 0.01;
+          return (
+            <div className="panel panel-pad mt12" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div className="between">
+                <div>
+                  <span className="caption">General Ledger Sampling Frame Tie-Out</span>
+                  <div style={{ fontSize: 13, marginTop: 4 }}>
+                    Account: <b>{population.accountCode || '1100'} {tbRow ? `(${tbRow.name})` : ''}</b> · GL Balance: <b>{formatCurrency(frameValue)}</b> · Population Total: <b>{formatCurrency(population.totalPopulationValue)}</b> · Variance: <b>{formatCurrency(frameDiff)}</b>
+                  </div>
+                </div>
+                <span className={`badge ${isReconciled ? 'green' : 'amber'}`}>
+                  {isReconciled ? 'Reconciled to GL Frame' : `Variance ${formatCurrency(frameDiff)}`}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
         <div className="metric-grid mt16">
           <div className="metric"><span className="metric-label">Population</span><div className="metric-val">{population.totalPopulationCount}</div><span className="metric-sub">{formatCurrency(population.totalPopulationValue)}</span></div>
           <div className="metric blue"><span className="metric-label">Selected</span><div className="metric-val">{selected}</div><span className="metric-sub">{formatCurrency(selectedValue)} · {population.totalPopulationValue ? Math.round(selectedValue / population.totalPopulationValue * 100) : 0}% of value</span></div>

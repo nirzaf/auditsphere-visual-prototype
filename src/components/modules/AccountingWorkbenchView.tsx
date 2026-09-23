@@ -38,6 +38,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   // TB State
   const [editRowCode, setEditRowCode] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState<number>(0);
+  const [splitModalAccount, setSplitModalAccount] = useState<{
+    code: string;
+    name: string;
+    balance: number;
+    targets: { statementLine: string; percentage: number }[];
+  } | null>(null);
 
   // Adjustment form state
   const [showAddAdjModal, setShowAddAdjModal] = useState(false);
@@ -280,54 +286,312 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         </div>
       )}
 
-      {/* Tab 3: Account Mappings */}
+      {/* Tab 3: Account Mappings (VP-037) */}
       {activeTab === 'mappings' && (
-        <div className="stack" style={{ gap: 12 }}>
-        <div className="panel panel-pad">
-          <div className="between">
-            <div><h3>Account mapping revision {activeMapping?.revision ?? '—'}</h3><p className="sub">Chart version: Trial Balance v{selectedEng.sourceVersion} · {activeMapping?.status || 'No saved revision'}{activeMapping?.reviewedBy ? ` · reviewed by ${state.users.find(u => u.id === activeMapping.reviewedBy)?.name || activeMapping.reviewedBy}` : ''}</p></div>
-            <div className="row" style={{ gap: 8 }}>
-              {activeMapping?.status === 'Draft' && state.currentRole !== 'preparer' && state.currentRole !== 'manager' && <button className="btn sm primary" onClick={() => prototypeStore.approveAccountMappings(selectedEng.id, activeMapping.revision)}>Approve revision</button>}
-              <button className="btn sm primary" onClick={() => prototypeStore.saveAccountMappings(selectedEng.id, selectedEng.rows.flatMap(row => { const prior = activeMappings.find(item => item.accountCode === row.code); const target = mappingTargets[row.code]; return Object.hasOwn(mappingTargets, row.code) ? target ? [{ accountCode: row.code, targets: [{ statementLine: target, percentage: 100 }] }] : [] : prior ? [{ accountCode: row.code, targets: prior.targets }] : []; }))}>Save new revision</button>
+        <div className="stack" style={{ gap: 16 }}>
+          <div className="panel panel-pad">
+            <div className="between">
+              <div>
+                <h3>Account Mapping Revision {activeMapping?.revision ?? '1 (Seeded baseline)'}</h3>
+                <p className="sub">
+                  Chart version: Trial Balance v{selectedEng.sourceVersion} · Status: <span className={`badge ${activeMapping?.status === 'Approved' ? 'green' : 'amber'}`}>{activeMapping?.status || 'Draft'}</span>
+                  {activeMapping?.preparedBy && ` · Prepared by: ${activeMapping.preparedBy}`}
+                  {activeMapping?.reviewedBy && ` · Independently approved by: ${state.users.find(u => u.id === activeMapping.reviewedBy)?.name || activeMapping.reviewedBy}`}
+                </p>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                {activeMapping?.status === 'Draft' && ['reviewer', 'partner'].includes(state.currentRole) && (
+                  <button className="btn sm primary" onClick={() => {
+                    try {
+                      prototypeStore.approveAccountMappings(selectedEng.id, activeMapping.revision);
+                    } catch (err: any) {
+                      alert(err.message);
+                    }
+                  }}>
+                    Approve Revision v{activeMapping.revision}
+                  </button>
+                )}
+                <button className="btn sm primary" onClick={() => {
+                  try {
+                    const mappings = selectedEng.rows.flatMap(row => {
+                      const prior = activeMappings.find(item => item.accountCode === row.code);
+                      const target = mappingTargets[row.code];
+                      if (Object.hasOwn(mappingTargets, row.code)) {
+                        return target ? [{ accountCode: row.code, targets: [{ statementLine: target, percentage: 100 }] }] : [];
+                      }
+                      return prior ? [{ accountCode: row.code, targets: prior.targets }] : [];
+                    });
+                    prototypeStore.saveAccountMappings(selectedEng.id, mappings);
+                  } catch (err: any) {
+                    alert(err.message);
+                  }
+                }}>
+                  Save New Revision
+                </button>
+              </div>
+            </div>
+            <p className="caption mt8">
+              Unmapped accounts: {selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).length} · Unmapped net balance: {formatCurrency(selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).reduce((sum, row) => sum + row.balance, 0))}. Any mapping edit saves a fresh draft revision and marks financial packages stale until independently approved.
+            </p>
+          </div>
+
+          {/* Unmapped Accounts Queue */}
+          {selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).length > 0 && (
+            <div className="panel panel-pad" style={{ background: '#fffbeb', borderColor: '#fef3c7' }}>
+              <div className="between">
+                <div>
+                  <h4 style={{ color: '#92400e' }}>⚠ Unmapped Accounts Queue ({selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).length})</h4>
+                  <p className="caption" style={{ color: '#b45309' }}>
+                    Financial statements and package validation require 100% of trial balance accounts to have approved mappings. Map these accounts below or assign targets.
+                  </p>
+                </div>
+              </div>
+              <div className="tablewrap mt12">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Account Code</th>
+                      <th>Account Name</th>
+                      <th>Type</th>
+                      <th>Balance (QAR)</th>
+                      <th>Quick Target Assignment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).map(r => (
+                      <tr key={r.code}>
+                        <td><span className="mono">{r.code}</span></td>
+                        <td><b>{r.name}</b></td>
+                        <td><span className="tag gray">{r.type}</span></td>
+                        <td>{formatCurrency(r.balance)}</td>
+                        <td>
+                          <select
+                            className="input"
+                            aria-label={`Statement line for unmapped account ${r.code}`}
+                            value={mappingTargets[r.code] || ''}
+                            onChange={e => setMappingTargets({ ...mappingTargets, [r.code]: e.target.value })}
+                          >
+                            <option value="">Choose Statement Line...</option>
+                            {statementLines.map(line => <option key={line} value={line}>{line}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Statement Line Mappings Table */}
+          <div className="panel">
+            <div className="panel-head between">
+              <div>
+                <h3>Trial Balance to Statement Line Allocations</h3>
+                <span className="caption">Direct 100% mappings and proportional split allocations</span>
+              </div>
+              <span className="caption">Total Accounts: {selectedEng.rows.length}</span>
+            </div>
+            <div className="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Account Code</th>
+                    <th>Account Name</th>
+                    <th>Statement Line / Note</th>
+                    <th>Allocation Breakdown</th>
+                    <th>Balance</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedEng.rows.map(r => {
+                    const targets = activeMappings.find(item => item.accountCode === r.code)?.targets || [];
+                    const target = mappingTargets[r.code] ?? targets[0]?.statementLine ?? '';
+                    const isSplit = targets.length > 1;
+                    return (
+                      <tr key={r.code}>
+                        <td><span className="mono">{r.code}</span></td>
+                        <td><b>{r.name}</b></td>
+                        <td>
+                          {isSplit ? (
+                            <span className="tag blue">Split Allocation ({targets.length} targets)</span>
+                          ) : (
+                            <select
+                              className="input"
+                              aria-label={`Statement line for account ${r.code}`}
+                              value={target}
+                              onChange={e => setMappingTargets({ ...mappingTargets, [r.code]: e.target.value })}
+                            >
+                              <option value="">Unmapped</option>
+                              {statementLines.map(line => <option key={line} value={line}>{line}</option>)}
+                            </select>
+                          )}
+                        </td>
+                        <td>
+                          {targets.length ? (
+                            <div className="stack" style={{ gap: 2 }}>
+                              {targets.map((t, idx) => (
+                                <span key={idx} className="cell-sub">
+                                  {t.statementLine} ({t.percentage}% = {formatCurrency(r.balance * t.percentage / 100)})
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="tag amber">Unmapped</span>
+                          )}
+                        </td>
+                        <td>{formatCurrency(r.balance)}</td>
+                        <td>
+                          <button
+                            className="btn sm ghost"
+                            onClick={() => {
+                              const existingTargets = targets.length ? structuredClone(targets) : [{ statementLine: 'Operating expenses', percentage: 100 }];
+                              setSplitModalAccount({
+                                code: r.code,
+                                name: r.name,
+                                balance: r.balance,
+                                targets: existingTargets.length > 1 ? existingTargets : [
+                                  { statementLine: existingTargets[0]?.statementLine || 'Operating expenses', percentage: 50 },
+                                  { statementLine: 'Other current assets', percentage: 50 }
+                                ]
+                              });
+                            }}
+                          >
+                            {isSplit ? 'Edit Split' : 'Define Split'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-          <p className="caption">Unmapped accounts: {selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).length} · Unmapped net balance: {formatCurrency(selectedEng.rows.filter(row => !activeMappings.some(item => item.accountCode === row.code)).reduce((sum, row) => sum + row.balance, 0))}. Any edit creates a new draft revision and stales dependent output.</p>
+
+          {/* Revision History */}
+          {mappingHistory.length > 0 && (
+            <div className="panel panel-pad">
+              <h4>Mapping Revision History</h4>
+              <ul className="mt8" style={{ fontSize: 13, lineHeight: '1.8' }}>
+                {mappingHistory.map(rev => (
+                  <li key={rev.revision}>
+                    <b>Revision {rev.revision}</b> — Status: <span className={`badge ${rev.status === 'Approved' ? 'green' : 'amber'}`}>{rev.status}</span>
+                    {rev.preparedBy && ` · Prepared by: ${rev.preparedBy}`}
+                    {rev.reviewedBy && ` · Approved by: ${rev.reviewedBy}`}
+                    {` · Mapped Accounts: ${rev.mappings.length}/${selectedEng.rows.length}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Split Allocation Modal */}
+          {splitModalAccount && (
+            <div className="modal-backdrop">
+              <div className="modal-content" style={{ maxWidth: 640 }}>
+                <div className="between mb16">
+                  <h3>Split Account Allocation: {splitModalAccount.code}</h3>
+                  <button className="btn sm ghost" onClick={() => setSplitModalAccount(null)}>✕</button>
+                </div>
+                <p className="sub mb12">
+                  Account: <b>{splitModalAccount.name}</b> · Balance: <b>{formatCurrency(splitModalAccount.balance)}</b>
+                </p>
+                <div className="stack" style={{ gap: 8 }}>
+                  {splitModalAccount.targets.map((target, idx) => (
+                    <div key={idx} className="row" style={{ gap: 8, alignItems: 'center' }}>
+                      <select
+                        className="input"
+                        style={{ flex: 2 }}
+                        value={target.statementLine}
+                        onChange={e => {
+                          const updated = [...splitModalAccount.targets];
+                          updated[idx].statementLine = e.target.value;
+                          setSplitModalAccount({ ...splitModalAccount, targets: updated });
+                        }}
+                      >
+                        {statementLines.map(line => <option key={line} value={line}>{line}</option>)}
+                      </select>
+                      <input
+                        type="number"
+                        className="input"
+                        style={{ width: 90 }}
+                        min="1"
+                        max="100"
+                        value={target.percentage}
+                        onChange={e => {
+                          const updated = [...splitModalAccount.targets];
+                          updated[idx].percentage = Number(e.target.value);
+                          setSplitModalAccount({ ...splitModalAccount, targets: updated });
+                        }}
+                      />
+                      <span>% ({formatCurrency(splitModalAccount.balance * target.percentage / 100)})</span>
+                      {splitModalAccount.targets.length > 1 && (
+                        <button
+                          className="btn sm ghost text-danger"
+                          onClick={() => {
+                            const updated = splitModalAccount.targets.filter((_, i) => i !== idx);
+                            setSplitModalAccount({ ...splitModalAccount, targets: updated });
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    className="btn sm ghost mt4"
+                    onClick={() => {
+                      setSplitModalAccount({
+                        ...splitModalAccount,
+                        targets: [...splitModalAccount.targets, { statementLine: 'Other current assets', percentage: 0 }]
+                      });
+                    }}
+                  >
+                    + Add Allocation Target Line
+                  </button>
+                </div>
+
+                <div className="panel panel-pad mt16" style={{ background: '#f8fafc' }}>
+                  <div className="between">
+                    <b>Total Allocation:</b>
+                    <b style={{ color: splitModalAccount.targets.reduce((sum, t) => sum + t.percentage, 0) === 100 ? '#16a34a' : '#dc2626' }}>
+                      {splitModalAccount.targets.reduce((sum, t) => sum + t.percentage, 0)}%
+                      {splitModalAccount.targets.reduce((sum, t) => sum + t.percentage, 0) === 100 ? ' (Conserved 100%)' : ' (Must total exactly 100%)'}
+                    </b>
+                  </div>
+                </div>
+
+                <div className="row mt16" style={{ justifyContent: 'flex-end', gap: 8 }}>
+                  <button className="btn sm ghost" onClick={() => setSplitModalAccount(null)}>Cancel</button>
+                  <button
+                    className="btn sm primary"
+                    disabled={splitModalAccount.targets.reduce((sum, t) => sum + t.percentage, 0) !== 100}
+                    onClick={() => {
+                      try {
+                        const newMappings = selectedEng.rows.map(row => {
+                          if (row.code === splitModalAccount.code) {
+                            return { accountCode: row.code, targets: structuredClone(splitModalAccount.targets) };
+                          }
+                          const existing = activeMappings.find(m => m.accountCode === row.code);
+                          return existing || { accountCode: row.code, targets: [{ statementLine: 'Operating expenses', percentage: 100 }] };
+                        });
+                        prototypeStore.saveAccountMappings(selectedEng.id, newMappings);
+                        setSplitModalAccount(null);
+                      } catch (err: any) {
+                        alert(err.message);
+                      }
+                    }}
+                  >
+                    Save Split Allocation
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h3>Statement Line Mappings</h3>
-            <span className="caption">Unmapped accounts remain visible</span>
-          </div>
-          <div className="tablewrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Account Code</th>
-                  <th>Account Name</th>
-                  <th>Statement Line / Note</th>
-                  <th>Allocation</th>
-                  <th>Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedEng.rows.map(r => {
-                  const targets = activeMappings.find(item => item.accountCode === r.code)?.targets || [];
-                  const target = mappingTargets[r.code] ?? targets[0]?.statementLine ?? '';
-                  return (
-                    <tr key={r.code}>
-                      <td><span className="mono">{r.code}</span></td>
-                      <td><b>{r.name}</b></td>
-                      <td><select className="input" aria-label={`Statement line for account ${r.code}`} value={target} onChange={e => setMappingTargets({ ...mappingTargets, [r.code]: e.target.value })}><option value="">Unmapped</option>{statementLines.map(line => <option key={line} value={line}>{line}</option>)}</select></td>
-                      <td>{targets.length ? targets.map(item => `${item.statementLine} ${item.percentage}%`).join(' + ') : 'Unmapped'}</td>
-                      <td>{formatCurrency(r.balance)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div></div>
       )}
+
 
       {/* Tab 4: Adjustments */}
       {activeTab === 'adjustments' && (

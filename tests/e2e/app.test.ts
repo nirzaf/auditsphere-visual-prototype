@@ -245,7 +245,7 @@ describe('vite build serves locally', () => {
   });
 });
 
-describe('actual Chrome browser acceptance', () => {
+describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-01/03/04: renders the app, keeps controls local, and presents scope disclosures', async () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /SIMULATED IDENTITY \(NOT LIVE AUTH\)/);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Synthetic records\. No live external integrations/);
@@ -938,7 +938,7 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('VP-031: requires independent invoice and credit review before issue', async () => {
+  it('AT-31/VP-031: requires independent invoice and credit review before issue', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Billing & Invoices'));if(!b)throw Error('Billing navigation is missing');b.click();})()`);
     await clickButton('Draft New Invoice');
     await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing invoice field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Invoice Number','INV-AT31');set('Fee Description','AT31 acceptance invoice');set('Invoice Amount (QAR)','100000');})()`);
@@ -1096,7 +1096,7 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions,[]);
   });
 
-  it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
+  it('AT-44/VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
       const option = [...role.options].find(o => o.textContent.includes('Engagement manager'));
@@ -1204,7 +1204,7 @@ describe('actual Chrome browser acceptance', () => {
       return { revision: pack.revision, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, files };
     })()`);
     assert.equal(persisted.revision, 2);
-    assert.equal(persisted.mappingRevision, 0, 'mapping revision is independent of source revision when no mapping history exists');
+    assert.equal(persisted.mappingRevision, 0, 'ENG-26002 has no saved mapping history; its mapping revision remains independent of source version 1');
     assert.equal(persisted.validation, true);
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
     for (const file of persisted.files) {
@@ -1220,17 +1220,12 @@ describe('actual Chrome browser acceptance', () => {
     await clickButton('Sign Off as Manager (Layla Rahman)');
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
-      const option = [...role.options].find(o => o.textContent.includes('Management approver'));
+      const option = [...role.options].find(o => o.textContent.includes('Aisha Saleh'));
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, option.value);
       role.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
     assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "client"'), true);
-    await browserTab!.evaluate(`(() => {
-      const client = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'CL-002'));
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
-      client.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`);
-    assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services") && [...document.querySelectorAll("select")].some(s=>s.value==="ENG-26002") && [...document.querySelectorAll("select")].some(s=>s.value==="CL-002")'), true, 'client can switch only to explicitly granted entity and engagement');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services") && JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).selectedEngagement === "ENG-26002"'), true, 'explicitly granted client identity opens its own portal and engagement');
     await clickButton('Management Approvals');
     await clickButton('Record Representation Receipt');
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals.client?.generation === 2`), true);
@@ -1801,9 +1796,10 @@ describe('actual Chrome browser acceptance', () => {
         const targets={asset:'Cash and cash equivalents',liability:'Trade payables',equity:'Share capital and reserves',revenue:'Revenue',expense:'Operating expenses'};
         for(const row of e.rows){const select=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');if(!select)throw Error('Missing mapping control for '+row.code);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,targets[row.type]);select.dispatchEvent(new Event('change',{bubbles:true}));}
       })()`);
-      await clickButton('Save new revision');
+      await clickButton('Save New Revision');
       await setRole('reviewer');
-      await clickButton('Approve revision');
+      const approveVisible = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Approve Revision v'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(approveVisible, true, 'reviewer can approve the newly saved draft revision');
       const approved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.accountMappingRevisions.filter(x=>x.engagementId===s.selectedEngagement).at(-1)})()`);
       assert.equal(approved.status, 'Approved');
       assert.equal(approved.mappings.length, (await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(x=>x.id===s.selectedEngagement).rows.length})()`)));
@@ -1812,6 +1808,69 @@ describe('actual Chrome browser acceptance', () => {
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-17/VP-018: adds a local identity without access, disables it, and inspects invitation history', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'admin');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Firm Administration');
+      await clickButton('Identity Lifecycle (4 invitations)');
+      const set = async (label: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="${label}"]');if(!e)throw Error('Missing '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await set('Demo identity name', 'Test Demo Identity');
+      await set('Demo identity email', 'test.identity@example.demo');
+      await clickButton('Add local identity');
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const u=s.users.find(x=>x.email==='test.identity@example.demo');return !!u && u.status==='Active' && !s.roleGrants.some(g=>g.userId===u.id) && s.identityStatusHistory.some(e=>e.userId===u.id&&e.action==='Created');})()`), true, 'new local identity exists without a grant');
+      const dialog = await browserTab!.evaluate<boolean>(`(() => {window.prompt=()=> 'Test suspension';const row=[...document.querySelectorAll('tr')].find(x=>x.innerText.includes('test.identity@example.demo'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Disable');if(!b)return false;b.click();return true;})()`);
+      assert.equal(dialog, true);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).users.find(x=>x.email==='test.identity@example.demo').status==='Disabled'`), true);
+      const lifecycle = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(lifecycle, /Pending/); assert.match(lifecycle, /Expired/); assert.match(lifecycle, /Revoked/); assert.match(lifecycle, /No live account or message/);
+      await set('Invitation name', 'Pending Demo Recipient');
+      await set('Invitation email', 'pending.invite@example.demo');
+      await clickButton('Record simulated invite');
+      const revoke = await browserTab!.evaluate<boolean>(`(() => {window.prompt=()=> 'Role no longer required';const row=[...document.querySelectorAll('tr')].find(x=>x.innerText.includes('pending.invite@example.demo'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Revoke');if(!b)return false;b.click();return true;})()`);
+      assert.equal(revoke, true);
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.simulatedInvitations.some(i=>i.email==='pending.invite@example.demo'&&i.status==='Revoked')&&s.identityStatusHistory.some(e=>e.action==='InvitationRevoked'&&e.userName==='Pending Demo Recipient')&&!s.users.some(u=>u.email==='pending.invite@example.demo');})()`), true, 'revocation is recorded locally and creates neither an account nor a grant');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-049: publishes and applies a reusable program template with fresh execution state', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await clickButton('Risks & Audit Programs');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Reusable Program Templates'));if(!b)return false;b.click();return true;})()`), true);
+      await clickButton('New template');
+      const setInput = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await setInput('input[aria-label="Template name"]', 'Revenue substantive template');
+      await setInput('input[aria-label="Template audit area"]', 'Revenue');
+      await setInput('textarea[aria-label="Template purpose"]', 'Verify recorded revenue assertions.');
+      await setInput('input[aria-label="Template procedure title 1"]', 'Verify recorded revenue');
+      await setInput('input[placeholder="Objective"]', 'Confirm existence and accuracy');
+      await setInput('textarea[placeholder="Instructions"]', 'Inspect approved source records.');
+      await setInput('input[placeholder="Assertions, comma separated"]', 'Existence, Accuracy');
+      await setInput('input[placeholder="Required evidence type"]', 'Sales ledger');
+      await clickButton('Save template draft');
+      const templateId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditProgramTemplates.find(t=>t.procedures[0].title==='Verify recorded revenue').id`);
+      const publish = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.borderbox')].find(e=>e.innerText.includes('Verify recorded revenue'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Publish');if(!b)return false;b.click();return true;})()`);
+      assert.equal(publish, true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const apply = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.borderbox')].find(e=>e.innerText.includes('Verify recorded revenue'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Apply to engagement');if(!b)return false;b.click();return true;})()`);
+      assert.equal(apply, true);
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPrograms.find(p=>p.sourceTemplateId===${JSON.stringify(templateId)});return !!p&&p.sourceTemplateVersion===1&&p.procedures.length===1&&p.procedures[0].title==='Verify recorded revenue'&&p.procedures[0].status==='Not started'&&!p.procedures[0].workPerformed&&!p.procedures[0].conclusion;})()`), true, 'application pins the published template and starts with empty execution state');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }

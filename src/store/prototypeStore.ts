@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -366,6 +366,200 @@ class PrototypeStore {
       this.notify();
     }
   }
+
+  // --- Identity Lifecycle & Simulated Invitations (VP-018) ---
+  public createDemoIdentity(identity: { name: string; email: string; role: RoleKey; label: string; group?: 'Commercial' | 'Professional' | 'Client' | 'Operations' }) {
+    requireActiveIdentity(this.state);
+    requireGlobalAdmin(this.state, 'create demo identities');
+    if (!identity.name?.trim() || !identity.email?.trim()) throw new GuardError('INVALID_STATE', 'Identity name and email are required.');
+    const normalizedEmail = identity.email.trim().toLowerCase();
+    if (this.state.users.some(u => u.email.toLowerCase() === normalizedEmail)) {
+      throw new GuardError('INVALID_STATE', `A persona with email "${identity.email}" already exists.`);
+    }
+    const id = `user-${Date.now().toString(36)}`;
+    const initials = identity.name.trim().split(' ').map(n => n[0]).join('').slice(0, 3).toUpperCase();
+    const group = identity.group || (identity.role === 'client' ? 'Client' : ['partner', 'manager', 'preparer', 'reviewer', 'eqr'].includes(identity.role) ? 'Professional' : 'Commercial');
+    this.state.users.push({
+      id,
+      name: identity.name.trim(),
+      initials,
+      role: identity.role,
+      label: identity.label || identity.role,
+      group,
+      email: normalizedEmail,
+      status: 'Active'
+    });
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      action: 'Created',
+      userId: id,
+      userName: identity.name.trim(),
+      role: identity.role,
+      actor: this.state.currentPerson,
+      reason: 'Created new simulated practice persona'
+    });
+    this.logEvent(`New simulated persona created: ${identity.name.trim()} (${identity.role})`, id);
+    this.notify();
+    return id;
+  }
+
+  public setUserStatus(userId: string, status: 'Active' | 'Disabled', reason = '') {
+    requireActiveIdentity(this.state);
+    requireGlobalAdmin(this.state, 'change identity status');
+    const user = this.state.users.find(u => u.id === userId);
+    if (!user) throw new GuardError('INVALID_STATE', `Identity "${userId}" not found.`);
+    if (user.id === this.state.currentUserId && status === 'Disabled') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Administrators cannot disable their own active session persona.');
+    }
+    user.status = status;
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      action: status === 'Active' ? 'Activated' : 'Disabled',
+      userId: user.id,
+      userName: user.name,
+      role: user.role,
+      actor: this.state.currentPerson,
+      reason: reason.trim() || `Identity status changed to ${status}`
+    });
+    this.logEvent(`Identity status changed: ${user.name} is now ${status}`, user.id);
+    this.notify();
+  }
+
+  public sendSimulatedInvitation(invitation: { email: string; name: string; role: RoleKey; scopeKind: 'Global' | 'Client' | 'Engagement'; scopeId?: string }) {
+    requireActiveIdentity(this.state);
+    requireGlobalAdmin(this.state, 'send simulated invitations');
+    if (!invitation.email?.trim() || !invitation.name?.trim()) throw new GuardError('INVALID_STATE', 'Recipient email and name are required.');
+    const id = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const now = new Date();
+    const expiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    this.state.simulatedInvitations ||= [];
+    const record: SimulatedInvitation = {
+      id,
+      email: invitation.email.trim().toLowerCase(),
+      name: invitation.name.trim(),
+      role: invitation.role,
+      scopeKind: invitation.scopeKind,
+      scopeId: invitation.scopeId,
+      status: 'Pending',
+      invitedAt: now.toISOString(),
+      invitedBy: this.state.currentPerson,
+      expiresAt: expiry.toISOString()
+    };
+    this.state.simulatedInvitations.push(record);
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: now.toISOString(),
+      action: 'Invited',
+      userId: id,
+      userName: record.name,
+      role: record.role,
+      actor: this.state.currentPerson,
+      reason: `Simulated invitation sent for ${record.role} (${record.scopeKind})`
+    });
+    this.logEvent(`Simulated invitation sent: ${record.name} (${record.email})`, id);
+    this.notify();
+    return id;
+  }
+
+  public revokeSimulatedInvitation(invitationId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireGlobalAdmin(this.state, 'revoke simulated invitations');
+    if (!reason?.trim()) throw new GuardError('INVALID_STATE', 'Revocation reason is required.');
+    this.state.simulatedInvitations ||= [];
+    const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
+    if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    if (inv.status !== 'Pending') throw new GuardError('INVALID_STATE', 'Only pending invitations can be revoked.');
+    inv.status = 'Revoked';
+    inv.revokedAt = new Date().toISOString();
+    inv.revokedBy = this.state.currentPerson;
+    inv.revocationReason = reason.trim();
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      action: 'InvitationRevoked',
+      userId: inv.id,
+      userName: inv.name,
+      role: inv.role,
+      actor: this.state.currentPerson,
+      reason: reason.trim()
+    });
+    this.logEvent(`Simulated invitation revoked: ${inv.name} — ${reason.trim()}`, inv.id);
+    this.notify();
+  }
+
+  public acceptSimulatedInvitation(invitationId: string) {
+    requireActiveIdentity(this.state);
+    this.state.simulatedInvitations ||= [];
+    const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
+    if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    if (inv.status !== 'Pending') throw new GuardError('INVALID_STATE', 'Only pending invitations can be accepted.');
+    inv.status = 'Accepted';
+    let user = this.state.users.find(u => u.email.toLowerCase() === inv.email.toLowerCase());
+    if (!user) {
+      const id = `user-${Date.now().toString(36)}`;
+      user = {
+        id,
+        name: inv.name,
+        initials: inv.name.split(' ').map(n => n[0]).join('').slice(0, 3).toUpperCase(),
+        role: inv.role,
+        label: inv.role,
+        group: inv.role === 'client' ? 'Client' : 'Professional',
+        email: inv.email,
+        status: 'Active'
+      };
+      this.state.users.push(user);
+    } else {
+      user.status = 'Active';
+    }
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      action: 'InvitationAccepted',
+      userId: user.id,
+      userName: user.name,
+      role: user.role,
+      actor: user.name,
+      reason: 'Candidate completed simulated onboarding'
+    });
+    this.logEvent(`Simulated invitation accepted: ${user.name} onboarded as ${user.role}`, user.id);
+    this.notify();
+  }
+
+  public resendSimulatedInvitation(invitationId: string) {
+    requireActiveIdentity(this.state);
+    requireGlobalAdmin(this.state, 'resend simulated invitations');
+    this.state.simulatedInvitations ||= [];
+    const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
+    if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    const now = new Date();
+    inv.status = 'Pending';
+    inv.invitedAt = now.toISOString();
+    inv.expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    inv.revokedAt = undefined;
+    inv.revokedBy = undefined;
+    inv.revocationReason = undefined;
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(),
+      timestamp: now.toISOString(),
+      action: 'InvitationResent',
+      userId: inv.id,
+      userName: inv.name,
+      role: inv.role,
+      actor: this.state.currentPerson,
+      reason: 'Invitation renewed with fresh 7-day expiration'
+    });
+    this.logEvent(`Simulated invitation resent to ${inv.name}`, inv.id);
+    this.notify();
+  }
+
 
   // --- Leads & Pipeline Actions (VP-009) ---
   public addLead(lead: PrototypeState['leads'][0]) {
@@ -1979,11 +2173,112 @@ class PrototypeStore {
     if (!changes.assertions.length || new Set(changes.assertions).size !== changes.assertions.length || changes.assertions.some(assertion => !assertion.trim())) throw new GuardError('INVALID_STATE', 'Select at least one unique assertion.');
     if (!['Low', 'Medium', 'Significant'].includes(changes.rating) || !this.state.users.some(user => user.name === changes.owner && user.status === 'Active')) throw new GuardError('INVALID_STATE', 'Risk rating and active owner must be valid.');
     Object.assign(risk, structuredClone(changes));
+    risk.revisions ||= [];
+    risk.revisions.push({
+      revision: risk.revisions.length + 1,
+      title: changes.title,
+      rating: changes.rating,
+      response: changes.response,
+      changedBy: this.state.currentPerson,
+      changedAt: new Date().toISOString(),
+      rationale: changes.rationale
+    });
     const engagement = this.state.engagements.find(item => item.id === engId);
     if (engagement) this.invalidateReleaseBasis(engagement);
-    this.logEvent(`Risk ${riskId} updated`, riskId);
+    this.logEvent(`Risk ${riskId} updated (Revision ${risk.revisions.length})`, riskId);
     this.notify();
   }
+
+  public createAuditProgramTemplate(template: Omit<import('../types').AuditProgramTemplate, 'id' | 'version' | 'status'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'admin'], 'create audit program templates');
+    if (!template.name?.trim() || !template.area?.trim() || !template.description?.trim()) {
+      throw new GuardError('INVALID_STATE', 'Template name, area and description are required.');
+    }
+    if (!template.procedures?.length) {
+      throw new GuardError('INVALID_STATE', 'Template must include at least one procedure.');
+    }
+    const id = `TPL-PRG-${crypto.randomUUID()}`;
+    this.state.auditProgramTemplates ||= [];
+    this.state.auditProgramTemplates.push({
+      id,
+      name: template.name.trim(),
+      area: template.area.trim(),
+      description: template.description.trim(),
+      version: 1,
+      status: 'Draft',
+      procedures: structuredClone(template.procedures)
+    });
+    this.logEvent(`Audit program template created: ${template.name}`, id);
+    this.notify();
+    return id;
+  }
+
+  public reviseAuditProgramTemplate(templateId: string, changes: Pick<import('../types').AuditProgramTemplate, 'name' | 'area' | 'description' | 'procedures'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'admin'], 'revise audit program templates');
+    const template = this.state.auditProgramTemplates?.find(item => item.id === templateId);
+    if (!template || template.status === 'Retired' || !changes.name.trim() || !changes.area.trim() || !changes.description.trim() || !changes.procedures.length) throw new GuardError('INVALID_STATE', 'A current reusable template and complete revised content are required.');
+    this.state.auditProgramTemplateHistory ||= [];
+    this.state.auditProgramTemplateHistory.push(structuredClone(template));
+    Object.assign(template, structuredClone(changes), { version: template.version + 1, status: 'Draft' as const });
+    this.logEvent(`Audit program template ${template.name} revised to v${template.version} draft`, template.id);
+    this.notify();
+  }
+
+  public publishAuditProgramTemplate(templateId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'admin'], 'publish audit program templates');
+    const template = this.state.auditProgramTemplates?.find(item => item.id === templateId);
+    if (!template || template.status !== 'Draft' || !template.procedures.length) throw new GuardError('INVALID_STATE', 'Only a complete draft audit program template can be published.');
+    template.status = 'Published';
+    this.logEvent(`Audit program template ${template.name} v${template.version} published`, template.id);
+    this.notify();
+  }
+
+  public applyAuditProgramTemplate(engId: string, templateId: string, customTitle?: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'apply audit program templates');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
+    this.state.auditProgramTemplates ||= [];
+    const template = this.state.auditProgramTemplates.find(t => t.id === templateId && t.status === 'Published');
+    if (!template) throw new GuardError('INVALID_STATE', 'Published audit program template not found.');
+
+    const prgId = `PRG-${engId}-${crypto.randomUUID()}`;
+    const newProcedures: import('../types').AuditProcedureItem[] = template.procedures.map((p, idx) => ({
+      id: `PRC-${crypto.randomUUID()}`,
+      engagementId: engId,
+      ref: `PRC-${(idx + 1).toString().padStart(2, '0')}`,
+      title: p.title,
+      instructions: p.instructions,
+      objective: p.objective,
+      assertion: p.defaultAssertions.join(', '),
+      requiredEvidence: p.requiredEvidenceType,
+      status: 'Not started',
+      linkedRiskIds: [],
+      workPerformed: '',
+      conclusion: ''
+    }));
+
+    this.state.auditPrograms.push({
+      id: prgId,
+      engagementId: engId,
+      area: template.area,
+      title: customTitle?.trim() || template.name,
+      objective: template.description,
+      sourceTemplateId: template.id,
+      sourceTemplateVersion: template.version,
+      procedures: newProcedures
+    });
+
+    this.invalidateReleaseBasis(eng);
+    this.logEvent(`Applied program template "${template.name}" to ${engId} (${newProcedures.length} fresh procedures)`, engId);
+    this.notify();
+    return prgId;
+  }
+
 
   public setAuditRiskProcedureLink(engId: string, riskId: string, procedureId: string, linked: boolean) {
     requireActiveIdentity(this.state);

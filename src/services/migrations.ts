@@ -222,6 +222,10 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     warnings.push('Added explicit acceptance screening evidence references; legacy approvals without references no longer authorize engagement work (v13).');
   }
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
+  state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];
+  state.identityStatusHistory = Array.isArray(state.identityStatusHistory) ? state.identityStatusHistory : [];
+  state.auditProgramTemplates = Array.isArray(state.auditProgramTemplates) ? state.auditProgramTemplates : [];
+  state.auditProgramTemplateHistory = Array.isArray(state.auditProgramTemplateHistory) ? state.auditProgramTemplateHistory : [];
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };
 }

@@ -1,6 +1,6 @@
 // Modules 29 & 30: Audit Risk Register & Fieldwork Audit Programs (VP-049, VP-050)
 import React, { useState } from 'react';
-import { RouteKey, AuditProcedureItem, AuditRiskItem } from '../../types';
+import { RouteKey, AuditProcedureItem, AuditProgramTemplate, AuditRiskItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -10,7 +10,7 @@ interface AuditRisksProgramsViewProps {
 
 export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeTab, setActiveTab] = useState<'risks' | 'programs'>('programs');
+  const [activeTab, setActiveTab] = useState<'risks' | 'programs' | 'templates'>('programs');
   const [selectedProgramId, setSelectedProgramId] = useState<string>('PRG-01');
   const [notice, setNotice] = useState<string | null>(null);
   const [editingProcedureId, setEditingProcedureId] = useState<string | null>(null);
@@ -18,6 +18,8 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const [conclusion, setConclusion] = useState('');
   const [evidenceLimitation, setEvidenceLimitation] = useState('');
   const [riskDraft, setRiskDraft] = useState<AuditRiskItem | null>(null);
+  const [templateDraft, setTemplateDraft] = useState<Omit<AuditProgramTemplate, 'id' | 'version' | 'status'> | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
 
@@ -38,6 +40,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
 
   const programs = state.auditPrograms.filter(program => program.engagementId === selectedEng.id || (!program.engagementId && selectedEng.id === state.engagements[0]?.id));
   const risks = state.auditRisks.filter(risk => risk.engagementId === selectedEng.id || (!risk.engagementId && selectedEng.id === state.engagements[0]?.id));
+  const templates = state.auditProgramTemplates || [];
   const activeProgram = programs.find(program => program.id === selectedProgramId) || programs[0];
 
   const handleUpdateProcedureStatus = (procId: string, status: AuditProcedureItem['status']) => {
@@ -107,7 +110,29 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
         <button className={`tab-btn ${activeTab === 'risks' ? 'active' : ''}`} onClick={() => setActiveTab('risks')}>
           Identified Risk Register ({risks.length})
         </button>
+        <button className={`tab-btn ${activeTab === 'templates' ? 'active' : ''}`} onClick={() => setActiveTab('templates')}>
+          Reusable Program Templates ({templates.length})
+        </button>
       </div>
+
+      {activeTab === 'templates' && <div className="stack" style={{ gap: 16 }}>
+        <div className="panel panel-pad">
+          <div className="between"><div><h3>Reusable audit program templates</h3><p className="sub">Published versions are copied into the selected engagement with new procedure identities; later template edits do not alter applied programs.</p></div><button className="btn sm" onClick={() => { setTemplateDraft({ name: '', area: '', description: '', procedures: [{ title: '', objective: '', instructions: '', defaultAssertions: ['Existence'], requiredEvidenceType: '' }] }); setEditingTemplateId(null); }}>New template</button></div>
+          {(templates.length === 0) && <p className="sub mt12">No reusable templates yet.</p>}
+          <div className="stack mt12" style={{ gap: 10 }}>{templates.map(template => <div className="borderbox panel-pad" key={template.id}>
+            <div className="between"><div><b>{template.name} · v{template.version}</b><div className="caption">{template.area} · {template.status} · {template.procedures.length} procedures</div><p className="sub mt4">{template.description}</p></div><div className="row">{template.status === 'Draft' && <button className="btn sm primary" onClick={() => { try { prototypeStore.publishAuditProgramTemplate(template.id); setNotice(`Published ${template.name} v${template.version}.`); } catch (err: any) { setNotice(err.message); } }}>Publish</button>}{template.status === 'Published' && <button className="btn sm" onClick={() => { try { const id = prototypeStore.applyAuditProgramTemplate(selectedEng.id, template.id); setSelectedProgramId(id); setActiveTab('programs'); setNotice(`Applied ${template.name} v${template.version} to ${selectedEng.id}.`); } catch (err: any) { setNotice(err.message); } }}>Apply to engagement</button>}<button className="btn sm ghost" onClick={() => { setTemplateDraft({ name: template.name, area: template.area, description: template.description, procedures: structuredClone(template.procedures) }); setEditingTemplateId(template.id); }}>Revise</button></div></div>
+            {(state.auditProgramTemplateHistory || []).filter(version => version.id === template.id).map(version => <div className="caption" key={version.version}>Archived v{version.version} · {version.status}</div>)}
+          </div>)}</div>
+        </div>
+        {templateDraft && <form className="panel panel-pad stack" onSubmit={e => { e.preventDefault(); try { if (editingTemplateId) prototypeStore.reviseAuditProgramTemplate(editingTemplateId, templateDraft); else prototypeStore.createAuditProgramTemplate(templateDraft); setTemplateDraft(null); setEditingTemplateId(null); setNotice('Template draft saved. Publish it before applying.'); } catch (err: any) { setNotice(err.message); } }}>
+          <h3>{editingTemplateId ? 'Save a new template revision' : 'Create a reusable template draft'}</h3>
+          <div className="grid2"><label className="caption">Name<input className="input mt4" aria-label="Template name" required value={templateDraft.name} onChange={e => setTemplateDraft({ ...templateDraft, name: e.target.value })} /></label><label className="caption">Audit area<input className="input mt4" aria-label="Template audit area" required value={templateDraft.area} onChange={e => setTemplateDraft({ ...templateDraft, area: e.target.value })} /></label></div>
+          <label className="caption">Purpose<textarea className="input mt4" aria-label="Template purpose" required value={templateDraft.description} onChange={e => setTemplateDraft({ ...templateDraft, description: e.target.value })} /></label>
+          {templateDraft.procedures.map((procedure, index) => <fieldset className="borderbox stack" key={index}><legend className="caption">Procedure {index + 1}</legend><input className="input" aria-label={`Template procedure title ${index + 1}`} placeholder="Procedure title" required value={procedure.title} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, title: e.target.value } : p) })} /><input className="input" placeholder="Objective" required value={procedure.objective} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, objective: e.target.value } : p) })} /><textarea className="input" placeholder="Instructions" required value={procedure.instructions} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, instructions: e.target.value } : p) })} /><div className="grid2"><input className="input" placeholder="Assertions, comma separated" required value={procedure.defaultAssertions.join(', ')} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, defaultAssertions: e.target.value.split(',').map(x => x.trim()).filter(Boolean) } : p) })} /><input className="input" placeholder="Required evidence type" required value={procedure.requiredEvidenceType} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, requiredEvidenceType: e.target.value } : p) })} /></div><button type="button" className="btn sm ghost" disabled={templateDraft.procedures.length === 1} onClick={() => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.filter((_, i) => i !== index) })}>Remove procedure</button></fieldset>)}
+          <button type="button" className="btn sm" onClick={() => setTemplateDraft({ ...templateDraft, procedures: [...templateDraft.procedures, { title: '', objective: '', instructions: '', defaultAssertions: ['Existence'], requiredEvidenceType: '' }] })}>Add procedure</button>
+          <div className="row"><button className="btn primary sm" type="submit">{editingTemplateId ? 'Save new draft revision' : 'Save template draft'}</button><button className="btn sm ghost" type="button" onClick={() => { setTemplateDraft(null); setEditingTemplateId(null); }}>Cancel</button></div>
+        </form>}
+      </div>}
 
       {/* Programs Tab */}
       {activeTab === 'programs' && (
@@ -220,7 +245,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
             <div className="tablewrap"><table>
               <thead><tr><th>Risk</th><th>Area / Rating</th><th>Assertions</th><th>Rationale</th><th>Planned response</th><th>Owner</th><th>Linked procedures</th><th>Action</th></tr></thead>
               <tbody>{risks.map(risk => <tr key={risk.id}>
-                <td><b>{risk.title}</b><div className="cell-sub mono">{risk.id}</div><div className="cell-sub">{risk.description}</div></td>
+                <td><b>{risk.title}</b><div className="cell-sub mono">{risk.id}</div><div className="cell-sub">{risk.description}</div>{Boolean(risk.revisions?.length) && <details className="mt4"><summary className="caption">Revision history ({risk.revisions?.length})</summary>{risk.revisions?.map((revision, index) => <div className="caption" key={`${revision.changedAt}-${index}`}>Revision {index + 1} · {revision.changedAt} · {revision.changedBy}: {revision.rationale}</div>)}</details>}</td>
                 <td>{risk.area}<div className={`badge ${risk.rating === 'Significant' ? 'amber' : 'green'}`}>{risk.rating}</div></td>
                 <td>{risk.assertions.join(', ')}</td><td>{risk.rationale}</td><td>{risk.response}</td><td>{risk.owner}</td>
                 <td>{risk.linkedProcedureIds.map(id => <span className="tag gray" key={id}>{id}</span>)}</td>

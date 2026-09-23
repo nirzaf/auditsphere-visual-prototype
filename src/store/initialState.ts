@@ -2,6 +2,7 @@
 // Covers all 39 functional modules with realistic synthetic data
 
 import { PrototypeState, UserPersona, RoleKey } from '../types';
+import { CURRENT_SCHEMA } from '../services/migrations';
 
 export const ALL_PERSONAS: UserPersona[] = [
   { id: 'manager', role: 'manager', name: 'Layla Rahman', initials: 'LR', label: 'Engagement manager', group: 'Professional', email: 'layla.rahman@ste-audit.demo', status: 'Active' },
@@ -18,6 +19,7 @@ export const ALL_PERSONAS: UserPersona[] = [
   { id: 'client_admin', role: 'client_admin', name: 'Amal Nasser', initials: 'AN', label: 'Client administrator', group: 'Client', email: 'amal.nasser@example-trading.demo', status: 'Active' },
   { id: 'client_finance', role: 'client_finance', name: 'Rami Nasser', initials: 'RN', label: 'Finance contributor', group: 'Client', email: 'rami.nasser@example-trading.demo', status: 'Active' },
   { id: 'client', role: 'client', name: 'Omar Nasser', initials: 'ON', label: 'Management approver', group: 'Client', email: 'omar.nasser@example-trading.demo', status: 'Active' },
+  { id: 'client-northstar', role: 'client', name: 'Aisha Saleh', initials: 'AS', label: 'Northstar management approver', group: 'Client', email: 'aisha.saleh@northstar.demo', status: 'Active' },
   // Second same-role people so reassignment/substitution can actually be demonstrated (VP-014, VP-055)
   { id: 'preparer-2', role: 'preparer', name: 'Nadia Rahman', initials: 'NR', label: 'Audit preparer (second)', group: 'Professional', email: 'nadia.rahman@ste-audit.demo', status: 'Active' },
   { id: 'reviewer-2', role: 'reviewer', name: 'Bilal Ahmed', initials: 'BA', label: 'Senior reviewer (second)', group: 'Professional', email: 'bilal.ahmed@ste-audit.demo', status: 'Active' },
@@ -32,7 +34,7 @@ export const ALL_PERSONAS: UserPersona[] = [
 
 export function createInitialState(): PrototypeState {
   const state: PrototypeState = {
-    schema: 8,
+    schema: CURRENT_SCHEMA,
     asOfDate: '2026-09-23',
     selectedEngagement: 'ENG-26001',
     currentRole: 'manager',
@@ -59,6 +61,7 @@ export function createInitialState(): PrototypeState {
       { userId: 'client_admin', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-003' },
       { userId: 'client_finance', role: 'client_finance', scopeKind: 'Client', scopeId: 'CL-001' },
       { userId: 'client', role: 'client', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'client-northstar', role: 'client', scopeKind: 'Client', scopeId: 'CL-002' },
       // Narrow group-reporting scope: consolidation components only, no sibling access.
       { userId: 'group-user', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' }
     ],
@@ -1107,6 +1110,225 @@ export function createInitialState(): PrototypeState {
       format: 'Legacy'
     }] : [];
   }
+
+  state.accountMappingRevisions = state.engagements.filter(e => e.id === 'ENG-26001').map(engagement => ({
+    engagementId: engagement.id,
+    revision: 1,
+    status: 'Approved' as const,
+    preparedBy: 'preparer',
+    reviewedBy: 'reviewer',
+    mappings: engagement.rows.map(row => {
+      let statementLine = 'Operating expenses';
+      if (row.type === 'asset') {
+        statementLine = row.code.startsWith('10') ? 'Cash and cash equivalents' : row.code.startsWith('11') ? 'Trade receivables' : row.code.startsWith('15') ? 'Property and equipment' : 'Other current assets';
+      } else if (row.type === 'liability') {
+        statementLine = row.code.startsWith('25') ? 'Borrowings' : 'Trade payables';
+      } else if (row.type === 'equity') {
+        statementLine = 'Share capital and reserves';
+      } else if (row.type === 'revenue') {
+        statementLine = 'Revenue';
+      } else if (row.type === 'expense') {
+        statementLine = row.code.startsWith('5') ? 'Cost of sales' : row.code.startsWith('7') ? 'Finance costs' : row.code.startsWith('8') ? 'Income tax' : 'Operating expenses';
+      }
+      return {
+        accountCode: row.code,
+        targets: [{ statementLine, percentage: 100 }]
+      };
+    })
+  }));
+
+  state.simulatedInvitations = [
+    {
+      id: 'INV-2026-001',
+      email: 'tariq.mansoor@example.demo',
+      name: 'Tariq Mansoor',
+      role: 'preparer',
+      scopeKind: 'Global',
+      status: 'Pending',
+      invitedAt: '2026-09-20T09:00:00Z',
+      invitedBy: 'Daniel James',
+      expiresAt: '2026-09-27T09:00:00Z'
+    },
+    {
+      id: 'INV-2026-002',
+      email: 'elena.rostova@example.demo',
+      name: 'Elena Rostova',
+      role: 'reviewer',
+      scopeKind: 'Engagement',
+      scopeId: 'ENG-26001',
+      status: 'Expired',
+      invitedAt: '2026-08-20T10:00:00Z',
+      invitedBy: 'Daniel James',
+      expiresAt: '2026-08-27T10:00:00Z'
+    },
+    {
+      id: 'INV-2026-003',
+      email: 'khalid.kuwari@client.demo',
+      name: 'Khalid Al-Kuwari',
+      role: 'client',
+      scopeKind: 'Client',
+      scopeId: 'CL-001',
+      status: 'Revoked',
+      invitedAt: '2026-09-10T11:00:00Z',
+      invitedBy: 'Layla Rahman',
+      expiresAt: '2026-09-17T11:00:00Z',
+      revokedAt: '2026-09-12T14:30:00Z',
+      revokedBy: 'Layla Rahman',
+      revocationReason: 'Onboarding role reassigned by client management'
+    },
+    {
+      id: 'INV-2026-004',
+      email: 'mona.sulaiti@client.demo',
+      name: 'Mona Al-Sulaiti',
+      role: 'client',
+      scopeKind: 'Client',
+      scopeId: 'CL-002',
+      status: 'Accepted',
+      invitedAt: '2026-09-15T08:00:00Z',
+      invitedBy: 'Sara Malik',
+      expiresAt: '2026-09-22T08:00:00Z'
+    }
+  ];
+
+  state.identityStatusHistory = [
+    {
+      id: 'ID-EVT-01',
+      timestamp: '2026-09-10T11:00:00Z',
+      action: 'Invited',
+      userId: 'INV-2026-003',
+      userName: 'Khalid Al-Kuwari',
+      role: 'client',
+      actor: 'Layla Rahman',
+      reason: 'Client finance contributor onboarding invitation'
+    },
+    {
+      id: 'ID-EVT-02',
+      timestamp: '2026-09-12T14:30:00Z',
+      action: 'InvitationRevoked',
+      userId: 'INV-2026-003',
+      userName: 'Khalid Al-Kuwari',
+      role: 'client',
+      actor: 'Layla Rahman',
+      reason: 'Onboarding role reassigned by client management'
+    },
+    {
+      id: 'ID-EVT-03',
+      timestamp: '2026-09-20T09:00:00Z',
+      action: 'Invited',
+      userId: 'INV-2026-001',
+      userName: 'Tariq Mansoor',
+      role: 'preparer',
+      actor: 'Daniel James',
+      reason: 'New engagement team audit senior candidate'
+    }
+  ];
+
+  state.auditProgramTemplates = [
+    {
+      id: 'TPL-PRG-REV',
+      name: 'Revenue & Trade Receivables Audit Program',
+      area: 'Revenue & Receivables',
+      description: 'Standard substantive audit testing program for revenue recognition, debtor circularisation, and cut-off verification under ISA 240 / 315 / 505.',
+      version: 1,
+      status: 'Published',
+      procedures: [
+        {
+          title: 'Debtor Confirmation Circularisation',
+          objective: 'Confirm existence and accuracy of year-end trade receivables balances with third-party debtors.',
+          instructions: 'Sample key accounts above performance materiality and circularise positive confirmation requests; reconcile signed client confirmations.',
+          defaultAssertions: ['Existence', 'Rights and Obligations', 'Accuracy'],
+          requiredEvidenceType: 'Third-party debtor confirmations'
+        },
+        {
+          title: 'Substantive Analytical Procedures on Revenue',
+          objective: 'Corroborate reported revenue against monthly sales volume, contract pricing, and seasonality trends.',
+          instructions: 'Perform monthly variance analysis and compare gross margins across product lines against prior year benchmarks.',
+          defaultAssertions: ['Occurrence', 'Completeness', 'Accuracy'],
+          requiredEvidenceType: 'Monthly revenue ledger and billing analytics'
+        },
+        {
+          title: 'Year-End Sales Cut-off Testing',
+          objective: 'Verify revenue and cost of sales are recorded in the proper accounting period.',
+          instructions: 'Select 15 sales invoices and delivery notes immediately before and after year-end date; verify shipping terms.',
+          defaultAssertions: ['Cut-off', 'Completeness'],
+          requiredEvidenceType: 'Shipping documents and post-year-end credit notes'
+        }
+      ]
+    },
+    {
+      id: 'TPL-PRG-CASH',
+      name: 'Cash, Bank & Financing Audit Program',
+      area: 'Cash & Borrowings',
+      description: 'Comprehensive audit procedures for cash, cash equivalents, bank reconciliations, and debt covenants under ISA 500 / 505.',
+      version: 1,
+      status: 'Published',
+      procedures: [
+        {
+          title: 'Bank Balance Confirmation Certificates',
+          objective: 'Obtain direct independent bank confirmations for all operative and dormant accounts.',
+          instructions: 'Request bank certificates confirming balances, security charges, guarantees, and authorised signatories as of year-end.',
+          defaultAssertions: ['Existence', 'Rights and Obligations', 'Valuation and Allocation'],
+          requiredEvidenceType: 'Standard bank confirmation letters'
+        },
+        {
+          title: 'Bank Reconciliation Clearance & Outstanding Items',
+          objective: 'Verify accuracy and validity of year-end bank reconciliations and timing differences.',
+          instructions: 'Inspect year-end bank reconciliation; test reconciling items and trace unpresented cheques to post-year-end bank statements.',
+          defaultAssertions: ['Accuracy', 'Completeness'],
+          requiredEvidenceType: 'Year-end bank statement and subsequent clearing evidence'
+        }
+      ]
+    },
+    {
+      id: 'TPL-PRG-PPE',
+      name: 'Property, Plant & Equipment Program',
+      area: 'Fixed Assets',
+      description: 'Physical inspection, ownership verification, additions testing, and depreciation recalculation procedures.',
+      version: 1,
+      status: 'Published',
+      procedures: [
+        {
+          title: 'Fixed Asset Additions & Vouching',
+          objective: 'Verify capital additions exceed capitalisation threshold and are properly supported.',
+          instructions: 'Select sample of asset additions exceeding QAR 10,000; inspect purchase invoices, title deeds, and capital approvals.',
+          defaultAssertions: ['Existence', 'Rights and Obligations', 'Valuation and Allocation'],
+          requiredEvidenceType: 'Vendor invoices and ownership title documentation'
+        },
+        {
+          title: 'Depreciation Recalculation & Useful Life Review',
+          objective: 'Verify depreciation expense complies with accounting policies and rates.',
+          instructions: 'Perform independent recomputation of depreciation by asset class; test for fully depreciated assets still in service.',
+          defaultAssertions: ['Accuracy', 'Valuation and Allocation'],
+          requiredEvidenceType: 'Fixed asset register and recomputation schedules'
+        }
+      ]
+    },
+    {
+      id: 'TPL-PRG-PAY',
+      name: 'Purchases, Payables & Accruals Program',
+      area: 'Purchases & Payables',
+      description: 'Search for unrecorded liabilities, supplier statement reconciliations, and expense accruals testing.',
+      version: 1,
+      status: 'Published',
+      procedures: [
+        {
+          title: 'Search for Unrecorded Liabilities',
+          objective: 'Detect unrecorded liabilities or understated trade payables at reporting date.',
+          instructions: 'Review bank payments and unpaid vendor invoices for 45 days after year-end; examine matching goods received notes.',
+          defaultAssertions: ['Completeness', 'Cut-off'],
+          requiredEvidenceType: 'Subsequent bank payments and unvouched vendor invoices'
+        },
+        {
+          title: 'Supplier Statement Reconciliations',
+          objective: 'Verify trade payables balance agrees to external supplier statements.',
+          instructions: 'Obtain year-end statements from top 10 suppliers by volume; reconcile differences to invoices in transit.',
+          defaultAssertions: ['Completeness', 'Obligations', 'Valuation and Allocation'],
+          requiredEvidenceType: 'Vendor account statements and reconciliation workpapers'
+        }
+      ]
+    }
+  ];
+
   for (const group of state.consolidationGroups) {
     for (const component of group.components) {
       const engagement = state.engagements.find(e => e.id === component.componentId);

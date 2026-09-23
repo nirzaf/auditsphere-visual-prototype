@@ -2,7 +2,7 @@
 // Simulated identity directory, explicit scoped grants, grant authoring & revocation, and 14-role RBAC catalogue.
 
 import React, { useState } from 'react';
-import { RouteKey, UserPersona } from '../../types';
+import { RoleKey, RouteKey, UserPersona } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -12,13 +12,18 @@ interface AdministrationViewProps {
 
 export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [activeTab, setActiveTab] = useState<'users' | 'grants' | 'history' | 'firm' | 'permissions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'identities' | 'grants' | 'history' | 'firm' | 'permissions'>('users');
   const [selectedUser, setSelectedUser] = useState<UserPersona | null>(null);
   const [showGrantModal, setShowGrantModal] = useState(false);
   const [grantScopeKind, setGrantScopeKind] = useState<'Global' | 'Client' | 'Engagement'>('Client');
   const [grantClientId, setGrantClientId] = useState(state.clients[0]?.id || 'CL-001');
   const [grantEngagementId, setGrantEngagementId] = useState(state.engagements[0]?.id || 'ENG-26001');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [identityName, setIdentityName] = useState('');
+  const [identityEmail, setIdentityEmail] = useState('');
+  const [identityRole, setIdentityRole] = useState<RoleKey>('preparer');
+  const [inviteScope, setInviteScope] = useState<'Global' | 'Client' | 'Engagement'>('Client');
+  const [inviteScopeId, setInviteScopeId] = useState(state.clients[0]?.id || 'CL-001');
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -88,6 +93,9 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
         <button className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
           Practice Personas ({state.users.length})
         </button>
+        <button className={`tab-btn ${activeTab === 'identities' ? 'active' : ''}`} onClick={() => setActiveTab('identities')}>
+          Identity Lifecycle ({state.simulatedInvitations?.length || 0} invitations)
+        </button>
         <button className={`tab-btn ${activeTab === 'grants' ? 'active' : ''}`} onClick={() => setActiveTab('grants')}>
           Active Access Grants ({state.roleGrants.length})
         </button>
@@ -101,6 +109,31 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
           Role-Based Access Control (RBAC)
         </button>
       </div>
+
+      {activeTab === 'identities' && <div className="stack" style={{ gap: 16 }}>
+        <div className="panel panel-pad">
+          <div className="between"><div><h3>Local demo identities</h3><p className="sub">Simulated directory records only. Creating or inviting an identity never creates a scope grant.</p></div><span className="badge blue">No live account or message</span></div>
+          <form className="grid4 mt12" onSubmit={e => { e.preventDefault(); try { prototypeStore.createDemoIdentity({ name: identityName, email: identityEmail, role: identityRole, label: identityRole }); setIdentityName(''); setIdentityEmail(''); triggerNotice('success', 'Simulated identity created without access grants.'); } catch (err: any) { triggerNotice('error', err.message); } }}>
+            <input className="input" aria-label="Demo identity name" placeholder="Full name" value={identityName} onChange={e => setIdentityName(e.target.value)} required />
+            <input className="input" type="email" aria-label="Demo identity email" placeholder="name@example.demo" value={identityEmail} onChange={e => setIdentityEmail(e.target.value)} required />
+            <select className="input" aria-label="Demo identity role" value={identityRole} onChange={e => setIdentityRole(e.target.value as RoleKey)}>{(['relationship','onboarding','compliance','partner','manager','preparer','reviewer','eqr','client_admin','client_finance','client','billing','records','admin'] as RoleKey[]).map(role => <option key={role} value={role}>{role}</option>)}</select>
+            <button className="btn primary" type="submit">Add local identity</button>
+          </form>
+          <div className="tablewrap mt12"><table><thead><tr><th>Identity</th><th>Role</th><th>Status</th><th>Explicit access grants</th><th>Lifecycle action</th></tr></thead><tbody>{state.users.map(user => <tr key={user.id}><td>{user.name}<div className="caption">{user.email} · ID {user.id}</div></td><td>{user.label}</td><td>{user.status}</td><td>{userGrants(user).length || 'None'}</td><td>{user.id !== state.currentUserId && <button className="btn sm ghost" onClick={() => { const next = user.status === 'Active' ? 'Disabled' : 'Active'; const reason = next === 'Disabled' ? window.prompt(`Reason for disabling ${user.name}:`) : `Reactivated by ${state.currentPerson}`; if (reason !== null) try { prototypeStore.setUserStatus(user.id, next, reason); } catch (err: any) { triggerNotice('error', err.message); } }}>{user.status === 'Active' ? 'Disable' : 'Reactivate'}</button>}</td></tr>)}</tbody></table></div>
+        </div>
+        <div className="panel panel-pad">
+          <h3>Simulated invitations</h3><p className="sub">Pending, expired, accepted and revoked states are local fixtures. No invitation is sent externally.</p>
+          <form className="grid4 mt12" onSubmit={e => { e.preventDefault(); try { const scopeId = inviteScope === 'Global' ? undefined : inviteScope === 'Client' ? (state.clients.some(c => c.id === inviteScopeId) ? inviteScopeId : state.clients[0]?.id) : inviteScopeId; prototypeStore.sendSimulatedInvitation({ email: identityEmail, name: identityName, role: identityRole, scopeKind: inviteScope, scopeId }); triggerNotice('success', 'Simulated invitation recorded locally; no message was sent.'); } catch (err: any) { triggerNotice('error', err.message); } }}>
+            <input className="input" aria-label="Invitation name" placeholder="Recipient name" value={identityName} onChange={e => setIdentityName(e.target.value)} required />
+            <input className="input" type="email" aria-label="Invitation email" placeholder="name@example.demo" value={identityEmail} onChange={e => setIdentityEmail(e.target.value)} required />
+            <select className="input" aria-label="Invitation scope" value={inviteScope} onChange={e => setInviteScope(e.target.value as typeof inviteScope)}><option>Client</option><option>Engagement</option><option>Global</option></select>
+            {inviteScope === 'Client' ? <select className="input" aria-label="Invitation scope identifier" value={inviteScopeId} onChange={e => setInviteScopeId(e.target.value)}>{state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : inviteScope === 'Engagement' ? <select className="input" aria-label="Invitation scope identifier" value={inviteScopeId} onChange={e => setInviteScopeId(e.target.value)}>{state.engagements.map(e => <option key={e.id} value={e.id}>{e.id}</option>)}</select> : <select className="input" aria-label="Invitation role" value={identityRole} onChange={e => setIdentityRole(e.target.value as RoleKey)}>{(['relationship','onboarding','compliance','partner','manager','preparer','reviewer','eqr','client_admin','client_finance','client','billing','records','admin'] as RoleKey[]).map(role => <option key={role}>{role}</option>)}</select>}
+            <button className="btn primary" type="submit">Record simulated invite</button>
+          </form>
+          <div className="tablewrap mt12"><table><thead><tr><th>Recipient</th><th>Role / Scope</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead><tbody>{(state.simulatedInvitations || []).map(invite => { const expired = invite.status === 'Pending' && Date.parse(invite.expiresAt) < Date.now(); const status = expired ? 'Expired' : invite.status; return <tr key={invite.id}><td>{invite.name}<div className="caption">{invite.email} · {invite.id}</div></td><td>{invite.role} · {invite.scopeKind}{invite.scopeId ? ` ${invite.scopeId}` : ''}</td><td>{status}</td><td>{new Date(invite.expiresAt).toLocaleDateString()}</td><td className="row">{invite.status === 'Pending' && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Reason for revoking this simulated invitation:'); if (reason) try { prototypeStore.revokeSimulatedInvitation(invite.id, reason); } catch (err: any) { triggerNotice('error', err.message); } }}>Revoke</button>}{invite.status !== 'Accepted' && <button className="btn sm ghost" onClick={() => { try { prototypeStore.resendSimulatedInvitation(invite.id); } catch (err: any) { triggerNotice('error', err.message); } }}>Renew 7 days</button>}{invite.status === 'Pending' && <button className="btn sm" onClick={() => { try { prototypeStore.acceptSimulatedInvitation(invite.id); triggerNotice('success', 'Simulated recipient accepted; this created no access grant.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Simulate acceptance</button>}</td></tr>; })}</tbody></table></div>
+          <details className="mt12"><summary className="caption">Identity lifecycle history ({state.identityStatusHistory?.length || 0})</summary><div className="tablewrap"><table><thead><tr><th>Time</th><th>Action</th><th>Identity</th><th>Actor</th><th>Reason</th></tr></thead><tbody>{(state.identityStatusHistory || []).map(event => <tr key={event.id}><td>{event.timestamp}</td><td>{event.action}</td><td>{event.userName} · {event.role}</td><td>{event.actor}</td><td>{event.reason || '—'}</td></tr>)}</tbody></table></div></details>
+        </div>
+      </div>}
 
       {/* Users Directory */}
       {activeTab === 'users' && (
