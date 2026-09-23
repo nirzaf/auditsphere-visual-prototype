@@ -68,7 +68,6 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
         { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
       ],
-      state: 'Proposed',
       reflectedInClientBooks: false,
       preparedBy: state.currentPerson,
       rationale: adjRationale
@@ -82,7 +81,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     prototypeStore.updateAdjustmentJournal({
       ...adj,
       reflectedInClientBooks: !adj.reflectedInClientBooks,
-      state: !adj.reflectedInClientBooks ? 'Reflected' : 'Approved'
+      reflectionStatus: !adj.reflectedInClientBooks ? 'Reflected in TB' : 'Not reflected'
     });
   };
 
@@ -340,17 +339,15 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     <div className="cell-sub">{adj.id} · Proposed by {adj.preparedBy}</div>
                   </div>
                   <div className="row" style={{ gap: 8 }}>
-                    <span className={`badge ${adj.state === 'Reflected' ? 'green' : 'amber'}`}>
-                      {adj.state}
+                    <span className={`badge ${adj.status === 'Management accepted' ? 'green' : adj.status === 'Rejected' ? 'red' : 'amber'}`}>
+                      {adj.status}
                     </span>
-                    <button
-                      className="btn sm ghost"
-                      onClick={() => handleToggleReflected(adj)}
-                    >
-                      {adj.reflectedInClientBooks ? 'Mark Unreflected' : 'Mark Reflected in Books'}
-                    </button>
+                    {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => prototypeStore.reviewAdjustmentJournal(adj.id, true)}>Complete Technical Review</button>}
+                    {['Management accepted', 'Reporting included'].includes(adj.status) && <button className="btn sm ghost" onClick={() => handleToggleReflected(adj)}>{adj.reflectedInClientBooks ? 'Mark Not Reflected' : 'Mark Reflected in TB'}</button>}
                   </div>
                 </div>
+                <div className="caption mt4">Source reflection: {adj.reflectionStatus} · Prepared by {adj.preparedBy}{adj.reviewedBy ? ` · Technical review by ${adj.reviewedBy}` : ''}{adj.managementAcceptedBy ? ` · Accepted by ${adj.managementAcceptedBy}` : ''}</div>
+                {adj.managementDecisionNote && <div className="caption mt4">Management decision note: {adj.managementDecisionNote}</div>}
 
                 <div className="tablewrap mt12">
                   <table>

@@ -21,6 +21,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadPbcModal, setUploadPbcModal] = useState<PbcRequestItem | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [rejectingAdjustmentId, setRejectingAdjustmentId] = useState<string | null>(null);
+  const [adjustmentRejectNote, setAdjustmentRejectNote] = useState('');
 
   // Client resolution supporting multi-entity grants (VP-025)
   const allowedClientIds = visibleClientIds(state);
@@ -124,6 +126,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
       triggerNotice('Management representation receipt recorded locally. No signature was captured.');
     } catch (err) {
       triggerNotice(err instanceof Error ? err.message : 'Management acknowledgement could not be recorded.');
+    }
+  };
+
+  const handleAdjustmentDecision = (journalId: string, accepted: boolean, note = '') => {
+    try {
+      prototypeStore.recordAdjustmentManagementDecision(journalId, accepted, note);
+      setRejectingAdjustmentId(null);
+      setAdjustmentRejectNote('');
+      triggerNotice(accepted ? 'Management accepted the adjustment for reporting.' : 'Management rejected the adjustment.');
+    } catch (err) {
+      triggerNotice(err instanceof Error ? err.message : 'Adjustment decision could not be recorded.');
     }
   };
 
@@ -496,6 +509,22 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
               <button className="btn primary sm mt12" disabled={!eng.acceptance} onClick={handleManagementApproval}>Record Representation Receipt</button>
             )}
           </>}
+          <div className="mt20">
+            <h3>Audit Adjustments for Management Decision</h3>
+            {!eng ? <p className="sub mt8">Select an engagement within your granted client scope.</p> : state.adjustmentJournals.filter(j => j.engagementId === eng.id && j.status === 'Technical review').length === 0 ? <p className="sub mt8">No technically reviewed adjustments are waiting for a decision.</p> : state.adjustmentJournals.filter(j => j.engagementId === eng.id && j.status === 'Technical review').map(journal => (
+              <div className="borderbox mt12" key={journal.id}>
+                <div className="between"><b>{journal.title}</b><span className="tag amber">Technical review complete</span></div>
+                <div className="caption mt4">{journal.id} · Reviewed by {journal.reviewedBy}</div>
+                {journal.rationale && <p className="sub mt8">{journal.rationale}</p>}
+                <ul className="caption mt8">{journal.lines.map((line, index) => <li key={index}>{line.accountCode} · {line.accountName} · {line.type} {formatCurrency(line.amount, eng.currency)}</li>)}</ul>
+                {rejectingAdjustmentId === journal.id ? <div className="stack mt12">
+                  <label className="caption" htmlFor="adjustment-rejection-note">Reason for rejection (required)</label>
+                  <textarea id="adjustment-rejection-note" className="input" rows={2} value={adjustmentRejectNote} onChange={e => setAdjustmentRejectNote(e.target.value)} required />
+                  <div className="row"><button className="btn sm danger" disabled={!adjustmentRejectNote.trim()} onClick={() => handleAdjustmentDecision(journal.id, false, adjustmentRejectNote)}>Confirm rejection</button><button className="btn sm ghost" onClick={() => { setRejectingAdjustmentId(null); setAdjustmentRejectNote(''); }}>Cancel</button></div>
+                </div> : <div className="row mt12"><button className="btn primary sm" onClick={() => handleAdjustmentDecision(journal.id, true)}>Accept adjustment</button><button className="btn sm ghost" onClick={() => { setRejectingAdjustmentId(journal.id); setAdjustmentRejectNote(''); }}>Reject adjustment</button></div>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

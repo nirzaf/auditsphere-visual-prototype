@@ -179,6 +179,55 @@ describe('time correction lifecycle (AT-28)', () => {
   });
 });
 
+describe('adjustment approval lifecycle (AT-38)', () => {
+  it('requires an independent technical reviewer and a scoped client management decision', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const storeState = (prototypeStore as any).state;
+    setPersona(storeState, 'Adam Khan');
+    prototypeStore.addAdjustmentJournal({
+      id: 'AJ-LIFECYCLE', engagementId: 'ENG-26001', title: 'Approval lifecycle fixture', status: 'Draft',
+      preparedBy: 'Adam Khan', reflectionStatus: 'Not reflected', reflectedInClientBooks: false,
+      lines: [
+        { accountCode: '5000', accountName: 'Operating expenses', type: 'debit', amount: 100, debit: 100, credit: 0 },
+        { accountCode: '1500', accountName: 'Property, plant and equipment', type: 'credit', amount: 100, debit: 0, credit: 100 }
+      ]
+    });
+    setPersona(storeState, 'Omar Nasser');
+    assert.throws(() => prototypeStore.recordAdjustmentManagementDecision('AJ-LIFECYCLE', true), /Only technically reviewed/);
+    setPersona(storeState, 'Layla Rahman');
+    prototypeStore.reviewAdjustmentJournal('AJ-LIFECYCLE', true);
+    const reviewed = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
+    assert.equal(reviewed.status, 'Technical review');
+    assert.equal(reviewed.reviewedBy, 'Layla Rahman');
+    setPersona(storeState, 'Omar Nasser');
+    assert.throws(() => prototypeStore.recordAdjustmentManagementDecision('AJ-LIFECYCLE', false), /requires a management rationale/);
+    prototypeStore.recordAdjustmentManagementDecision('AJ-LIFECYCLE', true);
+    const accepted = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
+    assert.equal(accepted.status, 'Management accepted');
+    assert.equal(accepted.managementAcceptedBy, 'Omar Nasser');
+    setPersona(storeState, 'Adam Khan');
+    prototypeStore.addAdjustmentJournal({
+      id: 'AJ-REJECT', engagementId: 'ENG-26001', title: 'Rejection lifecycle fixture', status: 'Draft',
+      preparedBy: 'Adam Khan', reflectionStatus: 'Not reflected', reflectedInClientBooks: false,
+      lines: [
+        { accountCode: '5000', accountName: 'Operating expenses', type: 'debit', amount: 50, debit: 50, credit: 0 },
+        { accountCode: '1500', accountName: 'Property, plant and equipment', type: 'credit', amount: 50, debit: 0, credit: 50 }
+      ]
+    });
+    setPersona(storeState, 'Layla Rahman');
+    prototypeStore.reviewAdjustmentJournal('AJ-REJECT', true);
+    setPersona(storeState, 'Omar Nasser');
+    assert.throws(() => prototypeStore.recordAdjustmentManagementDecision('AJ-REJECT', false), /requires a management rationale/);
+    prototypeStore.recordAdjustmentManagementDecision('AJ-REJECT', false, 'Amount is not supported by the fixed-asset schedule.');
+    const rejected = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-REJECT');
+    assert.equal(rejected.status, 'Rejected');
+    assert.equal(rejected.managementDecisionNote, 'Amount is not supported by the fixed-asset schedule.');
+    setPersona(storeState, 'Amira Qasim');
+    assert.throws(() => prototypeStore.recordAdjustmentManagementDecision('AJ-LIFECYCLE', true), /Role "relationship"/);
+  });
+});
+
 describe('evidence adequacy (AT-20/46)', () => {
   it('persists attributable adequacy and requires rationale for deficiency', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

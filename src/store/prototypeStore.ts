@@ -992,11 +992,50 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'create adjustment journals');
     requireEngagementScope(this.state, journal.engagementId);
     if (!journal.title.trim() || journal.lines.length < 2 || journal.lines.some(l => !l.accountCode.trim() || !l.accountName.trim() || !isValidMoney(l.amount)) || this.state.adjustmentJournals.some(j => j.id === journal.id)) throw new GuardError('INVALID_STATE', 'Journal needs a unique ID, title, at least two coded lines, and finite positive amounts.');
+    const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
+    if (!engagement || journal.lines.some(line => !engagement.rows.some(row => row.code === line.accountCode))) throw new GuardError('INVALID_STATE', 'Every adjustment account must exist in the engagement trial balance.');
     const debits = journal.lines.filter(l => l.type === 'debit').reduce((s, l) => s + l.amount, 0);
     const credits = journal.lines.filter(l => l.type === 'credit').reduce((s, l) => s + l.amount, 0);
     if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Adjustment journal must balance before it can be saved.');
-    this.state.adjustmentJournals.unshift({ ...journal, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined });
+    this.state.adjustmentJournals.unshift({ ...journal, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined, managementDecisionNote: undefined });
     this.logEvent(`Adjustment journal proposed: ${journal.title}`, journal.id);
+    this.notify();
+  }
+
+  public reviewAdjustmentJournal(journalId: string, approved: boolean) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'reviewer', 'partner'], 'technically review adjustment journals');
+    const journal = this.state.adjustmentJournals.find(item => item.id === journalId);
+    if (!journal) throw new GuardError('INVALID_STATE', 'Adjustment journal was not found.');
+    requireEngagementScope(this.state, journal.engagementId);
+    if (journal.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only draft adjustments can enter technical review.');
+    requireIndependentActor(journal.preparedBy, this.state.currentPerson, 'technically review this adjustment journal', this.state);
+    journal.status = approved ? 'Technical review' : 'Rejected';
+    journal.reviewedBy = this.state.currentPerson;
+    const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Adjustment journal ${journal.id} ${approved ? 'passed technical review' : 'rejected at technical review'} by ${this.state.currentPerson}`, journal.id);
+    this.notify();
+  }
+
+  public recordAdjustmentManagementDecision(journalId: string, accepted: boolean, note = '') {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['client'], 'record a management adjustment decision');
+    const journal = this.state.adjustmentJournals.find(item => item.id === journalId);
+    if (!journal) throw new GuardError('INVALID_STATE', 'Adjustment journal was not found.');
+    const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
+    if (!engagement) throw new GuardError('INVALID_STATE', 'Adjustment engagement was not found.');
+    requireClientScope(this.state, engagement.client);
+    requireEngagementScope(this.state, engagement.id);
+    if (journal.status !== 'Technical review' || !journal.reviewedBy) throw new GuardError('INVALID_STATE', 'Only technically reviewed adjustments can receive a management decision.');
+    requireIndependentActor(journal.preparedBy, this.state.currentPerson, 'record management acceptance of this adjustment', this.state);
+    requireIndependentActor(journal.reviewedBy, this.state.currentPerson, 'record management acceptance of this adjustment', this.state);
+    if (!accepted && !note.trim()) throw new GuardError('INVALID_STATE', 'A rejected adjustment requires a management rationale.');
+    journal.status = accepted ? 'Management accepted' : 'Rejected';
+    journal.managementAcceptedBy = accepted ? this.state.currentPerson : undefined;
+    journal.managementDecisionNote = note.trim() || undefined;
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Adjustment journal ${journal.id} ${accepted ? 'accepted' : 'rejected'} by management`, journal.id);
     this.notify();
   }
 
@@ -1008,13 +1047,9 @@ class PrototypeStore {
     if (index >= 0) {
       const current = this.state.adjustmentJournals[index];
       requireEngagementScope(this.state, current.engagementId);
-      if (journal.engagementId !== current.engagementId || journal.preparedBy !== current.preparedBy) throw new GuardError('INVALID_STATE', 'Journal ownership and engagement cannot be reassigned.');
-      if (journal.status !== current.status) {
-        requireIndependentActor(current.preparedBy, this.state.currentUserId, 'review their adjustment journal', this.state);
-        this.state.adjustmentJournals[index] = { ...journal, reviewedBy: this.state.currentPerson };
-      } else {
-        this.state.adjustmentJournals[index] = journal;
-      }
+      if (journal.engagementId !== current.engagementId || journal.preparedBy !== current.preparedBy || journal.title !== current.title || journal.status !== current.status || journal.reviewedBy !== current.reviewedBy || journal.managementAcceptedBy !== current.managementAcceptedBy || journal.managementDecisionNote !== current.managementDecisionNote || JSON.stringify(journal.lines) !== JSON.stringify(current.lines)) throw new GuardError('INVALID_STATE', 'Journal content, ownership and approval state are immutable after proposal. Use the guarded review and management-decision actions.');
+      if (Boolean(journal.reflectedInClientBooks) !== (journal.reflectionStatus === 'Reflected in TB')) throw new GuardError('INVALID_STATE', 'The source-reflected flag and reflection status must agree.');
+      this.state.adjustmentJournals[index] = journal;
       const eng = this.state.engagements.find(e => e.id === journal.engagementId);
       if (eng) this.invalidateReleaseBasis(eng);
       this.notify();

@@ -876,6 +876,49 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-38: routes a new adjustment through independent technical review and client acceptance', async () => {
+    const switchPersona = async (label: string, role: string) => {
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole===${JSON.stringify(role)}`), true);
+    };
+    const setField = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const el=document.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing field '+${JSON.stringify(selector)});const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:el instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setAccount = async (index: number, code: string) => browserTab!.evaluate(`(() => {const el=document.querySelectorAll('.modal-backdrop select')[${index}];if(!el)throw Error('Missing account selector');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,${JSON.stringify(code)});el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+
+    await switchPersona('Audit preparer — Adam Khan', 'preparer');
+    await clickButton('Accounting Workbench');
+    const adjustmentsTab = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Adjustments ('));if(!b)return false;b.click();return true;})()`);
+    assert.equal(adjustmentsTab, true);
+    await clickButton('Propose Adjustment Journal');
+    await setField('.modal-backdrop input[type="text"]', 'AT38 management review sample');
+    await setAccount(0, '5000');
+    await setAccount(1, '1500');
+    await setField('.modal-backdrop input[type="number"]', '1000');
+    await setField('.modal-backdrop textarea', 'Accrue the year-end depreciation based on the approved asset schedule.');
+    await clickButton('Propose Journal');
+    const journal = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.title==='AT38 management review sample'))()`);
+    assert.ok(journal?.id);
+    assert.equal(journal.status, 'Draft');
+    assert.equal(journal.preparedBy, 'Adam Khan');
+
+    await switchPersona('Engagement manager', 'manager');
+    await clickButton('Accounting Workbench');
+    const review = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Complete Technical Review');if(!b)return false;b.click();return true;})()`);
+    assert.equal(review, true, 'review action should be available to an independent manager');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}).status==='Technical review'`), true);
+
+    await switchPersona('Management approver', 'client');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Client Experience Portal")'), true);
+    const approvalsTab = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Management Approvals');if(!b)return false;b.click();return true;})()`);
+    assert.equal(approvalsTab, true);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("AT38 management review sample")'), true);
+    await clickButton('Accept adjustment');
+    const accepted = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}))()`);
+    assert.equal(accepted.status, 'Management accepted');
+    assert.equal(accepted.reviewedBy, 'Layla Rahman');
+    assert.equal(accepted.managementAcceptedBy, 'Omar Nasser');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
     const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
     assert.equal(targetResponse.ok, true);

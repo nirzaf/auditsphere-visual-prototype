@@ -17,9 +17,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   reflection-uncertain entries are excluded, missing account codes block output,
   and source rows remain unchanged. Unit and Chrome checks cover AJ-01 through
   statements and current-period equity; Chrome parses the generated package XLSX
-  and checks both accepted adjustment lines in the exact account rows. Full
-  adjustment approval/reflection,
-  general-ledger and downstream lineage workflows remain unverified. Chrome also
+  and checks both accepted adjustment lines in the exact account rows. A separate
+  Chrome journey covers draft creation, independent technical review and scoped
+  client management acceptance. Reflection/rejection edge matrices, general-ledger
+  and remaining downstream lineage workflows are still incomplete. Chrome also
   opens all 16 reports and checks CSV structure/client scoping; TB import retains
   predecessor rows and source hashes for balanced CSV and actual XLSX.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
@@ -52,9 +53,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 99/99 unit checks and 19/19 E2E checks passed. AT-28 and
+Latest recorded run: 100/100 unit checks and 20/20 E2E checks passed. AT-28 and
 AT-38/40 now have unit and actual Chrome coverage for time correction and
-accepted adjustments in financial statements. E2E is five static checks plus
-fourteen actual Chrome checks, including rendering all 31 staff navigation
+adjustment review/reporting. E2E is five static checks plus sixteen actual Chrome checks, including rendering all 31 staff navigation
 routes and selected workflow journeys. Route rendering is not full workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.

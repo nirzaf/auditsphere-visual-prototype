@@ -655,6 +655,7 @@ export interface AdjustmentJournalItem {
   preparedBy: string;
   reviewedBy?: string;
   managementAcceptedBy?: string;
+  managementDecisionNote?: string;
   reflectionStatus: 'Not reflected' | 'Reflected in TB' | 'Partially reflected' | 'Unknown';
   reflectedInClientBooks?: boolean;
   rationale?: string;
