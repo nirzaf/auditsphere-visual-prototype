@@ -2096,6 +2096,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Financial Statements');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Latest: v1 · Stale/);
       assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(button=>button.innerText.includes('Review statement revision v1'))`), false, 'stale statement set cannot be reviewed again');
+      await clickButton('Statement of Cash Flows');
+      const cashFlowDisclosure = await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Statement of Cash Flows"]')?.innerText || ''`);
+      assert.match(cashFlowDisclosure, /Cash-flow statement unavailable/);
+      assert.match(cashFlowDisclosure, /No cash-flow figures are inferred/);
+      assert.doesNotMatch(cashFlowDisclosure, /45,000|20,000|50,000/, 'cash flows contain no unsupported illustrative amounts');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

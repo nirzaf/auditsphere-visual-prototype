@@ -400,30 +400,12 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
 
       {/* 4: Statement of Cash Flows */}
       {statementType === 'cashflow' && (
-        <div className="panel panel-pad">
+        <section className="panel panel-pad" aria-label="Statement of Cash Flows">
           <h3>Statement of Cash Flows (Indirect Method)</h3>
-          <div className="tablewrap mt12">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cash Flow Activity</th>
-                  <th style={{ textAlign: 'right' }}>Amount (QAR)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Operating Profit Before Working Capital Changes</td><td style={{ textAlign: 'right' }}>{formatCurrency(is.netProfit)}</td></tr>
-                <tr><td style={{ paddingLeft: 24 }}>Depreciation of Property and Equipment</td><td style={{ textAlign: 'right' }}>{formatCurrency(45000)}</td></tr>
-                <tr><td style={{ paddingLeft: 24 }}>Net change in trade receivables and payables</td><td style={{ textAlign: 'right' }}>({formatCurrency(20000)})</td></tr>
-                <tr style={{ background: '#f8fafc' }}><td><b>Net Cash Generated from Operating Activities</b></td><td style={{ textAlign: 'right' }}><b>{formatCurrency(is.netProfit + 25000)}</b></td></tr>
-                <tr><td>Purchase of Property, Plant and Equipment</td><td style={{ textAlign: 'right' }}>({formatCurrency(50000)})</td></tr>
-                <tr style={{ background: '#f8fafc' }}><td><b>Net Cash Used in Investing Activities</b></td><td style={{ textAlign: 'right' }}><b>({formatCurrency(50000)})</b></td></tr>
-              </tbody>
-              <tfoot>
-                <tr><td><b>Net Increase in Cash and Cash Equivalents</b></td><td style={{ textAlign: 'right' }}><b>{formatCurrency(is.netProfit - 25000)}</b></td></tr>
-              </tfoot>
-            </table>
+          <div role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>
+            Cash-flow statement unavailable. This prototype stores trial-balance snapshots, not classified operating, investing, and financing cash movements. No cash-flow figures are inferred.
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

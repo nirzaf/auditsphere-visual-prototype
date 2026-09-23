@@ -183,7 +183,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   verifies that the saved current-period statement becomes durably stale and
   cannot be reviewed again; the guard also has a unit check. Comparative source
   and current mapping changes are covered by the shared stale-revision path.
-  Full layout/disclosure/cash-flow acceptance remains incomplete.
+  The cash-flow tab now explicitly reports unavailable because classified
+  operating, investing and financing movements are not stored; it no longer
+  displays unsupported sample amounts. Full cash-flow source-data, layout and
+  disclosure acceptance remains incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
