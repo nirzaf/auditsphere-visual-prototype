@@ -70,7 +70,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 17);
+    assert.equal(migrated.schema, 18);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -89,9 +89,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v17 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v18 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 16; version++) {
+    for (let version = 0; version <= 17; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -109,9 +109,11 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 15) legacy.samplePopulations.forEach((population: any) => { delete population.accountCode; delete population.period; delete population.currency; });
       if (version < 16) delete legacy.workpaperTemplates;
       if (version < 17) legacy.evidenceCatalogue.forEach((item: any) => { delete item.linkedProcedureHistory; delete item.adequacyHistory; });
+      if (version < 18) legacy.findings.forEach((item: any) => delete item.dispositionHistory);
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 17, `schema ${version} should reach v17`);
+      assert.equal(migrated.schema, 18, `schema ${version} should reach v18`);
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
+      assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -648,6 +650,69 @@ describe('evidence adequacy (AT-20/AT-46)', () => {
     prototypeStore.updateAuditProcedureStatus('ENG-26001', procedure.id, 'Submitted');
     assert.equal(procedure.evidenceReassessmentRequired, false);
     assert.throws(() => prototypeStore.replaceDocumentRevision(originalId, { name: 'duplicate.pdf', size: 1, sha256: 'b'.repeat(64) }), /already has a replacement/);
+  });
+});
+
+describe('finding lifecycle (VP-054)', () => {
+  it('separates gross and signed net amounts by currency and records disposition rationale', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    const base = { engagementId: 'ENG-26001', category: 'Monetary misstatement' as const, severity: 'Minor' as const, title: 'FX difference', condition: 'Rate mismatch identified.', recommendation: 'Recalculate at the approved closing rate.', affectedAccount: '1200', assertion: 'Valuation', currency: 'USD' };
+    const positiveId = prototypeStore.addFinding({ ...base, amount: 200 });
+    prototypeStore.addFinding({ ...base, title: 'Opposite direction difference', amount: -150 });
+    const positive = state.findings.find(item => item.id === positiveId)!;
+    assert.deepEqual([positive.grossMisstatement, positive.netMisstatement], [200, 200]);
+    const qualitativeId = prototypeStore.addFinding({ ...base, title: 'Control gap', category: 'Internal control deficiency', severity: 'Significant', amount: undefined, currency: undefined });
+    assert.equal(state.findings.find(item => item.id === qualitativeId)?.grossMisstatement, undefined);
+    assert.throws(() => prototypeStore.addFinding({ ...base, title: 'Missing currency', currency: '', amount: 10 }), /ISO currency/);
+    setPersona(state, 'Layla Rahman');
+    assert.throws(() => prototypeStore.setFindingDisposition(positiveId, 'Corrected in TB', 'Client says it was posted.'), /linked reviewed journal/);
+    assert.throws(() => prototypeStore.setFindingDisposition(positiveId, 'Corrected by client', ''), /rationale/);
+    prototypeStore.setFindingDisposition(positiveId, 'Corrected by client', 'Management supplied a revised signed schedule.');
+    const updated = state.findings.find(item => item.id === positiveId)!;
+    assert.equal(updated.disposition, 'Corrected by client');
+    assert.equal(updated.managementResponse, undefined, 'disposition rationale is not confused with client response');
+    assert.deepEqual(updated.dispositionHistory?.map(item => [item.from, item.disposition, item.rationale]), [['Proposed for correction', 'Corrected by client', 'Management supplied a revised signed schedule.']]);
+    const journal = state.adjustmentJournals.find(item => item.id === 'AJ-01')!;
+    journal.status = 'Reporting included';
+    journal.reflectionStatus = 'Reflected in TB';
+    const journalFinding = prototypeStore.addFinding({ ...base, title: 'Linked journal correction', amount: 25, linkedJournalId: journal.id });
+    prototypeStore.setFindingDisposition(journalFinding, 'Corrected in TB', 'Reviewed journal AJ-01 is reflected in the trial balance.');
+    assert.equal(state.findings.find(item => item.id === journalFinding)?.disposition, 'Corrected in TB');
+  });
+
+  it('requires scoped existing source references and preserves the originating sampling exception', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    const sample = state.samplePopulations[0];
+    sample.items[0].result = 'Exception noted';
+    sample.items[0].selected = true;
+    const id = prototypeStore.addFinding({ engagementId: sample.engagementId, category: 'Monetary misstatement', severity: 'Significant', title: 'Sample difference', condition: 'Confirmation differs from ledger.', recommendation: 'Investigate and propose correction.', affectedAccount: '1200', assertion: 'Existence', amount: 10, currency: sample.currency, linkedProcedureId: 'PRC-01', linkedEvidenceId: 'EVD-01', linkedSamplePopulationId: sample.id, linkedSampleItemId: sample.items[0].id });
+    const finding = state.findings.find(item => item.id === id)!;
+    assert.deepEqual([finding.linkedProcedureId, finding.linkedEvidenceId, finding.linkedSampleItemId], ['PRC-01', 'EVD-01', sample.items[0].id]);
+    assert.equal(sample.items[0].findingId, id);
+    assert.equal(sample.items[0].result, 'Exception noted', 'promotion preserves the original exception');
+    assert.throws(() => prototypeStore.addFinding({ engagementId: sample.engagementId, category: 'Monetary misstatement', severity: 'Minor', title: 'Bad link', condition: 'Issue.', recommendation: 'Correct.', affectedAccount: '1200', assertion: 'Existence', amount: 1, currency: 'QAR', linkedProcedureId: 'PRC-OTHER' }), /resolve within this engagement and client/);
+  });
+
+  it('keeps unresolved significant findings as an independent release gate', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    Object.assign(engagement, { acceptance: true, terms: true, planning: true, sourceAccepted: true, mappingApproved: true });
+    engagement.workpapers.forEach(item => { item.status = 'Not applicable'; item.applicable = false; });
+    engagement.reviews.forEach(item => { item.status = 'Cleared'; });
+    const findingId = prototypeStore.addFinding({ engagementId: engagement.id, category: 'Internal control deficiency', severity: 'Significant', title: 'Unresolved significant finding', condition: 'Required review control did not operate.', recommendation: 'Implement and evidence a secondary review.', affectedAccount: '1200', assertion: 'Completeness' });
+    assert.match(prototypeStore.evaluateReleaseReadiness(engagement.id).reason || '', /Unresolved material findings/);
+    setPersona(state, 'Layla Rahman');
+    prototypeStore.setFindingDisposition(findingId, 'Uncorrected waived', 'No further adjustment is proposed; the unresolved risk remains documented.');
+    assert.doesNotMatch(prototypeStore.evaluateReleaseReadiness(engagement.id).reason || '', /Unresolved material findings/);
   });
 });
 

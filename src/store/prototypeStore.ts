@@ -2660,6 +2660,45 @@ class PrototypeStore {
   }
 
   // --- Findings disposition (VP-054) -------------------------------------------
+  public addFinding(input: Omit<PrototypeState['findings'][number], 'id' | 'disposition' | 'dispositionHistory'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer', 'partner', 'eqr'], 'record audit findings');
+    requireEngagementScope(this.state, input.engagementId);
+    const engagement = this.state.engagements.find(item => item.id === input.engagementId);
+    if (!engagement || !input.title.trim() || !input.condition?.trim() || !input.recommendation?.trim() || !input.affectedAccount?.trim() || !input.assertion?.trim()) throw new GuardError('INVALID_STATE', 'Finding title, condition, recommendation, account and assertion are required.');
+    if (!['Monetary misstatement', 'Internal control deficiency', 'Disclosure omission'].includes(input.category || input.type || '')) throw new GuardError('INVALID_STATE', 'Choose a supported finding type.');
+    if (!['Material', 'Significant', 'Minor', 'Trivial'].includes(input.severity || '')) throw new GuardError('INVALID_STATE', 'Choose a supported finding severity.');
+    if (input.owner && !this.state.users.some(user => user.name === input.owner && user.status === 'Active')) throw new GuardError('INVALID_STATE', 'Finding owner must be an active practice identity.');
+    const category = input.category || input.type!;
+    const amount = input.amount;
+    if (category === 'Monetary misstatement') {
+      if (!Number.isFinite(amount) || amount === 0 || !/^[A-Z]{3}$/.test(input.currency || '')) throw new GuardError('INVALID_STATE', 'Monetary findings require a non-zero signed amount and ISO currency code.');
+    } else if (amount !== undefined && amount !== 0) throw new GuardError('INVALID_STATE', 'Qualitative findings cannot carry a monetary amount.');
+    const procedureExists = !input.linkedProcedureId || this.state.auditPrograms.some(program => (program.engagementId === input.engagementId || (!program.engagementId && input.engagementId === this.state.engagements[0]?.id)) && program.procedures.some(procedure => procedure.id === input.linkedProcedureId));
+    const workpaper = input.linkedWorkpaperId && engagement.workpapers.find(item => item.id === input.linkedWorkpaperId);
+    const evidence = input.linkedEvidenceId && this.state.evidenceCatalogue.find(item => item.id === input.linkedEvidenceId);
+    const evidenceDocument = evidence && this.state.documents.find(item => item.id === evidence.documentId && item.clientId === engagement.client && (!item.engagementId || item.engagementId === engagement.id));
+    const population = input.linkedSamplePopulationId && this.state.samplePopulations.find(item => item.id === input.linkedSamplePopulationId && item.engagementId === engagement.id);
+    const sampleItem = population && population.items.find(item => item.id === input.linkedSampleItemId && (item.result === 'Exception noted' || item.result === 'Exception'));
+    const journal = input.linkedJournalId && this.state.adjustmentJournals.find(item => item.id === input.linkedJournalId && item.engagementId === engagement.id);
+    const review = input.linkedReviewNoteId && engagement.reviews.find(item => item.id === input.linkedReviewNoteId);
+    if (!procedureExists || (input.linkedWorkpaperId && !workpaper) || (input.linkedEvidenceId && !evidenceDocument) || (input.linkedSamplePopulationId && !sampleItem) || (input.linkedJournalId && !journal) || (input.linkedReviewNoteId && !review)) throw new GuardError('FORBIDDEN_SCOPE', 'Every linked source must resolve within this engagement and client.');
+    const sequence = Math.max(0, ...this.state.findings.map(item => Number(item.id.match(/^FND-(\d+)$/)?.[1] || 0))) + 1;
+    const id = `FND-${String(sequence).padStart(3, '0')}`;
+    const finding: PrototypeState['findings'][number] = {
+      ...structuredClone(input), id, category, type: category,
+      grossMisstatement: category === 'Monetary misstatement' ? Math.abs(amount!) : undefined,
+      netMisstatement: category === 'Monetary misstatement' ? amount : undefined,
+      disposition: 'Proposed for correction', dispositionHistory: []
+    };
+    this.state.findings.unshift(finding);
+    if (sampleItem) sampleItem.findingId = id;
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Audit finding raised: ${finding.title}`, id);
+    this.notify();
+    return id;
+  }
+
   public setFindingDisposition(findingId: string, disposition: PrototypeState['findings'][0]['disposition'], rationale: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'reviewer', 'partner'], 'record finding dispositions');
@@ -2667,8 +2706,14 @@ class PrototypeStore {
     if (!f) return;
     requireEngagementScope(this.state, f.engagementId);
     if (!rationale || !rationale.trim()) throw new GuardError('INVALID_STATE', 'Finding disposition requires human rationale.');
+    if (disposition === f.disposition) throw new GuardError('INVALID_STATE', 'Choose a different finding disposition.');
+    if (disposition === 'Corrected in TB') {
+      const journal = f.linkedJournalId && this.state.adjustmentJournals.find(item => item.id === f.linkedJournalId && item.engagementId === f.engagementId);
+      if (!journal || journal.status !== 'Reporting included' || journal.reflectionStatus !== 'Reflected in TB') throw new GuardError('INVALID_STATE', 'A finding can be marked corrected in the trial balance only when its linked reviewed journal is included and reflected.');
+    }
+    f.dispositionHistory ||= [];
+    f.dispositionHistory.push({ disposition, from: f.disposition, actorId: this.state.currentUserId, rationale: rationale.trim(), at: new Date().toISOString() });
     f.disposition = disposition;
-    f.managementResponse = rationale;
     const eng = this.state.engagements.find(e => e.id === f.engagementId);
     if (eng) this.invalidateReleaseBasis(eng);
     this.logEvent(`Finding ${findingId} disposition: ${disposition}`, findingId);
@@ -2713,7 +2758,7 @@ class PrototypeStore {
     const openMaterialFindings = this.state.findings.filter(
       f => f.engagementId === eng.id &&
         !['Corrected in TB', 'Corrected by client', 'Waived as immaterial', 'Uncorrected waived'].includes(f.disposition) &&
-        (f.severity === 'Material' || f.category === 'Monetary misstatement')
+        (f.severity === 'Material' || f.severity === 'Significant')
     );
     if (openMaterialFindings.length > 0) return { ready: false, reason: 'Unresolved material findings exist' };
 

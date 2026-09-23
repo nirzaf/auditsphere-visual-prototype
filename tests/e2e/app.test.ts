@@ -2102,6 +2102,26 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('VP-054: records a sourced qualitative finding and durable reasoned disposition', async () => {
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Findings & Differences');
+    assert.equal(await browserTab!.evaluate<boolean>('document.body.innerText.includes("context only")'), true, 'materiality is contextual and does not auto-decide disposition');
+    await clickButton('Raise Finding');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const title=document.querySelector('[aria-label="Finding title"]');set.call(title,'VP-054 inventory count control gap');title.dispatchEvent(new Event('input',{bubbles:true}));const textareaSet=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;const condition=document.querySelector('[aria-label="Finding condition"]');textareaSet.call(condition,'Independent count sheets were not signed by a second counter.');condition.dispatchEvent(new Event('input',{bubbles:true}));const recommendation=document.querySelector('[aria-label="Finding recommendation"]');textareaSet.call(recommendation,'Require independent countersignature at each inventory location.');recommendation.dispatchEvent(new Event('input',{bubbles:true}));for(const [label,value] of [['Finding procedure','PRC-01'],['Finding evidence','EVD-01'],['Finding workpaper','WP-A1'],['Finding category','Internal control deficiency'],['Finding severity','Significant']]){const s=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,value);s.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+    await clickButton('Record Finding');
+    const created = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.title==='VP-054 inventory count control gap'))()`);
+    assert.ok(created?.id);
+    assert.deepEqual([created.category, created.severity, created.amount, created.linkedProcedureId, created.linkedEvidenceId, created.linkedWorkpaperId], ['Internal control deficiency', 'Significant', undefined, 'PRC-01', 'EVD-01', 'WP-A1']);
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Management adopted the independent count review procedure.';const s=document.querySelector('[aria-label="Disposition for ${created.id}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Corrected by client');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}').dispositionHistory?.length===1`), true, 'disposition rationale and actor are recorded in store history');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    const afterReload = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}'))()`);
+    assert.deepEqual([afterReload.disposition, afterReload.dispositionHistory[0].rationale], ['Corrected by client', 'Management adopted the independent count review procedure.']);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-47: opens the sign-offs and EQR workspace', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {

@@ -11,56 +11,73 @@ interface FindingsViewProps {
 
 export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [findings, setFindings] = useState<AuditFindingItem[]>(state.findings);
+  const findings = state.findings.filter(item => item.engagementId === state.selectedEngagement);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [notice, setNotice] = useState('');
 
   // New finding form
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<AuditFindingItem['category']>('Monetary misstatement');
   const [severity, setSeverity] = useState<AuditFindingItem['severity']>('Material');
   const [accounts, setAccounts] = useState('1200 - Property, Plant & Equipment');
-  const [grossAmount, setGrossAmount] = useState(28000);
+  const [amount, setAmount] = useState(28000);
+  const [currency, setCurrency] = useState('QAR');
   const [condition, setCondition] = useState('');
   const [recommendation, setRecommendation] = useState('');
+  const [managementResponse, setManagementResponse] = useState('');
+  const [proposedCorrection, setProposedCorrection] = useState('');
+  const [owner, setOwner] = useState(state.currentPerson);
+  const [assertion, setAssertion] = useState('Valuation');
+  const [evidenceId, setEvidenceId] = useState('');
+  const [procedureId, setProcedureId] = useState('');
+  const [workpaperId, setWorkpaperId] = useState('');
+  const [samplePopulationId, setSamplePopulationId] = useState('');
+  const [sampleItemId, setSampleItemId] = useState('');
+  const [journalId, setJournalId] = useState('');
+  const [reviewNoteId, setReviewNoteId] = useState('');
+  const engagement = state.engagements.find(item => item.id === state.selectedEngagement);
+  const approvedPlan = state.auditPlans?.filter(plan => plan.engagementId === state.selectedEngagement && plan.status === 'Approved').sort((a, b) => b.version - a.version)[0];
+  const availableProcedures = state.auditPrograms.filter(program => program.engagementId === state.selectedEngagement || (!program.engagementId && state.selectedEngagement === state.engagements[0]?.id)).flatMap(program => program.procedures);
+  const availableEvidence = state.evidenceCatalogue.filter(item => {
+    const document = state.documents.find(candidate => candidate.id === item.documentId);
+    return !!document && document.clientId === engagement?.client && (!document.engagementId || document.engagementId === state.selectedEngagement);
+  });
+  const availableSamples = state.samplePopulations.filter(population => population.engagementId === state.selectedEngagement).flatMap(population => population.items.filter(item => ['Exception noted', 'Exception'].includes(item.result)).map(item => ({ population, item })));
 
-  const totalMonetaryMisstatements = findings.reduce(
-    (sum, f) => sum + (f.category === 'Monetary misstatement' ? (f.grossMisstatement || 0) : 0),
-    0
-  );
+  const monetaryTotals = findings.filter(item => item.category === 'Monetary misstatement').reduce((totals, item) => {
+    const key = item.currency || 'QAR';
+    const total = totals.get(key) || { gross: 0, net: 0 };
+    total.gross += item.grossMisstatement ?? Math.abs(item.amount || 0);
+    total.net += item.netMisstatement ?? item.amount ?? 0;
+    totals.set(key, total);
+    return totals;
+  }, new Map<string, { gross: number; net: number }>());
 
   const handleAddFinding = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
-    const newFnd: AuditFindingItem = {
-      id: `FND-0${findings.length + 1}`,
-      engagementId: state.selectedEngagement,
-      title,
-      category,
-      severity,
-      financialStatementLine: accounts,
-      grossMisstatement: category === 'Monetary misstatement' ? grossAmount : undefined,
-      netMisstatement: category === 'Monetary misstatement' ? grossAmount : undefined,
-      condition,
-      recommendation,
-      disposition: 'Proposed for correction'
-    };
-
-    const updated = [newFnd, ...findings];
-    setFindings(updated);
-    state.findings = updated;
-    prototypeStore.logEvent(`Audit finding raised: ${title}`, newFnd.id);
-    setShowAddModal(false);
+    try {
+      prototypeStore.addFinding({
+        engagementId: state.selectedEngagement, title: title.trim(), category, severity,
+        financialStatementLine: accounts.trim(), affectedAccount: accounts.trim(), assertion,
+        condition: condition.trim(), description: condition.trim(), recommendation: recommendation.trim(), owner,
+        managementResponse: managementResponse.trim() || undefined, proposedCorrection: proposedCorrection.trim() || undefined,
+        amount: category === 'Monetary misstatement' ? amount : undefined,
+        currency: category === 'Monetary misstatement' ? currency : undefined,
+        linkedEvidenceId: evidenceId || undefined, linkedProcedureId: procedureId || undefined,
+        linkedWorkpaperId: workpaperId || undefined,
+        linkedSamplePopulationId: samplePopulationId || undefined, linkedSampleItemId: sampleItemId || undefined,
+        linkedJournalId: journalId || undefined, linkedReviewNoteId: reviewNoteId || undefined
+      });
+      setShowAddModal(false);
+      setNotice('Finding saved with its source references.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save finding.'); }
   };
 
-  const handleToggleDisposition = (id: string) => {
-    setFindings(prev => prev.map(f => {
-      if (f.id === id) {
-        const nextDisp = f.disposition === 'Corrected by client' ? 'Uncorrected waived' : 'Corrected by client';
-        return { ...f, disposition: nextDisp };
-      }
-      return f;
-    }));
+  const handleDisposition = (finding: AuditFindingItem, disposition: AuditFindingItem['disposition']) => {
+    const rationale = prompt(`Rationale for ${disposition}:`);
+    if (rationale === null) return;
+    try { prototypeStore.setFindingDisposition(finding.id, disposition, rationale); setNotice('Finding disposition and rationale recorded.'); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Could not update finding.'); }
   };
 
   return (
@@ -80,6 +97,8 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
         </div>
       </div>
 
+      {notice && <div role="status" className="panel panel-pad">{notice}</div>}
+
       <div className="metric-grid">
         <div className="metric">
           <span className="metric-label">Identified Findings</span>
@@ -88,8 +107,8 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
         </div>
         <div className="metric amber">
           <span className="metric-label">Accumulated Monetary Errors</span>
-          <div className="metric-val">{formatCurrency(totalMonetaryMisstatements)}</div>
-          <span className="metric-sub">Compared to PM: {formatCurrency(30000)}</span>
+          <div className="metric-val">{monetaryTotals.size ? [...monetaryTotals].map(([code, total]) => <div key={code}>{code} gross {formatCurrency(total.gross, code)} · net {formatCurrency(total.net, code)}</div>) : '—'}</div>
+          <span className="metric-sub">Gross and signed net totals are separate by currency. Approved overall materiality {approvedPlan ? `(${engagement?.currency || 'QAR'} ${formatCurrency(approvedPlan.overallMateriality, engagement?.currency || 'QAR')})` : 'is not approved'} is context only; it does not determine finding disposition.</span>
         </div>
         <div className="metric purple">
           <span className="metric-label">Control Deficiencies</span>
@@ -112,22 +131,19 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
                 </div>
               </div>
               <div className="row" style={{ gap: 8 }}>
-                <span className={`badge ${f.disposition === 'Corrected by client' ? 'green' : 'amber'}`}>
+                <span className={`badge ${['Corrected by client', 'Corrected in TB'].includes(f.disposition) ? 'green' : 'amber'}`}>
                   {f.disposition}
                 </span>
-                <button
-                  className="btn sm ghost"
-                  onClick={() => handleToggleDisposition(f.id)}
-                >
-                  Change Status
-                </button>
+                <select className="input" aria-label={`Disposition for ${f.id}`} value={f.disposition} onChange={e => handleDisposition(f, e.target.value as AuditFindingItem['disposition'])}>
+                  {['Uncorrected', 'Management agreed', 'Proposed for correction', 'Corrected by client', 'Corrected in TB', 'Waived as immaterial', 'Uncorrected waived'].map(value => <option key={value}>{value}</option>)}
+                </select>
               </div>
             </div>
 
-            {f.grossMisstatement && (
+            {f.category === 'Monetary misstatement' && (
               <div className="row mt12" style={{ gap: 20 }}>
-                <div><span className="caption">Gross Misstatement:</span> <b>{formatCurrency(f.grossMisstatement)}</b></div>
-                <div><span className="caption">Net Unadjusted:</span> <b>{formatCurrency(f.netMisstatement || 0)}</b></div>
+                <div><span className="caption">Gross Misstatement:</span> <b>{formatCurrency(f.grossMisstatement ?? Math.abs(f.amount || 0), f.currency || 'QAR')}</b></div>
+                <div><span className="caption">Signed Net Unadjusted:</span> <b>{formatCurrency(f.netMisstatement ?? f.amount ?? 0, f.currency || 'QAR')}</b></div>
               </div>
             )}
 
@@ -136,6 +152,10 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
               <p className="sub mt4">{f.condition}</p>
               <b className="mt12" style={{ display: 'block' }}>Auditor Recommendation:</b>
               <p className="sub mt4">{f.recommendation}</p>
+              <p className="cell-sub">Assertion: {f.assertion || '—'} · Evidence: {f.linkedEvidenceId || '—'} · Procedure: {f.linkedProcedureId || '—'} · Workpaper: {f.linkedWorkpaperId || '—'} · Journal: {f.linkedJournalId || '—'} · Review: {f.linkedReviewNoteId || '—'}{f.linkedSampleItemId ? ` · Sample: ${f.linkedSamplePopulationId}/${f.linkedSampleItemId}` : ''}</p>
+              {f.managementResponse && <p className="cell-sub">Management response: {f.managementResponse}</p>}
+              {f.proposedCorrection && <p className="cell-sub">Proposed correction: {f.proposedCorrection}</p>}
+              {(f.dispositionHistory || []).map((event, index) => <p key={index} className="cell-sub">{event.from} → {event.disposition} · {event.rationale} · {event.actorId} · {new Date(event.at).toLocaleString()}</p>)}
             </div>
           </div>
         ))}
@@ -153,9 +173,10 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div>
                   <label className="caption">Finding Title</label>
-                  <input
-                    type="text"
-                    className="input"
+                    <input
+                      type="text"
+                      className="input"
+                      aria-label="Finding title"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     placeholder="e.g. Unreconciled inventory cutoff discrepancy"
@@ -167,11 +188,12 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
                     <label className="caption">Category</label>
                     <select
                       className="input"
+                      aria-label="Finding category"
                       value={category}
                       onChange={e => setCategory(e.target.value as any)}
                     >
                       <option value="Monetary misstatement">Monetary misstatement</option>
-                      <option value="Control deficiency">Control deficiency</option>
+                      <option value="Internal control deficiency">Internal control deficiency</option>
                       <option value="Disclosure omission">Disclosure omission</option>
                     </select>
                   </div>
@@ -179,24 +201,29 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
                     <label className="caption">Severity</label>
                     <select
                       className="input"
+                      aria-label="Finding severity"
                       value={severity}
                       onChange={e => setSeverity(e.target.value as any)}
                     >
                       <option value="Material">Material</option>
-                      <option value="Significant">Significant Deficiency</option>
+                      <option value="Significant">Significant</option>
+                      <option value="Minor">Minor</option>
                       <option value="Trivial">Trivial</option>
                     </select>
                   </div>
                 </div>
                 {category === 'Monetary misstatement' && (
                   <div>
-                    <label className="caption">Gross Misstatement (QAR)</label>
+                    <label className="caption">Signed net difference</label>
                     <input
                       type="number"
                       className="input"
-                      value={grossAmount}
-                      onChange={e => setGrossAmount(Number(e.target.value))}
+                      aria-label="Finding signed amount"
+                      value={amount}
+                      onChange={e => setAmount(Number(e.target.value))}
+                      required
                     />
+                    <select className="input" aria-label="Finding currency" value={currency} onChange={e => setCurrency(e.target.value)}><option>QAR</option><option>USD</option></select>
                   </div>
                 )}
                 <div>
@@ -209,23 +236,38 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
                   />
                 </div>
                 <div>
+                  <label className="caption">Affected Assertion</label>
+                  <select className="input" aria-label="Finding assertion" value={assertion} onChange={e => setAssertion(e.target.value)}>{['Existence', 'Completeness', 'Valuation', 'Rights and obligations', 'Presentation'].map(value => <option key={value}>{value}</option>)}</select>
                   <label className="caption">Condition & Cause</label>
                   <textarea
                     className="input"
+                    aria-label="Finding condition"
                     rows={2}
                     value={condition}
                     onChange={e => setCondition(e.target.value)}
+                    required
                   />
                 </div>
                 <div>
                   <label className="caption">Auditor Recommendation</label>
                   <textarea
                     className="input"
+                    aria-label="Finding recommendation"
                     rows={2}
                     value={recommendation}
                     onChange={e => setRecommendation(e.target.value)}
+                    required
                   />
                 </div>
+                <label className="caption">Linked procedure<select className="input" aria-label="Finding procedure" value={procedureId} onChange={e => setProcedureId(e.target.value)}><option value="">None</option>{availableProcedures.map(item => <option key={item.id} value={item.id}>{item.ref || item.id} · {item.title}</option>)}</select></label>
+                <label className="caption">Linked evidence<select className="input" aria-label="Finding evidence" value={evidenceId} onChange={e => setEvidenceId(e.target.value)}><option value="">None</option>{availableEvidence.map(item => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label>
+                <label className="caption">Linked workpaper<select className="input" aria-label="Finding workpaper" value={workpaperId} onChange={e => setWorkpaperId(e.target.value)}><option value="">None</option>{engagement?.workpapers.map(item => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label>
+                <label className="caption">Linked sampled exception<select className="input" aria-label="Finding sample exception" value={sampleItemId ? `${samplePopulationId}/${sampleItemId}` : ''} onChange={e => { const [population, item] = e.target.value.split('/'); setSamplePopulationId(population || ''); setSampleItemId(item || ''); }}><option value="">None</option>{availableSamples.map(({ population, item }) => <option key={`${population.id}/${item.id}`} value={`${population.id}/${item.id}`}>{population.id} · {item.itemRef} · {item.result}</option>)}</select></label>
+                <label className="caption">Linked adjustment journal<select className="input" aria-label="Finding journal" value={journalId} onChange={e => setJournalId(e.target.value)}><option value="">None</option>{state.adjustmentJournals.filter(item => item.engagementId === state.selectedEngagement).map(item => <option key={item.id} value={item.id}>{item.id} · {item.title} · {item.status}</option>)}</select></label>
+                <label className="caption">Linked review point<select className="input" aria-label="Finding review point" value={reviewNoteId} onChange={e => setReviewNoteId(e.target.value)}><option value="">None</option>{engagement?.reviews.map(item => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label>
+                <label className="caption">Responsible owner<select className="input" aria-label="Finding owner" value={owner} onChange={e => setOwner(e.target.value)}>{state.users.filter(user => user.status === 'Active' && ['preparer','manager','partner','reviewer','eqr'].includes(user.role)).map(user => <option key={user.id}>{user.name}</option>)}</select></label>
+                <label className="caption">Management response<textarea className="input" aria-label="Management response" value={managementResponse} onChange={e => setManagementResponse(e.target.value)} rows={2} /></label>
+                <label className="caption">Proposed correction<textarea className="input" aria-label="Proposed correction" value={proposedCorrection} onChange={e => setProposedCorrection(e.target.value)} rows={2} /></label>
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowAddModal(false)}>Cancel</button>

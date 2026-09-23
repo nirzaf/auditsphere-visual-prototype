@@ -1039,7 +1039,12 @@ export interface FindingItem {
   owner?: string;
   linkedProcedureId?: string;
   linkedWorkpaperId?: string;
+  linkedEvidenceId?: string;
+  linkedSamplePopulationId?: string;
+  linkedSampleItemId?: string;
   linkedJournalId?: string;
+  linkedReviewNoteId?: string;
+  dispositionHistory?: Array<{ disposition: FindingItem['disposition']; from: FindingItem['disposition']; actorId: string; rationale: string; at: string }>;
 }
 
 export type AuditFindingItem = FindingItem;

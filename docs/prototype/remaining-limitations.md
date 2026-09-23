@@ -88,6 +88,16 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
   the unlink flow. Client projection isolation for internal evidence tags and
   issued-package provenance after unlink still need a full journey.
 
+- **VP-054 — findings:** the findings register now writes through guarded store
+  commands, validates scoped source references, preserves promoted sample
+  exceptions, accepts qualitative findings without amounts, and separates signed
+  net amounts from gross absolute totals by currency. Dispositions keep actor,
+  rationale and time; “Corrected in TB” requires a linked reviewed journal that
+  is reflected. Significant unresolved findings block release readiness. Chrome
+  verifies a sourced qualitative finding and durable disposition; sampled
+  exception promotion, financial aggregation and the complete reopen/waiver
+  matrix still need direct browser evidence.
+
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
   RSK-01↔PRC-03 link after reload, and schema v9 repairs legacy unscoped links.
@@ -177,7 +187,7 @@ Partial. Automated sources explicitly trace AT-01 through AT-54. See
 
 ## Verification snapshot
 
-Latest recorded run: 128/128 unit checks and 55/55 E2E checks passed. E2E
-includes five static checks and 50 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
+Latest recorded run: 131/131 unit checks and 56/56 E2E checks passed. E2E
+includes five static checks and 51 Chrome journeys. VP-051 and VP-052 are Verified; 37 modules remain Partial
 because full criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
