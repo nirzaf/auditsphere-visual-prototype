@@ -264,6 +264,20 @@ describe('proposal to engagement handoff (AT-10)', () => {
   });
 });
 
+describe('internal collaboration scope (AT-14)', () => {
+  it('rejects client and out-of-scope mention targets while retaining authorized internal notes', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const base = { id: 'CMT-AT14', subjectType: 'job', subjectId: 'JOB-2601', author: 'Layla Rahman', authorRole: 'manager', createdAt: '2026-09-23T10:00:00Z', text: 'Internal coordination note.', visibility: 'internal' };
+    assert.throws(() => target.addComment({ ...base, id: 'CMT-CLIENT-MENTION', mentions: ['client_admin'] }), /active users who can access this job/);
+    target.addComment({ ...base, mentions: ['partner'] });
+    assert.equal(target.state.comments.find((item: any) => item.id === base.id).mentions[0], 'partner');
+    assert.equal(target.state.events.some((event: any) => event.ref === base.id && event.text.includes('Local mention')), true);
+  });
+});
+
 describe('time correction lifecycle (AT-28)', () => {
   it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

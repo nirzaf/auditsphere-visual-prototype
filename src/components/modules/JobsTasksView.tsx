@@ -2,9 +2,10 @@
 // Delivery containers with strictly 1 level of subtasks, leaf-task progress, reassignment governance, and job creation.
 
 import React, { useState } from 'react';
-import { RouteKey, JobRecord, JobTaskItem } from '../../types';
+import { RouteKey, JobRecord, JobTaskItem, CommentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { visibleEngagementIds, isClientRole, canOpenRoute } from '../../services/guards';
 
 interface JobsTasksViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -22,6 +23,9 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
 
   // New task form state
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteMentions, setNoteMentions] = useState<string[]>([]);
   const [parentTaskIdForSubtask, setParentTaskIdForSubtask] = useState<string | undefined>(undefined);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('Adam Khan');
@@ -45,6 +49,16 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   // Filter tasks for selected job
   const jobTasks = state.jobTasks.filter(t => t.jobId === selectedJob?.id);
   const parentTasks = jobTasks.filter(t => !t.parentTaskId);
+  const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal');
+  const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
+
+  const handleAddInternalNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedJob) return;
+    const comment: CommentItem = { id: `CMT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, subjectType: 'job', subjectId: selectedJob.id, author: state.currentPerson, authorRole: state.currentRole, createdAt: new Date().toISOString(), text: noteText.trim(), visibility: 'internal', mentions: noteMentions };
+    try { prototypeStore.addComment(comment); setShowNoteModal(false); setNoteText(''); setNoteMentions([]); triggerNotice('success', `Internal note saved${noteMentions.length ? `; ${noteMentions.length} local mention${noteMentions.length === 1 ? '' : 's'} recorded` : ''}.`); }
+    catch (error: any) { triggerNotice('error', error.message); }
+  };
 
   // Compute leaf task progress
   const leafTasks = jobTasks.filter(t => {
@@ -346,6 +360,9 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     })
                   )}
                 </div>
+                <div className="divider mt20" />
+                <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => setShowNoteModal(true)}>Add Internal Note</button></div>
+                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
               </div>
             </div>
           )}
@@ -538,6 +555,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {showNoteModal && selectedJob && <div className="modal-backdrop" onClick={() => setShowNoteModal(false)}><form className="modal" style={{ maxWidth: 500 }} onSubmit={handleAddInternalNote} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>Add Internal Job Note</h2><button type="button" className="icon-btn" onClick={() => setShowNoteModal(false)}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}><label className="caption">Note (5,000 characters maximum)<textarea className="input" rows={4} maxLength={5000} required value={noteText} onChange={e => setNoteText(e.target.value)} /></label><label className="caption">Mention authorized colleagues<select className="input" multiple value={noteMentions} onChange={e => setNoteMentions(Array.from(e.target.selectedOptions, option => option.value))}>{mentionableUsers.filter(user => user.id !== state.currentUserId).map(user => <option key={user.id} value={user.id}>{user.name} · {user.label}</option>)}</select></label><p className="caption">Mentions are local notices only. They do not grant access or send email.</p></div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setShowNoteModal(false)}>Cancel</button><button className="btn primary sm" type="submit">Save Internal Note</button></div></form></div>}
     </div>
   );
 };

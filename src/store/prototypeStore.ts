@@ -5,7 +5,7 @@ import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, Job
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, GuardError } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, isClientRole, canOpenRoute, GuardError } from '../services/guards';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
 const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
@@ -784,8 +784,20 @@ class PrototypeStore {
       if (!job) throw new GuardError('INVALID_STATE', 'Comment subject was not found.');
       requireEngagementScope(this.state, job.engagementId);
     }
-    if (!comment.text.trim()) throw new GuardError('INVALID_STATE', 'Comment text is required.');
+    if (!comment.text.trim() || comment.text.length > 5000) throw new GuardError('INVALID_STATE', 'Comment text is required and must be 5,000 characters or fewer.');
+    if (comment.subjectType !== 'client' && comment.visibility !== 'internal') throw new GuardError('INVALID_STATE', 'Job, task and engagement comments must remain internal.');
+    if (this.state.comments.some(item => item.id === comment.id)) throw new GuardError('INVALID_STATE', `Comment "${comment.id}" already exists.`);
+    if (comment.subjectType === 'job' || comment.subjectType === 'task') {
+      const task = comment.subjectType === 'task' ? this.state.jobTasks.find(item => item.id === comment.subjectId) : undefined;
+      const job = comment.subjectType === 'job' ? this.state.jobs.find(item => item.id === comment.subjectId) : this.state.jobs.find(item => item.id === task?.jobId);
+      const eligibleIds = this.state.users.filter(user => {
+        const visible = visibleEngagementIds(this.state, user.id);
+        return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && (visible === 'ALL' || visible.includes(job!.engagementId));
+      }).map(user => user.id);
+      if ((comment.mentions || []).some(id => !eligibleIds.includes(id))) throw new GuardError('FORBIDDEN_SCOPE', 'Mention recipients must be active users who can access this job.');
+    }
     this.state.comments.push(comment);
+    (comment.mentions || []).forEach(id => this.logEvent(`Local mention for ${this.state.users.find(user => user.id === id)?.name} on ${comment.subjectType} ${comment.subjectId}`, comment.id));
     this.notify();
   }
 

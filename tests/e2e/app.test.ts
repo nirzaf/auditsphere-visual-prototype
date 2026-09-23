@@ -611,6 +611,23 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-14: keeps job notes internal and records only scope-authorized local mentions', async () => {
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
+    await clickButton('Add Internal Note');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 staff-only coordination note.');t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}));const s=document.querySelector('.modal-backdrop select[multiple]');const o=[...s.options].find(x=>x.textContent.includes('Daniel James'));if(!o)throw Error('No authorized staff mention option');o.selected=true;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save Internal Note');
+    const comment = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.text==='AT14 staff-only coordination note.')`);
+    assert.ok(comment);
+    assert.equal(comment.visibility, 'internal');
+    assert.equal(comment.mentions.length, 1);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 staff-only coordination note/);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const clientView = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(clientView, /CLIENT SECURE PORTAL/);
+    assert.doesNotMatch(clientView, /AT14 staff-only coordination note/);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
