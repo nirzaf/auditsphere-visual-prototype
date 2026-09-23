@@ -63,7 +63,7 @@ describe('reconciliation schedules (VP-039)', () => {
     assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, items: [{ id: 'RI-FUTURE', date: '2099-01-01', description: 'Out of period', amount: 1, type: 'Timing item' }] }), /dated in-scope items/);
     assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, items: [{ id: 'RI-USD', date: state.asOfDate, description: 'Wrong currency', amount: 1, type: 'Timing item', currency: 'USD' }] }), /engagement currency/);
     const id = prototypeStore.saveReconciliationSchedule(engagement.id, input);
-    const schedule = engagement.reconciliations.find(item => item.id === id)!;
+    let schedule = engagement.reconciliations.find(item => item.id === id)!;
     assert.equal(schedule.glBalance, account.balance);
     assert.equal(schedule.status, 'Draft');
     assert.throws(() => prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved'), /same person cannot review their own work/);
@@ -79,6 +79,16 @@ describe('reconciliation schedules (VP-039)', () => {
     schedule.items[0].evidenceDoc = 'DOC-002';
     assert.throws(() => prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved'), /proposed corrections must link/);
     schedule.items = [];
+    prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Returned', 'Clarify statement date and scope');
+    assert.equal(schedule.status, 'Returned');
+    assert.equal(schedule.reviewNote, 'Clarify statement date and scope');
+    state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
+    prototypeStore.saveReconciliationSchedule(engagement.id, { ...schedule, asOfDate: '2026-09-22' });
+    schedule = engagement.reconciliations.find(item => item.id === id)!;
+    assert.equal(schedule.revision, 2);
+    assert.equal(schedule.history?.[0].status, 'Returned');
+    assert.equal(schedule.history?.[0].reviewNote, 'Clarify statement date and scope');
+    state.currentUserId = 'reviewer'; state.currentRole = 'reviewer'; state.currentPerson = 'Sara Malik';
     prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved');
     assert.equal(schedule.status, 'Approved');
     state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
@@ -87,7 +97,7 @@ describe('reconciliation schedules (VP-039)', () => {
     prototypeStore.saveReconciliationSchedule(engagement.id, { ...schedule, statementBalance: account.balance, evidence: replacement.id });
     let current = engagement.reconciliations.find(item => item.id === id)!;
     assert.equal(current.status, 'Draft');
-    assert.equal(current.history?.[0].status, 'Approved');
+    assert.equal(current.history?.some(item => item.status === 'Approved'), true);
     assert.equal(current.evidence, replacement.id);
     const offsetRow = engagement.rows.find(row => row.code !== account.code)!;
     prototypeStore.updateTrialBalanceRows(engagement.id, engagement.rows.map(row => ({ ...row, balance: row.code === account.code ? row.balance + 1 : row.code === offsetRow.code ? row.balance - 1 : row.balance })));

@@ -14,8 +14,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   evidence and unlinked proposed corrections. Unit coverage verifies a saved
   approved revision is retained and TB or referenced-document replacement
   stales the live schedule; Chrome verifies draft creation, self-approval
-  denial and independent approval. Browser return/rework and the full
-  evidence-to-source lifecycle need direct evidence.
+  denial, reasoned return, manager rework as a new revision, retained return
+  rationale and independent approval against scoped evidence. Fully external
+  statement provenance and subsequent bank reconciliation remain outside the
+  local simulation.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.

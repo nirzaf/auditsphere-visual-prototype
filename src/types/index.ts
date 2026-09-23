@@ -770,7 +770,7 @@ export interface ReconciliationSchedule {
   reviewedByUserId?: string;
   reviewedAt?: string;
   reviewNote?: string;
-  history?: Array<{ revision: number; sourceVersion: number; status: ReconciliationSchedule['status']; savedAt: string; savedByUserId: string; glBalance?: number; statementBalance?: number; items: NonNullable<ReconciliationSchedule['items']>; reviewedByUserId?: string; reviewedAt?: string }>;
+  history?: Array<{ revision: number; sourceVersion: number; status: ReconciliationSchedule['status']; savedAt: string; savedByUserId: string; glBalance?: number; statementBalance?: number; items: NonNullable<ReconciliationSchedule['items']>; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string }>;
   items?: Array<{
     id: string;
     date: string;
