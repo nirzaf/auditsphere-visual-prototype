@@ -17,9 +17,9 @@ This working-tree change has not yet been committed or deployed.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | working tree based on `53bf67c` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (557 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | working tree based on `53bf67c` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
-| 2026-09-23 | working tree based on `53bf67c` | `npm run test:e2e` | PASS — 15/15 | Five static checks and ten real Chrome checks. Reporting opens all 16 views, checks tables/CSV headers and client export scoping. Consolidation checks pinned snapshots, approved QAR 50,000 elimination, balanced totals and unchanged source TB. Other paths exercise M365 setup/recovery, scoped grants, staff routes, annual continuance, artifact-bound release/amendment/archive, and storage conflict/quota behavior. |
+| 2026-09-23 | working tree based on `21acdc9` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (558 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | working tree based on `21acdc9` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
+| 2026-09-23 | working tree based on `21acdc9` | `npm run test:e2e` | PASS — 16/16 | Five static checks and eleven real Chrome checks. Reporting opens all 16 views, checks tables/CSV headers and client export scoping. Consolidation checks pinned snapshots, approved QAR 50,000 elimination, balanced totals and unchanged source TB. TB intake rejects unbalanced CSV, commits balanced CSV and genuine XLSX, and verifies source history lineage/hash. Other paths exercise M365 setup/recovery, scoped grants, staff routes, annual continuance, artifact-bound release/amendment/archive, and storage conflict/quota behavior. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
@@ -33,6 +33,9 @@ structure, with explicit cross-client leakage checks on a filtered export.
 The AT-43/44/45 journey checks the configured group perimeter, local currency
 rates, approved elimination, balanced output and source-TB immutability. It does
 not cover perimeter edits, missing-component recovery or non-base-currency rates.
+The AT-35 import journey drives CSV and actual XLSX files through the UI,
+checking that a rejected preview leaves the accepted source unchanged and that
+accepted replacements retain predecessor rows and source identities.
 
 ## Acceptance status
 

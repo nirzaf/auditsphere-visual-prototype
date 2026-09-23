@@ -7,6 +7,7 @@ import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
+import * as XLSX from 'xlsx';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
@@ -653,6 +654,60 @@ describe('actual Chrome browser acceptance', () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Stored group rates translate the pinned component snapshots/);
     const sourceAfter = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
     assert.equal(sourceAfter, sourceBefore, 'consolidation review must not mutate component trial balances');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('AT-35: rejects an unbalanced TB import then preserves the accepted source revision on replacement', async () => {
+    const before = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,history:e.sourceHistory};})()`);
+    await clickButton('Accounting Workbench');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Trial-Balance Intake")'), true);
+    const file = (name: string, contents: string) => `(() => {
+      const input=document.querySelector('input[type=file]'); const transfer=new DataTransfer();
+      transfer.items.add(new File([${JSON.stringify(contents)}],${JSON.stringify(name)},{type:'text/csv'}));
+      input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`;
+    await browserTab!.evaluate(file('unbalanced.csv', 'code,name,balance\n1000,Cash,100\n2000,Payables,-50\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: unbalanced.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Unbalanced preview")'), true);
+    const rejected = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
+    assert.equal(rejected.version, before.version);
+    assert.deepEqual(rejected.rows, before.rows);
+
+    await browserTab!.evaluate(file('replacement.csv', 'code,name,balance\n1000,Cash,100\n2000,Payables,-100\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: replacement.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true);
+    await clickButton('Commit as new source revision');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').sourceVersion === ${before.version + 1}`), true);
+    const after = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,history:e.sourceHistory};})()`);
+    assert.deepEqual(after.history.find((item: any) => item.version === before.version).rows, before.rows, 'previous accepted rows remain in source history');
+    const imported = after.history.find((item: any) => item.version === after.version);
+    assert.equal(imported.fileName, 'replacement.csv');
+    assert.match(imported.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(imported.predecessorVersion, before.version);
+    assert.deepEqual(imported.rows, after.rows);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['code', 'name', 'balance'], ['4000', 'Revenue', -50], ['5000', 'Expense', 50]]), 'TB');
+    const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+    await browserTab!.evaluate(`(() => {
+      const raw=atob(${JSON.stringify(base64)}); const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+      const input=document.querySelector('input[type=file]'); const transfer=new DataTransfer();
+      transfer.items.add(new File([bytes], 'replacement.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: replacement.xlsx")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true);
+    await clickButton('Commit as new source revision');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').sourceVersion === ${before.version + 2}`), true);
+    const xlsxRevision = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.sourceHistory.find(x=>x.version===e.sourceVersion);})()`);
+    assert.equal(xlsxRevision.fileName, 'replacement.xlsx');
+    assert.equal(xlsxRevision.format, 'XLSX');
+    assert.equal(xlsxRevision.predecessorVersion, before.version + 1);
+    assert.match(xlsxRevision.sha256, /^[0-9a-f]{64}$/);
+    assert.deepEqual(xlsxRevision.rows.map((row: any) => row.balance), [-50, 50]);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

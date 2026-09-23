@@ -14,7 +14,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **R08 — accounting history:** imported trial-balance snapshots and mapping/source
   metadata are retained by revision. The complete adjustment-to-report pipeline
   remains unverified. Chrome now opens all 16 practice reports and inspects CSV
-  structure, with a filtered client export checked for cross-client leakage.
+  structure, with a filtered client export checked for cross-client leakage. The
+  TB UI rejects unbalanced CSV, commits balanced CSV and actual XLSX, and retains
+  predecessor rows and source hashes; full GL and adjustment workflows remain.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. Perimeter edits, missing-component recovery, and
@@ -24,7 +26,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
   package persistence/release/amendment/archive, the full report catalogue and
-  storage recovery journeys. Complete AT-01–AT-54 have not been executed.
+  storage recovery journeys, plus CSV/XLSX TB source replacement. Complete
+  AT-01–AT-54 have not been executed.
   Invitation/access history, AML/KYC evidence, procedures/sampling, report data
   reconciliation and other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
@@ -43,8 +46,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 97/97 unit checks and 15/15 E2E checks passed. E2E is five
-static checks plus ten actual Chrome checks, including rendering all 31 staff
+Latest recorded run: 97/97 unit checks and 16/16 E2E checks passed. E2E is five
+static checks plus eleven actual Chrome checks, including rendering all 31 staff
 navigation routes and selected workflow journeys. Route rendering is not full
 workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.
