@@ -392,6 +392,29 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-051: selects scoped population items and persists substantive test exceptions', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Audit preparer'));if(!o)throw Error('Preparer persona missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === 'preparer'`), true);
+    await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Sampling & Populations');if(!r)throw Error('Sampling route missing');r.click();})()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Substantive Sampling & Population Testing")'), true);
+    const selectedBefore = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations.find(x=>x.id==='POP-01').selectedCount`);
+    const unchecked = await browserTab!.evaluate<boolean>(`(() => {const c=document.querySelector('[data-sample-item="SAMP-01"] input[type=checkbox]');if(!c)return false;c.click();return true;})()`);
+    assert.equal(unchecked, true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations.find(x=>x.id==='POP-01').selectedCount === ${selectedBefore - 1}`), true, 'sample selection count recalculates and saves');
+    await browserTab!.evaluate(`(() => {document.querySelector('[data-sample-item="SAMP-01"] input[type=checkbox]').click();})()`);
+    const amountSet = await browserTab!.evaluate<boolean>(`(() => {const row=document.querySelector('[data-sample-item="SAMP-01"]');const input=row?.querySelector('[data-audited-amount]');if(!input)return false;const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,'249000');input.dispatchEvent(new Event('input',{bubbles:true}));const note=row.querySelector('[data-test-notes]');const setNote=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;setNote.call(note,'Vouched to confirmation; QAR 1,000 shortfall requires follow-up.');note.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`);
+    assert.equal(amountSet, true);
+    const record = await browserTab!.evaluate<boolean>(`(() => {const row=document.querySelector('[data-sample-item="SAMP-01"]');const b=[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Record test');if(!b)return false;b.click();return true;})()`);
+    assert.equal(record, true);
+    assert.equal(await waitForBrowser(`(() => {const i=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations.find(x=>x.id==='POP-01').items.find(x=>x.id==='SAMP-01');return i.tested&&i.result==='Exception noted'&&i.difference===-1000&&i.notes.includes('QAR 1,000 shortfall');})()`), true, `test amount, exception and notes persist: ${await browserTab!.evaluate<string>(`(() => {const i=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations.find(x=>x.id==='POP-01').items.find(x=>x.id==='SAMP-01');return JSON.stringify({i,notice:document.querySelector('[role=status]')?.innerText,role:JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole});})()`)}`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Sampling & Populations');r.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('[data-sample-item="SAMP-01"]')?.innerText.includes('Exception noted')`), true, 'saved test result renders after reload');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const i=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations[0];return i.engagementId==='ENG-26001'&&i.selectedCount===3&&i.selectedValue===500000;})()`), true);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-050: persists procedure fieldwork and requires independent reviewer clearance', async () => {
     const switchRole = async (label: string, role: string) => {
       await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);

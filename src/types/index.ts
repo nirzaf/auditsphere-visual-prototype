@@ -796,6 +796,7 @@ export interface AuditProgramItem {
 
 export interface SamplePopulationItem {
   id: string;
+  engagementId?: string;
   area: string;
   name?: string;
   accountCode?: string;
@@ -821,6 +822,7 @@ export interface SamplePopulationItem {
     result: 'Satisfactory' | 'Exception noted' | 'Untested' | 'Exception';
     notes?: string;
     evidenceDoc?: string;
+    selected?: boolean;
   }>;
 }
 

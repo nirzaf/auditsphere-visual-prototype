@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 9;
+export const CURRENT_SCHEMA = 10;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -190,6 +190,13 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }
     }
     warnings.push('Scoped legacy risks and programs to the default engagement and restored reciprocal risk/procedure lineage (v9).');
+  }
+  if (from < 10) {
+    for (const population of state.samplePopulations || []) {
+      population.engagementId ||= state.selectedEngagement || state.engagements[0]?.id;
+      for (const item of population.items || []) item.selected ??= true;
+    }
+    warnings.push('Scoped legacy sample populations to an engagement and retained existing sample selection (v10).');
   }
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };

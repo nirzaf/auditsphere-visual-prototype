@@ -999,6 +999,7 @@ export function createInitialState(): PrototypeState {
     samplePopulations: [
       {
         id: 'POP-01',
+        engagementId: 'ENG-26001',
         area: 'Trade Receivables Sampling',
         description: 'Customer balances outstanding as of 31 Dec 2026',
         totalPopulationCount: 45,
@@ -1006,9 +1007,9 @@ export function createInitialState(): PrototypeState {
         selectedCount: 3,
         selectedValue: 500000,
         items: [
-          { id: 'SAMP-01', itemRef: 'CUST-001', date: '2026-12-10', counterparty: 'Customer A (Al-Doha Trading)', amount: 250000, tested: true, result: 'Satisfactory', notes: 'Positive confirmation received agreeing balance.' },
-          { id: 'SAMP-02', itemRef: 'CUST-002', date: '2026-12-15', counterparty: 'Customer B (Gulf Tech W.L.L.)', amount: 175000, tested: true, result: 'Satisfactory', notes: 'Positive confirmation received.' },
-          { id: 'SAMP-03', itemRef: 'CUST-003', date: '2026-09-18', counterparty: 'Customer C (Pearl Logistics)', amount: 75000, tested: true, result: 'Satisfactory', notes: 'Verified subsequent clearance in January bank statements.' }
+          { id: 'SAMP-01', itemRef: 'CUST-001', date: '2026-12-10', counterparty: 'Customer A (Al-Doha Trading)', amount: 250000, tested: true, selected: true, result: 'Satisfactory', notes: 'Positive confirmation received agreeing balance.' },
+          { id: 'SAMP-02', itemRef: 'CUST-002', date: '2026-12-15', counterparty: 'Customer B (Gulf Tech W.L.L.)', amount: 175000, tested: true, selected: true, result: 'Satisfactory', notes: 'Positive confirmation received.' },
+          { id: 'SAMP-03', itemRef: 'CUST-003', date: '2026-09-18', counterparty: 'Customer C (Pearl Logistics)', amount: 75000, tested: true, selected: true, result: 'Satisfactory', notes: 'Verified subsequent clearance in January bank statements.' }
         ]
       }
     ],

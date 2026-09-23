@@ -16,9 +16,9 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 110/110 | Schema v9 migration restores engagement scope and reciprocal risk/procedure links; cross-engagement link guard plus prior workflow rules pass. |
-| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 39/39 | Five static checks and 34 actual Chrome checks. VP-049 edits scoped risks and checks reciprocal links after reload; VP-050 persists independent fieldwork clearance; AT-23/24 verifies PBC bytes and digests after reload. |
-| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.02 MB (572.52 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 111/111 | Schema v10 migration restores sample engagement scope and legacy selection; VP-051 command checks require selection and record an exception variance. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 40/40 | Five static checks and 35 actual Chrome checks. VP-051 changes selection totals, saves an exception/result/notes and verifies them after reload, alongside VP-049/050 and prior journeys. |
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.02 MB (572.96 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `b42324e` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `7462804d-cc64-47b1-be04-ff849ff4ee74`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BeTW39ZE.js`. Served bundle contains `updateAuditRisk` and `setAuditRiskProcedureLink`. |
 | 2026-09-23 | `49e9ed8` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `7d4033e3-3682-4742-a76b-fa6189081852`; release URL and `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-273pKITI.js`. The served bundle contains the procedure execution controls and PBC retention flow. |
 | 2026-09-23 | `b68bbe1` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `74e0efcc-b45d-4380-971e-12ab0cc300d8`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index--1Rj-hLz.js`. |
@@ -35,7 +35,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 | 2026-09-23 | `e7f41d1` | `npm run test:e2e` | PASS — 33/33 | Five static checks and 28 actual Chrome checks. VP-031 denies invoice self-review, requires separate invoice and credit approval/issue, and updates outstanding balance after a partial credit. |
 | 2026-09-23 | `e7f41d1` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `80077bf7-795d-4752-8bbc-ad966d8c4f55`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-B7zPlDhB.js`. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.96 MB (559 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | working tree based on `d6a226d` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks, PBC clarification/replacement/acceptance, and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
+| 2026-09-23 | working tree based on `d6a226d` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–9, continuance guards, source revisions, artifact/package checks, PBC clarification/replacement/acceptance, and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
 | 2026-09-23 | working tree after `823c311` | `npm run test:unit` | PASS — 98/98, 21 suites | AT-28 lifecycle covers manager return, owner resubmission, independent approval, approved-time correction and retained superseded revisions. |
 | 2026-09-23 | working tree after `823c311` | `npm run test:e2e` | PASS — 18/18 | Five static checks and thirteen actual Chrome checks. AT-28 exercises the complete entry, return, resubmission, approval and correction UI lifecycle; the other documented browser journeys remain as stated above. |
@@ -143,7 +143,7 @@ journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
 remaining end-to-end acceptance journeys across the modules (R12); and browser
 storage limits on the explicitly local archive scope (R14). Purview/provider
 retention locks and physical deletion controls are excluded acceptance scope. The
-current checks cover schema migrations 0–8 and browser storage conflict/quota
+current checks cover schema migrations 0–9 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to
 source/bundle probes and exercised Chrome journeys. The prototype remains

@@ -1874,6 +1874,43 @@ class PrototypeStore {
     this.notify();
   }
 
+  public setSampleItemSelected(populationId: string, itemId: string, selected: boolean) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer', 'partner'], 'select substantive sample items');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
+    requireEngagementScope(this.state, population.engagementId);
+    const item = population.items.find(candidate => candidate.id === itemId);
+    if (!item) throw new GuardError('INVALID_STATE', 'Sample item was not found in this population.');
+    item.selected = selected;
+    population.selectedCount = population.items.filter(candidate => candidate.selected).length;
+    population.selectedValue = population.items.filter(candidate => candidate.selected).reduce((sum, candidate) => sum + candidate.amount, 0);
+    const engagement = this.state.engagements.find(candidate => candidate.id === population.engagementId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Sample item ${itemId} ${selected ? 'selected' : 'removed from selection'}`, populationId);
+    this.notify();
+  }
+
+  public recordSampleItemTest(populationId: string, itemId: string, auditedAmount: number, notes: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer'], 'record substantive sample testing');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
+    requireEngagementScope(this.state, population.engagementId);
+    const item = population.items.find(candidate => candidate.id === itemId);
+    if (!item?.selected) throw new GuardError('INVALID_STATE', 'Select the population item before recording test results.');
+    if (!Number.isFinite(auditedAmount) || auditedAmount < 0 || !notes.trim()) throw new GuardError('INVALID_STATE', 'Audited amount must be non-negative and testing notes are required.');
+    item.auditedAmount = auditedAmount;
+    item.difference = auditedAmount - (item.recordedAmount ?? item.amount);
+    item.tested = true;
+    item.result = item.difference === 0 ? 'Satisfactory' : 'Exception noted';
+    item.notes = notes.trim();
+    const engagement = this.state.engagements.find(candidate => candidate.id === population.engagementId);
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Sample item ${itemId} test recorded: ${item.result}`, populationId);
+    this.notify();
+  }
+
   // --- Findings disposition (VP-054) -------------------------------------------
   public setFindingDisposition(findingId: string, disposition: PrototypeState['findings'][0]['disposition'], rationale: string) {
     requireActiveIdentity(this.state);

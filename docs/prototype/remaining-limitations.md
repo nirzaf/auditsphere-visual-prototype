@@ -61,6 +61,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Reusable program-template administration, risk revisions, and the complete
   change/rework matrix remain incomplete.
 
+- **VP-051 — substantive sampling:** populations are engagement-scoped; Chrome
+  selects an item, recalculates selected count/value, records an audited amount
+  and notes, and verifies the exception after reload. Full source-population
+  import, replacement history, and reselection after replacement remain partial.
+
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
   scoped proposal drafting, independent review and presentation.
@@ -94,7 +99,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. Perimeter edits, missing-component recovery, and
   non-base-currency translation workflows remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–8 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–9 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -104,7 +109,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   creation/contact/custom-field/relationship-group and Client 360 navigation
   journeys (AT-05/06). Complete
   AT-01–AT-54 have not been executed.
-  Invitation/access history, AML/KYC evidence, procedures/sampling, report data
+  Invitation/access history, AML/KYC evidence, full source-driven sampling, report data
   reconciliation and other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
@@ -130,8 +135,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 110/110 unit checks and 39/39 E2E checks passed. E2E
-includes five static checks and 34 actual Chrome checks. It exercises the
+Latest recorded run: 111/111 unit checks and 40/40 E2E checks passed. E2E
+includes five static checks and 35 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
 full AT-01–AT-54 suite has not run, and route rendering is not full workflow

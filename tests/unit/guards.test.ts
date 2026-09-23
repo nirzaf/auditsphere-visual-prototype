@@ -69,11 +69,11 @@ describe('fixture integrity (AT-02/54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 9);
+    assert.equal(migrated.schema, 10);
   });
-  it('upgrades each persisted schema revision through current v9 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v10 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 8; version++) {
+    for (let version = 0; version <= 9; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -84,19 +84,39 @@ describe('fixture integrity (AT-02/54)', () => {
         legacy.auditRisks.forEach((risk: any) => delete risk.engagementId);
         legacy.auditPrograms.forEach((program: any) => { delete program.engagementId; program.procedures.forEach((procedure: any) => { delete procedure.engagementId; delete procedure.linkedRiskIds; }); });
       }
+      if (version < 10) legacy.samplePopulations.forEach((population: any) => { delete population.engagementId; population.items.forEach((item: any) => delete item.selected); });
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 9, `schema ${version} should reach v9`);
+      assert.equal(migrated.schema, 10, `schema ${version} should reach v10`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
       assert.deepEqual(migrated.engagements[0].releases.map(r => r.id), seed.engagements[0].releases.map(r => r.id));
       assert.ok(migrated.engagements.every(e => Array.isArray(e.sourceHistory) && Array.isArray(e.packageHistory)));
       assert.ok(Array.isArray(migrated.m365Config.permittedUsers));
+      assert.equal(migrated.samplePopulations[0].engagementId, seed.engagements[0].id);
+      assert.ok(migrated.samplePopulations[0].items.every(item => item.selected), `v${version} keeps legacy sample items selected`);
       for (const risk of migrated.auditRisks) for (const procedureId of risk.linkedProcedureIds) {
         const procedure = migrated.auditPrograms.flatMap(program => program.procedures).find(item => item.id === procedureId);
         assert.ok(procedure?.linkedRiskIds?.includes(risk.id), `v${version} migration restores reciprocal risk link ${risk.id} -> ${procedureId}`);
       }
     }
+  });
+});
+
+describe('sampling workpaper guards (VP-051)', () => {
+  it('requires selection and records a variance against the scoped population item', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    prototypeStore.resetState();
+    prototypeStore.setPersona('preparer');
+    prototypeStore.setSelectedEngagement('ENG-26001');
+    prototypeStore.setSampleItemSelected('POP-01', 'SAMP-01', false);
+    assert.throws(() => prototypeStore.recordSampleItemTest('POP-01', 'SAMP-01', 249000, 'Vouched.'), /Select the population item/);
+    prototypeStore.setSampleItemSelected('POP-01', 'SAMP-01', true);
+    prototypeStore.recordSampleItemTest('POP-01', 'SAMP-01', 249000, 'Inspected independent confirmation.');
+    const item = prototypeStore.getSnapshot().samplePopulations[0].items[0];
+    assert.equal(item.result, 'Exception noted');
+    assert.equal(item.difference, -1000);
+    assert.equal(prototypeStore.getSnapshot().samplePopulations[0].selectedValue, 500000);
   });
 });
 
