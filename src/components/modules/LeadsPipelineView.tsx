@@ -19,6 +19,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
   const [contact, setContact] = useState('');
   const [service, setService] = useState('External audit');
   const [value, setValue] = useState(1000000);
+  const [currency, setCurrency] = useState('QAR');
   const [stage, setStage] = useState<LeadOpportunity['stage']>('Inquiry');
 
   const stages: Array<LeadOpportunity['stage']> = ['Inquiry', 'Discovery', 'Evaluation', 'Proposal', 'Won', 'Lost'];
@@ -28,12 +29,12 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
     if (!leadName.trim()) return;
 
     const newLead: LeadOpportunity = {
-      id: `LD-00${state.leads.length + 1}`,
+      id: `LD-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       name: leadName,
       contact: contact || 'Contact Person',
       service,
       value,
-      currency: 'QAR',
+      currency,
       stage,
       owner: state.currentPerson,
       accepted: false,
@@ -73,7 +74,7 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
         <div className="metric purple">
           <span className="metric-label">Proposed Fees Pipeline</span>
           <div className="metric-val">
-            {formatCurrency(state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost').reduce((s, l) => s + l.value, 0))}
+            {Array.from(new Set(state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost').map(l => l.currency))).map(code => formatCurrency(state.leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost' && l.currency === code).reduce((sum, lead) => sum + lead.value, 0), code)).join(' · ') || formatCurrency(0)}
           </div>
           <span className="metric-sub">Commercial value, unbilled</span>
         </div>
@@ -142,8 +143,16 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                 <div><label>Pipeline Value</label><span>{formatCurrency(selectedLead.value, selectedLead.currency)}</span></div>
                 <div><label>Current Stage</label><span>{selectedLead.stage}</span></div>
                 <div><label>Primary Contact</label><span>{selectedLead.contact}</span></div>
-                <div><label>Commercial Owner</label><span>{selectedLead.owner}</span></div>
+              <div><label>Commercial Owner</label><span>{selectedLead.owner}</span></div>
+              <div><label>Stage history</label><span>{(selectedLead.history || []).map(h => `${h.stage} · ${new Date(h.at).toLocaleDateString()}`).join(' → ') || selectedLead.stage}</span></div>
               </div>
+
+              {selectedLead.stage !== 'Won' && !selectedLead.convertedClientId && <div className="grid2">
+                <label className="caption">Update stage<select className="input" value={selectedLead.stage} onChange={e => { const nextStage = e.target.value as LeadOpportunity['stage']; const reason = nextStage === 'Lost' ? (window.prompt('Reason for loss (required):', '') || undefined) : undefined; if (nextStage === 'Lost' && !reason?.trim()) return; const next: LeadOpportunity = { ...selectedLead, stage: nextStage, lostReason: reason }; try { prototypeStore.updateLead(next); setSelectedLead({ ...next }); } catch (error: any) { window.alert(error.message); } }}>
+                  {stages.map(value => <option key={value}>{value}</option>)}
+                </select></label>
+                {selectedLead.stage === 'Lost' && <label className="caption">Reason<input className="input" value={selectedLead.lostReason || ''} readOnly placeholder="Captured when marked lost" /></label>}
+              </div>}
 
               <div className="divider" />
 
@@ -215,8 +224,9 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
                       <option value="Internal audit">Internal audit</option>
                     </select>
                   </div>
+                  <label className="caption">Currency<select className="input" value={currency} onChange={e => setCurrency(e.target.value)}><option>QAR</option><option>USD</option><option>EUR</option><option>GBP</option></select></label>
                   <div>
-                    <label className="caption">Estimated Fee (QAR)</label>
+                    <label className="caption">Estimated Fee ({currency})</label>
                     <input
                       type="number"
                       className="input"

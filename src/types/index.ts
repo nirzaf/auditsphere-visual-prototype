@@ -146,6 +146,7 @@ export interface LeadOpportunity {
   lostReason?: string;
   convertedClientId?: string;
   convertedOpportunityId?: string;
+  history?: Array<{ by: string; at: string; stage: LeadOpportunity['stage']; reason?: string }>;
   accepted: boolean;
   terms: boolean;
 }
@@ -175,6 +176,8 @@ export interface ProposalRecord {
   totalAmount: number;
   items: ProposalItem[];
   terms: string;
+  predecessorId?: string;
+  presentedSnapshot?: { revision: number; title: string; currency: string; totalAmount: number; items: ProposalItem[]; terms: string; presentedBy: string; presentedAt: string };
   state:
     | 'Draft'
     | 'Internal review'

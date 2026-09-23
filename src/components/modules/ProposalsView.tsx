@@ -14,6 +14,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
   const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Review state
@@ -24,8 +25,29 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
   const [responseType, setResponseType] = useState<'Accepted' | 'Declined' | 'Withdrawn'>('Accepted');
   const [responseContact, setResponseContact] = useState('');
   const [responseNotes, setResponseNotes] = useState('');
+  const [proposalTitle, setProposalTitle] = useState('');
+  const [proposalLead, setProposalLead] = useState('');
+  const [proposalScope, setProposalScope] = useState('');
+  const [proposalExclusions, setProposalExclusions] = useState('');
+  const [proposalDeliverables, setProposalDeliverables] = useState('');
+  const [proposalResponsibilities, setProposalResponsibilities] = useState('');
+  const [proposalTerms, setProposalTerms] = useState('Payment due within 30 days of invoice.');
+  const [proposalAmount, setProposalAmount] = useState(0);
+  const [proposalCurrency, setProposalCurrency] = useState('QAR');
 
   const proposals = state.proposals;
+
+  const createProposal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const lead = state.leads.find(item => item.id === proposalLead);
+    const id = `PROP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    try {
+      const editing = selectedProposal?.state === 'Draft' ? selectedProposal : undefined;
+      const prop: ProposalRecord = { id: editing?.id || id, leadId: editing?.leadId || lead?.id, clientId: editing?.clientId || lead?.convertedClientId, title: proposalTitle.trim(), revision: editing?.revision || 1, predecessorId: editing?.predecessorId, preparedBy: editing?.preparedBy || state.currentPerson, preparedAt: editing?.preparedAt || new Date().toISOString().slice(0, 10), currency: proposalCurrency, totalAmount: proposalAmount, items: [{ id: `${editing?.id || id}-1`, serviceName: lead?.service || editing?.items[0]?.serviceName || 'Professional services', description: proposalScope, scope: proposalScope, exclusions: proposalExclusions, deliverables: proposalDeliverables, clientResponsibilities: proposalResponsibilities, feeModel: 'Fixed', amount: proposalAmount }], terms: proposalTerms, state: 'Draft' };
+      editing ? prototypeStore.updateProposal(prop) : prototypeStore.addProposal(prop);
+      setShowNewModal(false); setSelectedProposal(prototypeStore.getSnapshot().proposals.find(item => item.id === prop.id) || null); setNotice({ type: 'success', text: editing ? 'Proposal draft updated.' : 'Proposal draft created.' });
+    } catch (error: any) { setNotice({ type: 'error', text: error.message }); }
+  };
 
   const handleCommercialReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +88,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
           <h1>Proposals & Engagement Terms</h1>
           <p>Standardized service deliverables, independent commercial review, and client acceptance recording.</p>
         </div>
+        <button className="btn primary sm" onClick={() => { setSelectedProposal(null); setProposalTitle(''); setProposalLead(''); setProposalScope(''); setProposalExclusions(''); setProposalDeliverables(''); setProposalResponsibilities(''); setProposalAmount(0); setProposalTerms('Payment due within 30 days of invoice.'); setShowNewModal(true); }}><Icon name="plus" /> New Proposal</button>
       </div>
 
       {notice && (
@@ -147,13 +170,14 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
                         <button
                           className="btn sm ghost"
                           onClick={() => {
-                            setSelectedProposal(p);
-                            setShowResponseModal(true);
+                            try { prototypeStore.presentProposal(p.id); } catch (error: any) { setNotice({ type: 'error', text: error.message }); }
                           }}
                         >
-                          Record Client Response
+                          Mark Presented
                         </button>
                       )}
+                      {['Draft', 'Approved to send', 'Presented', 'Declined', 'Withdrawn'].includes(p.state) && <button className="btn sm ghost" onClick={() => { try { const next = prototypeStore.createProposalRevision(p.id); setSelectedProposal(next); } catch (error: any) { setNotice({ type: 'error', text: error.message }); } }}>New Revision</button>}
+                      {p.state === 'Presented' && <button className="btn sm ghost" onClick={() => { setSelectedProposal(p); setShowResponseModal(true); }}>Record Client Response</button>}
                     </div>
                   </td>
                 </tr>
@@ -200,6 +224,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
             </div>
             <div className="modal-foot">
               <button className="btn sm ghost" onClick={() => setSelectedProposal(null)}>Close</button>
+              {selectedProposal.state === 'Draft' && <><button className="btn sm ghost" onClick={() => { setProposalTitle(selectedProposal.title); setProposalLead(selectedProposal.leadId || ''); setProposalScope(selectedProposal.items[0]?.scope || ''); setProposalExclusions(selectedProposal.items[0]?.exclusions || ''); setProposalDeliverables(selectedProposal.items[0]?.deliverables || ''); setProposalResponsibilities(selectedProposal.items[0]?.clientResponsibilities || ''); setProposalAmount(selectedProposal.totalAmount); setProposalCurrency(selectedProposal.currency); setProposalTerms(selectedProposal.terms); setShowNewModal(true); }}>Edit Draft</button><button className="btn sm ghost" onClick={() => { try { const revised = prototypeStore.createProposalRevision(selectedProposal.id); setSelectedProposal(revised); setProposalTitle(revised.title); setProposalLead(revised.leadId || ''); setProposalScope(revised.items[0]?.scope || ''); setProposalExclusions(revised.items[0]?.exclusions || ''); setProposalDeliverables(revised.items[0]?.deliverables || ''); setProposalResponsibilities(revised.items[0]?.clientResponsibilities || ''); setProposalAmount(revised.totalAmount); setProposalCurrency(revised.currency); setProposalTerms(revised.terms); setShowNewModal(true); } catch (error: any) { setNotice({ type: 'error', text: error.message }); } }}>Create Revision</button></>}
               {selectedProposal.state === 'Draft' && (
                 <button className="btn primary sm" onClick={() => setShowReviewModal(true)}>
                   Independent Commercial Review
@@ -314,6 +339,17 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {showNewModal && <div className="modal-backdrop" onClick={() => setShowNewModal(false)}><form className="modal" style={{ maxWidth: 600 }} onSubmit={createProposal} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>Draft Proposal</h2><button type="button" className="icon-btn" onClick={() => setShowNewModal(false)}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}>
+        <label className="caption">Title<input className="input" required value={proposalTitle} onChange={e => setProposalTitle(e.target.value)} /></label>
+        <label className="caption">Opportunity (optional)<select className="input" value={proposalLead} onChange={e => setProposalLead(e.target.value)}><option value="">Unlinked</option>{state.leads.filter(l => l.stage !== 'Lost').map(l => <option key={l.id} value={l.id}>{l.name} · {l.id}</option>)}</select></label>
+        <label className="caption">Scope<textarea className="input" required rows={3} value={proposalScope} onChange={e => setProposalScope(e.target.value)} /></label>
+        <label className="caption">Exclusions<textarea className="input" required rows={2} value={proposalExclusions} onChange={e => setProposalExclusions(e.target.value)} /></label>
+        <label className="caption">Deliverables<textarea className="input" required rows={2} value={proposalDeliverables} onChange={e => setProposalDeliverables(e.target.value)} /></label>
+        <label className="caption">Client responsibilities<textarea className="input" required rows={2} value={proposalResponsibilities} onChange={e => setProposalResponsibilities(e.target.value)} /></label>
+        <div className="grid2"><label className="caption">Fixed fee<input className="input" type="number" min="0" step="0.01" required value={proposalAmount} onChange={e => setProposalAmount(Number(e.target.value))} /></label><label className="caption">Currency<select className="input" value={proposalCurrency} onChange={e => setProposalCurrency(e.target.value)}><option>QAR</option><option>USD</option><option>EUR</option><option>GBP</option></select></label></div>
+        <label className="caption">Terms<textarea className="input" required rows={2} value={proposalTerms} onChange={e => setProposalTerms(e.target.value)} /></label>
+      </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setShowNewModal(false)}>Cancel</button><button className="btn primary sm" type="submit">Create Draft</button></div></form></div>}
     </div>
   );
 };

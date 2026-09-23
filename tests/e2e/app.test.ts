@@ -460,6 +460,41 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-07/08: registers an opportunity, drafts a proposal and presents only after independent review', async () => {
+    const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setLabel = async (label: string, value: string, tag = 'input') => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector(${JSON.stringify(tag)})||l?.parentElement?.querySelector(${JSON.stringify(tag)});if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(${tag === 'textarea' ? 'HTMLTextAreaElement' : 'HTMLInputElement'}.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setPersona('Relationship owner');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Acquisition & Pipeline'));if(!b)throw Error('Missing acquisition route');b.click();})()`);
+    await clickButton('New Inquiry');
+    await setLabel('Prospective Client Name', 'AT07 Journey Opportunity');
+    await setLabel('Primary Contact', 'Nora Opportunity');
+    await clickButton('Register Inquiry');
+    const leadId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).leads.find(l=>l.name==='AT07 Journey Opportunity')?.id`);
+    assert.ok(leadId);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Proposals & Terms'));if(!b)throw Error('Missing proposals route');b.click();})()`);
+    await clickButton('New Proposal');
+    await setLabel('Title', 'AT08 Journey Proposal');
+    await browserTab!.evaluate(`(() => {const e=[...document.querySelectorAll('.modal-backdrop select')].find(x=>[...x.options].some(o=>o.value===${JSON.stringify(leadId)}));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(leadId)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setLabel('Scope', 'External audit of FY2026 statements', 'textarea');
+    await setLabel('Exclusions', 'Tax advisory', 'textarea');
+    await setLabel('Deliverables', 'Independent auditor report', 'textarea');
+    await setLabel('Client responsibilities', 'Provide complete records', 'textarea');
+    await setLabel('Fixed fee', '12500');
+    await setLabel('Terms', 'Payment within 30 days.', 'textarea');
+    await clickButton('Create Draft');
+    const proposalId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.title==='AT08 Journey Proposal')?.id`);
+    assert.ok(proposalId);
+    await clickButton('Review');
+    await setPersona('Engagement partner');
+    await clickButton('Record Review Decision');
+    await clickButton('Mark Presented');
+    const presented = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id===${JSON.stringify(proposalId)})`);
+    assert.equal(presented.state, 'Presented');
+    assert.equal(presented.presentedSnapshot.revision, presented.revision);
+    assert.equal(presented.presentedSnapshot.items[0].scope, 'External audit of FY2026 statements');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

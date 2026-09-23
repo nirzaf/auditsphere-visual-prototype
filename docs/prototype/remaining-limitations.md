@@ -6,6 +6,13 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Known acceptance gaps
 
+- **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
+  registration, scoped proposal drafting, independent review and presentation.
+  Store checks enforce required loss reasons, stage history, line-item totals,
+  stale-review reset on revision, and preservation of the exact presented
+  revision. Qualification/conversion edge paths, client response evidence and
+  engagement activation are still unverified.
+
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to
   those artifacts. Chrome verifies manager, management and partner approvals,

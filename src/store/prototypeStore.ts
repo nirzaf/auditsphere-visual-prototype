@@ -366,6 +366,8 @@ class PrototypeStore {
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'manage opportunities');
     if (!lead.name.trim() || !lead.contact.trim() || !lead.owner.trim()) throw new GuardError('INVALID_STATE', 'Opportunity name, contact, and owner are required.');
     if (!isValidMoney(lead.value, true)) throw new GuardError('INVALID_STATE', 'Opportunity amount must be a finite non-negative amount with at most two decimal places.');
+    if (this.state.leads.some(item => item.id === lead.id)) throw new GuardError('INVALID_STATE', `Opportunity "${lead.id}" already exists.`);
+    lead.history ||= [{ by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage }];
     this.state.leads.push(lead);
     this.logEvent(`New opportunity registered: ${lead.name}`, lead.id);
     this.notify();
@@ -378,7 +380,9 @@ class PrototypeStore {
     if (index >= 0) {
       if (lead.stage === 'Lost' && !lead.lostReason?.trim()) throw new GuardError('INVALID_STATE', 'A lost opportunity requires a reason.');
       if (this.state.leads[index].convertedClientId) throw new GuardError('INVALID_STATE', 'A converted opportunity cannot be converted or reclassified again.');
+      if (lead.stage !== this.state.leads[index].stage) lead.history = [...(this.state.leads[index].history || []), { by: this.state.currentPerson, at: new Date().toISOString(), stage: lead.stage, reason: lead.stage === 'Lost' ? lead.lostReason?.trim() : undefined }];
       this.state.leads[index] = lead;
+      this.logEvent(`Opportunity ${lead.id} moved to ${lead.stage}${lead.stage === 'Lost' ? `: ${lead.lostReason}` : ''}`, lead.id);
       this.notify();
     }
   }
@@ -429,11 +433,51 @@ class PrototypeStore {
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'draft proposals');
     if (prop.clientId) requireClientScope(this.state, prop.clientId);
     if (prop.leadId && !this.state.leads.some(l => l.id === prop.leadId)) throw new GuardError('INVALID_STATE', 'Proposal opportunity was not found.');
+    if (prop.leadId && prop.clientId && this.state.leads.find(l => l.id === prop.leadId)?.convertedClientId !== prop.clientId) throw new GuardError('INVALID_STATE', 'Proposal opportunity and client do not match.');
     if (this.state.proposals.some(p => p.id === prop.id)) throw new GuardError('INVALID_STATE', `Proposal "${prop.id}" already exists.`);
-    if (!isValidMoney(prop.totalAmount, true) || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal total must equal its line items.');
+    if (!prop.title.trim() || !prop.items.length || !prop.items.every(item => item.serviceName.trim() && item.scope.trim() && item.description.trim() && item.deliverables.trim() && isValidMoney(item.amount, true)) || !prop.terms.trim() || !isValidMoney(prop.totalAmount, true) || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal requires a title, complete scope, deliverables, terms, and a total equal to its valid line items.');
     this.state.proposals.push(prop);
     this.logEvent(`Proposal ${prop.title} drafted (Rev ${prop.revision})`, prop.id);
     this.notify();
+  }
+
+  public updateProposal(prop: PrototypeState['proposals'][0]) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'edit proposal drafts');
+    const index = this.state.proposals.findIndex(item => item.id === prop.id);
+    if (index < 0 || this.state.proposals[index].state !== 'Draft') throw new GuardError('INVALID_STATE', 'Only an existing draft proposal can be edited.');
+    if (!prop.items.length || !prop.items.every(item => item.scope.trim() && item.deliverables.trim() && isValidMoney(item.amount, true)) || !prop.terms.trim() || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal scope, deliverables, terms, and line item total are required.');
+    this.state.proposals[index] = prop;
+    this.logEvent(`Proposal ${prop.id} draft updated`, prop.id);
+    this.notify();
+  }
+
+  public presentProposal(propId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'present proposals');
+    const prop = this.state.proposals.find(p => p.id === propId);
+    if (!prop) throw new GuardError('INVALID_STATE', `Proposal "${propId}" was not found.`);
+    if (prop.state !== 'Approved to send' || !prop.commercialReview?.approved) throw new GuardError('INVALID_STATE', 'Only an approved proposal can be presented.');
+    if (prop.clientId) requireClientScope(this.state, prop.clientId);
+    prop.presentedSnapshot = { revision: prop.revision, title: prop.title, currency: prop.currency, totalAmount: prop.totalAmount, items: structuredClone(prop.items), terms: prop.terms, presentedBy: this.state.currentPerson, presentedAt: new Date().toISOString() };
+    prop.state = 'Presented';
+    this.logEvent(`Proposal ${prop.id} Rev ${prop.revision} presented`, prop.id);
+    this.notify();
+  }
+
+  public createProposalRevision(propId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'revise proposals');
+    const source = this.state.proposals.find(p => p.id === propId);
+    if (!source) throw new GuardError('INVALID_STATE', `Proposal "${propId}" was not found.`);
+    if (source.state === 'Accepted' || source.state === 'Superseded') throw new GuardError('INVALID_STATE', 'Accepted or superseded proposals cannot be revised.');
+    if (source.clientId) requireClientScope(this.state, source.clientId);
+    source.state = 'Superseded';
+    const revision = { ...structuredClone(source), id: `${source.id}-R${source.revision + 1}`, revision: source.revision + 1, predecessorId: source.id, preparedBy: this.state.currentPerson, preparedAt: new Date().toISOString().slice(0, 10), state: 'Draft' as const, commercialReview: undefined, clientResponse: undefined, presentedSnapshot: undefined };
+    this.state.proposals.push(revision);
+    this.logEvent(`Proposal ${source.id} revised as ${revision.id}`, revision.id);
+    this.notify();
+    return revision;
   }
 
   public reviewProposal(propId: string, approved: boolean, notes?: string) {
@@ -466,6 +510,7 @@ class PrototypeStore {
     if (!prop.clientId) throw new GuardError('INVALID_STATE', 'Proposal must be linked to a client before recording a response.');
     requireClientScope(this.state, prop.clientId);
     if (prop.state !== 'Presented' || !prop.commercialReview?.approved) throw new GuardError('INVALID_STATE', 'Only an approved, presented proposal can receive a client response.');
+    if (!prop.presentedSnapshot || prop.presentedSnapshot.revision !== prop.revision || !response.contact.trim() || !response.notes.trim()) throw new GuardError('INVALID_STATE', 'Response requires the current presented revision, an authorized contact, and an evidence reference or notes.');
     prop.clientResponse = response;
     prop.state = response.responseType === 'Accepted' ? 'Accepted' : 'Declined';
     this.logEvent(`Proposal ${prop.id} client response: ${response.responseType} by ${response.contact}`, prop.id);

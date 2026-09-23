@@ -186,6 +186,42 @@ describe('separation of duties (AT-24/31/47)', () => {
   });
 });
 
+describe('opportunity and proposal lifecycle (AT-07/08)', () => {
+  it('requires a loss reason and retains opportunity stage history', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const lead = structuredClone(target.state.leads[0]);
+    assert.throws(() => target.updateLead({ ...lead, stage: 'Lost', lostReason: '' }), /requires a reason/);
+    target.updateLead({ ...lead, stage: 'Lost', lostReason: 'Client deferred the work.' });
+    const saved = target.state.leads.find((item: any) => item.id === lead.id);
+    assert.equal(saved.history.at(-1).stage, 'Lost');
+    assert.equal(saved.history.at(-1).reason, 'Client deferred the work.');
+  });
+
+  it('requires independent review before presentation and preserves the exact presented revision', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    addAmiraManagerPersona(target.state);
+    const id = 'PROP-AT07';
+    target.addProposal({ id, title: 'Test proposal', revision: 1, preparedBy: 'Amira Qasim', preparedAt: '2026-09-23', currency: 'QAR', totalAmount: 100, items: [{ id: `${id}-1`, serviceName: 'Audit', description: 'Annual audit', scope: 'Audit of FY2026 statements', exclusions: 'Tax services', deliverables: 'Audit opinion', clientResponsibilities: 'Provide records', feeModel: 'Fixed', amount: 100 }], terms: 'Payment within 30 days.', state: 'Draft' });
+    assert.throws(() => target.reviewProposal(id, true), /same person|Separation of duties/i);
+    setPersona(target.state, 'Layla Rahman');
+    target.reviewProposal(id, true);
+    target.presentProposal(id);
+    const old = structuredClone(target.state.proposals.find((item: any) => item.id === id));
+    const revision = target.createProposalRevision(id);
+    assert.equal(target.state.proposals.find((item: any) => item.id === id).state, 'Superseded');
+    assert.deepEqual(target.state.proposals.find((item: any) => item.id === id).presentedSnapshot, old.presentedSnapshot);
+    assert.equal(revision.revision, 2);
+    assert.equal(revision.predecessorId, id);
+    assert.equal(revision.state, 'Draft');
+    assert.equal(revision.commercialReview, undefined);
+  });
+});
+
 describe('time correction lifecycle (AT-28)', () => {
   it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
