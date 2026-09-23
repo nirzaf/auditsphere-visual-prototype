@@ -10,6 +10,7 @@ import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
 import { calculateReceivablesAging } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
+import { createInitialState } from '../../src/store/initialState.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
@@ -1608,5 +1609,39 @@ describe('actual Chrome browser acceptance', () => {
       assert.equal(await waitForBrowser('document.querySelector("[role=status]")?.innerText.includes("Browser storage is unavailable; changes last only for this session")'), true);
       await browserTab!.evaluate('Storage.prototype.setItem = window.__nativeSetItem');
     } finally { secondTab.close(); }
+  });
+
+  it('VP-047/v13: legacy accepted case remains historical and requires evidence review', async () => {
+    const legacy = createInitialState() as any;
+    const engagement = legacy.engagements.find((item: any) => item.id === 'ENG-26001');
+    const manager = legacy.users.find((item: any) => item.role === 'manager');
+    const partner = legacy.users.find((item: any) => item.role === 'partner' && item.name === engagement.partner);
+    legacy.schema = 12;
+    legacy.selectedEngagement = engagement.id;
+    legacy.currentUserId = manager.id;
+    legacy.currentPerson = manager.name;
+    legacy.currentRole = manager.role;
+    engagement.acceptance = true;
+    legacy.acceptanceCases = [{
+      id: 'ACC-LEGACY-E2E', engagementId: engagement.id, clientId: engagement.client, year: engagement.year, service: engagement.service,
+      riskRating: 'Low', independenceConfirmed: true, amlKycCompleted: true, conflictsCleared: true, prohibitionsChecked: true,
+      competenceConfirmed: true, conditions: [], recommendationBy: manager.name, recommendationByUserId: manager.id,
+      recommendationDate: '2026-01-01', recommendationNotes: 'Legacy recommendation.', decisionBy: partner.name,
+      decisionByUserId: partner.id, decisionDate: '2026-01-02', decisionStatus: 'Accepted', decisionNotes: 'Legacy approval.', history: []
+    }];
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(legacy))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await clickButton('Acceptance & KYC');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Prior approval retained for history")'), true);
+    const text = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(text, /Accepted · evidence review required/);
+    assert.doesNotMatch(text, /Manual Annual Continuance/);
+    const preserved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2.backup'));const e=s.engagements.find(x=>x.id==='ENG-26001');const c=s.acceptanceCases.find(x=>x.id==='ACC-LEGACY-E2E');return {schema:s.schema,active:e.acceptance,status:c.decisionStatus,evidence:c.screeningEvidence};})()`);
+    assert.equal(preserved.schema, 12);
+    assert.equal(preserved.active, true, 'migration keeps the exact legacy payload as recovery backup');
+    assert.equal(preserved.status, 'Accepted');
+    assert.equal(preserved.evidence, undefined);
+    assert.deepEqual(browserTab!.exceptions, []);
   });
 });

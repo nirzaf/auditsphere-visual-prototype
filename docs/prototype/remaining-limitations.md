@@ -124,8 +124,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   request/response/clarification/replacement/acceptance cycle, plus client
   creation/contact/custom-field/relationship-group and Client 360 navigation
   journeys (AT-05/06). Complete
-  AT-01–AT-54 have not been executed.
-  External invitation and identity lifecycle, live AML/KYC screening (evidence references are manual), report data reconciliation and
+  The complete AT-01–AT-54 acceptance suite has not been executed end to end.
+  External invitation and identity lifecycle, live AML/KYC screening (evidence references are manual), value-level report data reconciliation and
   other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
@@ -151,8 +151,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 117/117 unit checks and 40/40 E2E checks passed. E2E
-includes five static checks and 35 actual Chrome checks. It exercises the
+Latest recorded run: 117/117 unit checks and 41/41 E2E checks passed. E2E
+includes five static checks and 36 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
 full AT-01–AT-54 suite has not run, and route rendering is not full workflow

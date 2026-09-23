@@ -18,6 +18,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 |---|---|---|---|---|
 | 2026-09-23 | `03577ba` | `npm run test:unit` | PASS — 117/117 | Schema v13 adds acceptance evidence references; legacy approvals preserve history while losing unsupported active authority; VP-032 splits one receipt across two invoices and reverses one allocation independently. |
 | 2026-09-23 | working tree after `812f9cc` | `npm run test:e2e` | PASS — 40/40 | AT-49/60 now reconciles CSV row counts for all 16 reports against current permitted source registers, in addition to client scoping and CSV-column checks. |
+| 2026-09-23 | working tree after `a220a78` | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome journeys; adds schema v12-to-v13 browser migration evidence review and verifies no continuance action survives unsupported legacy approval. |
 | 2026-09-23 | `c3485e6` | `npm run test:e2e` | PASS — 40/40 | Five static checks and 35 actual Chrome checks. VP-017 verifies permitted-person/role mapping is separate from authorization; VP-019 verifies reasoned revocation history; VP-047 and existing cross-module journeys pass. |
 | 2026-09-23 | `c3485e6` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.03 MB (576.23 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `c3485e6` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` production release `6a7ecd3a-9b9c-4c88-8d87-6ea2fe768394`; release URL and `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BgHw1Ss-.js` with legacy approval review safeguards. |
@@ -137,10 +138,10 @@ recipient validation and retry policy remain outside this verified slice.
 
 Latest focused unit run: `npm run test:unit` passed 117/117. A new VP-032 unit
 journey allocates one receipt over two issued invoices and reverses one allocation
-without disturbing the second invoice. The existing browser suite remains 40/40;
+without disturbing the second invoice. The browser suite is 41/41;
 AT-49/60 checks source row counts for all 16 reports, while full value-level
 report reconciliation, multi-invoice UI journey and statement workflow remain
-unverified.
+unverified. The full AT-01–AT-54 contract has not been executed end to end.
 
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
 shell behavior and route rendering; it does not execute and verify every
