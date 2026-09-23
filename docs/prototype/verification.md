@@ -393,3 +393,14 @@ including duplicate-code, chart-parent, foreign-period-owner, closed-book and
 dimension-value rejection; and
 58/58 build/static/Chrome checks, and `git diff --check` passed. Build retains
 the existing >500 kB chunk advisory.
+
+Accounting-context invalidation follow-up: commit `f4ec3c1` is on `main` and
+deployed to the same production Pages project. Wrangler identifies deployment
+`94a3dc80-2414-4205-b619-6f56d10c9138` as Production / `production`, source
+`f4ec3c1`. Both `https://94a3dc80.steaudit-prototype.pages.dev` and
+`https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-Dz8Zerb5.js` (2,196,537 bytes; SHA-256
+`41fd97e289b3587f9ca4d5c92389277f9cc2c8daf4dfe13cd13499d3932ad8c3`). Both
+served bundles contain the setup editor, guarded import and stale-package
+controls. `npm run lint`, `npm run test:unit` (139/139), `npm run test:e2e`
+(58/58), and `git diff --check` passed before deployment.
