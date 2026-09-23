@@ -1,4 +1,7 @@
 // Module 25: Financial Packages Assembly & DOCX Export (VP-042)
+// Package assembly, section selection and ordering, multi-revision lineage,
+// interactive validation summary, and genuine Word / PDF deliverable exports.
+
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
@@ -13,6 +16,23 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [packageNotes, setPackageNotes] = useState('Standard statutory disclosures and IFRS accounting policies included.');
+
+  const [sections, setSections] = useState([
+    { id: 'rpt', title: 'Independent Auditor Report', desc: 'Standard unmodified opinion under ISA 700 with key audit matters.', enabled: true },
+    { id: 'bs', title: 'Statement of Financial Position', desc: 'Comparative balance sheet verified to underlying trial balance.', enabled: true },
+    { id: 'pnl', title: 'Statement of Comprehensive Income', desc: 'Operating results, gross margin, and tax provisions.', enabled: true },
+    { id: 'eq', title: 'Statement of Changes in Equity', desc: 'Share capital, statutory reserves, and retained earnings.', enabled: true },
+    { id: 'cf', title: 'Statement of Cash Flows', desc: 'Operating, investing, and financing cash reconciliation.', enabled: true },
+    { id: 'notes', title: 'Statutory Notes & Disclosures', desc: 'Summary of significant IFRS accounting policies and risk disclosures.', enabled: true }
+  ]);
+
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
 
   if (!selectedEng) {
     return (
@@ -29,9 +49,54 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     );
   }
 
-  const [packageNotes, setPackageNotes] = useState('Standard statutory disclosures and IFRS accounting policies included.');
+  // Pre-release validation summary gates
+  const tbSum = selectedEng.rows.reduce((sum, r) => sum + r.balance, 0);
+  const tbBalanced = Math.abs(tbSum) < 1;
+  const workpapersCleared = selectedEng.workpapers.every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
+  const reviewNotesCleared = selectedEng.reviews.every(r => r.status === 'Cleared');
+  const findingsImmaterial = state.findings.filter(
+    f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)
+  ).length === 0;
+
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial;
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    setSections(prev => {
+      const copy = [...prev];
+      const temp = copy[index - 1];
+      copy[index - 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === sections.length - 1) return;
+    setSections(prev => {
+      const copy = [...prev];
+      const temp = copy[index + 1];
+      copy[index + 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const handleToggleSection = (index: number) => {
+    setSections(prev => prev.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s));
+  };
+
+  const handleAssembleNewRevision = () => {
+    try {
+      prototypeStore.updatePackageRevision(selectedEng.id);
+      triggerNotice('success', `Financial Package Revision ${selectedEng.packageRevision} assembled successfully.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
 
   const handleExportDOCX = async () => {
+    const included = sections.filter(s => s.enabled);
     await exportService.exportDOCX(
       `Financial_Report_Package_${client?.code || 'CL001'}_v${selectedEng.packageRevision}`,
       `Financial Reporting Package - ${client?.name || 'Example Trading Entity'}`,
@@ -44,20 +109,17 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         `Package Revision: Version ${selectedEng.packageRevision}`,
         `Auditor Opinion: ${selectedEng.opinion}`,
         '',
-        'TABLE OF CONTENTS:',
-        '1. Independent Auditor Report to the Shareholders',
-        '2. Statement of Financial Position (Balance Sheet)',
-        '3. Statement of Comprehensive Income (P&L)',
-        '4. Statement of Changes in Equity',
-        '5. Statement of Cash Flows',
-        '6. Significant Accounting Policies and Notes to the Financial Statements',
+        'TABLE OF CONTENTS (ORDERED SECTIONS):',
+        ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
         '',
         `Disclosures & Management Notes: ${packageNotes}`
       ]
     );
+    triggerNotice('success', `Exported Word (DOCX) package for Rev ${selectedEng.packageRevision}.`);
   };
 
   const handleExportPDF = () => {
+    const included = sections.filter(s => s.enabled);
     exportService.exportPDF(
       `Financial_Report_Package_${client?.code || 'CL001'}_v${selectedEng.packageRevision}`,
       `Financial Reporting Package - ${client?.name || 'Example Trading Entity'}`,
@@ -66,12 +128,11 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         `Period: ${selectedEng.period}`,
         `Package Version: v${selectedEng.packageRevision}`,
         `Audit Opinion: ${selectedEng.opinion}`,
-        'Section 1: Independent Auditor Report',
-        'Section 2: Audited Financial Statements',
-        'Section 3: Mandatory Accounting Notes & Disclosures',
+        ...included.map((s, idx) => `Section ${idx + 1}: ${s.title}`),
         `Notes Summary: ${packageNotes}`
       ]
     );
+    triggerNotice('success', `Exported PDF package for Rev ${selectedEng.packageRevision}.`);
   };
 
   return (
@@ -79,7 +140,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
       <div className="pagehead">
         <div>
           <h1>Financial Reporting Packages</h1>
-          <p>Package assembly, version lineage, note disclosures, and genuine Word / PDF deliverable exports.</p>
+          <p>Interactive section ordering, multi-revision assembly, validation summary, and Word / PDF exports.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button className="btn sm ghost" onClick={handleExportPDF}>
@@ -91,6 +152,22 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         </div>
       </div>
 
+      {notice && (
+        <div
+          className="panel panel-pad"
+          style={{
+            background: notice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            borderColor: notice.type === 'success' ? '#86efac' : '#fca5a5',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            padding: '10px 16px'
+          }}
+        >
+          <b>{notice.type === 'success' ? '✓ ' : '⚠ '}</b>
+          {notice.text}
+        </div>
+      )}
+
+      {/* Package Header & Revision Info */}
       <div className="panel panel-pad">
         <div className="between">
           <div>
@@ -98,7 +175,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
             <h2>{client?.name} · Rev {selectedEng.packageRevision}</h2>
             <p className="sub">Built from Source Version {selectedEng.sourceVersion} · Generation {selectedEng.generation}</p>
           </div>
-          <span className="badge green">Current Live Package</span>
+          <button className="btn sm" onClick={handleAssembleNewRevision}>
+            + Assemble New Revision (Rev {selectedEng.packageRevision + 1})
+          </button>
         </div>
 
         <div className="info-grid mt16">
@@ -107,52 +186,126 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           <div><label>Lead Signing Partner</label><span>{selectedEng.partner}</span></div>
           <div><label>Auditor Opinion Proposed</label><b>{selectedEng.opinion}</b></div>
         </div>
+      </div>
 
-        <div className="divider" />
-
-        <h4>Assembled Package Components</h4>
-        <div className="stack mt12" style={{ gap: 8 }}>
-          {[
-            { title: 'Independent Auditor Report', desc: 'Standard unmodified opinion under ISA 700 with key audit matters.', status: 'Complete' },
-            { title: 'Statement of Financial Position', desc: 'Comparative balance sheet verified to underlying trial balance.', status: 'Complete' },
-            { title: 'Statement of Comprehensive Income', desc: 'Operating results, gross margin, and tax provisions.', status: 'Complete' },
-            { title: 'Statement of Changes in Equity', desc: 'Share capital, statutory reserves, and retained earnings.', status: 'Complete' },
-            { title: 'Statement of Cash Flows', desc: 'Operating, investing, and financing cash reconciliation.', status: 'Complete' },
-            { title: 'Statutory Notes and Accounting Policies', desc: 'Summary of significant IFRS accounting policies and risk disclosures.', status: 'Draft' }
-          ].map((item, idx) => (
-            <div key={idx} className="between borderbox" style={{ padding: 12 }}>
-              <div>
-                <b>{idx + 1}. {item.title}</b>
-                <div className="cell-sub">{item.desc}</div>
-              </div>
-              <span className={`badge ${item.status === 'Complete' ? 'green' : 'amber'}`}>
-                {item.status}
-              </span>
-            </div>
-          ))}
+      {/* Validation Summary Panel */}
+      <div className="panel panel-pad">
+        <div className="between">
+          <div>
+            <h3>Pre-Publication Validation Summary</h3>
+            <p className="sub">Comprehensive integrity gates required before deliverable freezing and client release.</p>
+          </div>
+          <span className={`badge ${allValid ? 'green' : 'amber'}`}>
+            {allValid ? 'All Gates Cleared' : 'Action Required'}
+          </span>
         </div>
 
-        <div className="mt20">
-          <label className="caption">Disclosures & Management Representation Notes</label>
+        <div className="grid4 mt16" style={{ gap: 12 }}>
+          <div className="borderbox" style={{ padding: 12 }}>
+            <span className="caption">Trial Balance Net Zero</span>
+            <div className="mt4">
+              <span className={`badge ${tbBalanced ? 'green' : 'red'}`}>
+                {tbBalanced ? 'Balanced (Net 0)' : `Unbalanced (${tbSum})`}
+              </span>
+            </div>
+          </div>
+
+          <div className="borderbox" style={{ padding: 12 }}>
+            <span className="caption">Working Papers Clearance</span>
+            <div className="mt4">
+              <span className={`badge ${workpapersCleared ? 'green' : 'amber'}`}>
+                {workpapersCleared ? 'All WPs Cleared' : 'Pending WPs'}
+              </span>
+            </div>
+          </div>
+
+          <div className="borderbox" style={{ padding: 12 }}>
+            <span className="caption">Review Notes Clearance</span>
+            <div className="mt4">
+              <span className={`badge ${reviewNotesCleared ? 'green' : 'amber'}`}>
+                {reviewNotesCleared ? 'Zero Open Notes' : 'Pending Notes'}
+              </span>
+            </div>
+          </div>
+
+          <div className="borderbox" style={{ padding: 12 }}>
+            <span className="caption">Material Findings</span>
+            <div className="mt4">
+              <span className={`badge ${findingsImmaterial ? 'green' : 'red'}`}>
+                {findingsImmaterial ? 'Immaterial / Cleared' : 'Uncorrected Found'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Contents Selection & Ordering */}
+      <div className="panel">
+        <div className="panel-head between">
+          <div>
+            <h3>Interactive Package Section Selection &amp; Ordering</h3>
+            <span className="caption">Toggle sections and reorder sections for export package generation</span>
+          </div>
+          <span className="caption">{sections.filter(s => s.enabled).length} of {sections.length} active</span>
+        </div>
+
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 60 }}>Include</th>
+                <th style={{ width: 60 }}>Order</th>
+                <th>Section Title</th>
+                <th>Description</th>
+                <th>Order Controls</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map((sec, idx) => (
+                <tr key={sec.id} style={{ opacity: sec.enabled ? 1 : 0.5 }}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={sec.enabled}
+                      onChange={() => handleToggleSection(idx)}
+                    />
+                  </td>
+                  <td><b>#{idx + 1}</b></td>
+                  <td><b>{sec.title}</b></td>
+                  <td><span className="cell-sub">{sec.desc}</span></td>
+                  <td>
+                    <div className="row" style={{ gap: 4 }}>
+                      <button
+                        className="btn sm ghost"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveUp(idx)}
+                      >
+                        ▲ Up
+                      </button>
+                      <button
+                        className="btn sm ghost"
+                        disabled={idx === sections.length - 1}
+                        onClick={() => handleMoveDown(idx)}
+                      >
+                        ▼ Down
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="panel-pad">
+          <label className="caption">Disclosures &amp; Management Representation Notes</label>
           <textarea
-            className="input"
-            rows={3}
+            className="input mt4"
+            rows={2}
             value={packageNotes}
             onChange={e => setPackageNotes(e.target.value)}
           />
         </div>
-      </div>
-
-      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
-        <b>Prototype note — package assembly.</b>
-        <p className="sub mt4">
-          Exports above are genuine files (XLSX via the statements view, DOCX/PDF here) carrying the
-          displayed entity, period, revision and demo watermark. Interactive contents selection and
-          ordering, a multi-revision version list, a validation summary, and source/mapping/notes
-          lineage are not yet editable in this view; the package identity shown (revision, source
-          version, generation) is the lineage carried into release and archive. Internal workpapers
-          and reviewer comments are excluded from these outputs by default.
-        </p>
       </div>
     </div>
   );

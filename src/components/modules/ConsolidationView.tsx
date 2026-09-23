@@ -27,15 +27,21 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
     ]
   };
 
-  const parentEng = state.engagements[0];
+  const parentComp = group.components.find(c => c.role === 'Parent') || group.components[0];
+  const subComp = group.components.find(c => c.role !== 'Parent') || group.components[1];
 
-  if (!parentEng) {
+  const parentEng = state.engagements.find(e => e.client === parentComp?.clientId);
+  const subEng = state.engagements.find(e => e.client === subComp?.clientId);
+
+  if (!parentEng || !subEng) {
+    const missingClient = !parentEng ? parentComp?.clientId : subComp?.clientId;
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
         <Icon name="layers" size="xl" className="text-muted mb16" />
-        <h3>No Engagements Available for Consolidation</h3>
+        <h3>Incomplete Consolidation Perimeter</h3>
         <p className="sub max-w-md mx-auto mt8">
-          At least one parent engagement with trial balance data is required to perform group consolidation.
+          Cannot perform group consolidation: Required component engagement for client {missingClient} is missing.
+          Consolidation requires eligible, pinned component packages and does not fabricate substitute balances.
         </p>
         <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
           Go to Engagements
@@ -43,18 +49,6 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       </div>
     );
   }
-
-  const subEng = state.engagements[1] || {
-    ...parentEng,
-    id: 'ENG-26002',
-    client: 'CL-002',
-    rows: [
-      { code: '1000', name: 'Cash and bank balances', type: 'asset', balance: 350000 },
-      { code: '1100', name: 'Trade receivables', type: 'asset', balance: 250000 },
-      { code: '2000', name: 'Trade payables', type: 'liability', balance: -150000 },
-      { code: '3000', name: 'Share capital', type: 'equity', balance: -450000 }
-    ]
-  };
 
   const consolidated = calculateConsolidatedBalanceSheet(
     parentEng.rows,

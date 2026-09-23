@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { RouteKey, PbcRequestItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { visibleClientIds } from '../../services/guards';
+import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
@@ -28,17 +28,20 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     : state.clients.filter(c => (allowedClientIds as string[]).includes(c.id));
 
   const [selectedClientId, setSelectedClientId] = useState<string>(
-    availableClients[0]?.id || state.clients[0]?.id || ''
+    availableClients[0]?.id || ''
   );
 
-  const client = availableClients.find(c => c.id === selectedClientId) || availableClients[0] || state.clients[0];
-  const eng = state.engagements.find(e => e.client === client?.id) || state.engagements[0];
+  const client = availableClients.find(c => c.id === selectedClientId) || availableClients[0] || null;
+  const allowedEngIds = visibleEngagementIds(state);
+  const eng = client
+    ? (state.engagements.find(e => e.client === client.id && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(e.id))) || null)
+    : null;
 
-  // Strictly filter by client grant and exclude drafts from client visibility (VP-025, VP-033)
-  const invoices = state.invoices.filter(i => i.clientId === client?.id && i.status !== 'Draft');
+  // Strictly filter by client grant and exclude unissued/drafts from client visibility (VP-025, VP-033)
+  const invoices = client ? state.invoices.filter(i => i.clientId === client.id && (i.status === 'Issued' || i.status === 'Paid')) : [];
   const pbc = eng?.pbc || [];
-  const sharedDocs = state.documents.filter(d => d.visibility === 'Client shared' && (!d.clientId || d.clientId === client?.id));
-  const messages = state.communications.filter(c => c.visibility === 'Client visible' && (!c.clientId || c.clientId === client?.id));
+  const sharedDocs = client ? state.documents.filter(d => d.visibility === 'Client shared' && d.clientId === client.id) : [];
+  const messages = client ? state.communications.filter(c => c.visibility === 'Client visible' && c.clientId === client.id) : [];
 
   const triggerNotice = (msg: string) => {
     setNotice(msg);

@@ -79,7 +79,12 @@ export function calculateReceivablesAging(
     const rcptDate = new Date(rcpt.date);
     if (rcptDate <= asOf) {
       const activeAllocations = (rcpt.allocations || [])
-        .filter(a => !a.reversed && new Date(a.allocatedAt) <= asOf)
+        .filter(a => {
+          const allocDateStr = a.date || a.allocatedAt || rcpt.date;
+          const settlementDate = new Date(Math.max(new Date(allocDateStr).getTime(), rcptDate.getTime()));
+          const wasReversedBeforeAsOf = a.reversed && (!a.reversalDate || new Date(a.reversalDate) <= asOf);
+          return !wasReversedBeforeAsOf && settlementDate <= asOf;
+        })
         .reduce((sum, a) => sum + a.amount, 0);
       totalUnallocated += Math.max(0, rcpt.amount - activeAllocations);
     }
@@ -100,23 +105,28 @@ export function calculateReceivablesAging(
     // Effective issued credits only, effective on/before as-of. Supports both
     // `issueDate` and legacy `date` fields on credit notes.
     const applicableCredits = credits
-      .filter(c => c.invoiceId === inv.id && c.status === 'Issued' && new Date(c.issueDate || c.date || inv.issueDate || inv.due) <= asOf)
+      .filter(c => c.invoiceId === inv.id && (!c.status || c.status === 'Issued' || c.status === 'Approved') && new Date(c.issueDate || c.date || inv.issueDate || inv.due) <= asOf)
       .reduce((sum, c) => sum + c.amount, 0);
 
     // Net allocated receipts effective on/before as-of (reversed excluded).
-    // NOTE: `inv.paid` is a display cache maintained by the store; the
-    // authoritative settlement here is the allocation ledger so we do NOT add
-    // both. When allocations are absent (legacy fixtures), fall back to paid.
+    // Settlement effective date is Math.max(allocDate, receiptDate).
+    // An allocation reversed AFTER as-of was still effective on as-of.
     let allocatedSettled = 0;
     receipts.forEach(rcpt => {
+      const rcptDate = new Date(rcpt.date);
       (rcpt.allocations || []).forEach(alloc => {
-        if (alloc.invoiceId === inv.id && !alloc.reversed && new Date(alloc.allocatedAt) <= asOf) {
-          allocatedSettled += alloc.amount;
+        if (alloc.invoiceId === inv.id) {
+          const allocDateStr = alloc.date || alloc.allocatedAt || rcpt.date;
+          const settlementDate = new Date(Math.max(new Date(allocDateStr).getTime(), rcptDate.getTime()));
+          const wasReversedBeforeAsOf = alloc.reversed && (!alloc.reversalDate || new Date(alloc.reversalDate) <= asOf);
+          if (!wasReversedBeforeAsOf && settlementDate <= asOf) {
+            allocatedSettled += alloc.amount;
+          }
         }
       });
     });
     const hasAllocationLedger = receipts.some(r =>
-      (r.allocations || []).some(a => a.invoiceId === inv.id && !a.reversed));
+      (r.allocations || []).some(a => a.invoiceId === inv.id));
     const effectivePayments = hasAllocationLedger ? allocatedSettled : (inv.paid || 0);
 
     // §5.5: outstanding = issued − effective credits − net allocated receipts.
@@ -370,11 +380,11 @@ export function verifyGLCompleteness(
     const credits = txs.reduce((sum, t) => sum + (t.credit || 0), 0);
     const netMovement = debits - credits;
 
-    // Check if opening balance is explicitly known (EX06 / EX08)
-    const isOpeningKnown = openings !== undefined && typeof openings[code] === 'number';
-    const opening = isOpeningKnown ? openings![code] : (openings === undefined ? 0 : NaN);
+    // Check if opening balance is explicitly known (EX06 / EX08 / RR07)
+    const isOpeningKnown = Boolean(openings && typeof openings[code] === 'number');
+    const opening = (openings && isOpeningKnown) ? openings[code] : NaN;
 
-    if (openings !== undefined && !isOpeningKnown) {
+    if (!isOpeningKnown) {
       hasMissingOpening = true;
     }
 
@@ -386,12 +396,12 @@ export function verifyGLCompleteness(
       hasUnmatchedAccount = true;
     }
 
-    const calculatedClosing = isOpeningKnown || openings === undefined ? opening + netMovement : NaN;
+    const calculatedClosing = isOpeningKnown ? opening + netMovement : NaN;
     const residual = isNaN(calculatedClosing) ? 999999 : Math.abs(calculatedClosing - tbClosing);
 
     if (!isNaN(residual)) totalResidual += residual;
 
-    const complete = !isUnmatched && !hasMissingOpening && isOpeningKnown && residual === 0;
+    const complete = !isUnmatched && isOpeningKnown && residual === 0;
 
     checks.push({
       accountCode: code,
@@ -407,19 +417,21 @@ export function verifyGLCompleteness(
       glSum: isNaN(calculatedClosing) ? 0 : calculatedClosing,
       tbBalance: tbClosing,
       isComplete: complete,
-      missingOpening: !isOpeningKnown && openings !== undefined,
+      missingOpening: !isOpeningKnown,
       unmatchedAccount: isUnmatched
     });
   });
 
   const discrepancies = checks.filter(c => !c.isComplete);
-  const allBalanced = totalResidual === 0 && !hasMissingOpening && !hasUnmatchedAccount;
+  // Overall result agrees with rows: must have checks, and every check must be complete (RR07, RR08)
+  const isComplete = checks.length > 0 && checks.every(c => c.isComplete);
+  const allBalanced = isComplete;
 
   return {
     checks,
     discrepancies,
     allBalanced,
-    isComplete: allBalanced,
+    isComplete,
     totalResidual
   };
 }

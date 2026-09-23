@@ -12,7 +12,17 @@ interface ReleaseCompletionViewProps {
 
 export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const [dispatchNote, setDispatchNote] = useState('Official audit report and audited financial statements dispatched to Board of Directors.');
+  const [amendReason, setAmendReason] = useState('');
+  const [showAmendModal, setShowAmendModal] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
 
   if (!selectedEng) {
     return (
@@ -31,18 +41,8 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
 
   const client = state.clients.find(c => c.id === selectedEng.client);
 
-  const [dispatchNote, setDispatchNote] = useState('Official audit report and audited financial statements dispatched to Board of Directors.');
-  const [amendReason, setAmendReason] = useState('');
-  const [showAmendModal, setShowAmendModal] = useState(false);
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const triggerNotice = (type: 'success' | 'error', text: string) => {
-    setNotice({ type, text });
-    setTimeout(() => setNotice(null), 6000);
-  };
-
   // Comprehensive 4-part release gate checklist (VP-057)
-  const allWpCleared = selectedEng.workpapers.every(w => w.status === 'Cleared' || w.status === 'Not applicable');
+  const allWpCleared = selectedEng.workpapers.every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
   const noOpenReviews = selectedEng.reviews.every(r => r.status === 'Cleared');
 
   // Gate 3: Findings resolution (no unresolved material misstatements)

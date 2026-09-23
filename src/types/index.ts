@@ -354,6 +354,7 @@ export interface PbcRequestItem {
   due: string;
   owner: string;
   file?: string;
+  responseDocId?: string;
   version: number;
   contributor?: string;
   requestedBy?: string;
@@ -545,8 +546,10 @@ export interface ReceiptRecord {
     invoiceId: string;
     amount: number;
     allocatedAt: string;
+    date?: string;
     reversed?: boolean;
     reversalReason?: string;
+    reversalDate?: string;
   }>;
 }
 
@@ -885,6 +888,68 @@ export interface FirmSettings {
   locale: string;
 }
 
+export interface AcceptanceCaseRecord {
+  id: string;
+  clientId: string;
+  year: number;
+  service: string;
+  riskRating: 'Low' | 'Medium' | 'High' | 'Prohibited';
+  independenceConfirmed: boolean;
+  amlKycCompleted: boolean;
+  conflictsCleared: boolean;
+  prohibitionsChecked: boolean;
+  competenceConfirmed: boolean;
+  conditions: string[];
+  recommendationBy: string;
+  recommendationDate: string;
+  recommendationNotes: string;
+  decisionBy?: string;
+  decisionDate?: string;
+  decisionStatus: 'Pending' | 'Accepted' | 'Declined';
+  decisionNotes?: string;
+}
+
+export interface AuditPlanRecord {
+  id: string;
+  engagementId: string;
+  version: number;
+  status: 'Draft' | 'Under review' | 'Approved';
+  benchmark: string;
+  benchmarkValue: number;
+  materialityRate: number;
+  overallMateriality: number;
+  performanceMateriality: number;
+  clearlyTrivialThreshold: number;
+  rationales: string[];
+  teamAllocations: Array<{ person: string; role: string; scheduledStart: string; scheduledEnd: string }>;
+  timingMilestones: Array<{ phase: string; targetDate: string; status: 'Planned' | 'In progress' | 'Completed' }>;
+  significantAreas: string[];
+  preparedBy?: string;
+  preparedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNotes?: string;
+}
+
+export interface ArchiveRecord {
+  id: string;
+  engagementId: string;
+  releaseId: string;
+  clientName: string;
+  service: string;
+  year: number;
+  archivedAt: string;
+  archivedBy: string;
+  retentionUntil: string;
+  onHold: boolean;
+  onApplicationHold?: boolean;
+  holdReason?: string;
+  handoverRequested?: boolean;
+  handoverNotes?: string;
+  manifestCount: number;
+  manifest?: string[];
+}
+
 // Whole Prototype State
 export interface PrototypeState {
   schema: number;
@@ -944,4 +1009,7 @@ export interface PrototypeState {
     clientId?: string;
     engagementId?: string;
   }>;
+  acceptanceCases?: AcceptanceCaseRecord[];
+  auditPlans?: AuditPlanRecord[];
+  archives?: ArchiveRecord[];
 }

@@ -157,14 +157,12 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     state.jobs.filter(j => engAllowed(j.engagementId) && j.title.toLowerCase().includes(q))
       .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs' }));
     if (!clientRole) {
+      state.documents.filter(d => clientAllowed(d.clientId) && d.name.toLowerCase().includes(q))
+        .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents' }));
       state.jobTasks.filter(t => {
         const job = state.jobs.find(j => j.id === t.jobId);
         return job && engAllowed(job.engagementId) && t.title.toLowerCase().includes(q);
       }).forEach(t => out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs' }));
-    }
-    state.documents.filter(d => clientAllowed(d.clientId) && d.name.toLowerCase().includes(q))
-      .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents' }));
-    if (!clientRole) {
       state.invoices.filter(i => clientAllowed(i.clientId) && i.invoiceNumber.toLowerCase().includes(q))
         .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing' }));
       state.communications.filter(c => clientAllowed(c.clientId) && (c.summary.toLowerCase().includes(q) || c.participants.toLowerCase().includes(q)))

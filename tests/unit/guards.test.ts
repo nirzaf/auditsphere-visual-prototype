@@ -169,8 +169,8 @@ describe('money guards (AT-30/31/32)', () => {
   it('EX14: Client contributor cannot record partner decision', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
-    (prototypeStore as any).state.currentPerson = 'Tariq Al-Mansoor';
-    (prototypeStore as any).state.currentRole = 'client_contributor';
+    (prototypeStore as any).state.currentPerson = 'Rami Nasser';
+    (prototypeStore as any).state.currentRole = 'client_finance';
     assert.throws(
       () => prototypeStore.recordApproval('ENG-26001', 'partner'),
       /Only a partner/
@@ -353,6 +353,17 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     (prototypeStore as any).state.currentRole = 'partner';
 
     const eng = (prototypeStore as any).state.engagements[0];
+    // Ensure all workpapers cleared, review points closed, approvals present for generation
+    eng.workpapers.forEach((w: any) => { w.status = 'Cleared'; });
+    if (eng.reviews) eng.reviews.forEach((r: any) => { r.status = 'Cleared'; });
+    if (eng.eqrConcerns) eng.eqrConcerns.forEach((c: any) => { c.resolved = true; });
+    eng.approvals = {
+      manager: { by: 'Layla Rahman', at: '2026-09-21T10:00:00Z', generation: eng.generation },
+      client: { by: 'Omar Nasser', at: '2026-09-21T11:00:00Z', generation: eng.generation },
+      partner: { by: 'Daniel James', at: '2026-09-21T12:00:00Z', generation: eng.generation },
+      eqr: eng.eqrRequired ? { by: 'Dr. Tariq Al-Sayed', at: '2026-09-21T13:00:00Z', generation: eng.generation } : null
+    };
+
     // Issue initial release
     prototypeStore.prepareReleaseCandidate(eng.id);
     prototypeStore.issueRelease(eng.id, 'First official release');
@@ -363,6 +374,20 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.strictEqual(eng.releases[0].isAmended, true);
     assert.strictEqual(eng.candidate, null);
     assert.strictEqual(eng.approvals.partner, null);
+
+    // Unapproved reissue must be blocked because approvals were invalidated for the new generation!
+    assert.throws(
+      () => prototypeStore.prepareReleaseCandidate(eng.id),
+      /missing or invalid for generation/
+    );
+
+    // Record renewed approvals for new generation
+    eng.approvals = {
+      manager: { by: 'Layla Rahman', at: '2026-09-22T10:00:00Z', generation: eng.generation },
+      client: { by: 'Omar Nasser', at: '2026-09-22T11:00:00Z', generation: eng.generation },
+      partner: { by: 'Daniel James', at: '2026-09-22T12:00:00Z', generation: eng.generation },
+      eqr: eng.eqrRequired ? { by: 'Dr. Tariq Al-Sayed', at: '2026-09-22T13:00:00Z', generation: eng.generation } : null
+    };
 
     // Freeze and issue second release
     prototypeStore.prepareReleaseCandidate(eng.id);

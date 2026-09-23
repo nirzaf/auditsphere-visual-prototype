@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -191,6 +191,9 @@ class PrototypeStore {
   /** Explicit scoped grants (VP-019). Admin alone never grants professional authority. */
   public grantAccess(userName: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement', scopeId?: string, reason = '') {
     requireActiveIdentity(this.state);
+    if (this.state.currentRole !== 'admin') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only administrators can grant access.');
+    }
     if ((scopeKind === 'Client' || scopeKind === 'Engagement') && !scopeId) {
       throw new GuardError('INVALID_STATE', 'Scoped grants require a scope ID.');
     }
@@ -201,6 +204,9 @@ class PrototypeStore {
 
   public revokeAccess(userName: string, role: RoleKey, scopeId?: string) {
     requireActiveIdentity(this.state);
+    if (this.state.currentRole !== 'admin') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only administrators can revoke access.');
+    }
     const idx = this.state.roleGrants.findIndex(g => g.userId === userName && g.role === role && (g.scopeId || undefined) === (scopeId || undefined));
     if (idx >= 0) {
       this.state.roleGrants.splice(idx, 1);
@@ -264,6 +270,9 @@ class PrototypeStore {
 
   public reviewProposal(propId: string, approved: boolean, notes?: string) {
     requireActiveIdentity(this.state);
+    if (!['partner', 'manager'].includes(this.state.currentRole)) {
+      throw new GuardError('FORBIDDEN_SCOPE', `Role "${this.state.currentRole}" is not authorized to commercially review proposals. Requires partner or manager.`);
+    }
     const prop = this.state.proposals.find(p => p.id === propId);
     if (!prop) return;
     // Same-person commercial approval denied even under another role label (VP-011).
@@ -349,6 +358,10 @@ class PrototypeStore {
   private assertTaskHierarchy(task: JobTaskItem, selfId?: string) {
     if (!task.title || !task.title.trim()) {
       throw new GuardError('INVALID_STATE', 'Task title is required.');
+    }
+    const job = this.state.jobs.find(j => j.id === task.jobId);
+    if (!job) {
+      throw new GuardError('INVALID_STATE', `Referenced job "${task.jobId}" does not exist.`);
     }
     if (task.parentTaskId) {
       if (task.parentTaskId === (selfId || task.id)) {
@@ -588,8 +601,8 @@ class PrototypeStore {
     if (invoice.status !== 'Issued' && invoice.status !== 'Paid') {
       throw new GuardError('INVALID_STATE', 'Only issued invoices can receive allocations (draft/cancelled excluded).');
     }
-    if (amount <= 0) {
-      throw new GuardError('INVALID_STATE', 'Allocation amount must be positive.');
+    if (!Number.isFinite(amount) || isNaN(amount) || amount <= 0) {
+      throw new GuardError('INVALID_STATE', 'Allocation amount must be a finite positive number.');
     }
 
     const unallocated = receipt.amount - (receipt.allocatedAmount || 0);
@@ -611,19 +624,22 @@ class PrototypeStore {
       });
     });
 
-    const remainingInvoice = Math.max(0, invoice.amount - issuedCredits - totalAllocated);
+    const settledAmount = Math.max(invoice.paid || 0, totalAllocated);
+    const remainingInvoice = Math.max(0, invoice.amount - issuedCredits - settledAmount);
     if (amount > remainingInvoice) {
       throw new GuardError('INVALID_STATE', `Allocation ${amount} exceeds remaining invoice balance ${remainingInvoice}.`);
     }
 
     receipt.allocatedAmount = (receipt.allocatedAmount || 0) + amount;
+    const nowIso = new Date().toISOString();
     receipt.allocations.push({
       invoiceId,
       amount,
-      allocatedAt: new Date().toISOString()
+      allocatedAt: nowIso,
+      date: nowIso.split('T')[0]
     });
 
-    invoice.paid += amount;
+    invoice.paid = settledAmount + amount;
     if (invoice.paid >= invoice.amount - issuedCredits) {
       invoice.status = 'Paid';
     }
@@ -640,6 +656,7 @@ class PrototypeStore {
     if (alloc.reversed) return;
 
     alloc.reversed = true;
+    alloc.reversalDate = new Date().toISOString().split('T')[0];
     alloc.reversalReason = reason;
     receipt.allocatedAmount = Math.max(0, receipt.allocatedAmount - alloc.amount);
 
@@ -782,7 +799,7 @@ class PrototypeStore {
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) return;
 
-    // Role authority checks (VP-019, VP-056 / EX14)
+    // Role authority checks (VP-019, VP-056 / EX14, RR17, RR18)
     const role = this.state.currentRole;
     if (roleKey === 'partner' && role !== 'partner') {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only a partner can record partner clearance.');
@@ -790,11 +807,11 @@ class PrototypeStore {
     if (roleKey === 'eqr' && role !== 'eqr') {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an Engagement Quality Reviewer can record EQR concurrence.');
     }
-    if (roleKey === 'manager' && !['manager', 'senior_reviewer', 'partner'].includes(role)) {
-      throw new GuardError('FORBIDDEN_SCOPE', 'Only an engagement manager or senior reviewer can record manager clearance.');
+    if (roleKey === 'manager' && !['manager', 'partner'].includes(role)) {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only an engagement manager or partner can record manager clearance.');
     }
-    if (roleKey === 'client' && !['client_approver', 'client_admin', 'management_approver'].includes(role)) {
-      throw new GuardError('FORBIDDEN_SCOPE', 'Only an authorized client management approver can record representation sign-off.');
+    if (roleKey === 'client' && role !== 'client') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only an authorized client management approver (role: "client") can record representation sign-off.');
     }
 
     requireEngagementScope(this.state, engId);
@@ -916,6 +933,7 @@ class PrototypeStore {
     };
     this.state.documents.unshift(newDoc);
 
+    req.version = (req.version || 1) + 1;
     if (!req.sharedFiles) req.sharedFiles = [];
     req.sharedFiles.push({
       id: docId,
@@ -973,13 +991,18 @@ class PrototypeStore {
   }
 
   public acceptPbcResponse(engId: string, requestId: string) {
-    // Only a different authorized person may accept; uploader cannot self-accept (VP-024).
     requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     const req = eng?.pbc.find(r => r.id === requestId);
     if (!req) return;
+    if (req.status !== 'Received' || (!req.file && !req.responseDocId && (!req.sharedFiles || req.sharedFiles.length === 0))) {
+      throw new GuardError('INVALID_STATE', 'Cannot accept PBC request: no valid submission has been received.');
+    }
     const lastUploadBy = req.thread?.filter(t => t.kind === 'response').at(-1)?.author || req.contributor || '';
-    if (lastUploadBy) requireIndependentActor(lastUploadBy, this.state.currentPerson, 'accept this PBC response');
+    if (lastUploadBy) {
+      requireIndependentActor(lastUploadBy, this.state.currentPerson, 'accept this PBC response');
+    }
     req.status = 'Accepted';
     this.logEvent(`PBC response accepted: ${req.title}`, req.id);
     this.notify();
@@ -1075,9 +1098,60 @@ class PrototypeStore {
   }
 
   // --- Release & Archive (VP-057, VP-058, VP-059) ---
-  public prepareReleaseCandidate(engId: string) {
+  public evaluateReleaseReadiness(engId: string): { ready: boolean; reason?: string } {
     const eng = this.state.engagements.find(e => e.id === engId);
-    if (!eng) return;
+    if (!eng) return { ready: false, reason: 'Engagement not found' };
+
+    const allWpCleared = (eng.workpapers || []).every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
+    if (!allWpCleared) return { ready: false, reason: 'One or more workpapers are not cleared or marked N/A' };
+
+    const allReviewsCleared = eng.reviews.every(r => r.status === 'Cleared');
+    if (!allReviewsCleared) return { ready: false, reason: 'One or more review notes remain open' };
+
+    const openMaterialFindings = this.state.findings.filter(
+      f => f.engagementId === eng.id &&
+        !['Corrected in TB', 'Corrected by client', 'Waived as immaterial', 'Uncorrected waived'].includes(f.disposition) &&
+        (f.severity === 'Material' || f.category === 'Monetary misstatement')
+    );
+    if (openMaterialFindings.length > 0) return { ready: false, reason: 'Unresolved material findings exist' };
+
+    const gen = eng.generation;
+    if (!eng.approvals.manager || eng.approvals.manager.generation !== gen) {
+      return { ready: false, reason: `Manager clearance missing or invalid for generation ${gen}` };
+    }
+    if (!eng.approvals.client || eng.approvals.client.generation !== gen) {
+      return { ready: false, reason: `Client management representation missing or invalid for generation ${gen}` };
+    }
+    if (!eng.approvals.partner || eng.approvals.partner.generation !== gen) {
+      return { ready: false, reason: `Partner sign-off missing or invalid for generation ${gen}` };
+    }
+    if (eng.eqrRequired) {
+      if (!eng.approvals.eqr || eng.approvals.eqr.generation !== gen) {
+        return { ready: false, reason: `EQR concurrence missing or invalid for generation ${gen}` };
+      }
+      if (eng.eqrConcerns?.some(c => !c.resolved)) {
+        return { ready: false, reason: 'Unresolved EQR concerns remain' };
+      }
+    }
+
+    return { ready: true };
+  }
+
+  public prepareReleaseCandidate(engId: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" not found.`);
+
+    const readiness = this.evaluateReleaseReadiness(engId);
+    if (!readiness.ready) {
+      throw new GuardError('INVALID_STATE', `Cannot prepare release candidate: ${readiness.reason}`);
+    }
+
+    if (eng.candidate && eng.candidate.generation === eng.generation) {
+      return eng.candidate;
+    }
+
     eng.candidate = {
       generation: eng.generation,
       preparedAt: new Date().toISOString(),
@@ -1090,11 +1164,41 @@ class PrototypeStore {
     };
     this.logEvent(`Release candidate frozen for ${eng.id} (Gen ${eng.generation})`, eng.id);
     this.notify();
+    return eng.candidate;
+  }
+
+  public updatePackageRevision(engId: string) {
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    eng.packageRevision++;
+    eng.generation++;
+    eng.candidate = null;
+    this.logEvent(`Package revision updated to Rev ${eng.packageRevision}`, eng.id);
+    this.notify();
   }
 
   public issueRelease(engId: string, dispatchNote = '') {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
-    if (!eng || !eng.candidate) return;
+    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" not found.`);
+    if (!eng.candidate) {
+      throw new GuardError('INVALID_STATE', 'Cannot issue release: no release candidate prepared.');
+    }
+    if (eng.candidate.generation !== eng.generation) {
+      throw new GuardError('STALE_REVISION', `Release candidate is stale: candidate generation is ${eng.candidate.generation}, but current engagement generation is ${eng.generation}.`);
+    }
+
+    const alreadyReleased = eng.releases.some(r => r.generation === eng.generation);
+    if (alreadyReleased) {
+      throw new GuardError('INVALID_STATE', `Generation ${eng.generation} has already been released.`);
+    }
+
+    const readiness = this.evaluateReleaseReadiness(engId);
+    if (!readiness.ready) {
+      throw new GuardError('INVALID_STATE', `Cannot issue release: ${readiness.reason}`);
+    }
+
     const releaseId = `REL-2600${eng.releases.length + 1}`;
     const prevRelease = eng.releases.at(-1);
     eng.releases.push({
@@ -1132,7 +1236,9 @@ class PrototypeStore {
     eng.packageRevision++;
     eng.generation++;
     eng.candidate = null;
-    // Approvals for partner are invalidated for the new generation
+    // Approvals are invalidated for the new generation
+    eng.approvals.manager = null;
+    eng.approvals.client = null;
     eng.approvals.partner = null;
     if (eng.eqrRequired) {
       eng.approvals.eqr = null;
@@ -1165,24 +1271,123 @@ class PrototypeStore {
   }
 
   public archiveEngagement(engId: string, releaseId: string, retentionUntil?: string, onHold = false, holdReason?: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
-    if (!eng) return;
-    eng.archive = {
+    if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" not found.`);
+
+    // Verify release exists and is eligible (R14)
+    const release = eng.releases.find(r => r.id === releaseId);
+    if (!release) {
+      throw new GuardError('INVALID_STATE', `Cannot archive: Release "${releaseId}" does not exist for engagement "${engId}".`);
+    }
+
+    const archiveManifest = release.manifest ? release.manifest.map(m => m.name) : ['Auditor_Report_FY2026.pdf', 'Financial_Statements_Package_v3.xlsx'];
+    const archiveData = {
       archivedAt: new Date().toISOString(),
       archivedBy: this.state.currentPerson,
       releaseId,
-      manifest: ['Auditor_Report_FY2026.pdf', 'Financial_Statements_Package_v3.xlsx'],
-      retentionUntil,
+      manifest: archiveManifest,
+      retentionUntil: retentionUntil || '2036-12-31',
       onApplicationHold: onHold,
       holdReason
     };
+    eng.archive = archiveData;
+
+    if (!this.state.archives) this.state.archives = [];
+    const client = this.state.clients.find(c => c.id === eng.client);
+    const archiveRecord: ArchiveRecord = {
+      id: `ARC-${eng.id}-${Date.now().toString().slice(-4)}`,
+      engagementId: eng.id,
+      releaseId,
+      clientName: client?.name || eng.client,
+      service: eng.service,
+      year: eng.year,
+      archivedAt: archiveData.archivedAt,
+      archivedBy: archiveData.archivedBy,
+      manifest: archiveManifest,
+      manifestCount: archiveManifest.length,
+      retentionUntil: archiveData.retentionUntil,
+      onHold,
+      onApplicationHold: onHold,
+      holdReason
+    };
+    this.state.archives.push(archiveRecord);
+
     this.logEvent(`Engagement ${eng.id} archived in logical repository`, eng.id);
+    this.notify();
+  }
+
+  // --- Client Acceptance & Continuance (VP-047 / R12) ---
+  public saveAcceptanceCase(accCase: AcceptanceCaseRecord) {
+    requireActiveIdentity(this.state);
+    requireClientScope(this.state, accCase.clientId);
+    if (!this.state.acceptanceCases) this.state.acceptanceCases = [];
+    const idx = this.state.acceptanceCases.findIndex(c => c.id === accCase.id);
+    if (idx >= 0) {
+      this.state.acceptanceCases[idx] = accCase;
+    } else {
+      this.state.acceptanceCases.push(accCase);
+    }
+    const eng = this.state.engagements.find(e => e.client === accCase.clientId && e.year === accCase.year);
+    if (eng && accCase.decisionStatus === 'Accepted') {
+      eng.acceptance = true;
+    }
+    this.logEvent(`Acceptance evaluation saved for client ${accCase.clientId} (${accCase.decisionStatus})`, accCase.clientId);
+    this.notify();
+  }
+
+  // --- Audit Planning & Materiality (VP-048 / R12) ---
+  public saveAuditPlan(plan: AuditPlanRecord) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, plan.engagementId);
+    if (!this.state.auditPlans) this.state.auditPlans = [];
+    const idx = this.state.auditPlans.findIndex(p => p.id === plan.id);
+    if (idx >= 0) {
+      this.state.auditPlans[idx] = plan;
+    } else {
+      this.state.auditPlans.push(plan);
+    }
+    const eng = this.state.engagements.find(e => e.id === plan.engagementId);
+    if (eng && plan.status === 'Approved') {
+      eng.planning = true;
+    }
+    this.logEvent(`Audit plan ${plan.id} saved (v${plan.version}, ${plan.status})`, plan.engagementId);
+    this.notify();
+  }
+
+  public reviewAuditPlan(planId: string, approved: boolean, notes: string) {
+    requireActiveIdentity(this.state);
+    if (!this.state.auditPlans) return;
+    const plan = this.state.auditPlans.find(p => p.id === planId);
+    if (!plan) return;
+    requireEngagementScope(this.state, plan.engagementId);
+    requireIndependentActor(plan.preparedBy || '', this.state.currentPerson, 'review this audit plan');
+    plan.status = approved ? 'Approved' : 'Under review';
+    plan.reviewedBy = this.state.currentPerson;
+    plan.reviewedAt = new Date().toISOString();
+    plan.reviewNotes = notes;
+    const eng = this.state.engagements.find(e => e.id === plan.engagementId);
+    if (eng && approved) {
+      eng.planning = true;
+    }
+    this.logEvent(`Audit plan ${plan.id} review recorded: ${plan.status}`, plan.engagementId);
     this.notify();
   }
 
   // --- M365 Setup (VP-017, VP-022) ---
   public updateM365Config(config: PrototypeState['m365Config']) {
-    this.state.m365Config = { ...config, liveConnected: false };
+    const prev = this.state.m365Config;
+    const changed = prev.tenantId !== config.tenantId ||
+      prev.sharePointSite !== config.sharePointSite ||
+      prev.sharePointLibrary !== config.sharePointLibrary ||
+      prev.folderRoot !== config.folderRoot ||
+      prev.mailSenderAccount !== config.mailSenderAccount;
+    this.state.m365Config = {
+      ...config,
+      liveConnected: false,
+      status: changed ? 'Not configured' : (config.status || prev.status)
+    };
     this.notify();
   }
 

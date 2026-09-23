@@ -34,6 +34,10 @@ npm run test:e2e
 | 2026-09-23 | working tree (Gap Closure) | `npm run legacy:check` | PASS | `node --check app.bundle.js` |
 | 2026-09-23 | working tree (Gap Closure) | `npm run test:unit` | PASS — 52/52, 19 suites | EX01–EX18 reproduction checks, F01–F16 findings remediated (F03 EQR concerns, F04 release amendment lineage, F05 workpaper revisions & PBC intake, F06 job template lifecycle, F13 canonical SharePoint folder hierarchy, F14 watermarking) |
 | 2026-09-23 | working tree (Gap Closure) | `npm run test:e2e` | PASS — 5/5 | local loopback build; shell boots, no provider egress, simulated surfaces present, docs ship |
+| 2026-09-23 | working tree (R01–R14 Remediation) | `npm run build` | PASS (1.88s, 265 modules) | `tsc --noEmit && vite build` → `dist/` with 0 type errors |
+| 2026-09-23 | working tree (R01–R14 Remediation) | `npm run legacy:check` | PASS | `node --check app.bundle.js` |
+| 2026-09-23 | working tree (R01–R14 Remediation) | `npm run test:unit` | PASS — 90/90, 20 suites | Prior 52 + 38 reproduction checks (RR01–RR38) covering all 14 findings (R01–R14). Money invariants, GL completeness, role mapping, release readiness, and grant scope verified |
+| 2026-09-23 | working tree (R01–R14 Remediation) | `npm run test:e2e` | PASS — 5/5 | local loopback build; shell boots, no provider egress, simulated surfaces present, docs ship |
 
 No test counts, commit IDs, fixture IDs or artifact hashes are claimed until the
 rows above are filled from real runs. Predecessor counts in `test-results.json`

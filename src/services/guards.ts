@@ -23,28 +23,30 @@ export class GuardError extends Error {
 }
 
 export function activePersona(state: PrototypeState): { name: string; role: RoleKey; active: boolean } {
-  const user = state.users.find(u => u.name === state.currentPerson)
-    ?? state.users.find(u => u.role === state.currentRole)
-    ?? state.users[0];
+  const user = state.users.find(u => u.name === state.currentPerson);
+  if (!user) {
+    return { name: state.currentPerson, role: state.currentRole, active: false };
+  }
   return { name: user.name, role: state.currentRole, active: user.status === 'Active' };
 }
 
 export function requireActiveIdentity(state: PrototypeState): void {
-  const persona = activePersona(state);
-  const record = state.users.find(u => u.name === persona.name);
-  if (!record || record.status !== 'Active') {
-    throw new GuardError('DISABLED_IDENTITY', `Identity "${persona.name}" is disabled and cannot perform business commands.`);
+  const user = state.users.find(u => u.name === state.currentPerson);
+  if (!user) {
+    throw new GuardError('DISABLED_IDENTITY', `Identity "${state.currentPerson}" is not recognized.`);
+  }
+  if (user.status !== 'Active') {
+    throw new GuardError('DISABLED_IDENTITY', `Identity "${user.name}" is disabled and cannot perform business commands.`);
   }
 }
 
 /** Narrow grants: Global sees all; Client sees one client; Engagement sees one engagement.
- * Grants bind to the natural person name (userId). Legacy payloads that keyed
- * grants by role are honoured only when no person-named grant exists. */
+ * Grants bind strictly to the natural person name (userId). Revoking grants results
+ * in zero access (empty array), never fallback to other people's grants. */
 export function visibleClientIds(state: PrototypeState, personName?: string): string[] | 'ALL' {
   const person = personName ?? state.currentPerson;
-  const personGrants = state.roleGrants.filter(g => g.userId === person);
-  const grants = personGrants.length > 0 ? personGrants : state.roleGrants.filter(g =>
-    state.users.find(u => u.name === person)?.role === g.role);
+  const grants = state.roleGrants.filter(g => g.userId === person);
+  if (grants.length === 0) return [];
   if (grants.some(g => g.scopeKind === 'Global')) return 'ALL';
   const clients = new Set<string>();
   for (const g of grants) {
@@ -57,10 +59,10 @@ export function visibleClientIds(state: PrototypeState, personName?: string): st
   return [...clients];
 }
 
-export function visibleEngagementIds(state: PrototypeState): string[] | 'ALL' {
-  const personGrants = state.roleGrants.filter(g => g.userId === state.currentPerson);
-  const grants = personGrants.length > 0 ? personGrants : state.roleGrants.filter(g =>
-    state.users.find(u => u.name === state.currentPerson)?.role === g.role);
+export function visibleEngagementIds(state: PrototypeState, personName?: string): string[] | 'ALL' {
+  const person = personName ?? state.currentPerson;
+  const grants = state.roleGrants.filter(g => g.userId === person);
+  if (grants.length === 0) return [];
   if (grants.some(g => g.scopeKind === 'Global')) return 'ALL';
   const engs = new Set<string>();
   for (const g of grants) {

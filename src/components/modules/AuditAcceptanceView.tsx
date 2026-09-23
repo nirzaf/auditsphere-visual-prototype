@@ -1,8 +1,8 @@
 // Module 27: Acceptance, Continuance & KYC Questionnaire (VP-047)
-// Engagement onboarding, independence evaluation, partner sign-off, and canonical workspace preparation.
+// Engagement onboarding, independence evaluation, conditions management, partner sign-off, and persisted acceptance cases.
 
 import React, { useState } from 'react';
-import { RouteKey } from '../../types';
+import { RouteKey, AcceptanceCaseRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -13,6 +13,56 @@ interface AuditAcceptanceViewProps {
 export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Existing persisted case if any
+  const existingCase = (state.acceptanceCases || []).find(
+    c => c.clientId === (client?.id || selectedEng?.client) && c.year === (selectedEng?.year || 2026)
+  );
+
+  const [riskRating, setRiskRating] = useState<'Low' | 'Medium' | 'High' | 'Prohibited'>(
+    existingCase?.riskRating || 'Low'
+  );
+  const [independenceConfirmed, setIndependenceConfirmed] = useState(
+    existingCase ? existingCase.independenceConfirmed : true
+  );
+  const [amlKycCompleted, setAmlKycCompleted] = useState(
+    existingCase ? existingCase.amlKycCompleted : true
+  );
+  const [conflictsCleared, setConflictsCleared] = useState(
+    existingCase ? existingCase.conflictsCleared : true
+  );
+  const [prohibitionsChecked, setProhibitionsChecked] = useState(
+    existingCase ? existingCase.prohibitionsChecked : true
+  );
+  const [competenceConfirmed, setCompetenceConfirmed] = useState(
+    existingCase ? existingCase.competenceConfirmed : true
+  );
+
+  const [conditions, setConditions] = useState<string[]>(
+    existingCase?.conditions || [
+      'Obtain signed confirmation of all related party transactions prior to fieldwork release',
+      'Conduct monthly covenant compliance review for commercial banking facilities'
+    ]
+  );
+  const [newCondition, setNewCondition] = useState('');
+
+  const [recommendationNotes, setRecommendationNotes] = useState(
+    existingCase?.recommendationNotes || 'Client has clean regulatory record with QFMA, transparent beneficial ownership structure, and prompt predecessor clearance.'
+  );
+  const [partnerDecision, setPartnerDecision] = useState<'Pending' | 'Accepted' | 'Declined'>(
+    existingCase?.decisionStatus || 'Accepted'
+  );
+  const [partnerRationale, setPartnerRationale] = useState(
+    existingCase?.decisionNotes || 'Satisfactory governance, low risk profile, full independence maintained. Partner clearance approved.'
+  );
+
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
 
   if (!selectedEng) {
     return (
@@ -29,44 +79,63 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
     );
   }
 
-  const client = state.clients.find(c => c.id === selectedEng.client);
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const [questions, setQuestions] = useState([
-    { id: 0, text: 'Are all beneficial owners identified and verified against sanctions and PEP lists?', answered: true, notes: 'Passport copy and CR verified.' },
-    { id: 1, text: 'Is the firm independent of the entity in accordance with IESBA and local statutory code?', answered: true, notes: 'Independence declarations collected.' },
-    { id: 2, text: 'Does the firm have the necessary industry competence, resources, and time to perform the audit?', answered: true, notes: 'Engagement team staffed with qualified accountants.' },
-    { id: 3, text: 'Were prior year audited financial statements and predecessor auditor communications reviewed?', answered: true, notes: 'Professional clearance letter on file.' }
-  ]);
-
-  const [partnerDecision, setPartnerDecision] = useState<'Accepted' | 'Declined'>('Accepted');
-  const [partnerRationale, setPartnerRationale] = useState('Satisfactory governance, low risk profile, full independence maintained.');
-
-  const allCompleted = questions.every(q => q.answered);
-
-  const triggerNotice = (type: 'success' | 'error', text: string) => {
-    setNotice({ type, text });
-    setTimeout(() => setNotice(null), 6000);
+  const handleAddCondition = () => {
+    if (!newCondition.trim()) return;
+    setConditions(prev => [...prev, newCondition.trim()]);
+    setNewCondition('');
   };
 
-  const handlePartnerAcceptance = () => {
+  const handleRemoveCondition = (index: number) => {
+    setConditions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveEvaluation = () => {
+    if (!client) return;
     try {
-      if (client) {
+      const caseRecord: AcceptanceCaseRecord = {
+        id: existingCase?.id || `ACC-${client.id}-${selectedEng.year}`,
+        clientId: client.id,
+        year: selectedEng.year,
+        service: selectedEng.service,
+        riskRating,
+        independenceConfirmed,
+        amlKycCompleted,
+        conflictsCleared,
+        prohibitionsChecked,
+        competenceConfirmed,
+        conditions,
+        recommendationBy: state.currentPerson,
+        recommendationDate: new Date().toISOString(),
+        recommendationNotes,
+        decisionBy: partnerDecision !== 'Pending' ? selectedEng.partner : undefined,
+        decisionDate: partnerDecision !== 'Pending' ? new Date().toISOString() : undefined,
+        decisionStatus: partnerDecision,
+        decisionNotes: partnerRationale
+      };
+
+      prototypeStore.saveAcceptanceCase(caseRecord);
+      if (partnerDecision === 'Accepted') {
         prototypeStore.prepareClientWorkspace(client.id, selectedEng.year);
       }
-      prototypeStore.logEvent(`Acceptance & KYC confirmed by ${selectedEng.partner} (${partnerDecision})`, selectedEng.id);
-      triggerNotice('success', `Engagement acceptance status recorded. Canonical SharePoint workspace prepared for ${client?.name || selectedEng.client}.`);
+      triggerNotice('success', `Acceptance evaluation case ${caseRecord.id} persisted. Client workspace prepared.`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
   };
+
+  const allChecksPass = independenceConfirmed && amlKycCompleted && conflictsCleared && prohibitionsChecked && competenceConfirmed;
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
           <h1>Client Acceptance &amp; Continuance (KYC)</h1>
-          <p>Annual continuance evaluation, independence verification, and partner acceptance record.</p>
+          <p>Annual continuance evaluation, independence verification, engagement conditions, and partner sign-off trail.</p>
+        </div>
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn primary sm" onClick={handleSaveEvaluation}>
+            <Icon name="check" /> Persist Evaluation &amp; Decision
+          </button>
         </div>
       </div>
 
@@ -88,67 +157,171 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
       <div className="panel panel-pad">
         <div className="between">
           <div>
-            <span className="eyebrow">ANNUAL ACCEPTANCE &amp; CONTINUANCE</span>
+            <span className="eyebrow">PERSISTED CASE · {existingCase?.id || `ACC-${client?.id || 'NEW'}-${selectedEng.year}`}</span>
             <h2>{client?.name || selectedEng.client} · FY {selectedEng.year}</h2>
             <p className="sub">{selectedEng.service} · Jurisdiction: {client?.jurisdiction || 'State of Qatar'}</p>
           </div>
-          <span className={`badge ${allCompleted ? 'green' : 'amber'}`}>
-            {allCompleted ? 'Questionnaire Completed' : 'Pending Verification'}
+          <span className={`badge ${partnerDecision === 'Accepted' ? 'green' : partnerDecision === 'Declined' ? 'red' : 'amber'}`}>
+            Decision: {partnerDecision}
           </span>
         </div>
 
-        <h3 className="mt20">Professional Mandate Questionnaire</h3>
-        <div className="stack mt12" style={{ gap: 10 }}>
-          {questions.map(q => (
-            <div key={q.id} className="borderbox" style={{ padding: 14 }}>
-              <div className="between">
-                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={q.answered}
-                    onChange={e => {
-                      setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, answered: e.target.checked } : item));
-                    }}
-                  />
-                  <b>{q.text}</b>
-                </div>
-                <span className={`badge ${q.answered ? 'green' : 'gray'}`}>
-                  {q.answered ? 'Verified' : 'Pending'}
-                </span>
-              </div>
-              <div className="cell-sub mt8" style={{ paddingLeft: 26 }}>
-                <strong>Evidence on file:</strong> {q.notes}
-              </div>
+        {/* Section 1: Statutory Compliance Checks */}
+        <h3 className="mt20">1. Mandatory Onboarding &amp; Statutory Checks</h3>
+        <div className="grid2 mt12" style={{ gap: 12 }}>
+          <label className="borderbox row" style={{ padding: 12, gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={amlKycCompleted}
+              onChange={e => setAmlKycCompleted(e.target.checked)}
+            />
+            <div>
+              <b>Beneficial Ownership &amp; Sanctions Screening (AML/KYC)</b>
+              <div className="cell-sub">Passport, Commercial Registration, and national PEP database verification.</div>
             </div>
-          ))}
+          </label>
+
+          <label className="borderbox row" style={{ padding: 12, gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={independenceConfirmed}
+              onChange={e => setIndependenceConfirmed(e.target.checked)}
+            />
+            <div>
+              <b>Firm &amp; Personal Independence Confirmation (IESBA)</b>
+              <div className="cell-sub">No prohibited non-audit services, financial interests, or family relationships.</div>
+            </div>
+          </label>
+
+          <label className="borderbox row" style={{ padding: 12, gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={conflictsCleared}
+              onChange={e => setConflictsCleared(e.target.checked)}
+            />
+            <div>
+              <b>Commercial Conflict of Interest Clearance</b>
+              <div className="cell-sub">Cross-checked against existing client registers and competitive relationships.</div>
+            </div>
+          </label>
+
+          <label className="borderbox row" style={{ padding: 12, gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={prohibitionsChecked}
+              onChange={e => setProhibitionsChecked(e.target.checked)}
+            />
+            <div>
+              <b>Statutory Auditor Rotation &amp; Term Prohibitions</b>
+              <div className="cell-sub">Verified mandate tenure complies with local mandatory rotation laws.</div>
+            </div>
+          </label>
+
+          <label className="borderbox row" style={{ padding: 12, gap: 10, alignItems: 'center', cursor: 'pointer', gridColumn: 'span 2' }}>
+            <input
+              type="checkbox"
+              checked={competenceConfirmed}
+              onChange={e => setCompetenceConfirmed(e.target.checked)}
+            />
+            <div>
+              <b>Technical Industry Competence &amp; Resource Availability</b>
+              <div className="cell-sub">Team staffed with licensed statutory audit practitioners and sector specialists.</div>
+            </div>
+          </label>
         </div>
 
+        {/* Section 2: Risk Rating & Engagement Conditions */}
+        <h3 className="mt20">2. Risk Evaluation &amp; Engagement Pre-Conditions</h3>
+        <div className="grid2 mt12" style={{ gap: 16 }}>
+          <div>
+            <label className="caption">Assessed Client Mandate Risk Rating</label>
+            <select
+              className="input"
+              value={riskRating}
+              onChange={e => setRiskRating(e.target.value as any)}
+            >
+              <option value="Low">Low Risk — Standard Mandate Controls</option>
+              <option value="Medium">Medium Risk — Enhanced Manager Supervision</option>
+              <option value="High">High Risk — Mandatory EQR &amp; Partner Concurrence</option>
+              <option value="Prohibited">Prohibited — Mandatory Mandate Rejection</option>
+            </select>
+          </div>
+          <div>
+            <label className="caption">Statutory Compliance Status</label>
+            <div className="mt4">
+              <span className={`badge ${allChecksPass ? 'green' : 'amber'}`}>
+                {allChecksPass ? 'All 5 Statutory Gates Passed' : 'Incomplete Screening Gates'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt16">
+          <label className="caption">Engagement Conditions Precedent ({conditions.length})</label>
+          <div className="stack mt8" style={{ gap: 8 }}>
+            {conditions.map((cond, idx) => (
+              <div key={idx} className="between borderbox" style={{ padding: 10 }}>
+                <span>• {cond}</span>
+                <button className="btn sm ghost text-danger" onClick={() => handleRemoveCondition(idx)}>Remove</button>
+              </div>
+            ))}
+          </div>
+          <div className="row mt8" style={{ gap: 8 }}>
+            <input
+              type="text"
+              className="input"
+              placeholder="Add specific engagement condition precedent..."
+              value={newCondition}
+              onChange={e => setNewCondition(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddCondition()}
+            />
+            <button className="btn sm" onClick={handleAddCondition}>Add Condition</button>
+          </div>
+        </div>
+
+        {/* Section 3: Onboarding Recommendation */}
+        <h3 className="mt20">3. Onboarding &amp; Compliance Recommendation</h3>
+        <div className="mt8">
+          <label className="caption">Compliance Recommendation Summary</label>
+          <textarea
+            className="input"
+            rows={2}
+            value={recommendationNotes}
+            onChange={e => setRecommendationNotes(e.target.value)}
+          />
+          <div className="cell-sub mt4">
+            Evaluated by: {existingCase?.recommendationBy || state.currentPerson} · Date: {existingCase?.recommendationDate ? new Date(existingCase.recommendationDate).toLocaleDateString() : 'Current evaluation'}
+          </div>
+        </div>
+
+        {/* Section 4: Lead Partner Final Decision */}
         <div className="borderbox mt20" style={{ background: '#f8fafc', padding: 16 }}>
-          <h4>Lead Engagement Partner Acceptance Decision</h4>
-          <p className="sub mt8">
-            Sole authority retained by licensed signing partner ({selectedEng.partner}).
+          <h4>4. Licensed Lead Audit Partner Decision</h4>
+          <p className="sub mt4">
+            Final engagement authority retained strictly by the lead statutory partner ({selectedEng.partner}).
           </p>
 
-          <div className="grid2 mt12">
+          <div className="grid2 mt12" style={{ gap: 16 }}>
             <div>
-              <label className="caption">Acceptance Decision</label>
+              <label className="caption">Final Decision Status</label>
               <select
                 className="input"
                 value={partnerDecision}
                 onChange={e => setPartnerDecision(e.target.value as any)}
               >
-                <option value="Accepted">Accept / Continue Professional Relationship</option>
-                <option value="Declined">Decline Mandate</option>
+                <option value="Accepted">Accept &amp; Continue Engagement Mandate</option>
+                <option value="Declined">Decline Professional Mandate</option>
+                <option value="Pending">Pending Further Clarifications / Conditions</option>
               </select>
             </div>
             <div>
-              <label className="caption">Signing Partner</label>
-              <div><b>{selectedEng.partner} (FCA)</b></div>
+              <label className="caption">Signing Statutory Partner</label>
+              <div className="mt4"><b>{selectedEng.partner} (Licensed Practitioner)</b></div>
             </div>
           </div>
 
           <div className="mt12">
-            <label className="caption">Mandate Rationale</label>
+            <label className="caption">Partner Acceptance Rationale</label>
             <textarea
               className="input"
               rows={2}
@@ -158,22 +331,57 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           </div>
 
           <button
-            className="btn primary sm mt12"
-            onClick={handlePartnerAcceptance}
+            className="btn primary sm mt16"
+            onClick={handleSaveEvaluation}
           >
             Record Partner Acceptance Sign-off
           </button>
         </div>
       </div>
 
-      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
-        <b>Prototype note — evaluation depth and continuance (VP-047)</b>
-        <p className="sub mt4">
-          Recording partner acceptance triggers the creation of canonical SharePoint client folders
-          (01_Acceptance, 02_Planning, 03_Fieldwork, 04_Deliverables, 05_Correspondence) in the local store.
-          No live screening APIs or cloud identity systems are contacted.
-        </p>
-      </div>
+      {/* Case History / Prior Years Register */}
+      {(state.acceptanceCases && state.acceptanceCases.length > 0) && (
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Firm Acceptance &amp; Continuance Register ({state.acceptanceCases.length})</h3>
+            <span className="caption">Persisted annual continuance evaluations</span>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Case ID</th>
+                  <th>Client</th>
+                  <th>FY</th>
+                  <th>Risk Rating</th>
+                  <th>Conditions</th>
+                  <th>Recommended By</th>
+                  <th>Decision</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.acceptanceCases.map(c => (
+                  <tr key={c.id}>
+                    <td><span className="mono">{c.id}</span></td>
+                    <td><b>{c.clientId}</b></td>
+                    <td>{c.year}</td>
+                    <td><span className={`badge ${c.riskRating === 'Low' ? 'green' : 'amber'}`}>{c.riskRating}</span></td>
+                    <td>{c.conditions.length} conditions</td>
+                    <td>{c.recommendationBy}</td>
+                    <td>{c.decisionBy || 'Pending'}</td>
+                    <td>
+                      <span className={`badge ${c.decisionStatus === 'Accepted' ? 'green' : c.decisionStatus === 'Declined' ? 'red' : 'gray'}`}>
+                        {c.decisionStatus}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
