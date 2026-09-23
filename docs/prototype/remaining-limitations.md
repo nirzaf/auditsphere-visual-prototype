@@ -33,10 +33,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 - **VP-060 — reporting:** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.
-  Chrome compares every exported CSV cell with the visible table for 13 reports
-  and independently recomputes every row for WIP, utilization and compliance.
-  Independent source mapping for all fields in the remaining reports remains
-  incomplete.
+  Chrome now maps every exported CSV field for all 16 reports to persisted source
+  records; WIP, utilization and compliance values are also independently
+  recomputed. OS-level print output and the remaining filter/persona combinations
+  still lack full acceptance evidence.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   across two issued invoices and reverses one allocation with a reason while
   preserving the other invoice settlement. It exports a client-scoped CSV

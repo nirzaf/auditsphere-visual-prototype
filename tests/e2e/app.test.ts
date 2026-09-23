@@ -1575,6 +1575,33 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
           return [user.name, user.label, String(Math.round(billable / 60)), String(Math.round(nonBillable / 60)), `${target}%`, `${times.length ? Math.round(billable / (billable + nonBillable) * 100) : 0}%`];
         });
         valueRows.compliance = engagements.map((engagement: any) => [engagement.id, sourceState.clients.find((item: any) => item.id === engagement.client)?.name || engagement.client, engagement.service, String(engagement.year), engagement.due, engagement.stage, engagement.partner]);
+        const clientName = (id: string) => sourceState.clients.find((item: any) => item.id === id)?.name || id;
+        valueRows.clients = engagements.map((e: any) => [clientName(e.client), e.id, e.service, String(e.year), e.stage, e.manager, e.partner, e.currency]);
+        valueRows.jobs = jobs.map((j: any) => [j.id, j.engagementId, j.title, j.owner, j.status, j.dueDate, j.dueDate < sourceState.asOfDate && !['Completed', 'Cancelled'].includes(j.status) ? 'Yes' : 'No']);
+        valueRows.tasks = sourceState.jobTasks.filter((t: any) => jobIds.has(t.jobId)).map((t: any) => [t.id, t.jobId, jobs.find((j: any) => j.id === t.jobId)?.engagementId || '', t.title, t.assignee, t.status, t.dueDate || '', t.dueDate && t.dueDate < sourceState.asOfDate && !['Completed', 'Cancelled'].includes(t.status) ? 'Yes' : 'No']);
+        valueRows.pbc = engagements.flatMap((e: any) => e.pbc.filter((p: any) => !['Accepted', 'Cancelled'].includes(p.status)).map((p: any) => [p.id, e.id, p.title, p.status, p.owner, p.due]));
+        valueRows.time = sourceState.times.filter((t: any) => t.status === 'Approved' && engagementIds.has(t.engagementId)).map((t: any) => [t.person, t.engagementId, t.activity, t.date, String(t.durationMinutes), t.billable ? 'Billable' : 'Non-billable', t.currency || 'Unknown', t.billable && t.billingRatePerHour !== undefined ? (t.durationMinutes / 60 * t.billingRatePerHour).toFixed(2) : 'Unknown']);
+        valueRows.budget = sourceState.budgets.filter((b: any) => engagementIds.has(b.engagementId)).map((b: any) => {
+          const actual = sourceState.times.filter((t: any) => t.status === 'Approved' && t.engagementId === b.engagementId && (b.jobId ? t.jobId === b.jobId : !t.jobId));
+          const planned = b.lines.reduce((sum: number, line: any) => sum + line.plannedMinutes, 0);
+          const minutes = actual.reduce((sum: number, t: any) => sum + t.durationMinutes, 0);
+          const billable = actual.filter((t: any) => t.billable);
+          const amount = billable.every((t: any) => t.billingRatePerHour !== undefined) ? billable.reduce((sum: number, t: any) => sum + t.durationMinutes / 60 * (t.billingRatePerHour || 0), 0).toFixed(2) : 'Unknown';
+          return [b.engagementId, b.jobId || 'Engagement', String(b.version), b.currency, String(planned), String(minutes), String(minutes - planned), amount];
+        });
+        valueRows.invoices = invoices.filter((i: any) => clientIds.has(i.clientId)).map((i: any) => [i.invoiceNumber, i.engagementId || '', clientName(i.clientId), i.status, i.currency, String(i.amount), String(i.paid), i.due]);
+        valueRows.credits = credits.map((c: any) => [c.creditNumber, c.invoiceId, clientName(c.clientId), c.status, c.currency || 'Unknown', String(c.amount), c.issueDate || c.date || '']);
+        valueRows.receipts = receipts.map((r: any) => {
+          const allocated = r.allocations.filter((a: any) => !a.reversed && invoiceIds.has(a.invoiceId)).reduce((sum: number, a: any) => sum + a.amount, 0);
+          return [r.receiptNumber, clientName(r.clientId), r.date, r.currency, String(r.amount), String(allocated), String(Math.max(0, r.amount - allocated))];
+        });
+        valueRows.ar = aging.invoiceBreakdown.map((r: any) => [r.invoice.invoiceNumber, r.invoice.engagementId || '', r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)]);
+        valueRows.findings = sourceState.findings.filter((f: any) => engagementIds.has(f.engagementId)).map((f: any) => [f.id, f.engagementId, f.title, f.severity || 'Unrated', f.disposition, f.currency || 'Unknown', f.amount === undefined ? 'Not quantified' : String(f.amount)]);
+        valueRows.reviews = engagements.flatMap((e: any) => e.reviews.map((r: any) => [r.id, e.id, r.wp, r.severity, r.status, r.assigned, r.due]));
+        valueRows.packages = engagements.map((e: any) => {
+          const p = e.packageHistory?.find((item: any) => item.revision === e.packageRevision);
+          return [e.id, clientName(e.client), String(e.packageRevision), p ? `TB v${p.sourceVersion}` : 'Not assembled', p ? p.validation.passed && p.sourceVersion === e.sourceVersion ? 'Ready' : 'Stale / blocked' : 'Not assembled', String(p?.artifacts.length || 0), (p?.artifacts || []).map((a: any) => a.sha256).join('; ')];
+        });
         const expectedRows: Record<string, number> = {
           wip: engagements.length + 1,
           utilization: sourceState.users.filter((item: any) => item.group === 'Professional').length,
