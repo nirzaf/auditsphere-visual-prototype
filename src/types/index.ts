@@ -875,6 +875,8 @@ export interface SamplePopulationRow {
   itemRef: string;
   identifier?: string;
   date: string;
+  period?: number;
+  currency?: string;
   counterparty: string;
   amount: number;
   recordedAmount?: number;
@@ -900,6 +902,8 @@ export interface SamplePopulationItem {
   area: string;
   name?: string;
   accountCode?: string;
+  period?: number;
+  currency?: string;
   methodology?: string;
   description: string;
   totalPopulationCount: number;

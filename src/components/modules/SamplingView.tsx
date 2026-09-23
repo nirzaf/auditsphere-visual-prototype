@@ -19,6 +19,11 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
   const [revision, refresh] = useState(0);
   const [notice, setNotice] = useState('');
   void revision;
+  const frameEngagement = population && state.engagements.find(item => item.id === population.engagementId);
+  const frameRow = frameEngagement?.rows.find(row => row.code === population?.accountCode);
+  const frameValue = frameRow?.balance;
+  const frameDiff = frameValue === undefined || !population ? undefined : Math.abs(frameValue - population.totalPopulationValue);
+  const frameReconciled = Boolean(population?.sourceComplete && frameEngagement && frameRow && population.period === frameEngagement.year && population.currency === frameEngagement.currency && population.items.every(item => (!item.period || item.period === population.period) && (!item.currency || item.currency === population.currency)) && frameDiff !== undefined && frameDiff < 0.01);
   const run = (action: () => void) => {
     try { action(); refresh(value => value + 1); setNotice('Saved.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save sampling changes.'); }
@@ -51,35 +56,27 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
       {populations.length > 1 && <label className="caption">Population<select className="input" value={population.id} onChange={event => setPopulationId(event.target.value)}>{populations.map(item => <option key={item.id} value={item.id}>{item.name || item.description}</option>)}</select></label>}
       <div className="panel panel-pad">
         <span className="eyebrow">POPULATION · {population.id}</span><h2>{population.name || population.description}</h2>
-        <p className="sub">Engagement: {population.engagementId} · Account: {population.accountCode || '—'} · {population.methodology || 'Manual selection from the recorded population items.'}</p>
+        <p className="sub">Engagement: {population.engagementId} · Period: FY {population.period || '—'} · Currency: {population.currency || '—'} · Account: {population.accountCode || '—'} · {population.methodology || 'Manual selection from the recorded population items.'}</p>
         <div className="borderbox mt12" style={{ padding: 12 }}>
           <b>Source revision {population.sourceRevision || 1}: {population.sourceFileName || 'Legacy population'}</b>
           <p className="caption mt4">{population.sourceComplete ? `SHA-256 ${population.sourceSha256}` : 'Seeded excerpt only; import the complete source population before relying on totals.'}</p>
           <label className="btn sm mt8">Import or replace CSV/XLSX source<input aria-label="Import population source CSV or XLSX" type="file" accept=".csv,.xlsx" hidden onChange={event => { void importSource(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>
           {(population.sourceHistory || []).length > 0 && <details className="mt8"><summary>Previous source revisions ({population.sourceHistory!.length})</summary><ul>{population.sourceHistory!.map(item => <li key={item.revision}>v{item.revision} · {item.fileName} · {item.totalPopulationCount} rows · {item.sha256 || 'seeded legacy source'} · {item.importedAt}</li>)}</ul></details>}
         </div>
-        {(() => {
-          const eng = state.engagements.find(e => e.id === population.engagementId);
-          const tbRow = eng?.rows.find(r => r.code === population.accountCode);
-          const frameValue = tbRow ? tbRow.balance : population.totalPopulationValue;
-          const frameDiff = Math.abs(frameValue - population.totalPopulationValue);
-          const isReconciled = frameDiff < 0.01;
-          return (
-            <div className="panel panel-pad mt12" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div className="between">
-                <div>
-                  <span className="caption">General Ledger Sampling Frame Tie-Out</span>
-                  <div style={{ fontSize: 13, marginTop: 4 }}>
-                    Account: <b>{population.accountCode || '1100'} {tbRow ? `(${tbRow.name})` : ''}</b> · GL Balance: <b>{formatCurrency(frameValue)}</b> · Population Total: <b>{formatCurrency(population.totalPopulationValue)}</b> · Variance: <b>{formatCurrency(frameDiff)}</b>
-                  </div>
-                </div>
-                <span className={`badge ${isReconciled ? 'green' : 'amber'}`}>
-                  {isReconciled ? 'Reconciled to GL Frame' : `Variance ${formatCurrency(frameDiff)}`}
-                </span>
+        <div className="panel panel-pad mt12" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+          <div className="between">
+            <div>
+              <span className="caption">General Ledger Sampling Frame Tie-Out</span>
+              <div style={{ fontSize: 13, marginTop: 4 }}>
+                Account: <b>{population.accountCode || 'Unmapped'} {frameRow ? `(${frameRow.name})` : ''}</b> · GL Balance: <b>{frameValue === undefined ? 'Unavailable' : formatCurrency(frameValue)}</b> · Population Total: <b>{formatCurrency(population.totalPopulationValue)}</b> · Variance: <b>{frameDiff === undefined ? 'Unavailable' : formatCurrency(frameDiff)}</b>
               </div>
             </div>
-          );
-        })()}
+            <span className={`badge ${frameReconciled ? 'green' : 'amber'}`}>
+              {frameReconciled ? 'Reconciled to GL Frame' : frameValue === undefined ? 'GL account unavailable' : population.period !== frameEngagement?.year || population.currency !== frameEngagement?.currency ? 'Period/currency mismatch' : `Variance ${formatCurrency(frameDiff || 0)}`}
+            </span>
+          </div>
+          {!frameReconciled && <p role="status" className="caption mt8">Sampling selection and testing stay disabled until the complete population ties to this engagement’s account, period and currency.</p>}
+        </div>
         <div className="metric-grid mt16">
           <div className="metric"><span className="metric-label">Population</span><div className="metric-val">{population.totalPopulationCount}</div><span className="metric-sub">{formatCurrency(population.totalPopulationValue)}</span></div>
           <div className="metric blue"><span className="metric-label">Selected</span><div className="metric-val">{selected}</div><span className="metric-sub">{formatCurrency(selectedValue)} · {population.totalPopulationValue ? Math.round(selectedValue / population.totalPopulationValue * 100) : 0}% of value</span></div>
@@ -90,14 +87,14 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
       <div className="panel"><div className="panel-head between"><h3>Population items and test results</h3><span className="caption">Selection and fieldwork are saved in this engagement</span></div>
         <div className="tablewrap"><table><thead><tr><th>Select</th><th>Reference / counterparty</th><th>Recorded</th><th>Audited amount</th><th>Difference</th><th>Result</th><th>Testing notes</th><th>Action</th></tr></thead><tbody>
           {population.items.map(item => <tr key={item.id} data-sample-item={item.id}>
-            <td><input aria-label={`Select ${item.itemRef}`} type="checkbox" checked={Boolean(item.selected)} disabled={!population.sourceComplete} onChange={event => run(() => prototypeStore.setSampleItemSelected(population.id, item.id, event.target.checked))} /></td>
+            <td><input aria-label={`Select ${item.itemRef}`} type="checkbox" checked={Boolean(item.selected)} disabled={!frameReconciled} onChange={event => run(() => prototypeStore.setSampleItemSelected(population.id, item.id, event.target.checked))} /></td>
             <td><b>{item.itemRef}</b><div className="cell-sub">{item.date} · {item.counterparty}</div></td>
             <td>{formatCurrency(item.recordedAmount ?? item.amount)}</td>
-            <td><input className="input" data-audited-amount type="number" min="0" step="0.01" defaultValue={item.auditedAmount ?? item.recordedAmount ?? item.amount} disabled={!population.sourceComplete || !item.selected} /></td>
+            <td><input className="input" data-audited-amount type="number" min="0" step="0.01" defaultValue={item.auditedAmount ?? item.recordedAmount ?? item.amount} disabled={!frameReconciled || !item.selected} /></td>
             <td>{item.difference ? formatCurrency(item.difference) : '—'}</td>
             <td><span className={`badge ${item.result === 'Satisfactory' ? 'green' : item.result === 'Exception noted' ? 'amber' : 'gray'}`}>{item.selected ? item.result : 'Not selected'}</span></td>
-            <td><textarea className="input" data-test-notes rows={2} defaultValue={item.notes || ''} disabled={!population.sourceComplete || !item.selected} placeholder="Evidence inspected and conclusion" /></td>
-            <td><button className="btn sm" disabled={!population.sourceComplete || !item.selected} onClick={event => { const row = (event.currentTarget as HTMLButtonElement).closest('tr'); const amount = Number(row?.querySelector<HTMLInputElement>('[data-audited-amount]')?.value); const notes = row?.querySelector<HTMLTextAreaElement>('[data-test-notes]')?.value || ''; run(() => prototypeStore.recordSampleItemTest(population.id, item.id, amount, notes)); }}>Record test</button>{item.findingId && <button className="btn sm ghost mt4" onClick={() => onNavigate('findings')}>Finding {item.findingId}</button>}</td>
+            <td><textarea className="input" data-test-notes rows={2} defaultValue={item.notes || ''} disabled={!frameReconciled || !item.selected} placeholder="Evidence inspected and conclusion" /></td>
+            <td><button className="btn sm" disabled={!frameReconciled || !item.selected} onClick={event => { const row = (event.currentTarget as HTMLButtonElement).closest('tr'); const amount = Number(row?.querySelector<HTMLInputElement>('[data-audited-amount]')?.value); const notes = row?.querySelector<HTMLTextAreaElement>('[data-test-notes]')?.value || ''; run(() => prototypeStore.recordSampleItemTest(population.id, item.id, amount, notes)); }}>Record test</button>{item.findingId && <button className="btn sm ghost mt4" onClick={() => onNavigate('findings')}>Finding {item.findingId}</button>}</td>
           </tr>)}
         </tbody></table></div>
       </div>

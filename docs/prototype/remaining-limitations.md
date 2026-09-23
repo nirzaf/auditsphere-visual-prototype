@@ -133,7 +133,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   currency closing rate, rejects zero, saves a dated rate revision and verifies
   source rows remain unchanged. Perimeter edits and missing-component recovery
   remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–14 pass unit
+- **R10 — migration/recovery:** migrations from schema versions 0–15 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -171,7 +171,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 122/122 unit checks and 53/53 E2E checks passed. E2E
+Latest recorded run: 123/123 unit checks and 53/53 E2E checks passed. E2E
 includes five static checks and 48 actual Chrome journeys. It exercises the
 listed workflows; 64 stories and 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See

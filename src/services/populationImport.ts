@@ -22,7 +22,7 @@ export function parsePopulation(bytes: ArrayBuffer, fileName: string) {
   if (grid.length - 1 > ROW_LIMIT) return { rows: [] as SamplePopulationRow[], errors: [`Population exceeds ${ROW_LIMIT} rows.`] };
   const headers = grid[0].map(value => String(value).trim().toLowerCase().replace(/[\s_-]/g, ''));
   const index = (names: string[]) => headers.findIndex(header => names.includes(header));
-  const columns = { ref: index(['itemref', 'reference', 'transactionid', 'id']), date: index(['date', 'transactiondate']), counterparty: index(['counterparty', 'customer', 'vendor', 'entity']), amount: index(['amount', 'value', 'recordedamount']), description: index(['description', 'memo', 'details']) };
+  const columns = { ref: index(['itemref', 'reference', 'transactionid', 'id']), date: index(['date', 'transactiondate']), counterparty: index(['counterparty', 'customer', 'vendor', 'entity']), amount: index(['amount', 'value', 'recordedamount']), description: index(['description', 'memo', 'details']), period: index(['period', 'fiscalyear', 'year']), currency: index(['currency', 'ccy']) };
   for (const [name, column] of Object.entries(columns).slice(0, 4)) if (column < 0) errors.push(`Required column missing: ${name}.`);
   if (errors.length) return { rows: [] as SamplePopulationRow[], errors };
 
@@ -42,11 +42,16 @@ export function parsePopulation(bytes: ArrayBuffer, fileName: string) {
     const counterparty = String(cells[columns.counterparty] ?? '').trim();
     const rawAmount = String(cells[columns.amount] ?? '').trim();
     const amount = Number(rawAmount.replace(/,/g, ''));
+    const rawPeriod = columns.period < 0 ? '' : String(cells[columns.period] ?? '').trim();
+    const periodMatch = rawPeriod.match(/(?:FY\s*)?(\d{4})/i);
+    const period = periodMatch ? Number(periodMatch[1]) : undefined;
+    const rawCurrency = columns.currency < 0 ? '' : String(cells[columns.currency] ?? '').trim().toUpperCase();
     const rowNumber = offset + 2;
     if (!ref || refs.has(ref)) { errors.push(`Row ${rowNumber}: item reference is missing or duplicated.`); return; }
     if (!date || !counterparty || !rawAmount || !Number.isFinite(amount)) { errors.push(`Row ${rowNumber}: date, counterparty, and numeric amount are required.`); return; }
+    if ((rawPeriod && !period) || (rawCurrency && !/^[A-Z]{3}$/.test(rawCurrency))) { errors.push(`Row ${rowNumber}: period must contain a four-digit year and currency must be a three-letter code.`); return; }
     refs.add(ref);
-    rows.push({ id: `SAMP-IMPORT-${offset + 1}`, itemRef: ref, date, counterparty, amount, description: String(cells[columns.description] ?? '').trim() || undefined, tested: false, selected: false, result: 'Untested' });
+    rows.push({ id: `SAMP-IMPORT-${offset + 1}`, itemRef: ref, date, period, currency: rawCurrency || undefined, counterparty, amount, description: String(cells[columns.description] ?? '').trim() || undefined, tested: false, selected: false, result: 'Untested' });
   });
   return { rows: errors.length ? [] : rows, errors };
 }

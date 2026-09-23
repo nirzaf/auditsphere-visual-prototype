@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 14;
+export const CURRENT_SCHEMA = 15;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -220,6 +220,16 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }
     }
     warnings.push('Added explicit acceptance screening evidence references; legacy approvals without references no longer authorize engagement work (v13).');
+  }
+  if (from < 15) {
+    for (const population of state.samplePopulations || []) {
+      const seeded = fresh.samplePopulations.find(item => item.id === population.id);
+      const engagement = state.engagements.find(item => item.id === population.engagementId);
+      population.accountCode ||= seeded?.accountCode;
+      population.period ||= seeded?.period || engagement?.year;
+      population.currency ||= seeded?.currency || engagement?.currency;
+    }
+    warnings.push('Linked sample populations to an explicit engagement period, currency and GL account (v15).');
   }
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];

@@ -13,6 +13,12 @@ const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
 const isValidMoney = (amount: number, allowZero = false) =>
   Number.isFinite(amount) && (allowZero ? amount >= 0 : amount > 0) && Math.round(amount * 100) === amount * 100;
 
+const isSampleFrameReconciled = (state: PrototypeState, population: PrototypeState['samplePopulations'][number]) => {
+  const engagement = state.engagements.find(item => item.id === population.engagementId);
+  const glRow = engagement?.rows.find(row => row.code === population.accountCode);
+  return Boolean(population.sourceComplete && engagement && glRow && population.period === engagement.year && population.currency === engagement.currency && population.items.every(item => (!item.period || item.period === population.period) && (!item.currency || item.currency === population.currency)) && Math.abs(glRow.balance - population.totalPopulationValue) < 0.01);
+};
+
 const requireRole = (state: PrototypeState, allowed: RoleKey[], action: string) => {
   if (!allowed.includes(state.currentRole)) {
     throw new GuardError('FORBIDDEN_SCOPE', `Role "${state.currentRole}" cannot ${action}.`);
@@ -2354,6 +2360,7 @@ class PrototypeStore {
     if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
     requireEngagementScope(this.state, population.engagementId);
     if (!population.sourceComplete) throw new GuardError('INVALID_STATE', 'Import the complete population source before selecting sample items.');
+    if (!isSampleFrameReconciled(this.state, population)) throw new GuardError('INVALID_STATE', 'Reconcile the complete population to its mapped GL balance, period and currency before selecting sample items.');
     const item = population.items.find(candidate => candidate.id === itemId);
     if (!item) throw new GuardError('INVALID_STATE', 'Sample item was not found in this population.');
     item.selected = selected;
@@ -2372,6 +2379,7 @@ class PrototypeStore {
     if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
     requireEngagementScope(this.state, population.engagementId);
     if (!population.sourceComplete) throw new GuardError('INVALID_STATE', 'Import the complete population source before recording sample tests.');
+    if (!isSampleFrameReconciled(this.state, population)) throw new GuardError('INVALID_STATE', 'Reconcile the complete population to its mapped GL balance, period and currency before recording sample tests.');
     const item = population.items.find(candidate => candidate.id === itemId);
     if (!item?.selected) throw new GuardError('INVALID_STATE', 'Select the population item before recording test results.');
     if (!Number.isFinite(auditedAmount) || auditedAmount < 0 || !notes.trim()) throw new GuardError('INVALID_STATE', 'Audited amount must be non-negative and testing notes are required.');
@@ -2394,7 +2402,9 @@ class PrototypeStore {
     requireEngagementScope(this.state, population.engagementId);
     if (!fileName.trim() || fileName.length > 255 || !/^[a-f0-9]{64}$/.test(sha256) || !rows.length) throw new GuardError('INVALID_STATE', 'A named source file, SHA-256 digest, and at least one valid population row are required.');
     const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-    if (rows.length > 20000 || !Number.isFinite(rows.reduce((sum, row) => sum + row.amount, 0)) || new Set(rows.map(row => row.itemRef)).size !== rows.length || new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => !row.id.trim() || !row.itemRef.trim() || !validDate(row.date) || !row.counterparty.trim() || !Number.isFinite(row.amount) || row.selected || row.tested || row.result !== 'Untested')) throw new GuardError('INVALID_STATE', 'Population rows must be unique, dated, numeric, and unselected/untested before replacement.');
+    const engagement = this.state.engagements.find(item => item.id === population.engagementId);
+    if (!engagement || !population.accountCode || population.period !== engagement.year || population.currency !== engagement.currency) throw new GuardError('INVALID_STATE', 'Population must identify an account, period and currency in its engagement context.');
+    if (rows.length > 20000 || !Number.isFinite(rows.reduce((sum, row) => sum + row.amount, 0)) || new Set(rows.map(row => row.itemRef)).size !== rows.length || new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => !row.id.trim() || !row.itemRef.trim() || !validDate(row.date) || !row.counterparty.trim() || !Number.isFinite(row.amount) || (row.period !== undefined && row.period !== population.period) || (row.currency !== undefined && row.currency !== population.currency) || row.selected || row.tested || row.result !== 'Untested')) throw new GuardError('INVALID_STATE', 'Population rows must be unique, dated, numeric, in the engagement period/currency, and unselected/untested before replacement.');
     population.sourceHistory ||= [];
     population.sourceHistory.push({
       revision: population.sourceRevision || 1,
@@ -2415,7 +2425,6 @@ class PrototypeStore {
     population.totalPopulationValue = rows.reduce((sum, row) => sum + row.amount, 0);
     population.selectedCount = 0;
     population.selectedValue = 0;
-    const engagement = this.state.engagements.find(item => item.id === population.engagementId);
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Population ${populationId} source replaced with revision ${population.sourceRevision}`, populationId);
     this.notify();

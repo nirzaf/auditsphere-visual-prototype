@@ -27,4 +27,14 @@ describe('substantive population source import (VP-051)', () => {
     const formulaBytes = XLSX.write(formulaWorkbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
     assert.match(parsePopulation(formulaBytes, 'population.xlsx').errors.join(' '), /Formula cells/);
   });
+
+  it('retains optional fiscal period and currency columns for context checks', () => {
+    const bytes = new TextEncoder().encode('reference,date,customer,value,fiscal year,currency\nINV-3,2026-09-01,Client,80,FY 2026,QAR').buffer as ArrayBuffer;
+    const result = parsePopulation(bytes, 'population.csv');
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.rows[0].period, 2026);
+    assert.equal(result.rows[0].currency, 'QAR');
+    const invalid = new TextEncoder().encode('reference,date,customer,value,year,currency\nINV-4,2026-09-01,Client,80,unknown,US dollars').buffer as ArrayBuffer;
+    assert.match(parsePopulation(invalid, 'population.csv').errors.join(' '), /period.*currency/);
+  });
 });

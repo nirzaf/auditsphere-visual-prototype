@@ -70,7 +70,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 14);
+    assert.equal(migrated.schema, 15);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -89,9 +89,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v14 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v15 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 13; version++) {
+    for (let version = 0; version <= 14; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -106,8 +106,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 11) legacy.samplePopulations.forEach((population: any) => { delete population.sourceRevision; delete population.sourceFileName; delete population.sourceComplete; delete population.sourceHistory; });
       if (version < 12) delete legacy.roleGrantHistory;
       if (version < 13) legacy.acceptanceCases?.forEach((item: any) => delete item.screeningEvidence);
+      if (version < 15) legacy.samplePopulations.forEach((population: any) => { delete population.accountCode; delete population.period; delete population.currency; });
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 14, `schema ${version} should reach v14`);
+      assert.equal(migrated.schema, 15, `schema ${version} should reach v15`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -117,6 +118,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       assert.equal(migrated.samplePopulations[0].engagementId, seed.engagements[0].id);
       assert.ok(migrated.samplePopulations[0].items.every(item => item.selected), `v${version} keeps legacy sample items selected`);
       assert.equal(migrated.samplePopulations[0].sourceRevision, 1);
+      assert.equal(migrated.samplePopulations[0].accountCode, seed.samplePopulations[0].accountCode);
+      assert.equal(migrated.samplePopulations[0].period, seed.samplePopulations[0].period);
+      assert.equal(migrated.samplePopulations[0].currency, seed.samplePopulations[0].currency);
       assert.deepEqual(migrated.samplePopulations[0].sourceHistory, []);
       assert.deepEqual(migrated.roleGrantHistory, []);
       for (const risk of migrated.auditRisks) for (const procedureId of risk.linkedProcedureIds) {
@@ -179,19 +183,25 @@ describe('sampling workpaper guards (VP-051)', () => {
     prototypeStore.setSelectedEngagement('ENG-26001');
     assert.throws(() => prototypeStore.setSampleItemSelected('POP-01', 'SAMP-01', false), /complete population source/);
     assert.throws(() => prototypeStore.recordSampleItemTest('POP-01', 'SAMP-01', 249000, 'Vouched.'), /complete population source/);
-    prototypeStore.replaceSamplePopulationSource('POP-01', 'source.csv', 'b'.repeat(64), [{ id: 'SAMP-IMPORT-1', itemRef: 'SOURCE-1', date: '2026-09-20', counterparty: 'Customer', amount: 100, tested: false, selected: false, result: 'Untested' }]);
+    const makeRow = (amount: number, period = 2026, currency = 'QAR') => ({ id: 'SAMP-IMPORT-1', itemRef: 'SOURCE-1', date: '2026-09-20', period, currency, counterparty: 'Customer', amount, tested: false, selected: false, result: 'Untested' as const });
+    assert.throws(() => prototypeStore.replaceSamplePopulationSource('POP-01', 'wrong-context.csv', 'c'.repeat(64), [makeRow(500000, 2025, 'USD')]), /period\/currency/);
+    prototypeStore.replaceSamplePopulationSource('POP-01', 'source.csv', 'b'.repeat(64), [makeRow(100)]);
+    assert.throws(() => prototypeStore.setSampleItemSelected('POP-01', 'SAMP-IMPORT-1', true), /Reconcile the complete population/);
+    assert.throws(() => prototypeStore.recordSampleItemTest('POP-01', 'SAMP-IMPORT-1', 99, 'Vouched.'), /Reconcile the complete population/);
+    prototypeStore.replaceSamplePopulationSource('POP-01', 'reconciled.csv', 'd'.repeat(64), [makeRow(500000)]);
     prototypeStore.setSampleItemSelected('POP-01', 'SAMP-IMPORT-1', true);
-    prototypeStore.recordSampleItemTest('POP-01', 'SAMP-IMPORT-1', 99, 'Inspected independent confirmation.');
+    prototypeStore.recordSampleItemTest('POP-01', 'SAMP-IMPORT-1', 499999, 'Inspected independent confirmation.');
     const item = prototypeStore.getSnapshot().samplePopulations[0].items[0];
     assert.equal(item.result, 'Exception noted');
     assert.equal(item.difference, -1);
-    assert.equal(prototypeStore.getSnapshot().samplePopulations[0].selectedValue, 100);
-    prototypeStore.replaceSamplePopulationSource('POP-01', 'new.csv', 'a'.repeat(64), [{ id: 'SAMP-IMPORT-1', itemRef: 'NEW-1', date: '2026-09-22', counterparty: 'Customer', amount: 120, tested: false, selected: false, result: 'Untested' }]);
+    assert.equal(prototypeStore.getSnapshot().samplePopulations[0].selectedValue, 500000);
+    prototypeStore.replaceSamplePopulationSource('POP-01', 'new.csv', 'a'.repeat(64), [makeRow(120)]);
     const replaced = prototypeStore.getSnapshot().samplePopulations[0];
-    assert.equal(replaced.sourceRevision, 3);
-    assert.equal(replaced.sourceHistory?.[1].items[0].difference, -1);
+    assert.equal(replaced.sourceRevision, 4);
+    assert.equal(replaced.sourceHistory?.[2].items[0].difference, -1);
     assert.deepEqual([replaced.totalPopulationCount, replaced.totalPopulationValue, replaced.selectedCount], [1, 120, 0]);
     assert.equal(replaced.sourceSha256, 'a'.repeat(64));
+    assert.throws(() => prototypeStore.setSampleItemSelected('POP-01', 'SAMP-IMPORT-1', true), /Reconcile the complete population/);
   });
 });
 
