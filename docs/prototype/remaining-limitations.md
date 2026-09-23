@@ -87,8 +87,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **R14 — archive integrity:** archive creation now copies every released package
   artifact into a separate IndexedDB record and verifies size, MIME type and
   SHA-256 before recording the archive. The copies remain browser-local and can
-  be cleared or altered outside the app; there is no server-side immutable archive
-  or physical retention lock. Retention dates remain optional metadata.
+  be cleared or altered outside the app. This remains within logical local archive
+  scope; Purview locks, physical deletion controls and external retention services
+  are excluded. Retention dates are optional firm-selected metadata and do not
+  assert legal requirements or schedule deletion.
 - **Cross-cutting:** Chrome network observation covers the exercised journeys only;
   no formal all-state egress policy is established. This is a browser-local,
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,

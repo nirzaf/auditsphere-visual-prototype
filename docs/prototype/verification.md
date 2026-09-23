@@ -45,6 +45,7 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 30/30 | Five static checks and 25 actual Chrome checks. AT-21 proves OneDrive is disabled by default; after explicit enablement and a current simulated success, selected import records local metadata under the SharePoint canonical hierarchy without external HTTP(S) calls. |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 107/107, 25 suites | AT-20 store guard preserves the prior document and exact evidence pin, requires the expected next version, and prevents branching a revision chain. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 31/31 | Five static checks and 26 actual Chrome checks. AT-20 selects a local replacement file, records v2 with a digest, keeps EVD-01 pinned to DOC-002 v1 and displays a newer-version indicator. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 31/31 | Re-ran all five static checks and 26 actual Chrome checks; the archive journey verifies optional retention is described as firm-selected metadata without legal requirement or scheduled deletion. |
 | 2026-09-23 | `8eed12e` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `dd704f82-1a24-40b3-90f0-6cd5dfe02ca5`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-C0d5PfYS.js`. |
 | 2026-09-23 | `c3f5fe9` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `5fde9bc0-31e4-481d-a835-2f2135293b5f`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-DCcknJ1g.js`. |
 | 2026-09-23 | `b78505c` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `f07dad8c-7302-447b-9245-dc20a53e93b0`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BCLU5nQI.js`. |
@@ -110,8 +111,9 @@ and workflow invariants only.
 Outstanding review gaps include the full consolidation suite against
 reordered/missing components (R09); complete adjustment/reporting acceptance
 journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
-server-side immutable archives and physical retention locks (R14); and remaining
-end-to-end acceptance journeys across the modules (R12). The
+remaining end-to-end acceptance journeys across the modules (R12); and browser
+storage limits on the explicitly local archive scope (R14). Purview/provider
+retention locks and physical deletion controls are excluded acceptance scope. The
 current checks cover schema migrations 0–8 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to

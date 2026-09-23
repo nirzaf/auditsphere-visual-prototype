@@ -247,6 +247,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                     value={retentionYear}
                     onChange={e => setRetentionYear(e.target.value)}
                   />
+                  <span className="caption">Optional firm-selected date only; it asserts no legal requirement and schedules no deletion.</span>
                 </div>
                 <div>
                   <label className="caption">Latest Local Release Record</label>

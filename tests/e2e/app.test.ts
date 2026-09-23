@@ -921,6 +921,7 @@ describe('actual Chrome browser acceptance', () => {
 
     await clickButton('Records & Archive');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Retention Until \(Optional\)/);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Optional firm-selected date only; it asserts no legal requirement and schedules no deletion/);
     assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /10 Years Statutory Retention/);
     await clickButton('Create Local Archive Index');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Archived 3 verified artifact copies")'), true);
