@@ -2391,6 +2391,20 @@ class PrototypeStore {
     this.notify();
   }
 
+  public linkSampleExceptionToFinding(populationId: string, itemId: string, findingId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'reviewer'], 'link a sample exception to a finding');
+    const population = this.state.samplePopulations.find(item => item.id === populationId);
+    if (!population?.engagementId) throw new GuardError('INVALID_STATE', 'Population must be linked to an engagement.');
+    requireEngagementScope(this.state, population.engagementId);
+    const sample = population.items.find(item => item.id === itemId);
+    const finding = this.state.findings.find(item => item.id === findingId && item.engagementId === population.engagementId);
+    if (!sample?.selected || !sample.tested || sample.result !== 'Exception noted' || !finding) throw new GuardError('INVALID_STATE', 'Link a tested sample exception to a finding in the same engagement.');
+    sample.findingId = finding.id;
+    this.logEvent(`Sample exception ${itemId} linked to finding ${finding.id}`, populationId);
+    this.notify();
+  }
+
   public recordSampleItemTest(populationId: string, itemId: string, auditedAmount: number, notes: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['preparer', 'manager', 'reviewer'], 'record substantive sample testing');

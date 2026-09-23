@@ -196,6 +196,9 @@ describe('sampling workpaper guards (VP-051)', () => {
     const item = prototypeStore.getSnapshot().samplePopulations[0].items[0];
     assert.equal(item.result, 'Exception noted');
     assert.equal(item.difference, -1);
+    assert.throws(() => prototypeStore.linkSampleExceptionToFinding('POP-01', 'SAMP-IMPORT-1', 'missing'), /same engagement/);
+    prototypeStore.linkSampleExceptionToFinding('POP-01', 'SAMP-IMPORT-1', 'FND-01');
+    assert.equal(prototypeStore.getSnapshot().samplePopulations[0].items[0].findingId, 'FND-01');
     assert.equal(prototypeStore.getSnapshot().samplePopulations[0].selectedValue, 500000);
     prototypeStore.setPersona('reviewer');
     prototypeStore.reviewSampleSelection('POP-01', 'One item tested; one-dollar difference requires follow-up.');
