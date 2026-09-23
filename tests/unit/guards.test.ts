@@ -1081,11 +1081,36 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(current.auditRisks.find((risk: any) => risk.id === 'RSK-01').linkedProcedureIds.includes('PRC-03'));
     assert.ok(current.auditPrograms.flatMap((program: any) => program.procedures).find((procedure: any) => procedure.id === 'PRC-03').linkedRiskIds.includes('RSK-01'));
     assert.throws(() => prototypeStore.setAuditRiskProcedureLink('ENG-26002', 'RSK-01', 'PRC-03', true), /both belong to the selected engagement/);
+    const engagement = current.engagements.find((item: any) => item.id === 'ENG-26001');
+    prototypeStore.saveAuditPlan({ id: 'PLAN-ENG-26001-V1', engagementId: engagement.id, version: 1, status: 'Under review', benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5, overallMateriality: 30_000, performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Initial plan basis.'], teamAllocations: [], timingMilestones: [], significantAreas: ['Revenue & Receivables'] });
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.reviewAuditPlan('PLAN-ENG-26001-V1', true, 'Approved initial risk response.');
+    prototypeStore.setPersona('manager');
+    const procedure = current.auditPrograms.flatMap((program: any) => program.procedures).find((item: any) => item.id === 'PRC-03');
+    procedure.status = 'Cleared'; procedure.workPerformed = 'Prior approved testing'; procedure.conclusion = 'No exception'; procedure.evidenceLimitation = 'Current evidence requires reassessment.'; procedure.reviewedByUserId = 'reviewer'; procedure.reviewedAt = '2026-09-23T00:00:00.000Z';
     const risk = current.auditRisks.find((item: any) => item.id === 'RSK-01');
+    const priorResponse = risk.response;
     prototypeStore.updateAuditRisk('ENG-26001', risk.id, { title: risk.title, area: risk.area, assertions: risk.assertions, description: risk.description, rationale: risk.rationale, response: `${risk.response} Reassess supporting detail.`, owner: risk.owner, rating: risk.rating });
     assert.equal(risk.revisions.length, 1);
-    assert.equal(risk.revisions[0].response, risk.response);
+    assert.equal(risk.revisions[0].response, priorResponse);
     assert.equal(risk.revisions[0].changedBy, 'Layla Rahman');
+    assert.deepEqual(risk.revisions[0].assertions, risk.assertions);
+    assert.equal(risk.revisions[0].reviewImpact, 'Risk RSK-01 changed; audit plan v2 requires independent review.');
+    assert.deepEqual(current.auditPlans.map((plan: any) => plan.status), ['Superseded', 'Under review']);
+    assert.equal(current.auditPlans[0].reviewNotes, 'Approved initial risk response.');
+    assert.match(current.auditPlans[0].supersededReason, /requires independent review/);
+    assert.match(current.auditPlans[1].rationales.at(-1), /Risk RSK-01 changed/);
+    assert.equal(engagement.planning, false);
+    assert.equal(procedure.status, 'In progress');
+    assert.equal(procedure.scopeReassessmentRequired, true);
+    assert.equal(procedure.reviewedByUserId, undefined);
+    assert.equal(procedure.scopeReassessmentHistory[0].previousStatus, 'Cleared');
+    assert.throws(() => prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Submitted'), /re-record this procedure/);
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.reviewAuditPlan('PLAN-ENG-26001-V2', true, 'Reviewed risk-driven plan revision.');
+    assert.equal(current.auditPlans[1].status, 'Approved');
+    assert.equal(engagement.planning, true);
+    prototypeStore.resetState();
   });
 
   it('audit program templates preserve revisions and apply fresh work (VP-049)', async () => {

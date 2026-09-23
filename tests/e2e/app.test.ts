@@ -565,18 +565,32 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('VP-049: edits the persisted risk register and keeps procedure links reciprocal', async () => {
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
+    await clickButton('Audit Planning & Materiality');
+    await clickButtonStartingWith('Plan Versions & Review');
+    await clickButton('Save Version 1');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Approve Audit Plan Strategy');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.engagementId==='ENG-26001').status==='Approved'`), true);
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Risks & Audit Programs');
     await clickButton('Identified Risk Register (3)');
     const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('RSK-01'));const button=[...(row?.querySelectorAll('button')||[])].find(b=>b.innerText==='Edit risk');if(!button)return false;button.click();return true;})()`);
     assert.equal(opened, true);
     await browserTab!.evaluate(`(() => {const panel=[...document.querySelectorAll('.panel')].find(p=>p.querySelector('h3')?.innerText==='Edit RSK-01');const response=panel?.querySelectorAll('textarea')[2];const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;set.call(response,'Independent confirmations plus year-end cut-off tests.');response.dispatchEvent(new Event('input',{bubbles:true}));const label=[...panel.querySelectorAll('label')].find(l=>l.innerText.includes('PRC-03'));const checkbox=label?.querySelector('input[type=checkbox]');if(!checkbox)throw new Error('PRC-03 risk link control unavailable');checkbox.click();})()`);
     await clickButton('Save assessed risk');
-    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.auditRisks.find(x=>x.id==='RSK-01');const p=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-03');return r.response.includes('Independent confirmations')&&r.linkedProcedureIds.includes('PRC-03')&&p.linkedRiskIds.includes('RSK-01');})()`), true, 'risk edit and both sides of the procedure link persist');
+    const riskRework = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const r=s.auditRisks.find(x=>x.id==='RSK-01');const p=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-03');return {response:r.response, riskLinks:r.linkedProcedureIds, procedureLinks:p.linkedRiskIds, reassess:p.scopeReassessmentRequired, plans:s.auditPlans.map(x=>({status:x.status,rationales:x.rationales})), currentUserId:s.currentUserId};})()`);
+    assert.equal(riskRework.response.includes('Independent confirmations')&&riskRework.riskLinks.includes('PRC-03')&&riskRework.procedureLinks.includes('RSK-01')&&riskRework.reassess&&riskRework.plans.map((p:any)=>p.status).join(',')==='Superseded,Under review'&&riskRework.plans[1].rationales.at(-1).includes('Risk RSK-01 changed'), true, `risk edit impact: ${JSON.stringify(riskRework)}`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await clickButton('Risks & Audit Programs');
     await clickButton('Identified Risk Register (3)');
     assert.equal(await waitForBrowser(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('RSK-01'));return !!row&&row.innerText.includes('Independent confirmations')&&row.innerText.includes('PRC-03');})()`), true, 'risk response and link remain visible after reload');
+    await clickButton('Audit Planning & Materiality');
+    await clickButtonStartingWith('Plan Versions & Review');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Risk RSK-01 changed; audit plan v2 requires independent review.')`), true, 'superseded plan and current revision show the risk-driven review impact');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Approve Audit Plan Strategy');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.version===2).status==='Approved'`), true, 'independent review can approve the risk-driven plan revision');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

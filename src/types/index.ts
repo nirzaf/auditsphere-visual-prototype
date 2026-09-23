@@ -833,6 +833,12 @@ export interface AuditRiskRevision {
   changedBy: string;
   changedAt: string;
   rationale?: string;
+  area?: string;
+  assertions?: string[];
+  description?: string;
+  owner?: string;
+  linkedProcedureIds?: string[];
+  reviewImpact?: string;
 }
 
 export interface AuditRiskItem {
@@ -872,6 +878,8 @@ export interface AuditProcedureItem {
   engagementId?: string;
   linkedRiskIds?: string[];
   scopeReassessmentRequired?: boolean;
+  scopeReassessmentReason?: string;
+  scopeReassessmentHistory?: Array<{ reason: string; previousStatus: AuditProcedureItem['status']; reviewedByUserId?: string; reviewedAt?: string; invalidatedAt: string }>;
   ref?: string;
   title?: string;
   instructions?: string;
@@ -1195,6 +1203,7 @@ export interface AuditPlanRecord {
   reviewedByUserId?: string;
   reviewedAt?: string;
   reviewNotes?: string;
+  supersededReason?: string;
 }
 
 export interface ArchiveRecord {

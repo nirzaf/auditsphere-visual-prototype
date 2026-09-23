@@ -112,7 +112,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   published, applied with fresh procedure IDs and empty work state, revised with prior
   versions retained, and retired without changing applied engagement work. Program
   views display reciprocal risk links and unresolved coverage gaps. Risk revisions
-  are logged and visible; the complete approved-plan change/rework matrix remains open.
+  are logged and visible. An approved plan now creates a superseding under-review
+  revision when a risk changes, linked procedures require reassessment, and an
+  independent reviewer can approve the new plan. Broader risk change, return/rework
+  and reopen scenarios still need direct acceptance evidence.
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.

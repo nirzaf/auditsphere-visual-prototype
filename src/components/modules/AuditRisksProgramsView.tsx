@@ -76,13 +76,9 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
       prototypeStore.updateAuditRisk(selectedEng.id, riskDraft.id, {
         title: riskDraft.title, area: riskDraft.area, assertions: riskDraft.assertions,
         description: riskDraft.description, rationale: riskDraft.rationale,
-        response: riskDraft.response, owner: riskDraft.owner, rating: riskDraft.rating
+        response: riskDraft.response, owner: riskDraft.owner, rating: riskDraft.rating,
+        linkedProcedureIds: riskDraft.linkedProcedureIds
       });
-      for (const procedure of programs.flatMap(program => program.procedures)) {
-        const wasLinked = current.linkedProcedureIds.includes(procedure.id);
-        const shouldLink = riskDraft.linkedProcedureIds.includes(procedure.id);
-        if (wasLinked !== shouldLink) prototypeStore.setAuditRiskProcedureLink(selectedEng.id, riskDraft.id, procedure.id, shouldLink);
-      }
       setRiskDraft(null);
       setNotice(`Risk ${riskDraft.id} and its procedure links were saved.`);
     } catch (error) {
@@ -204,7 +200,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                         <td>
                           <b>{p.title || p.text}</b>
                           {p.instructions && <div className="cell-sub">{p.instructions}</div>}
-                          {p.scopeReassessmentRequired && <div className="badge amber mt4">Service or period changed — reassessment required</div>}
+                          {p.scopeReassessmentRequired && <div className="badge amber mt4">{p.scopeReassessmentReason || 'Planning scope changed'} — reassessment required</div>}
                           {p.evidenceReassessmentRequired && <div className="badge amber mt4">Changed evidence — reassessment required</div>}
                           {p.sampleSize && <div className="cell-sub">Sample size tested: {p.sampleSize} items</div>}
                         </td>
@@ -254,7 +250,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
             <div className="tablewrap"><table>
               <thead><tr><th>Risk</th><th>Area / Rating</th><th>Assertions</th><th>Rationale</th><th>Planned response</th><th>Owner</th><th>Linked procedures</th><th>Action</th></tr></thead>
               <tbody>{risks.map(risk => <tr key={risk.id}>
-                <td><b>{risk.title}</b><div className="cell-sub mono">{risk.id}</div><div className="cell-sub">{risk.description}</div>{Boolean(risk.revisions?.length) && <details className="mt4"><summary className="caption">Revision history ({risk.revisions?.length})</summary>{risk.revisions?.map((revision, index) => <div className="caption" key={`${revision.changedAt}-${index}`}>Revision {index + 1} · {revision.changedAt} · {revision.changedBy}: {revision.rationale}</div>)}</details>}</td>
+                <td><b>{risk.title}</b><div className="cell-sub mono">{risk.id}</div><div className="cell-sub">{risk.description}</div>{Boolean(risk.revisions?.length) && <details className="mt4"><summary className="caption">Revision history ({risk.revisions?.length})</summary>{risk.revisions?.map((revision, index) => <div className="caption" key={`${revision.changedAt}-${index}`}>Revision {index + 1} prior state · {revision.changedAt} · {revision.changedBy}: {revision.title} · {revision.area || 'area unavailable'} · {revision.assertions?.join(', ') || 'assertions unavailable'} · {revision.rating} · {revision.owner || 'owner unavailable'} · {revision.response}{revision.rationale ? ` · change rationale: ${revision.rationale}` : ''}{revision.reviewImpact ? ` · ${revision.reviewImpact}` : ''}</div>)}</details>}</td>
                 <td>{risk.area}<div className={`badge ${risk.rating === 'Significant' ? 'amber' : 'green'}`}>{risk.rating}</div></td>
                 <td>{risk.assertions.join(', ')}</td><td>{risk.rationale}</td><td>{risk.response}</td><td>{risk.owner}</td>
                 <td>{risk.linkedProcedureIds.map(id => <span className="tag gray" key={id}>{id}</span>)}</td>

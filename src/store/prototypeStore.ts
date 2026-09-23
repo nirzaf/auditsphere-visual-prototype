@@ -854,7 +854,10 @@ class PrototypeStore {
         for (const revision of this.state.statementSetRevisions || []) if (revision.engagementId === eng.id || revision.comparativeEngagementId === eng.id) revision.status = 'Stale';
         for (const program of this.state.auditPrograms) if (program.engagementId === eng.id || (!program.engagementId && eng.id === this.state.engagements[0]?.id)) for (const procedure of program.procedures) {
           if (procedure.status === 'Not started' && !procedure.workPerformed && !procedure.conclusion) continue;
+          procedure.scopeReassessmentHistory ||= [];
+          procedure.scopeReassessmentHistory.push({ reason: 'Engagement service or reporting period changed', previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
           procedure.scopeReassessmentRequired = true;
+          procedure.scopeReassessmentReason = 'Service or period changed';
           if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
           procedure.reviewedByUserId = undefined;
           procedure.reviewedAt = undefined;
@@ -2557,6 +2560,7 @@ class PrototypeStore {
     procedure.evidenceLimitation = evidenceLimitation.trim() || undefined;
     procedure.status = 'In progress';
     procedure.scopeReassessmentRequired = false;
+    procedure.scopeReassessmentReason = undefined;
     procedure.reviewedByUserId = undefined;
     procedure.reviewedAt = undefined;
     const engagement = this.state.engagements.find(item => item.id === engId);
@@ -2586,7 +2590,7 @@ class PrototypeStore {
         return document.id === e.documentId;
       });
       if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');
-      if (procedure.scopeReassessmentRequired) throw new GuardError('STALE_REVISION', 'Reporting service or period changed; re-record this procedure before submitting.');
+      if (procedure.scopeReassessmentRequired) throw new GuardError('STALE_REVISION', 'Planning scope changed; re-record this procedure before submitting.');
       procedure.preparedByUserId = this.state.currentUserId;
       procedure.evidenceReassessmentRequired = false;
     }
@@ -2611,27 +2615,70 @@ class PrototypeStore {
     this.notify();
   }
 
-  public updateAuditRisk(engId: string, riskId: string, changes: Pick<import('../types').AuditRiskItem, 'title' | 'area' | 'assertions' | 'description' | 'rationale' | 'response' | 'owner' | 'rating'>) {
+  public updateAuditRisk(engId: string, riskId: string, changes: Pick<import('../types').AuditRiskItem, 'title' | 'area' | 'assertions' | 'description' | 'rationale' | 'response' | 'owner' | 'rating'> & { linkedProcedureIds?: string[] }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer'], 'edit assessed risks');
     requireEngagementScope(this.state, engId);
     const risk = this.state.auditRisks.find(item => (item.engagementId === engId || (!item.engagementId && engId === this.state.engagements[0]?.id)) && item.id === riskId);
     if (!risk) throw new GuardError('INVALID_STATE', 'Risk was not found in the selected engagement.');
+    const previousProcedureIds = [...(risk.linkedProcedureIds || [])];
+    const nextProcedureIds = changes.linkedProcedureIds ?? previousProcedureIds;
+    const scopedPrograms = this.state.auditPrograms.filter(program => program.engagementId === engId || (program.engagementId === undefined && engId === this.state.engagements[0]?.id));
+    const scopedProcedureIds = new Set(scopedPrograms.flatMap(program => program.procedures.map(procedure => procedure.id)));
+    if (new Set(nextProcedureIds).size !== nextProcedureIds.length || nextProcedureIds.some(id => !scopedProcedureIds.has(id))) throw new GuardError('FORBIDDEN_SCOPE', 'Risk and procedure must both belong to the selected engagement.');
     if (![changes.title, changes.area, changes.description, changes.rationale, changes.response, changes.owner].every(value => value?.trim())) throw new GuardError('INVALID_STATE', 'Risk title, area, description, rationale, response and owner are required.');
     if (!changes.assertions.length || new Set(changes.assertions).size !== changes.assertions.length || changes.assertions.some(assertion => !assertion.trim())) throw new GuardError('INVALID_STATE', 'Select at least one unique assertion.');
     if (!['Low', 'Medium', 'Significant'].includes(changes.rating) || !this.state.users.some(user => user.name === changes.owner && user.status === 'Active')) throw new GuardError('INVALID_STATE', 'Risk rating and active owner must be valid.');
-    Object.assign(risk, structuredClone(changes));
+    const previous = structuredClone(risk);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const plans = (this.state.auditPlans || []).filter(plan => plan.engagementId === engId).sort((a, b) => b.version - a.version);
+    const currentPlan = plans[0];
+    let reviewImpact: string | undefined;
+    if (engagement && currentPlan && ['Approved', 'Under review'].includes(currentPlan.status)) {
+      const nextVersion = currentPlan.version + 1;
+      reviewImpact = `Risk ${riskId} changed; audit plan v${nextVersion} requires independent review.`;
+      const revision = { ...structuredClone(currentPlan), id: `PLAN-${engId}-V${nextVersion}`, version: nextVersion, status: 'Under review' as const, rationales: [...currentPlan.rationales, reviewImpact], preparedBy: this.state.currentPerson, preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString(), reviewedBy: undefined, reviewedByUserId: undefined, reviewedAt: undefined, reviewNotes: undefined };
+      currentPlan.status = 'Superseded';
+      currentPlan.supersededReason = reviewImpact;
+      this.state.auditPlans!.push(revision);
+      engagement.planning = false;
+    }
+    Object.assign(risk, structuredClone(changes), { linkedProcedureIds: [...nextProcedureIds] });
+    const affectedProcedureIds = new Set([...previousProcedureIds, ...nextProcedureIds]);
+    for (const program of scopedPrograms) for (const procedure of program.procedures) {
+      procedure.linkedRiskIds ||= [];
+      if (nextProcedureIds.includes(procedure.id)) {
+        if (!procedure.linkedRiskIds.includes(riskId)) procedure.linkedRiskIds.push(riskId);
+      } else procedure.linkedRiskIds = procedure.linkedRiskIds.filter(id => id !== riskId);
+    }
     risk.revisions ||= [];
     risk.revisions.push({
       revision: risk.revisions.length + 1,
-      title: changes.title,
-      rating: changes.rating,
-      response: changes.response,
+      title: previous.title,
+      area: previous.area,
+      assertions: structuredClone(previous.assertions),
+      description: previous.description,
+      owner: previous.owner,
+      linkedProcedureIds: previousProcedureIds,
+      rating: previous.rating,
+      response: previous.response,
       changedBy: this.state.currentPerson,
       changedAt: new Date().toISOString(),
-      rationale: changes.rationale
+      rationale: changes.rationale,
+      reviewImpact
     });
-    const engagement = this.state.engagements.find(item => item.id === engId);
+    for (const program of scopedPrograms) {
+      for (const procedure of program.procedures) {
+        if (!affectedProcedureIds.has(procedure.id)) continue;
+        procedure.scopeReassessmentHistory ||= [];
+        procedure.scopeReassessmentHistory.push({ reason: `Risk ${riskId} changed`, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+        procedure.scopeReassessmentRequired = true;
+        procedure.scopeReassessmentReason = `Risk ${riskId} changed — reassess planned response`;
+        if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
+        procedure.reviewedByUserId = undefined;
+        procedure.reviewedAt = undefined;
+      }
+    }
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Risk ${riskId} updated (Revision ${risk.revisions.length})`, riskId);
     this.notify();
