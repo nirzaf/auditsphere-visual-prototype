@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `b3383b8` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `f2eb6e28` (`https://f2eb6e28.steaudit-prototype.pages.dev`). The release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-CzRSn7CZ.js` (2,172,969 bytes, SHA-256 `340fe778117a0f13fc788fdb89b9f48c2c628d6eb97860dd2d803fe1b3946e84`), matching local `dist/`; bundle contains the risk-driven plan revision and procedure reassessment behavior. |
 | 2026-09-23 | VP-049 working tree | `npm run test:unit` | PASS — 136/136 | Changing a risk supersedes approved plan v1, creates independent-review plan v2, preserves prior risk and review history, and flags added/removed linked procedures for reassessment; reassessment blocks procedure submission. |
 | 2026-09-23 | VP-049 working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. VP-049 approves plan v1, edits RSK-01, verifies the risk-driven plan v2 and PRC-03 reassessment after reload, then approves v2 as an independent reviewer. Broader return/rework and reopen scenarios remain unverified. |
 | 2026-09-23 | VP-049 working tree | `npm run build` | PASS | TypeScript and Vite production build passed with the existing >500 kB main-chunk advisory. |
