@@ -236,6 +236,6 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 
 Latest recorded run: 136/136 unit checks and 57/57 E2E checks passed. E2E
 includes five static checks and 52 Chrome journeys. VP-009, VP-051 and VP-052
-are Verified; VP-039 and 35 other modules remain Partial because full criterion-by-criterion
-acceptance evidence is not complete. See
+are Verified; 61 of 64 stories and 36 of 39 modules remain Partial because full
+criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
