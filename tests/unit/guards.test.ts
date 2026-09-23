@@ -668,6 +668,28 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.deepEqual(prototypeStore.getSnapshot().acceptanceCases?.[0].history?.map(item => item.action), ['recommendation', 'decision']);
   });
 
+  it('allocates one receipt across invoices and reverses only the selected allocation', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    setPersona(current, 'Layla Rahman');
+    const secondInvoice = { ...structuredClone(current.invoices.find(item => item.id === 'INV-26002')!), id: 'INV-AT32-2', invoiceNumber: 'INV-AT32-2', amount: 100_000, paid: 0 };
+    const firstInvoice = current.invoices.find(item => item.id === 'INV-26002')!;
+    const firstInvoicePaid = Math.max(firstInvoice.paid, current.receipts.flatMap(item => item.allocations).filter(item => item.invoiceId === firstInvoice.id && !item.reversed).reduce((sum, item) => sum + item.amount, 0));
+    current.invoices.push(secondInvoice);
+    const receipt = { ...structuredClone(current.receipts[0]), id: 'RCP-AT32-MULTI', receiptNumber: 'RCP-AT32-MULTI', amount: 150_000, allocatedAmount: 0, allocations: [] };
+    prototypeStore.addReceipt(receipt);
+    prototypeStore.allocateReceipt(receipt.id, 'INV-26002', 50_000);
+    prototypeStore.allocateReceipt(receipt.id, secondInvoice.id, 70_000);
+    assert.equal(receipt.allocatedAmount, 120_000);
+    assert.deepEqual(receipt.allocations.map(item => item.invoiceId), ['INV-26002', secondInvoice.id]);
+    assert.equal(secondInvoice.paid, 70_000);
+    prototypeStore.reverseAllocation(receipt.id, 0, 'Correct first invoice allocation.');
+    assert.equal(receipt.allocatedAmount, 70_000);
+    assert.equal(firstInvoice.paid, firstInvoicePaid);
+    assert.equal(secondInvoice.paid, 70_000);
+  });
+
   it('audit plans retain revisions and require a different reviewer', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const current = createInitialState();

@@ -133,6 +133,11 @@ recipient validation and retry policy remain outside this verified slice.
 
 ## Acceptance status
 
+Latest focused unit run: `npm run test:unit` passed 117/117. A new VP-032 unit
+journey allocates one receipt over two issued invoices and reverses one allocation
+without disturbing the second invoice. The existing browser suite remains 40/40;
+the full multi-invoice UI journey and statement workflow remain unverified.
+
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
 shell behavior and route rendering; it does not execute and verify every
 acceptance criterion or complete AT-01–AT-54 journeys. In particular, the route

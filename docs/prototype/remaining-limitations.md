@@ -24,8 +24,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   incomplete.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   to an issued invoice and reverses it with a reason while preserving prior
-  settlements. Multi-invoice receipt allocation and the complete statement
-  workflow remain partial; the integration is offline-only.
+  settlements. Unit coverage verifies multi-invoice allocation and reverses one
+  allocation without changing the other invoice. The browser journey and full
+  statement workflow remain partial; the integration is offline-only.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted
@@ -147,7 +148,7 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 116/116 unit checks and 40/40 E2E checks passed. E2E
+Latest recorded run: 117/117 unit checks and 40/40 E2E checks passed. E2E
 includes five static checks and 35 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
