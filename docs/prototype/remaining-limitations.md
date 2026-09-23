@@ -6,6 +6,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Known acceptance gaps
 
+- **AT-11/12 — jobs and tasks:** Chrome verifies that open subtasks block parent
+  completion and that reassignment changes the real assignee with a retained
+  reason and no authority grant. Job cancellation and the full edit/status/filter
+  matrix remain unverified.
+
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
   scoped proposal drafting, independent review and presentation.

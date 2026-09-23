@@ -572,6 +572,25 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-11/12: blocks parent completion until subtasks finish and records an actual task reassignment', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
+    const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {task:s.jobTasks.find(t=>t.id==='TSK-103').status,grants:s.roleGrants};})()`);
+    await browserTab!.evaluate(`(() => {const box=[...document.querySelectorAll('.borderbox')].find(x=>x.innerText.includes('Fixed assets register verification and depreciation recalculation'));const check=box?.querySelector('input[type=checkbox]');if(!check)throw Error('Fixed asset parent task checkbox missing');check.click();})()`);
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTasks.find(t=>t.id==='TSK-103').status`), before.task, 'open subtasks prevent parent completion');
+    const reassign = await browserTab!.evaluate<boolean>(`(() => {const box=[...document.querySelectorAll('.borderbox')].find(x=>x.innerText.includes('Financial statement tie-out and disclosure review'));const button=[...(box?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Reassign');if(!button)return false;button.click();return true;})()`);
+    assert.equal(reassign, true);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('.modal-backdrop select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Adam Khan');s.dispatchEvent(new Event('change',{bubbles:true}));const t=document.querySelector('.modal-backdrop textarea');const p=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;p.call(t,'Capacity balancing for the reporting deadline.');t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Confirm Reassignment');
+    const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const t=s.jobTasks.find(t=>t.id==='TSK-104');return {assignee:t.assignee,history:t.reassignmentHistory,grants:s.roleGrants};})()`);
+    assert.equal(after.assignee, 'Adam Khan');
+    assert.equal(after.history.at(-1).from, 'Sara Malik');
+    assert.equal(after.history.at(-1).to, 'Adam Khan');
+    assert.equal(after.history.at(-1).reason, 'Capacity balancing for the reporting deadline.');
+    assert.deepEqual(after.grants, before.grants, 'general task assignment does not grant professional approval authority');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
