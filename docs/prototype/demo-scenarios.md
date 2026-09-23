@@ -53,6 +53,8 @@ visible, never plugged (unit-tested).
    recovery, identity mapping vs grant separation, staff route rendering, fresh
    annual continuance, generated package/release/amendment/archive, all 16 report
    views and their CSV headers, filtered report export scoping, the configured
-   consolidation perimeter/elimination/balance, and browser storage recovery.
+   consolidation perimeter/elimination/balance, rejected and accepted CSV/XLSX
+   trial-balance revisions, the PBC request/clarification/replacement/acceptance
+   cycle, and browser storage recovery.
    It does not establish completion of the remaining journeys in §8 of
    `Gap_Closure_User_Stories.md`.

@@ -42,7 +42,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
 
   // Strictly filter by client grant and exclude unissued/drafts from client visibility (VP-025, VP-033)
   const invoices = client ? state.invoices.filter(i => i.clientId === client.id && (i.status === 'Issued' || i.status === 'Paid')) : [];
-  const pbc = eng?.pbc || [];
+  const pbc = eng?.pbc.filter(request => request.status !== 'Draft' && request.status !== 'Cancelled') || [];
   const sharedDocs = client ? state.documents.filter(d => d.visibility === 'Client shared' && d.clientId === client.id) : [];
   const messages = client ? state.communications.filter(c => c.visibility === 'Client visible' && c.clientId === client.id) : [];
 
@@ -311,6 +311,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                       <td>
                         <b>{p.title}</b>
                         <div className="cell-sub">{p.id}</div>
+                        {p.clarificationNote && <div className="cell-sub">Clarification requested: {p.clarificationNote}</div>}
                         {p.sharedFiles && p.sharedFiles.length > 0 && (
                           <div className="cell-sub text-teal mt4">
                             Latest file: {p.sharedFiles[p.sharedFiles.length - 1].name}

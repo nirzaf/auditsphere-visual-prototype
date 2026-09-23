@@ -432,6 +432,22 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const uploadedDoc = (prototypeStore as any).state.documents.find((d: any) => d.linkedPbcId === req.id);
     assert.ok(uploadedDoc);
     assert.strictEqual(uploadedDoc.visibility, 'Client shared');
+
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    (prototypeStore as any).state.currentRole = 'manager';
+    assert.throws(() => prototypeStore.requestPbcClarification(eng.id, req.id, '  '), /Clarification details are required/);
+    prototypeStore.requestPbcClarification(eng.id, req.id, 'Please provide a signed final statement.');
+    assert.strictEqual(req.status, 'Needs clarification');
+    setPersona((prototypeStore as any).state, 'Omar Nasser');
+    (prototypeStore as any).state.currentRole = 'client';
+    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4_v2.pdf', size: 2048 });
+    assert.strictEqual(req.status, 'Received');
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    (prototypeStore as any).state.currentRole = 'manager';
+    prototypeStore.acceptPbcResponse(eng.id, req.id);
+    assert.strictEqual(req.status, 'Accepted');
+    assert.deepEqual(req.sharedFiles?.map((file: any) => file.version), [1, 2]);
+    assert.ok(req.thread?.some((message: any) => message.kind === 'clarification' && message.clientVisible));
   });
 
   it('Re-open release for amendment preserves predecessor and lineage (VP-058 / F04)', async () => {

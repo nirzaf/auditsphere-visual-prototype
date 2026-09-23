@@ -711,6 +711,85 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-23/24: creates a PBC request, receives a replacement after clarification, then accepts it independently', async () => {
+    const switchPersona = async (label: string, role: string) => {
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === ${JSON.stringify(role)}`), true);
+      assert.equal(await waitForBrowser(role === 'client' ? 'document.body.innerText.includes("Client Experience Portal")' : 'document.body.innerText.includes("Client Portfolio")'), true);
+      if (role === 'client') {
+        await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(x=>[...x.options].some(o=>o.value==='CL-002'));if(!s)throw Error('Client entity selector missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'CL-002');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+        assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services")'), true);
+      }
+    };
+    const openNorthstarWorkspace = async () => {
+      const nav = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Client Portfolio'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(nav, true, 'client portfolio navigation should be available to manager');
+      const opened = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('Northstar Services'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!b)return false;b.click();return true;})()`);
+      assert.equal(opened, true, 'Northstar client workspace button should be available');
+      const tab = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('PBC Requests'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(tab, true, 'PBC requests tab should be available');
+    };
+    const openPortalRequests = async () => {
+      await clickButton('Client Experience Portal');
+      const opened = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Information Requests'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(opened, true, 'portal information requests tab should be available');
+    };
+    const uploadResponse = async (requestId: string, name: string) => {
+      const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(requestId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.includes('Upload Document'));if(!b||b.disabled)return false;b.click();return true;})()`);
+      assert.equal(opened, true, 'client upload should be enabled for a presented request');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');const d=new DataTransfer();d.items.add(new File([${JSON.stringify(`Synthetic evidence ${name}`)}],${JSON.stringify(name)},{type:'text/plain'}));input.files=d.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Record response metadata');
+    };
+
+    await switchPersona('Engagement manager', 'manager');
+    await openNorthstarWorkspace();
+    await clickButton('New PBC Request');
+    const formReady = await browserTab!.evaluate<boolean>(`(() => {const f=[...document.querySelectorAll('form')].find(x=>x.innerText.includes('Client recipient'));if(!f)return false;const inputs=f.querySelectorAll('input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(inputs[0],'Updated fixed-asset register');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));inputs[0].dispatchEvent(new Event('change',{bubbles:true}));setter.call(inputs[3],'Omar Nasser');inputs[3].dispatchEvent(new Event('input',{bubbles:true}));inputs[3].dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    assert.equal(formReady, true);
+    await clickButton('Save Draft Request');
+    const created = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.pbc.find(x=>x.title==='Updated fixed-asset register');})()`);
+    assert.ok(created?.id);
+    assert.equal(created.status, 'Draft');
+    await switchPersona('Management approver', 'client');
+    await openPortalRequests();
+    assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /Updated fixed-asset register/,'draft PBC must remain hidden from the client');
+
+    await switchPersona('Engagement manager', 'manager');
+    await openNorthstarWorkspace();
+    const present = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Present request');if(!b)return false;b.click();return true;})()`);
+    assert.equal(present, true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Requested'`), true);
+
+    await switchPersona('Management approver', 'client');
+    await openPortalRequests();
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Updated fixed-asset register/);
+    await uploadResponse(created.id, 'fixed-assets-v1.txt');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Received'`), true);
+
+    await switchPersona('Engagement manager', 'manager');
+    await openNorthstarWorkspace();
+    const requestClarification = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Request clarification');if(!b)return false;b.click();return true;})()`);
+    assert.equal(requestClarification, true);
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');t.focus();})()`);
+    await browserTab!.command('Input.insertText',{text:'Please include the original purchase dates and depreciation method.'});
+    await clickButton('Send clarification');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Needs clarification'`), true);
+
+    await switchPersona('Management approver', 'client');
+    await openPortalRequests();
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Please include the original purchase dates and depreciation method/);
+    await uploadResponse(created.id, 'fixed-assets-v2.txt');
+    await switchPersona('Engagement manager', 'manager');
+    await openNorthstarWorkspace();
+    const accept = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Accept response');if(!b)return false;b.click();return true;})()`);
+    assert.equal(accept, true);
+    const accepted = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}))()`);
+    assert.equal(accepted.status, 'Accepted');
+    assert.deepEqual(accepted.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2]]);
+    assert.ok(accepted.thread.some((m: any) => m.kind==='clarification' && m.clientVisible));
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
     const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
     assert.equal(targetResponse.ok, true);

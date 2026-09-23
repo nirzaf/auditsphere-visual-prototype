@@ -1373,10 +1373,26 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) return;
-    if (!request.title || !request.title.trim()) throw new GuardError('INVALID_STATE', 'Request title is required.');
+    if (!request.id?.trim() || this.state.engagements.some(e => e.pbc.some(p => p.id === request.id))) throw new GuardError('INVALID_STATE', 'PBC request ID must be unique.');
+    if (!request.title || !request.title.trim() || !request.category.trim() || !request.owner.trim() || !request.contributor?.trim()) throw new GuardError('INVALID_STATE', 'Request title, category, owner and client recipient are required.');
     eng.pbc.unshift({ ...request, status: 'Draft', version: 1 });
     this.invalidateReleaseBasis(eng);
     this.logEvent(`PBC request drafted: ${request.title}`, request.id);
+    this.notify();
+  }
+
+  public requestPbcClarification(engId: string, requestId: string, note: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'reviewer', 'partner'], 'request PBC clarification');
+    requireEngagementScope(this.state, engId);
+    const req = this.state.engagements.find(e => e.id === engId)?.pbc.find(r => r.id === requestId);
+    if (!req || req.status !== 'Received') throw new GuardError('INVALID_STATE', 'Clarification requires a received response.');
+    if (!note.trim()) throw new GuardError('INVALID_STATE', 'Clarification details are required.');
+    req.status = 'Needs clarification';
+    req.clarificationNote = note.trim();
+    req.thread ||= [];
+    req.thread.push({ id: `TH-${crypto.randomUUID()}`, kind: 'clarification', author: this.state.currentPerson, role: this.state.currentRole, text: req.clarificationNote, time: new Date().toISOString(), clientVisible: true });
+    this.logEvent(`PBC clarification requested: ${req.title}`, req.id);
     this.notify();
   }
 

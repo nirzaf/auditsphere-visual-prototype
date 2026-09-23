@@ -2,7 +2,7 @@
 // 12 Tabs: Overview, Contacts, Engagements, Jobs, Documents, Requests, Communications, Time/Budgets, Billing, Accounting, Audit, Activity
 
 import React, { useState } from 'react';
-import { RouteKey, ClientContact } from '../../types';
+import { RouteKey, ClientContact, PbcRequestItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
@@ -34,7 +34,6 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactTitle, setContactTitle] = useState('');
-
   const client = state.clients.find(c => c.id === clientId) || state.clients[0];
   const contacts = state.contacts.filter(c => c.clientId === client.id);
   const engagements = state.engagements.filter(e => e.client === client.id);
@@ -45,7 +44,17 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
   const invoices = state.invoices.filter(i => i.clientId === client.id);
   const receipts = state.receipts.filter(r => r.clientId === client.id);
 
-  const pbcRequests = engagements.flatMap(e => e.pbc);
+  const [showPbcForm, setShowPbcForm] = useState(false);
+  const [pbcEngagementId, setPbcEngagementId] = useState(engagements[0]?.id || '');
+  const [pbcTitle, setPbcTitle] = useState('');
+  const [pbcCategory, setPbcCategory] = useState('Financial records');
+  const [pbcDue, setPbcDue] = useState(state.asOfDate);
+  const [pbcContributor, setPbcContributor] = useState(client.contact || '');
+  const [clarification, setClarification] = useState<{ engagementId: string; request: PbcRequestItem } | null>(null);
+  const [clarificationText, setClarificationText] = useState('');
+  const [requestNotice, setRequestNotice] = useState('');
+
+  const pbcRequests = engagements.flatMap(e => e.pbc.map(request => ({ ...request, engagementId: e.id })));
   const workpapers = engagements.flatMap(e => e.workpapers);
 
   const tabs: Array<{ key: typeof activeTab; label: string; count?: number }> = [
@@ -82,6 +91,38 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
     setContactName('');
     setContactEmail('');
     setContactTitle('');
+  };
+
+  const handleCreatePbc = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const request: PbcRequestItem = { id: `PBC-${crypto.randomUUID()}`, title: pbcTitle, category: pbcCategory, status: 'Draft', due: pbcDue, owner: state.currentPerson, contributor: pbcContributor, version: 1 };
+      prototypeStore.addPbcRequest(pbcEngagementId, request);
+      setRequestNotice('Draft information request saved. Present it when ready for the client portal.');
+      setShowPbcForm(false);
+      setPbcTitle('');
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be saved.'); }
+  };
+
+  const handlePresentPbc = (engagementId: string, requestId: string) => {
+    try { prototypeStore.presentPbcRequest(engagementId, requestId); setRequestNotice('Information request presented to the client portal.'); }
+    catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be presented.'); }
+  };
+
+  const handleAcceptPbc = (engagementId: string, requestId: string) => {
+    try { prototypeStore.acceptPbcResponse(engagementId, requestId); setRequestNotice('Client response accepted.'); }
+    catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Response could not be accepted.'); }
+  };
+
+  const handleClarification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clarification) return;
+    try {
+      prototypeStore.requestPbcClarification(clarification.engagementId, clarification.request.id, clarificationText);
+      setClarification(null);
+      setClarificationText('');
+      setRequestNotice('Clarification requested; the client can replace its response.');
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Clarification could not be recorded.'); }
   };
 
   return (
@@ -362,8 +403,20 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
         <div className="panel">
           <div className="panel-head">
             <h3>PBC Information Requests</h3>
-            <span className="caption">Total: {pbcRequests.length}</span>
+            <div className="row" style={{ gap: 10 }}>
+              <span className="caption">Total: {pbcRequests.length}</span>
+              <button className="btn primary sm" onClick={() => setShowPbcForm(!showPbcForm)}>{showPbcForm ? 'Close request form' : 'New PBC Request'}</button>
+            </div>
           </div>
+          {requestNotice && <div role="status" className="panel-pad sub">{requestNotice}</div>}
+          {showPbcForm && <form className="panel-pad grid2" onSubmit={handleCreatePbc}>
+            <div><label className="caption">Engagement</label><select className="input" value={pbcEngagementId} onChange={e => setPbcEngagementId(e.target.value)} required>{engagements.map(e => <option key={e.id} value={e.id}>{e.id} · FY {e.year} · {e.service}</option>)}</select></div>
+            <div><label className="caption">Request title</label><input className="input" value={pbcTitle} onChange={e => setPbcTitle(e.target.value)} required /></div>
+            <div><label className="caption">Category</label><input className="input" value={pbcCategory} onChange={e => setPbcCategory(e.target.value)} required /></div>
+            <div><label className="caption">Due date</label><input type="date" className="input" value={pbcDue} onChange={e => setPbcDue(e.target.value)} required /></div>
+            <div><label className="caption">Client recipient</label><input className="input" value={pbcContributor} onChange={e => setPbcContributor(e.target.value)} required /></div>
+            <div className="row" style={{ alignItems: 'end' }}><button className="btn primary sm" type="submit">Save Draft Request</button></div>
+          </form>}
           <div className="tablewrap">
             <table>
               <thead>
@@ -373,16 +426,24 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
                   <th>Due Date</th>
                   <th>Status</th>
                   <th>Current File</th>
+                  <th>History / Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pbcRequests.map(p => (
                   <tr key={p.id}>
-                    <td><b>{p.title}</b><div className="cell-sub">{p.id}</div></td>
+                    <td><b>{p.title}</b><div className="cell-sub">{p.id}</div>{p.clarificationNote && <div className="cell-sub">Clarification: {p.clarificationNote}</div>}</td>
                     <td>{p.category}</td>
                     <td>{p.due}</td>
-                    <td><span className="badge blue">{p.status}</span></td>
+                    <td><span className={`badge ${p.status === 'Accepted' ? 'green' : p.status === 'Received' ? 'blue' : 'amber'}`}>{p.status}</span></td>
                     <td>{p.file || 'Awaiting upload'}</td>
+                    <td>
+                      <div className="row" style={{ gap: 6 }}>
+                        {p.status === 'Draft' && <button className="btn sm" onClick={() => handlePresentPbc(p.engagementId, p.id)}>Present request</button>}
+                        {p.status === 'Received' && <><button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request clarification</button><button className="btn sm primary" onClick={() => handleAcceptPbc(p.engagementId, p.id)}>Accept response</button></>}
+                        {p.thread?.length ? <details><summary className="caption">{p.thread.length} messages</summary>{p.thread.map(message => <div className="cell-sub" key={message.id}>{message.kind}: {message.text}</div>)}</details> : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -588,6 +649,14 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
           </div>
         </div>
       )}
+
+      {clarification && <div className="modal-backdrop" onClick={() => setClarification(null)}><div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head"><h2>Request Clarification</h2><button className="icon-btn" onClick={() => setClarification(null)}>✕</button></div>
+        <form onSubmit={handleClarification}><div className="modal-body stack" style={{ gap: 10 }}>
+          <p className="sub">{clarification.request.title} · {clarification.request.id}. This message is visible to the client in the local portal.</p>
+          <label className="caption">Clarification details<textarea className="input" value={clarificationText} onChange={e => setClarificationText(e.target.value)} required /></label>
+        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setClarification(null)}>Cancel</button><button type="submit" className="btn primary sm">Send clarification</button></div></form>
+      </div></div>}
     </div>
   );
 };

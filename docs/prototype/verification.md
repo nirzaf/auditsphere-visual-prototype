@@ -17,9 +17,9 @@ This working-tree change has not yet been committed or deployed.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | working tree based on `21acdc9` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.95 MB (558 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | working tree based on `21acdc9` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
-| 2026-09-23 | working tree based on `21acdc9` | `npm run test:e2e` | PASS — 16/16 | Five static checks and eleven real Chrome checks. Reporting opens all 16 views, checks tables/CSV headers and client export scoping. Consolidation checks pinned snapshots, approved QAR 50,000 elimination, balanced totals and unchanged source TB. TB intake rejects unbalanced CSV, commits balanced CSV and genuine XLSX, and verifies source history lineage/hash. Other paths exercise M365 setup/recovery, scoped grants, staff routes, annual continuance, artifact-bound release/amendment/archive, and storage conflict/quota behavior. |
+| 2026-09-23 | working tree based on `d6a226d` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 1.96 MB (559 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | working tree based on `d6a226d` | `npm run test:unit` | PASS — 97/97, 20 suites | Includes RR01–RR38, schema migrations 0–8, continuance guards, source revisions, artifact/package checks, PBC clarification/replacement/acceptance, and balanced consolidation including current-period result. These verify selected deterministic rules, not all UI journeys. |
+| 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
@@ -36,6 +36,9 @@ not cover perimeter edits, missing-component recovery or non-base-currency rates
 The AT-35 import journey drives CSV and actual XLSX files through the UI,
 checking that a rejected preview leaves the accepted source unchanged and that
 accepted replacements retain predecessor rows and source identities.
+The AT-23/24 journey creates and presents a request, hides its draft from the
+client, records two client-file versions around a client-visible clarification,
+then accepts the replacement separately.
 
 ## Acceptance status
 
