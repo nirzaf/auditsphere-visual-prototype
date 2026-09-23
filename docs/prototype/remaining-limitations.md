@@ -131,10 +131,11 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   reasoned suspension, resumption, cancellation and closure; suspended or
   terminal engagements block scoped professional commands, while billing and
   archive operations remain permitted. Unit and Chrome checks cover the
-  lifecycle and retained history. The administration editor records due-date
-  and team changes, validates active grants, and clears release approvals.
-  Service/period scope edits and complete affected review-applicability journeys
-  remain incomplete.
+  lifecycle and retained history. The administration editor records service, reporting year/period, due date and
+  team changes; validates active grants; and clears release approvals. Scope edits
+  reset planning/source/mapping acceptance, stale saved statement revisions, and
+  require fresh work and review for executed procedures. The full affected-review
+  applicability matrix remains incomplete.
 
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to
@@ -208,8 +209,8 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,155.54 kB,
-  603.11 kB gzip in the deployed build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,158.26 kB,
+  603.83 kB gzip in the latest build).
 
 ## Verification snapshot
 

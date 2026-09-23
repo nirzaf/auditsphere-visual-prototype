@@ -14,6 +14,9 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   const [showNewEngModal, setShowNewEngModal] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
   const [showEditAdminModal, setShowEditAdminModal] = useState(false);
+  const [editService, setEditService] = useState('');
+  const [editYear, setEditYear] = useState(2026);
+  const [editPeriod, setEditPeriod] = useState('');
   const [editDue, setEditDue] = useState('');
   const [editManager, setEditManager] = useState('');
   const [editPartner, setEditPartner] = useState('');
@@ -40,6 +43,9 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   };
   const openAdminEditor = () => {
     if (!selectedEng) return;
+    setEditService(selectedEng.service);
+    setEditYear(selectedEng.year);
+    setEditPeriod(selectedEng.period);
     setEditDue(selectedEng.due);
     setEditManager(selectedEng.manager);
     setEditPartner(selectedEng.partner);
@@ -50,7 +56,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
     event.preventDefault();
     if (!selectedEng) return;
     try {
-      prototypeStore.updateEngagement({ ...selectedEng, due: editDue, manager: editManager, partner: editPartner, team: editTeam });
+      prototypeStore.updateEngagement({ ...selectedEng, service: editService, year: editYear, period: editPeriod, due: editDue, manager: editManager, partner: editPartner, team: editTeam });
       setShowEditAdminModal(false);
     } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   };
@@ -196,6 +202,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
           <form className="modal" style={{ maxWidth: 620 }} onSubmit={saveAdminChanges} onClick={event => event.stopPropagation()}>
             <div className="modal-head"><h2>Edit Engagement Details</h2><button type="button" className="icon-btn" onClick={() => setShowEditAdminModal(false)}>✕</button></div>
             <div className="modal-body stack" style={{ gap: 12 }}>
+              <div className="grid2"><label>Service scope<select aria-label="Engagement service" className="input" value={editService} onChange={event => setEditService(event.target.value)}>{[...new Set(state.engagements.map(engagement => engagement.service))].sort().map(service => <option key={service}>{service}</option>)}</select></label><label>Reporting year<input aria-label="Engagement reporting year" className="input" type="number" min="1900" max="2100" value={editYear} onChange={event => setEditYear(Number(event.target.value))} required /></label></div>
+              <label>Reporting period<input aria-label="Engagement reporting period" className="input" value={editPeriod} onChange={event => setEditPeriod(event.target.value)} required /></label>
               <label>Target date<input aria-label="Engagement target date" className="input" type="date" value={editDue} onChange={event => setEditDue(event.target.value)} required /></label>
               <div className="grid2">
                 <label>Engagement manager<select aria-label="Engagement manager" className="input" value={editManager} onChange={event => setEditManager(event.target.value)}>{assignedPeople.filter(user => user.role === 'manager').map(user => <option key={user.id}>{user.name}</option>)}</select></label>

@@ -273,6 +273,8 @@ export interface StatementSetRevision {
   comparativeEngagementId?: string;
   comparativeSourceVersion?: number;
   comparativeMappingRevision?: number;
+  scopeSnapshot?: { service: string; year: number; period: string };
+  comparativeScopeSnapshot?: { service: string; year: number; period: string };
   layoutVersion: number;
   totals: { assets: number; liabilities: number; equity: number; revenue: number; netProfit: number };
   comparativeTotals?: StatementSetRevision['totals'];
@@ -856,6 +858,7 @@ export interface AuditProcedureItem {
   id: string;
   engagementId?: string;
   linkedRiskIds?: string[];
+  scopeReassessmentRequired?: boolean;
   ref?: string;
   title?: string;
   instructions?: string;

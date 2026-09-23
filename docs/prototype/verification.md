@@ -16,6 +16,8 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 135/135 | VP-012 service/year/period changes reset planning, source and mapping acceptance, stale statement sets and require procedure reassessment; earlier workflow guards remain green. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. VP-012 edits service, year, reporting period, due date and team; change history persists and the suite remains green. |
 | 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript and Vite build passed; main bundle 2,155.48 kB (603.06 kB gzip), with the existing >500 kB advisory. |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 135/135 | Includes disabled-identity route denial, unsupported audit-template area rejection, retirement behavior, mapping, sampling, release and migration checks. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. VP-018 verifies local creation without grants, disable/recovery, requirements-only routing, invitation expiry/revoke history; VP-049 verifies risk links, coverage gaps, fresh template application and retirement without changing existing work. |

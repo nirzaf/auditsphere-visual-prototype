@@ -154,7 +154,8 @@ class PrototypeStore {
       const comparison = revision.comparativeEngagementId && this.state.engagements.find(item => item.id === revision.comparativeEngagementId);
       const comparisonMappingRevision = comparison && Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === comparison.id).map(item => item.revision));
       if (!engagement || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision ||
-          (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision))) {
+          (revision.scopeSnapshot && (revision.scopeSnapshot.service !== engagement.service || revision.scopeSnapshot.year !== engagement.year || revision.scopeSnapshot.period !== engagement.period)) ||
+          (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision || revision.comparativeScopeSnapshot && (revision.comparativeScopeSnapshot.service !== comparison.service || revision.comparativeScopeSnapshot.year !== comparison.year || revision.comparativeScopeSnapshot.period !== comparison.period)))) {
         revision.status = 'Stale';
       }
     }
@@ -825,7 +826,9 @@ class PrototypeStore {
     if (['Cancelled', 'Closed'].includes(current.lifecycleStatus || 'Active')) throw new GuardError('INVALID_STATE', 'Cancelled or closed engagements are immutable.');
     if (eng.client !== current.client) throw new GuardError('INVALID_STATE', 'An engagement cannot be reassigned to another client.');
     if (!this.state.users.some(u => u.status === 'Active' && u.role === 'manager' && u.name === eng.manager) || !this.state.users.some(u => u.status === 'Active' && u.role === 'partner' && u.name === eng.partner)) throw new GuardError('INVALID_STATE', 'Engagement manager and partner must be active assigned personas.');
-    const updated = { ...current, stage: eng.stage, due: eng.due, manager: eng.manager, partner: eng.partner, team: [...eng.team], opinion: eng.opinion };
+    const scopeChanged = current.service !== eng.service || current.year !== eng.year || current.period !== eng.period;
+    if (!eng.service.trim() || !eng.period.trim() || !Number.isInteger(eng.year) || eng.year < 1900 || eng.year > 2100 || !/^\d{4}$/.test(String(eng.year))) throw new GuardError('INVALID_STATE', 'Engagement service, reporting period and a valid reporting year are required.');
+    const updated = { ...current, service: eng.service.trim(), year: eng.year, period: eng.period.trim(), stage: eng.stage, due: eng.due, manager: eng.manager, partner: eng.partner, team: [...eng.team], opinion: eng.opinion };
     if (new Set(updated.team).size !== updated.team.length || updated.team.some(name => !this.state.users.some(user => user.status === 'Active' && user.group === 'Professional' && user.name === name)) || !updated.team.includes(updated.manager) || !updated.team.includes(updated.partner)) throw new GuardError('INVALID_STATE', 'The engagement team must contain unique active professional personas, including its manager and partner.');
     for (const name of updated.team) {
       const user = this.state.users.find(item => item.status === 'Active' && item.group === 'Professional' && item.name === name)!;
@@ -833,7 +836,20 @@ class PrototypeStore {
       if (visible !== 'ALL' && !visible.includes(eng.id)) throw new GuardError('FORBIDDEN_SCOPE', `${name} does not have an active grant to engagement ${eng.id}.`);
     }
     if (JSON.stringify(updated) !== JSON.stringify(current)) {
-      const changed = (['stage', 'due', 'manager', 'partner', 'team', 'opinion'] as const).filter(key => JSON.stringify(current[key]) !== JSON.stringify(updated[key]));
+      const changed = (['service', 'year', 'period', 'stage', 'due', 'manager', 'partner', 'team', 'opinion'] as const).filter(key => JSON.stringify(current[key]) !== JSON.stringify(updated[key]));
+      if (scopeChanged) {
+        updated.planning = false;
+        updated.sourceAccepted = false;
+        updated.mappingApproved = false;
+        for (const revision of this.state.statementSetRevisions || []) if (revision.engagementId === eng.id || revision.comparativeEngagementId === eng.id) revision.status = 'Stale';
+        for (const program of this.state.auditPrograms) if (program.engagementId === eng.id || (!program.engagementId && eng.id === this.state.engagements[0]?.id)) for (const procedure of program.procedures) {
+          if (procedure.status === 'Not started' && !procedure.workPerformed && !procedure.conclusion) continue;
+          procedure.scopeReassessmentRequired = true;
+          if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
+          procedure.reviewedByUserId = undefined;
+          procedure.reviewedAt = undefined;
+        }
+      }
       updated.events = [...(current.events || []), { text: `Engagement administration changed by ${this.state.currentPerson}: ${changed.join(', ')}`, ref: eng.id, time: new Date().toISOString(), type: 'history' }];
       this.state.engagements[index] = updated;
       this.invalidateReleaseBasis(updated);
@@ -1639,6 +1655,9 @@ class PrototypeStore {
     const revision = Math.max(0, ...history.map(item => item.revision)) + 1;
     for (const prior of history) prior.status = 'Stale';
     const record: StatementSetRevision = { ...structuredClone(input), id: `${input.engagementId}-STMT-${revision}`, revision, status: 'Draft', preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString() };
+    record.scopeSnapshot = { service: engagement.service, year: engagement.year, period: engagement.period };
+    const comparison = input.comparativeEngagementId && this.state.engagements.find(item => item.id === input.comparativeEngagementId);
+    if (comparison) record.comparativeScopeSnapshot = { service: comparison.service, year: comparison.year, period: comparison.period };
     this.state.statementSetRevisions.push(record);
     this.logEvent(`Financial statement set v${revision} saved for ${input.engagementId}`, input.engagementId);
     this.notify();
@@ -2468,6 +2487,7 @@ class PrototypeStore {
     procedure.conclusion = conclusion.trim();
     procedure.evidenceLimitation = evidenceLimitation.trim() || undefined;
     procedure.status = 'In progress';
+    procedure.scopeReassessmentRequired = false;
     procedure.reviewedByUserId = undefined;
     procedure.reviewedAt = undefined;
     const engagement = this.state.engagements.find(item => item.id === engId);
@@ -2497,6 +2517,7 @@ class PrototypeStore {
         return document.id === e.documentId;
       });
       if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');
+      if (procedure.scopeReassessmentRequired) throw new GuardError('STALE_REVISION', 'Reporting service or period changed; re-record this procedure before submitting.');
       procedure.preparedByUserId = this.state.currentUserId;
       procedure.evidenceReassessmentRequired = false;
     }
