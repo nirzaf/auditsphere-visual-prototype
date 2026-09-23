@@ -130,9 +130,12 @@ before(async () => {
 
 after(async () => {
   browserTab?.close();
-  if (chrome && chrome.exitCode === null) chrome.kill('SIGTERM');
-  if (chrome) await new Promise<void>(resolve => chrome!.once('exit', () => resolve()));
-  if (profileDir) rmSync(profileDir, { recursive: true, force: true });
+  if (chrome?.exitCode === null) {
+    const exited = new Promise<void>(resolve => chrome!.once('exit', () => resolve()));
+    chrome.kill('SIGTERM');
+    if (chrome.exitCode === null) await exited;
+  }
+  if (profileDir) rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   await new Promise<void>(resolve => server.close(() => resolve()));
 });
 
@@ -478,6 +481,47 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations[0];return p.sourceRevision===4&&p.sourceSha256===${JSON.stringify(imported.sha)}&&document.body.innerText.includes('Previous source revisions (3)');})()`), true, 'current and prior source identities remain visible after reload');
     assert.deepEqual(browserTab!.exceptions, []);
   });
+  it('VP-052: creates a clean workpaper from a published template with a genuine sample workbook', async () => {
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');const o=[...r.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,o.value);r.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Audit Workpapers');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Create from a published workpaper template")'), true);
+    await clickButton('Create workpaper');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.some(w=>w.sourceTemplateId==='TPL-WP-CASH-01')`), true);
+    const created = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001');return e.workpapers.find(w=>w.sourceTemplateId==='TPL-WP-CASH-01')})()`);
+    assert.deepEqual([created.sourceTemplateVersion, created.version, created.status, created.preparer, created.reviewer], [1, 1, 'Planned', 'Adam Khan', 'Sara Malik']);
+    assert.deepEqual([created.workingPaper, created.evidenceRefs, created.supportingEvidence, created.clearance, created.conclusion], [null, [], [], null, '']);
+    assert.ok(created.guidelines.length && created.assignmentHistory.length === 2, 'template guidance and assignment provenance are retained');
+    assert.deepEqual(created.sourceProcedureRefs, ['PRC-01'], 'template procedure references are retained');
+    const sample = XLSX.read(readFileSync(join(repoRoot, 'templates/WP-A1_Cash_and_Bank_Audit_Template.xlsx')), { type: 'buffer' });
+    assert.ok(sample.SheetNames.length && XLSX.utils.sheet_to_json(sample.Sheets[sample.SheetNames[0]]).length > 0, 'sample is a genuine workbook');
+    assert.ok(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('a')].some(a=>a.innerText.includes('Download genuine sample XLSX')&&a.href.includes('/templates/WP-A1_Cash_and_Bank_Audit_Template.xlsx'))`));
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;for(const [name,value] of [['Workpaper scope','All material cash accounts and year-end cut-off.'],['Work performed','Agreed GL to bank confirmation and statement; inspected subsequent cut-off.'],['Workpaper conclusion','Balances agree; no exceptions noted.']]){const field=document.querySelector('[aria-label="'+name+'"]');set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+    await clickButton('Save workpaper revision');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id===${JSON.stringify(created.id)}).version===2`), true, 'draft edits are versioned');
+    await clickButton('5. Pinned Evidence');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Workpaper evidence document"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'DOC-002');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Pin evidence revision');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id===${JSON.stringify(created.id)}).evidenceRefs.includes('DOC-002')`), true, 'same-engagement evidence revision is pinned');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Audit preparer — Adam'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='preparer'`), true);
+    await clickButton('4. Artifact & Revision');
+    await clickButton('Upload Replacement Revision');
+    await browserTab!.evaluate(`(async()=>{const response=await fetch('/templates/WP-A1_Cash_and_Bank_Audit_Template.xlsx');const blob=await response.blob();const file=new File([blob],'WP-A1_Cash_and_Bank_Audit_Template.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const input=document.querySelector('.modal input[type=file]');const data=new DataTransfer();data.items.add(file);input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const b=[...document.querySelectorAll('.modal button')].find(b=>b.innerText.includes('Record Revision'));return !!b&&!b.disabled;})()`), true, 'sample workbook metadata is selected for the current revision');
+    await browserTab!.evaluate(`[...document.querySelectorAll('.modal button')].find(b=>b.innerText.includes('Record Revision')).click()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id===${JSON.stringify(created.id)}).workingPaper?.version===4`), true, 'uploaded workbook metadata is pinned to its workpaper revision');
+    await clickButton('1. Objective & Scope');
+    await clickButton('Submit for independent review');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id===${JSON.stringify(created.id)}).status==='Submitted'`), true, 'current workpaper revision is submitted with required records');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Senior reviewer — Sara'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='reviewer'`), true);
+    await clickButton('6. Clearance & History');
+    await clickButton('Sign & Clear Workpaper');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').workpapers.find(w=>w.id===${JSON.stringify(created.id)}).status==='Cleared'`), true, 'assigned reviewer clears the exact submitted revision');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-050: persists procedure fieldwork and requires independent reviewer clearance', async () => {
     const switchRole = async (label: string, role: string) => {
       await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);

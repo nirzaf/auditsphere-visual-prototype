@@ -1338,5 +1338,12 @@ export function createInitialState(): PrototypeState {
       if (engagement && component.packageRevisionPinned === engagement.packageRevision) component.packageRows = structuredClone(engagement.rows);
     }
   }
+  const cashWp = state.engagements.find(item => item.id === 'ENG-26001')?.workpapers.find(item => item.id === 'WP-A1');
+  state.workpaperTemplates = cashWp ? [{
+    id: 'TPL-WP-CASH-01', name: 'Cash and bank substantive schedule', version: 1, status: 'Published', publishedBy: 'Audit Methodology',
+    objective: cashWp.objective, assertion: cashWp.assertion, risk: cashWp.risk, scope: 'Reconcile cash accounts and test confirmations and cut-off.',
+    guidelines: structuredClone(cashWp.guidelines), template: structuredClone(cashWp.template), procedureRefs: ['PRC-01'],
+    sampleFileName: 'WP-A1_Cash_and_Bank_Audit_Template.xlsx'
+  }] : [];
   return state;
 }

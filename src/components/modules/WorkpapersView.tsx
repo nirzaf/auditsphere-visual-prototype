@@ -22,6 +22,14 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [newRevisionFile, setNewRevisionFile] = useState<File | null>(null);
+  const templates = state.workpaperTemplates || [];
+  const [templateId, setTemplateId] = useState(templates[0]?.id || '');
+  const [templatePreparerId, setTemplatePreparerId] = useState(state.users.find(user => user.role === 'preparer' && user.status === 'Active')?.id || '');
+  const [templateReviewerId, setTemplateReviewerId] = useState(state.users.find(user => user.role === 'reviewer' && user.status === 'Active')?.id || '');
+  const [evidenceDocId, setEvidenceDocId] = useState(state.documents.find(document => document.engagementId === selectedEng?.id)?.id || '');
+  const [assignmentRole, setAssignmentRole] = useState<'preparer' | 'reviewer'>('reviewer');
+  const [assignmentUserId, setAssignmentUserId] = useState(state.users.find(user => user.id === 'reviewer-2' && user.status === 'Active')?.id || '');
+  const [assignmentReason, setAssignmentReason] = useState('');
   const wp = workpapers.find(w => w.id === selectedWpId) || workpapers[0];
   const csvData = (() => {
     if (!wp?.template?.csv) return null;
@@ -57,6 +65,34 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
+  };
+
+  const handleSaveDraft = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const panel = event.currentTarget.closest('.panel');
+    try {
+      prototypeStore.updateWorkpaper(selectedEng.id, wp.id, {
+        applicable: wp.applicable,
+        scope: panel?.querySelector<HTMLTextAreaElement>('[aria-label="Workpaper scope"]')?.value,
+        workPerformed: panel?.querySelector<HTMLTextAreaElement>('[aria-label="Work performed"]')?.value,
+        conclusion: panel?.querySelector<HTMLTextAreaElement>('[aria-label="Workpaper conclusion"]')?.value
+      });
+      triggerNotice('success', `Workpaper v${prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.workpapers.find(item => item.id === wp.id)?.version} saved.`);
+    } catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not save workpaper.'); }
+  };
+
+  const handleLinkEvidence = () => {
+    try { prototypeStore.linkWorkpaperEvidence(selectedEng.id, wp.id, evidenceDocId); triggerNotice('success', `Evidence ${evidenceDocId} linked at its current revision.`); }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not link evidence.'); }
+  };
+
+  const handleReassign = () => {
+    try { prototypeStore.reassignWorkpaper(selectedEng.id, wp.id, assignmentRole, assignmentUserId, assignmentReason); setAssignmentReason(''); triggerNotice('success', `${assignmentRole} assignment updated.`); }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not reassign workpaper.'); }
+  };
+
+  const handleSubmitWorkpaper = () => {
+    try { prototypeStore.submitWorkpaper(selectedEng.id, wp.id); triggerNotice('success', `Workpaper v${wp.version} submitted for independent review.`); }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not submit workpaper.'); }
   };
 
   const handleToggleApplicability = () => {
@@ -117,6 +153,18 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
           {notice.text}
         </div>
       )}
+
+      <div className="panel panel-pad">
+        <h3>Create from a published workpaper template</h3>
+        <div className="row mt12" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <label className="caption">Template<select className="input" aria-label="Published workpaper template" value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.filter(item => item.status === 'Published').map(item => <option key={item.id} value={item.id}>{item.name} · v{item.version}</option>)}</select></label>
+          <label className="caption">Preparer<select className="input" aria-label="Workpaper preparer" value={templatePreparerId} onChange={event => setTemplatePreparerId(event.target.value)}>{state.users.filter(user => user.role === 'preparer' && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+          <label className="caption">Reviewer<select className="input" aria-label="Workpaper reviewer" value={templateReviewerId} onChange={event => setTemplateReviewerId(event.target.value)}>{state.users.filter(user => ['reviewer', 'manager', 'partner', 'eqr'].includes(user.role) && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
+          <button className="btn primary sm" disabled={!templates.some(item => item.id === templateId && item.status === 'Published') || !['manager', 'partner'].includes(state.currentRole)} onClick={() => { try { const id = prototypeStore.createWorkpaperFromTemplate(selectedEng.id, templateId, templatePreparerId, templateReviewerId); setSelectedWpId(id); setActiveTab('overview'); triggerNotice('success', `${id} created with fresh work state.`); } catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not create workpaper.'); } }}>Create workpaper</button>
+          {templates.find(item => item.id === templateId)?.sampleFileName && <a className="btn sm ghost" href={`/templates/${encodeURIComponent(templates.find(item => item.id === templateId)!.sampleFileName!)}`} download>Download genuine sample XLSX</a>}
+        </div>
+        <p className="caption mt8">A new workpaper keeps the published template revision and starts without evidence, uploaded files, conclusions or clearance.</p>
+      </div>
 
       <div className="grid-main">
         {/* Left: Workpapers List */}
@@ -183,6 +231,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   <div className="cell-sub mt4">
                     Assigned Preparer: <b>{wp.preparer}</b> · Reviewer: <b>{wp.reviewer}</b>
                   </div>
+                  {wp.sourceProcedureRefs?.length ? <div className="cell-sub">Source procedures: {wp.sourceProcedureRefs.join(', ')}</div> : null}
                 </div>
                 <div className="row" style={{ gap: 8 }}>
                   <button
@@ -232,11 +281,20 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                 <h4>Audit Objective</h4>
                 <p className="sub mt8">{wp.objective}</p>
                 <h4 className="mt16">Testing Scope</h4>
-                <p className="sub mt8">{wp.scope || 'Full population testing and substantive analytical review.'}</p>
+                <textarea className="input mt8" aria-label="Workpaper scope" rows={2} defaultValue={wp.scope || ''} placeholder="Define this workpaper's scope" />
                 <h4 className="mt16">Key Audit Risk</h4>
                 <p className="sub mt8">{wp.risk || 'Risk of material misstatement due to management override or valuation errors.'}</p>
+                <h4 className="mt16">Work performed</h4>
+                <textarea className="input mt8" aria-label="Work performed" rows={3} defaultValue={wp.workPerformed || ''} placeholder="Record procedures performed and results" />
                 <h4 className="mt16">Auditor Conclusion</h4>
-                <p className="sub mt8">{wp.conclusion || 'Substantive testing completed with no unresolved material misstatements.'}</p>
+                <textarea className="input mt8" aria-label="Workpaper conclusion" rows={3} defaultValue={wp.conclusion || ''} placeholder="Record the conclusion supported by the work" />
+                <div className="row mt12" style={{ gap: 8 }}>
+                  <button className="btn sm" onClick={handleSaveDraft}>Save workpaper revision</button>
+                  <span className="caption">Saving changes advances the revision and invalidates any previous submission or clearance.</span>
+                </div>
+                {wp.sourceTemplateId && <p className="caption mt8">Created from {wp.sourceTemplateId} v{wp.sourceTemplateVersion}.</p>}
+                {wp.submittedVersion === wp.version && <p className="caption mt8">Submitted revision v{wp.submittedVersion} by {wp.submittedBy}.</p>}
+                <button className="btn primary sm mt12" disabled={!wp.applicable || wp.status === 'Submitted' || !wp.workingPaper || wp.workingPaper.version !== wp.version} onClick={handleSubmitWorkpaper}>Submit for independent review</button>
               </div>
             )}
 
@@ -389,6 +447,10 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                 <p className="sub" style={{ marginBottom: 16 }}>
                   Direct evidence links registered in SharePoint and pinned to this workpaper.
                 </p>
+                <div className="row mb12" style={{ gap: 8 }}>
+                  <select className="input" aria-label="Workpaper evidence document" value={evidenceDocId} onChange={event => setEvidenceDocId(event.target.value)}>{state.documents.filter(document => document.engagementId === selectedEng.id).map(document => <option key={document.id} value={document.id}>{document.id} · {document.name} v{document.version}</option>)}</select>
+                  <button className="btn sm" disabled={!evidenceDocId || wp.evidenceRefs?.includes(evidenceDocId)} onClick={handleLinkEvidence}>Pin evidence revision</button>
+                </div>
                 <div className="stack" style={{ gap: 8 }}>
                   {(wp.evidenceRefs && wp.evidenceRefs.length > 0) ? (
                     wp.evidenceRefs.map(ref => (
@@ -397,7 +459,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                           <Icon name="file" />
                           <div>
                             <b>{ref}</b>
-                            <div className="cell-sub">{state.documents.find(d => d.id === ref)?.sha ? 'Recorded SHA-256 for in-session source file' : 'Sample evidence metadata · original bytes not available'}</div>
+                            <div className="cell-sub">Document v{wp.evidenceRevisions?.[ref] ?? state.documents.find(d => d.id === ref)?.version ?? 'unknown'} · {state.documents.find(d => d.id === ref)?.sha ? 'Recorded SHA-256 for in-session source file' : 'Sample evidence metadata · original bytes not available'}</div>
                           </div>
                         </div>
                         <span className="badge green">Adequate</span>
@@ -424,6 +486,17 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                     {wp.status}
                   </span>
                 </div>
+
+                {['manager', 'partner'].includes(state.currentRole) && <div className="borderbox mt12" style={{ padding: 12 }}>
+                  <h4>Reassign workpaper responsibility</h4>
+                  <div className="row mt8" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <select className="input" aria-label="Assignment role" value={assignmentRole} onChange={event => setAssignmentRole(event.target.value as 'preparer' | 'reviewer')}><option value="preparer">Preparer</option><option value="reviewer">Reviewer</option></select>
+                    <select className="input" aria-label="New workpaper assignee" value={assignmentUserId} onChange={event => setAssignmentUserId(event.target.value)}>{state.users.filter(user => user.status === 'Active' && (assignmentRole === 'preparer' ? user.role === 'preparer' : ['reviewer', 'manager', 'partner', 'eqr'].includes(user.role))).map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select>
+                    <input className="input" aria-label="Reassignment reason" value={assignmentReason} onChange={event => setAssignmentReason(event.target.value)} placeholder="Reason for reassignment" />
+                    <button className="btn sm" disabled={!assignmentReason.trim()} onClick={handleReassign}>Save reassignment</button>
+                  </div>
+                  {(wp.assignmentHistory || []).length > 0 && <details className="mt8"><summary>Assignment history ({wp.assignmentHistory!.length})</summary><ul>{wp.assignmentHistory!.map((item, index) => <li key={index}>{item.role}: {item.from || 'Unassigned'} → {state.users.find(user => user.id === item.to)?.name || item.to} · {item.reason} · {item.assignedAt}</li>)}</ul></details>}
+                </div>}
 
                 {wp.clearance ? (
                   <div className="borderbox mt16" style={{ background: '#f0fdf4', padding: 16 }}>
@@ -456,10 +529,12 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                     </div>
                     <button
                       className="btn primary sm mt12"
+                      disabled={wp.status !== 'Submitted' || wp.submittedVersion !== wp.version || wp.reviewer !== state.currentPerson}
                       onClick={handleClearWorkpaper}
                     >
                       Sign & Clear Workpaper
                     </button>
+                    {wp.status !== 'Submitted' && <p role="status" className="caption mt8">Only the exact submitted revision can be cleared by its assigned reviewer.</p>}
                   </div>
                 )}
 

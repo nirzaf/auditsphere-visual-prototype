@@ -70,7 +70,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 15);
+    assert.equal(migrated.schema, 16);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -89,9 +89,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v15 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v16 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 14; version++) {
+    for (let version = 0; version <= 15; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -107,8 +107,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 12) delete legacy.roleGrantHistory;
       if (version < 13) legacy.acceptanceCases?.forEach((item: any) => delete item.screeningEvidence);
       if (version < 15) legacy.samplePopulations.forEach((population: any) => { delete population.accountCode; delete population.period; delete population.currency; });
+      if (version < 16) delete legacy.workpaperTemplates;
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 15, `schema ${version} should reach v15`);
+      assert.equal(migrated.schema, 16, `schema ${version} should reach v16`);
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
@@ -121,6 +122,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       assert.equal(migrated.samplePopulations[0].accountCode, seed.samplePopulations[0].accountCode);
       assert.equal(migrated.samplePopulations[0].period, seed.samplePopulations[0].period);
       assert.equal(migrated.samplePopulations[0].currency, seed.samplePopulations[0].currency);
+      assert.deepEqual(migrated.workpaperTemplates?.map(item => item.id), seed.workpaperTemplates?.map(item => item.id));
       assert.deepEqual(migrated.samplePopulations[0].sourceHistory, []);
       assert.deepEqual(migrated.roleGrantHistory, []);
       for (const risk of migrated.auditRisks) for (const procedureId of risk.linkedProcedureIds) {
@@ -234,6 +236,23 @@ describe('sampling workpaper guards (VP-051)', () => {
     prototypeStore.reviewSampleSelection('POP-01', 'One item limited; alternative procedures required.');
     const population = prototypeStore.getSnapshot().samplePopulations[0];
     assert.deepEqual([population.items[0].result, population.selectionReviews?.[0].testedCount, population.selectionReviews?.[0].limitedCount, population.selectionReviews?.[0].untestedCount], ['Limited', 0, 1, 0]);
+  });
+});
+
+describe('workpaper template lifecycle (VP-052)', () => {
+  it('creates a fresh scoped workpaper and requires reasoned eligible reassignment', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    prototypeStore.resetState();
+    prototypeStore.setPersona('manager');
+    prototypeStore.setSelectedEngagement('ENG-26001');
+    const id = prototypeStore.createWorkpaperFromTemplate('ENG-26001', 'TPL-WP-CASH-01', 'preparer', 'reviewer');
+    let workpaper = prototypeStore.getSnapshot().engagements.find(item => item.id === 'ENG-26001')!.workpapers.find(item => item.id === id)!;
+    assert.deepEqual([workpaper.sourceTemplateId, workpaper.sourceTemplateVersion, workpaper.version, workpaper.status], ['TPL-WP-CASH-01', 1, 1, 'Planned']);
+    assert.deepEqual([workpaper.workingPaper, workpaper.evidenceRefs, workpaper.supportingEvidence, workpaper.conclusion, workpaper.clearance], [null, [], [], '', null]);
+    assert.throws(() => prototypeStore.reassignWorkpaper('ENG-26001', id, 'reviewer', 'reviewer-2', ''), /reassignment reason/);
+    prototypeStore.reassignWorkpaper('ENG-26001', id, 'reviewer', 'reviewer-2', 'Reviewer capacity change');
+    workpaper = prototypeStore.getSnapshot().engagements.find(item => item.id === 'ENG-26001')!.workpapers.find(item => item.id === id)!;
+    assert.deepEqual([workpaper.reviewer, workpaper.version, workpaper.assignmentHistory?.at(-1)?.reason], ['Bilal Ahmed', 2, 'Reviewer capacity change']);
   });
 });
 

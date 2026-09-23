@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 15;
+export const CURRENT_SCHEMA = 16;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -231,11 +231,16 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     }
     warnings.push('Linked sample populations to an explicit engagement period, currency and GL account (v15).');
   }
+  if (from < 16) {
+    state.workpaperTemplates = structuredClone(fresh.workpaperTemplates || []);
+    warnings.push('Added the published workpaper template catalogue without copying execution or clearance state (v16).');
+  }
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];
   state.identityStatusHistory = Array.isArray(state.identityStatusHistory) ? state.identityStatusHistory : [];
   state.auditProgramTemplates = Array.isArray(state.auditProgramTemplates) ? state.auditProgramTemplates : [];
   state.auditProgramTemplateHistory = Array.isArray(state.auditProgramTemplateHistory) ? state.auditProgramTemplateHistory : [];
+  state.workpaperTemplates = Array.isArray(state.workpaperTemplates) ? state.workpaperTemplates : [];
   state.schema = CURRENT_SCHEMA;
   return { state, migratedFrom: from, warnings };
 }

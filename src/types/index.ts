@@ -946,7 +946,16 @@ export interface WorkpaperItem {
   section?: string;
   scope?: string;
   documentName?: string;
+  sourceTemplateId?: string;
+  sourceTemplateVersion?: number;
+  sourceProcedureRefs?: string[];
+  workPerformed?: string;
+  submittedBy?: string;
+  submittedVersion?: number;
+  submissionHistory?: Array<{ version: number; submittedBy: string; submittedAt: string }>;
+  assignmentHistory?: Array<{ role: 'preparer' | 'reviewer'; from?: string; to: string; assignedBy: string; reason: string; assignedAt: string }>;
   evidenceRefs?: string[];
+  evidenceRevisions?: Record<string, number>;
   preparer: string;
   reviewer: string;
   conclusion: string;
@@ -989,6 +998,22 @@ export interface WorkpaperItem {
     version: number;
     notes: string;
   }>;
+}
+
+export interface WorkpaperTemplateItem {
+  id: string;
+  name: string;
+  version: number;
+  status: 'Draft' | 'Published';
+  publishedBy?: string;
+  objective: string;
+  assertion: string;
+  risk: string;
+  scope: string;
+  guidelines: WorkpaperItem['guidelines'];
+  template: WorkpaperItem['template'];
+  procedureRefs: string[];
+  sampleFileName?: string;
 }
 
 export interface FindingItem {
@@ -1168,6 +1193,7 @@ export interface PrototypeState {
   jobs: JobRecord[];
   jobTasks: JobTaskItem[];
   jobTemplates: JobTemplateItem[];
+  workpaperTemplates?: WorkpaperTemplateItem[];
   comments: CommentItem[];
   documents: DocumentItem[];
   communications: CommunicationItem[];

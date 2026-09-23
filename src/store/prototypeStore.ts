@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -1668,7 +1668,66 @@ class PrototypeStore {
   }
 
   // --- Audit Workpapers, Procedures, Reviews (VP-050, VP-052, VP-055, VP-056) ---
-  public updateWorkpaper(engId: string, wpId: string, updates: Pick<WorkpaperItem, 'applicable'> & { rationale?: string }) {
+  public createWorkpaperFromTemplate(engId: string, templateId: string, preparerId: string, reviewerId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'create workpapers from templates');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const template = this.state.workpaperTemplates?.find(item => item.id === templateId && item.status === 'Published');
+    const preparer = this.state.users.find(item => item.id === preparerId && item.status === 'Active' && item.role === 'preparer');
+    const reviewer = this.state.users.find(item => item.id === reviewerId && item.status === 'Active' && ['reviewer', 'manager', 'partner', 'eqr'].includes(item.role));
+    if (!engagement || !template || !preparer || !reviewer) throw new GuardError('INVALID_STATE', 'Choose a published template and active eligible preparer/reviewer.');
+    requireIndependentActor(preparer.id, reviewer.id, 'assign the same person as preparer and reviewer', this.state);
+    const sequence = Math.max(0, ...engagement.workpapers.map(item => Number(item.id.match(/-(\d+)$/)?.[1] || 0))) + 1;
+    const id = `WP-${engId}-${String(sequence).padStart(2, '0')}`;
+    if (engagement.workpapers.some(item => item.id === id)) throw new GuardError('INVALID_STATE', 'Generated workpaper identity already exists.');
+    const workpaper: WorkpaperItem = {
+      id, title: template.name, objective: template.objective, assertion: template.assertion, risk: template.risk,
+      version: 1, status: 'Planned', applicable: true, scope: template.scope, workPerformed: '', conclusion: '',
+      sourceTemplateId: template.id, sourceTemplateVersion: template.version,
+      sourceProcedureRefs: [...template.procedureRefs],
+      preparer: preparer.name, reviewer: reviewer.name, assignmentHistory: [
+        { role: 'preparer', to: preparer.id, assignedBy: this.state.currentUserId, reason: 'Created from published template', assignedAt: new Date().toISOString() },
+        { role: 'reviewer', to: reviewer.id, assignedBy: this.state.currentUserId, reason: 'Created from published template', assignedAt: new Date().toISOString() }
+      ],
+      guidelines: structuredClone(template.guidelines), template: structuredClone(template.template), workingPaper: null,
+      supportingEvidence: [], evidenceRefs: [], clearance: null, clearanceHistory: []
+    };
+    engagement.workpapers.push(workpaper);
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Workpaper ${id} created from ${template.id} v${template.version}`, engId);
+    this.notify();
+    return id;
+  }
+
+  public reassignWorkpaper(engId: string, wpId: string, role: 'preparer' | 'reviewer', userId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'reassign workpapers');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const workpaper = engagement?.workpapers.find(item => item.id === wpId);
+    const user = this.state.users.find(item => item.id === userId && item.status === 'Active' && (role === 'preparer' ? item.role === 'preparer' : ['reviewer', 'manager', 'partner', 'eqr'].includes(item.role)));
+    if (!workpaper || !user || !reason.trim()) throw new GuardError('INVALID_STATE', 'Choose an eligible active assignee and record a reassignment reason.');
+    const otherName = role === 'preparer' ? workpaper.reviewer : workpaper.preparer;
+    const other = this.state.users.find(item => item.name === otherName);
+    requireIndependentActor(user.id, other?.id || otherName, 'assign one person as both preparer and reviewer', this.state);
+    const from = role === 'preparer' ? workpaper.preparer : workpaper.reviewer;
+    if (from === user.name) return;
+    workpaper.assignmentHistory ||= [];
+    workpaper.assignmentHistory.push({ role, from, to: user.id, assignedBy: this.state.currentUserId, reason: reason.trim(), assignedAt: new Date().toISOString() });
+    if (role === 'preparer') workpaper.preparer = user.name; else workpaper.reviewer = user.name;
+    if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+    workpaper.clearance = null;
+    workpaper.submittedBy = undefined;
+    workpaper.submittedVersion = undefined;
+    workpaper.version += 1;
+    workpaper.status = 'In progress';
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Workpaper ${wpId} ${role} reassigned to ${user.name}: ${reason.trim()}`, engId);
+    this.notify();
+  }
+
+  public updateWorkpaper(engId: string, wpId: string, updates: Pick<WorkpaperItem, 'applicable'> & Partial<Pick<WorkpaperItem, 'scope' | 'workPerformed' | 'conclusion'>> & { rationale?: string }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'partner'], 'change workpaper applicability');
     requireEngagementScope(this.state, engId);
@@ -1676,15 +1735,72 @@ class PrototypeStore {
     if (!eng) return;
     const wp = eng.workpapers.find(w => w.id === wpId);
     if (!wp) return;
-    if (wp.applicable === updates.applicable) return;
-    if (!updates.applicable && !updates.rationale?.trim()) throw new GuardError('INVALID_STATE', 'Marking a workpaper not applicable requires a reason.');
+    const changed = wp.applicable !== updates.applicable || (updates.scope !== undefined && updates.scope !== wp.scope) || (updates.workPerformed !== undefined && updates.workPerformed !== wp.workPerformed) || (updates.conclusion !== undefined && updates.conclusion !== wp.conclusion);
+    if (!changed) return;
+    if (wp.applicable && !updates.applicable) {
+      requireRole(this.state, ['manager', 'partner'], 'mark workpapers not applicable');
+      if (!updates.rationale?.trim()) throw new GuardError('INVALID_STATE', 'Marking a workpaper not applicable requires a reason.');
+      if (this.state.findings.some(item => item.engagementId === engId && item.linkedWorkpaperId === wpId && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(item.disposition))) throw new GuardError('INVALID_STATE', 'Resolve or formally disposition linked findings before marking the workpaper not applicable.');
+    }
     wp.version++;
     wp.applicable = updates.applicable;
+    if (updates.scope !== undefined) wp.scope = updates.scope.trim();
+    if (updates.workPerformed !== undefined) wp.workPerformed = updates.workPerformed.trim();
+    if (updates.conclusion !== undefined) wp.conclusion = updates.conclusion.trim();
     wp.status = updates.applicable ? 'In progress' : 'Not applicable';
-    wp.notApplicableRationale = updates.applicable ? undefined : updates.rationale!.trim();
+    wp.notApplicableRationale = updates.applicable ? undefined : updates.rationale?.trim() || wp.notApplicableRationale;
     if (wp.clearance) wp.clearanceHistory.push({ ...wp.clearance });
     wp.clearance = null;
+    wp.submittedBy = undefined;
+    wp.submittedVersion = undefined;
     this.invalidateReleaseBasis(eng);
+    this.logEvent(`Workpaper ${wpId} revised to v${wp.version}; prior submission/clearance is historical`, engId);
+    this.notify();
+  }
+
+  public linkWorkpaperEvidence(engId: string, wpId: string, documentId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'partner'], 'link workpaper evidence');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const workpaper = engagement?.workpapers.find(item => item.id === wpId);
+    const document = this.state.documents.find(item => item.id === documentId && item.engagementId === engId);
+    if (!workpaper || !document) throw new GuardError('INVALID_STATE', 'Evidence must be a document in this engagement.');
+    workpaper.evidenceRefs ||= [];
+    workpaper.evidenceRevisions ||= {};
+    if (!workpaper.evidenceRefs.includes(document.id)) workpaper.evidenceRefs.push(document.id);
+    workpaper.evidenceRevisions[document.id] = document.version;
+    workpaper.version++;
+    workpaper.status = 'In progress';
+    workpaper.submittedBy = undefined;
+    workpaper.submittedVersion = undefined;
+    if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
+    workpaper.clearance = null;
+    if (engagement) this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Document ${document.id} v${document.version} linked to workpaper ${wpId} v${workpaper.version}`, engId);
+    this.notify();
+  }
+
+  public submitWorkpaper(engId: string, wpId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'partner'], 'submit workpapers');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const workpaper = engagement?.workpapers.find(item => item.id === wpId);
+    if (!engagement || !workpaper || !workpaper.applicable || workpaper.status === 'Not applicable') throw new GuardError('INVALID_STATE', 'Only an applicable workpaper can be submitted.');
+    if (this.state.currentRole === 'preparer' && workpaper.preparer !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned preparer may submit this workpaper.');
+    if (!workpaper.workPerformed?.trim() || !workpaper.conclusion.trim() || !workpaper.scope?.trim() || !workpaper.workingPaper || workpaper.workingPaper.version !== workpaper.version || !(workpaper.evidenceRefs || []).length) throw new GuardError('INVALID_STATE', 'Record work performed, scope, conclusion, a current workbook and linked evidence before submission.');
+    if ((workpaper.evidenceRefs || []).some(id => {
+      const document = this.state.documents.find(item => item.id === id && item.engagementId === engId);
+      return !document || workpaper.evidenceRevisions?.[id] !== document.version;
+    })) throw new GuardError('INVALID_STATE', 'Refresh every evidence link to its current same-engagement document revision before submission.');
+    workpaper.submittedBy = this.state.currentUserId;
+    workpaper.submittedVersion = workpaper.version;
+    workpaper.submissionHistory ||= [];
+    workpaper.submissionHistory.push({ version: workpaper.version, submittedBy: this.state.currentUserId, submittedAt: new Date().toISOString() });
+    workpaper.status = 'Submitted';
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Workpaper ${wpId} revision v${workpaper.version} submitted for independent review`, engId);
     this.notify();
   }
 
@@ -1697,6 +1813,8 @@ class PrototypeStore {
     const wp = eng.workpapers.find(w => w.id === wpId);
     if (!wp) return;
     if (!wp.applicable || !notes.trim()) throw new GuardError('INVALID_STATE', 'Only applicable workpapers with a clearance rationale can be cleared.');
+    if (wp.status !== 'Submitted' || wp.submittedVersion !== wp.version || !wp.submittedBy) throw new GuardError('INVALID_STATE', 'Only the exact current submitted revision can be cleared.');
+    if (wp.reviewer !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned reviewer may clear this workpaper.');
 
     // Check separation of duties: preparer cannot clear own workpaper!
     requireIndependentActor(wp.preparer, this.state.currentPerson, 'independently clear this workpaper', this.state);
@@ -1921,6 +2039,8 @@ class PrototypeStore {
     this.invalidateReleaseBasis(eng);
     wp.version += 1;
     wp.status = 'In progress';
+    wp.submittedBy = undefined;
+    wp.submittedVersion = undefined;
     if (wp.clearance) {
       wp.clearanceHistory.push({ ...wp.clearance });
       wp.clearance = null;
