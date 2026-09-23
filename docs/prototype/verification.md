@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `9e28d5a` is deployed as Pages release
-`bff09005-63c3-40f8-b75d-3ef5698c007e` in the existing `steaudit-prototype`
+acceptance assertions. Commit `79039f4` is deployed as Pages release
+`d5816d3b-d2bb-4980-bc40-379e333ed1b9` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -17,6 +17,8 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `79039f4` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (570.90 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | `79039f4` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `d5816d3b-d2bb-4980-bc40-379e333ed1b9`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-CWDfVmw0.js`. |
 | 2026-09-23 | current working tree after `b4543d5` | `npm run test:e2e` | PASS — 37/37 | Five static checks and 32 actual Chrome checks. AT-29 versions budget rates while retaining the old approved-time rate snapshot; AT-32 verifies receipt entry, allocation and reasoned reversal; AT-50 verifies client search scope. |
 | 2026-09-23 | current working tree after `9024ff8` | `npm run test:e2e` | PASS — 36/36 | Five static checks and 31 actual Chrome checks. AT-50 verifies client-scoped search; AT-32 records, allocates and reverses an offline receipt while preserving the prior settled balance. Multi-invoice allocation and other search grants/cross-links remain incomplete. |
 | 2026-09-23 | `9e28d5a` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (570.89 kB gzip), above Vite's 500 kB advisory threshold. |
