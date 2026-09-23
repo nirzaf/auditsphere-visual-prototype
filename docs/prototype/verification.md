@@ -17,6 +17,9 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 109/109 | Full deterministic Node suite; selected rules and guards, not the full acceptance contract. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 37/37 | Five static checks and 32 actual Chrome checks. AT-23/24 now verifies both PBC response versions' original IndexedDB bytes and SHA-256 after reload. |
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (571.04 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `79039f4` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.01 MB (570.90 kB gzip), above Vite's 500 kB advisory threshold. |
 | 2026-09-23 | `79039f4` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `d5816d3b-d2bb-4980-bc40-379e333ed1b9`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-CWDfVmw0.js`. |
 | 2026-09-23 | current working tree after `b4543d5` | `npm run test:e2e` | PASS — 37/37 | Five static checks and 32 actual Chrome checks. AT-29 versions budget rates while retaining the old approved-time rate snapshot; AT-32 verifies receipt entry, allocation and reasoned reversal; AT-50 verifies client search scope. |

@@ -207,7 +207,7 @@ export interface ProposalRecord {
 export interface GeneratedArtifactRecord {
   id: string;
   name: string;
-  kind: 'XLSX' | 'DOCX' | 'PDF';
+  kind: 'XLSX' | 'DOCX' | 'PDF' | 'PBC';
   mimeType: string;
   size: number;
   sha256: string;

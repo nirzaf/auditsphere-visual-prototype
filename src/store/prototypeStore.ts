@@ -1575,7 +1575,7 @@ class PrototypeStore {
   }
 
   // --- PBC lifecycle (VP-023, VP-024): response is not acceptance ---------------
-  public uploadPbcResponse(engId: string, requestId: string, file: { name: string; size?: number; sha256?: string }) {
+  public uploadPbcResponse(engId: string, requestId: string, file: { id?: string; name: string; size?: number; sha256?: string }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['client_admin', 'client_finance', 'client'], 'upload client PBC responses');
     requireEngagementScope(this.state, engId);
@@ -1588,7 +1588,8 @@ class PrototypeStore {
     if (req.contributor !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the named client contributor can submit this PBC response.');
     if (!['Requested', 'Needs clarification', 'Received'].includes(req.status)) throw new GuardError('INVALID_STATE', `A response cannot be uploaded while the request is ${req.status}.`);
 
-    const docId = `DOC-PBC-${Date.now().toString().slice(-4)}`;
+    const docId = file.id || `DOC-PBC-${crypto.randomUUID()}`;
+    if (!/^DOC-PBC-[\w-]+$/.test(docId) || this.state.documents.some(document => document.id === docId)) throw new GuardError('INVALID_STATE', 'PBC response identity must be unique and valid.');
     const uploadedAt = new Date().toISOString();
     const uploadVersion = (req.sharedFiles?.at(-1)?.version || 0) + 1;
     const newDoc: DocumentItem = {

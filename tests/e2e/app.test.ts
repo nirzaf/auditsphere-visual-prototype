@@ -1244,7 +1244,7 @@ describe('actual Chrome browser acceptance', () => {
       const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(requestId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.includes('Upload Document'));if(!b||b.disabled)return false;b.click();return true;})()`);
       assert.equal(opened, true, 'client upload should be enabled for a presented request');
       await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');const d=new DataTransfer();d.items.add(new File([${JSON.stringify(`Synthetic evidence ${name}`)}],${JSON.stringify(name)},{type:'text/plain'}));input.files=d.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      await clickButton('Record response metadata');
+      await clickButton('Save response file');
     };
 
     await switchPersona('Engagement manager', 'manager');
@@ -1295,6 +1295,13 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(accepted.acceptedBy, 'Layla Rahman');
     assert.ok(accepted.acceptedAt);
     assert.deepEqual(accepted.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2]]);
+    const localFiles = await browserTab!.evaluate<any>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const req=s.engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)});const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const files=await Promise.all(req.sharedFiles.map(async f=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(f.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});return {id:f.id,exists:!!blob,size:blob?.size,sha:blob&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('')};}));db.close();return files;})()`);
+    assert.equal(localFiles.length, 2);
+    for (const file of localFiles) assert.equal(file.exists && file.size > 0 && /^[0-9a-f]{64}$/.test(file.sha), true, 'each PBC revision retains exact bytes with a verifiable digest');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    const persistedFiles = await browserTab!.evaluate<any[]>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const req=s.engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)});const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const out=await Promise.all(req.sharedFiles.map(async f=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(f.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});return [f.id,blob?.size,f.size,blob&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join(''),f.sha];}));db.close();return out;})()`);
+    for (const [id, size, expectedSize, sha, expectedSha] of persistedFiles) assert.ok(id && size === expectedSize && sha === expectedSha, 'PBC bytes and SHA remain intact after reload');
     assert.ok(accepted.thread.some((m: any) => m.kind==='clarification' && m.clientVisible));
     assert.deepEqual(browserTab!.exceptions, []);
   });

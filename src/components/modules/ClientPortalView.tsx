@@ -10,6 +10,7 @@ import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { sha256OfFile } from '../../services/fileMetadata';
+import { persistArtifact } from '../../services/artifactStore';
 
 interface ClientPortalViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -109,12 +110,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
 
     try {
       const sha256 = await sha256OfFile(uploadFile);
+      const id = `DOC-PBC-${crypto.randomUUID()}`;
+      const responseBlob = new Blob([uploadFile], { type: uploadFile.type || 'application/octet-stream' });
+      await persistArtifact({ id, name: uploadFile.name, kind: 'PBC', mimeType: responseBlob.type, size: responseBlob.size, sha256 }, responseBlob);
       prototypeStore.uploadPbcResponse(eng.id, uploadPbcModal.id, {
+        id,
         name: uploadFile.name,
         size: uploadFile.size,
         sha256
       });
-      triggerNotice(`Recorded ${uploadFile.name} (${uploadFile.size} bytes, SHA-256 ${sha256.slice(0, 12)}…). Only metadata is retained; the original bytes are not saved.`);
+      triggerNotice(`Saved ${uploadFile.name} locally (${uploadFile.size} bytes, SHA-256 ${sha256.slice(0, 12)}…). No file was uploaded to an external service.`);
       setUploadPbcModal(null);
       setUploadFile(null);
     } catch (err: any) {
@@ -586,13 +591,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                     required
                   />
                   <span className="caption" style={{ color: 'var(--muted)', display: 'block', marginTop: 4 }}>
-                    The browser computes a SHA-256 digest. Original bytes are not persisted or uploaded to SharePoint.
+                    The browser saves the original bytes in local IndexedDB and verifies their SHA-256. Nothing is uploaded to SharePoint or another service.
                   </span>
                 </div>
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setUploadPbcModal(null)}>Cancel</button>
-                <button type="submit" className="btn primary sm" disabled={!uploadFile}>Record response metadata</button>
+                <button type="submit" className="btn primary sm" disabled={!uploadFile}>Save response file</button>
               </div>
             </form>
           </div>

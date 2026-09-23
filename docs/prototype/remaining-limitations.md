@@ -97,9 +97,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
   only the named contributor can upload, acceptance records actor/time/version,
-  and accepted submissions cannot be overwritten. The browser-local prototype
-  retains file metadata rather than original uploaded bytes; other evidence and
-  workpaper dependency workflows remain incomplete.
+  and accepted submissions cannot be overwritten. Chrome verifies both response
+  versions' original bytes and digests remain in browser-local IndexedDB after
+  reload. No external upload occurs; broader evidence and workpaper dependency
+  workflows remain incomplete.
 - **R14 — archive integrity:** archive creation now copies every released package
   artifact into a separate IndexedDB record and verifies size, MIME type and
   SHA-256 before recording the archive. The copies remain browser-local and can
@@ -117,8 +118,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 109/109 unit checks and 34/34 E2E checks passed. E2E
-includes five static checks and 29 actual Chrome checks. It exercises the
+Latest recorded run: 109/109 unit checks and 37/37 E2E checks passed. E2E
+includes five static checks and 32 actual Chrome checks. It exercises the
 approved-time and accepted fixed-fee invoice source paths alongside selected
 workflow journeys; the
 full AT-01–AT-54 suite has not run, and route rendering is not full workflow
