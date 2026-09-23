@@ -1,9 +1,10 @@
-// VP-063 unit: guards + store commands (AT-11/12/18/24/28/31/32/47/54).
+// VP-063 unit: guards + store commands (AT-11/AT-12/AT-18/AT-24/AT-28/AT-31/AT-32/AT-47/AT-54).
 // Same-person, scope, hierarchy, allocation and stale-revision rules share one
 // implementation between UI actions and tests.
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
+import { prototypeStore } from '../../src/store/prototypeStore.js';
 import { visibleClientIds, visibleEngagementIds, GuardError } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
@@ -51,7 +52,7 @@ describe('scope guards (AT-18)', () => {
   });
 });
 
-describe('fixture integrity (AT-02/54)', () => {
+describe('fixture integrity (AT-02/AT-54)', () => {
   it('seed fixtures pass integrity with no broken references', () => {
     const issues = validateFixtures(state);
     assert.deepEqual(issues, []);
@@ -122,6 +123,32 @@ describe('fixture integrity (AT-02/54)', () => {
         const procedure = migrated.auditPrograms.flatMap(program => program.procedures).find(item => item.id === procedureId);
         assert.ok(procedure?.linkedRiskIds?.includes(risk.id), `v${version} migration restores reciprocal risk link ${risk.id} -> ${procedureId}`);
       }
+    }
+  });
+});
+
+describe('simulated invitation expiry (VP-018)', () => {
+  it('blocks acceptance after expiry, records expiry, and creates no identity', () => {
+    const saved = prototypeStore.exportStateJSON();
+    try {
+      const expired = createInitialState();
+      const admin = expired.users.find(u => u.role === 'admin')!;
+      expired.currentUserId = admin.id;
+      expired.currentPerson = admin.name;
+      expired.currentRole = 'admin';
+      expired.simulatedInvitations = [{
+        id: 'INV-EXPIRED-TEST', email: 'expired@example.demo', name: 'Expired Recipient',
+        role: 'preparer', scopeKind: 'Global', status: 'Pending', invitedAt: '2000-01-01T00:00:00.000Z',
+        invitedBy: admin.name, expiresAt: '2000-01-02T00:00:00.000Z'
+      }];
+      prototypeStore.importStateJSON(JSON.stringify(expired));
+      assert.throws(() => prototypeStore.acceptSimulatedInvitation('INV-EXPIRED-TEST'), /expired/i);
+      const result = prototypeStore.getSnapshot();
+      assert.equal(result.simulatedInvitations?.[0].status, 'Expired');
+      assert.equal(result.users.some(u => u.email === 'expired@example.demo'), false);
+      assert.equal(result.identityStatusHistory?.some(e => e.action === 'InvitationExpired' && e.userName === 'Expired Recipient'), true);
+    } finally {
+      prototypeStore.importStateJSON(saved);
     }
   });
 });
@@ -261,7 +288,7 @@ describe('task hierarchy (AT-11)', () => {
   });
 });
 
-describe('separation of duties (AT-24/31/47)', () => {
+describe('separation of duties (AT-24/AT-31/AT-47)', () => {
   it('a person cannot approve their own proposal, time, workpaper or review point', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const { GuardError: GE } = await import('../../src/services/guards.js');
@@ -281,7 +308,7 @@ describe('separation of duties (AT-24/31/47)', () => {
   });
 });
 
-describe('opportunity and proposal lifecycle (AT-07/08)', () => {
+describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
   it('requires a loss reason and retains opportunity stage history', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const target = prototypeStore as any;
@@ -451,7 +478,7 @@ describe('adjustment approval lifecycle (AT-38)', () => {
   });
 });
 
-describe('evidence adequacy (AT-20/46)', () => {
+describe('evidence adequacy (AT-20/AT-46)', () => {
   it('persists attributable adequacy and requires rationale for deficiency', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
@@ -504,7 +531,7 @@ describe('evidence adequacy (AT-20/46)', () => {
   });
 });
 
-describe('money guards (AT-30/31/32)', () => {
+describe('money guards (AT-30/AT-31/AT-32)', () => {
   it('VP-030 invoices approved time at its pinned rate exactly once', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
@@ -634,6 +661,27 @@ describe('money guards (AT-30/31/32)', () => {
 });
 
 describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('version-controls explicit consolidation FX rates and rejects wrong context', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const group = state.consolidationGroups[0];
+    group.components[1].currency = 'USD';
+    delete group.fxRates.USD;
+    const sourceRows = structuredClone(state.engagements.find((e: any) => e.id === group.components[1].componentId).rows);
+    assert.throws(() => prototypeStore.updateConsolidationFxRate(group.id, 'USD', 0, '2026-09-23'), /greater than zero/);
+    assert.throws(() => prototypeStore.updateConsolidationFxRate(group.id, 'EUR', 3.9, '2026-09-23'), /used by a group component/);
+    assert.throws(() => prototypeStore.updateConsolidationFxRate(group.id, 'USD', 3.64, '2026-02-30'), /valid effective date/);
+    prototypeStore.updateConsolidationFxRate(group.id, 'USD', 3.64, '2026-09-23');
+    prototypeStore.updateConsolidationFxRate(group.id, 'USD', 3.65, '2026-09-24');
+    assert.equal(group.fxRateHistory.USD.length, 2);
+    assert.equal(group.fxRateHistory.USD[1].revision, 2);
+    assert.equal(group.fxRateHistory.USD[1].purpose, 'Closing');
+    assert.equal(group.fxRates.USD, 3.65);
+    assert.deepEqual(state.engagements.find((e: any) => e.id === group.components[1].componentId).rows, sourceRows);
+  });
+
   it('versions account mappings, conserves split allocations and requires independent approval', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();

@@ -16,9 +16,9 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; existing large-main-chunk advisory remains (2.08 MB, 587.46 kB gzip). |
-| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 120/120 | Includes account mapping approvals, v0–v14 migrations, risk revision history, audit-program template lifecycle, package artifacts, finance, and guard regressions. |
-| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 52/52 | Five static checks plus 47 serial Chrome journeys. Includes AT-19 idempotent client workspace setup, AT-37 mapping approval, local identity/invitation lifecycle, VP-049 template publish/apply, and selected GL/reconciliation, rate-version, workpaper/evidence/finding, and client-route checks. Several added journeys assert rendered views or state slices; they do not prove every criterion across all 64 stories and 39 modules. |
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; existing large-main-chunk advisory remains (2.09 MB, 588.46 kB gzip). |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 122/122 | Includes account mapping approvals, v0–v14 migrations, invitation expiry enforcement, risk revision history, audit-program template lifecycle, package artifacts, finance, and guard regressions. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 53/53 | Five static checks plus 48 serial Chrome journeys. Includes explicit AT-01–AT-54 identifier coverage, AT-19 idempotent client workspace setup, AT-37 mapping approval, local identity/invitation lifecycle, VP-049 template publish/apply, and selected GL/reconciliation, rate-version, workpaper/evidence/finding, and client-route checks. Several journeys assert rendered views or state slices; the suite does not prove every criterion across all 64 stories and 39 modules. |
 | 2026-09-23 | `c8058c3` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production branch, release `9aa9dea0.steaudit-prototype.pages.dev`; custom domain and release returned HTTP 200. Both served `assets/index-CVBl4TGN.js` SHA-256 `12a95a8794a0a15b0cdf8d444b8baab88b4c2b43165d00c86a3304af4e1f8db8` and `assets/index-PSPlkYSo.css` SHA-256 `06f8ffa8ef2840377e8644c8c106cbe8f17b23f71618ee0d4951b0be04cf3ef8`, matching the local build. |
 | 2026-09-23 | current working tree (VP-037 mapping workflow) | `npm run test:unit` | PASS — 119/119 | Mapping revision history, unknown-account/target rejection, exact split conservation, self-review rejection, independent approval, and migration to schema v14. |
 | 2026-09-23 | current working tree (AT-37 VP-037 mappings) | `npm run test:e2e` | PASS — 42/42 | Five static checks and 37 Chrome checks. AT-37 saves an engagement mapping revision, approves it as a separate reviewer, and verifies mapped statement rows retain their source account and mapping references. |
@@ -120,8 +120,10 @@ For 13 table-backed reports it compares each exported cell with the rendered
 table; for WIP, utilization and compliance it independently computes every
 expected row from the source registers. It also checks cross-client leakage.
 The AT-43/44/45 journey checks the configured group perimeter, local currency
-rates, approved elimination, balanced output and source-TB immutability. It does
-not cover perimeter edits, missing-component recovery or non-base-currency rates.
+rates, approved elimination, balanced output and source-TB immutability. A second
+AT-43 journey blocks missing foreign-currency rates, rejects an invalid zero rate,
+and verifies a dated closing-rate revision unblocks translation without changing
+source rows. Perimeter edits and missing-component recovery remain unverified.
 The AT-35 import journey drives CSV and actual XLSX files through the UI,
 checking that a rejected preview leaves the accepted source unchanged and that
 accepted replacements retain predecessor rows and source identities.
@@ -146,7 +148,7 @@ changed details.
 The AT-22 journey selects a local file, persists only metadata and its digest,
 reloads, then verifies the preview explains that original bytes are unavailable
 and offers no misleading original-download action.
-The full current run contains five static checks and 28 actual Chrome checks;
+The focused previous run contained five static checks and 28 actual Chrome checks;
 these focused journeys do not establish the remaining unexecuted AT criteria.
 The VP-031 journey denies invoice self-review, requires an independent billing
 approval and partner issue, then creates a partial credit, separately reviews
@@ -160,17 +162,17 @@ recipient validation and retry policy remain outside this verified slice.
 
 ## Acceptance status
 
-Latest focused unit run: `npm run test:unit` passed 118/118. A new VP-032 unit
+Latest focused unit run: `npm run test:unit` passed 122/122. A new VP-032 unit
 journey allocates one receipt over two issued invoices and reverses one allocation
 without disturbing the second invoice. The browser suite is 41/41;
 AT-49/60 now checks every CSV cell against the displayed values for 13 reports
 and independently computes all rows for three formula reports. Broader source
-mapping and the complete statement workflow remain unverified. The full
-AT-01–AT-54 contract has not been executed end to end.
+mapping and the complete statement workflow remain unverified. All AT-01–AT-54 identifiers now appear in automated test source. That traceability
+does not mean every acceptance criterion has been executed end to end.
 
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
-shell behavior and route rendering; it does not execute and verify every
-acceptance criterion or complete AT-01–AT-54 journeys. In particular, the route
+major workflows and route rendering; it does not execute and verify every
+acceptance criterion. In particular, the route
 smoke test does not prove create/edit/review/rework behavior on each route.
 Unit checks provide focused evidence for selected calculation, access, migration,
 and workflow invariants only.
@@ -181,7 +183,7 @@ journeys (R08); dispatch, duplicate-delivery, and all release edge paths (R05);
 remaining end-to-end acceptance journeys across the modules (R12); and browser
 storage limits on the explicitly local archive scope (R14). Purview/provider
 retention locks and physical deletion controls are excluded acceptance scope. The
-current checks cover schema migrations 0–12 and browser storage conflict/quota
+current checks cover schema migrations 0–14 and browser storage conflict/quota
 behavior, but do not establish every recovery path. Package section ordering and
 notes now persist with generated revisions. Egress evidence is limited to
 source/bundle probes and exercised Chrome journeys. The prototype remains

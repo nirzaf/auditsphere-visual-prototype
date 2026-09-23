@@ -50,7 +50,7 @@ export interface SimulatedInvitation {
 export interface IdentityStatusEvent {
   id: string;
   timestamp: string;
-  action: 'Created' | 'Activated' | 'Disabled' | 'Invited' | 'InvitationAccepted' | 'InvitationRevoked' | 'InvitationResent';
+  action: 'Created' | 'Activated' | 'Disabled' | 'Invited' | 'InvitationAccepted' | 'InvitationExpired' | 'InvitationRevoked' | 'InvitationResent';
   userId: string;
   userName: string;
   role: RoleKey;
@@ -769,6 +769,7 @@ export interface ConsolidationGroupRecord {
     status: 'Ready' | 'Pending' | 'Stale';
   }>;
   fxRates: Record<string, number>; // Currency -> Rate to Group currency
+  fxRateHistory?: Record<string, Array<{ revision: number; rate: number; purpose: 'Closing'; effectiveDate: string; changedBy: string; changedAt: string }>>;
   eliminations: Array<{
     id: string;
     title: string;

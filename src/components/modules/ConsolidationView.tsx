@@ -9,6 +9,36 @@ interface ConsolidationViewProps {
   onNavigate: (route: RouteKey) => void;
 }
 
+const FxRateEditor: React.FC<{ group: NonNullable<ReturnType<typeof prototypeStore.getSnapshot>['consolidationGroups'][number]> }> = ({ group }) => {
+  const currencies = [...new Set(group.components.map(component => component.currency).filter(currency => currency !== (group.presentationCurrency || group.currency)))];
+  const [currency, setCurrency] = useState(currencies[0] || '');
+  const [rate, setRate] = useState('');
+  const [effectiveDate, setEffectiveDate] = useState('2026-09-23');
+  const [notice, setNotice] = useState('');
+  return <div className="panel panel-pad">
+    <h3>Versioned closing rates</h3>
+    <p className="sub">The supported synthetic profile translates every balance-sheet line at the entered closing rate. Average and historical translation methods are unsupported and produce no result.</p>
+    {currencies.length === 0 ? <p className="caption">All components use the presentation currency; no foreign rate is required.</p> : <form className="grid4 mt12" onSubmit={event => {
+      event.preventDefault();
+      try {
+        prototypeStore.updateConsolidationFxRate(group.id, currency, Number(rate), effectiveDate);
+        setNotice(`${currency} closing rate v${group.fxRateHistory?.[currency]?.length || 1} saved.`);
+        setRate('');
+      } catch (error: any) { setNotice(error.message); }
+    }}>
+      <label className="caption">Component currency<select className="input mt4" aria-label="FX component currency" value={currency} onChange={event => setCurrency(event.target.value)}>{currencies.map(value => <option key={value}>{value}</option>)}</select></label>
+      <label className="caption">Closing rate to {group.presentationCurrency || group.currency}<input className="input mt4" aria-label="FX closing rate" type="number" min="0" step="any" required value={rate} onChange={event => setRate(event.target.value)} /></label>
+      <label className="caption">Effective date<input className="input mt4" aria-label="FX effective date" type="date" required value={effectiveDate} onChange={event => setEffectiveDate(event.target.value)} /></label>
+      <div className="row" style={{ alignItems: 'end' }}><button className="btn primary sm" type="submit">Save closing rate</button></div>
+      {notice && <p role="status" className="caption" style={{ gridColumn: '1 / -1' }}>{notice}</p>}
+    </form>}
+    {currencies.map(value => <div className="borderbox panel-pad mt8" key={value}>
+      <b>{value} → {group.presentationCurrency || group.currency}: {group.fxRates[value] ?? 'Missing rate'}</b>
+      {(group.fxRateHistory?.[value] || []).map(item => <div className="caption" key={item.revision}>v{item.revision} · Closing · {item.effectiveDate} · {item.rate} · {item.changedBy}</div>)}
+    </div>)}
+  </div>;
+};
+
 export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'perimeter' | 'grid' | 'eliminations' | 'fx'>('grid');
@@ -38,9 +68,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
             : `No valid rate is configured to translate each component into ${groupCurrency}.`}
           {' '}Live engagement balances are never substituted for missing pinned data.
         </p>
-        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
-          Go to Engagements
-        </button>
+        {missingRate && <div className="max-w-md mx-auto mt16"><FxRateEditor group={group} /></div>}
+        {missingPackage && <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>Go to Engagements</button>}
       </div>
     );
   }
@@ -253,15 +282,12 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
 
       {/* FX Tab */}
       {activeTab === 'fx' && (
-        <div className="panel panel-pad">
-          <h3>Currency Translation Rates</h3>
-          <p className="sub" style={{ marginBottom: 12 }}>Stored group rates translate the pinned component snapshots into {groupCurrency}; rates are not fetched externally.</p>
-          <div className="stack" style={{ gap: 8 }}>
-            {group.components.map(component => <div key={component.componentId} className="borderbox" style={{ padding: 12 }}>
-              <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{fxRate(component)} ×</b></div>
-              <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · translation source: local group rate table</div>
-            </div>)}
-          </div>
+        <div className="stack" style={{ gap: 12 }}>
+          <FxRateEditor group={group} />
+          {group.components.map(component => <div key={component.componentId} className="borderbox panel-pad">
+            <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{fxRate(component)} ×</b></div>
+            <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · translation source: local group rate table · profile: closing rate for all balance-sheet lines</div>
+          </div>)}
         </div>
       )}
     </div>

@@ -129,9 +129,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   predecessor rows and source hashes for balanced CSV and actual XLSX.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
-  and source-TB immutability. Perimeter edits, missing-component recovery, and
-  non-base-currency translation workflows remain unverified.
-- **R10 — migration/recovery:** migrations from schema versions 0–12 pass unit
+  and source-TB immutability. A separate Chrome journey blocks a missing foreign-
+  currency closing rate, rejects zero, saves a dated rate revision and verifies
+  source rows remain unchanged. Perimeter edits and missing-component recovery
+  remain unverified.
+- **R10 — migration/recovery:** migrations from schema versions 0–14 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
@@ -139,10 +141,12 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   storage recovery journeys, CSV/XLSX TB replacement, and the complete PBC
   request/response/clarification/replacement/acceptance cycle, plus client
   creation/contact/custom-field/relationship-group and Client 360 navigation
-  journeys (AT-05/06). Complete
-  The complete AT-01–AT-54 acceptance suite has not been executed end to end.
-  External invitation and identity lifecycle, live AML/KYC screening (evidence references are manual), value-level report data reconciliation and
-  other full acceptance paths still need direct evidence.
+  journeys (AT-05/AT-06). Every AT-01 through AT-54 identifier now appears
+  explicitly in automated test source, but every acceptance criterion has not been
+  executed end to end. VP-018 now covers local identity creation/disable, invitation
+  expiry block, renewal, revocation and history; external onboarding remains simulated.
+  Live AML/KYC screening (evidence references are manual), value-level report data
+  reconciliation and other full acceptance paths still need direct evidence.
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
   only the named contributor can upload, acceptance records actor/time/version,
@@ -163,12 +167,12 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
 - **Build size:** Vite warns that the main bundle exceeds 500 kB (about 2.08 MB,
-  587.46 kB gzip in the latest build).
+  588.46 kB gzip in the latest build).
 
 ## Verification snapshot
 
-Latest recorded run: 120/120 unit checks and 52/52 E2E checks passed. E2E
-includes five static checks and 47 actual Chrome journeys. It exercises the
+Latest recorded run: 122/122 unit checks and 53/53 E2E checks passed. E2E
+includes five static checks and 48 actual Chrome journeys. It exercises the
 listed workflows; 64 stories and 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

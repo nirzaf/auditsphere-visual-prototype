@@ -1,4 +1,4 @@
-// VP-063 unit: deterministic §8.1 fixed examples (AT-29/33/38/40/42/43).
+// VP-063 unit: deterministic §8.1 fixed examples (AT-29/AT-33/AT-38/AT-40/AT-42/AT-43).
 // Accounting, budget, receivables aging + boundaries, consolidation, materiality.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +25,7 @@ const TB_8: TrialBalanceRow[] = [
   { code: '5000', name: 'Expenses', type: 'expense', balance: 3000 }
 ];
 
-describe('accounting fixed example (AT-38/40)', () => {
+describe('accounting fixed example (AT-38/AT-40)', () => {
   it('nets to zero with assets 23,000 / liabilities 10,000 / profit 3,000', () => {
     const t = calculateTrialBalanceTotals(TB_8);
     assert.equal(t.totalBalance, 0);

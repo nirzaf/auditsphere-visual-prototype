@@ -466,6 +466,19 @@ class PrototypeStore {
     return id;
   }
 
+  private recordInvitationExpiry(inv: SimulatedInvitation) {
+    if (inv.status !== 'Pending' || Date.parse(inv.expiresAt) > Date.now()) return false;
+    inv.status = 'Expired';
+    this.state.identityStatusHistory ||= [];
+    this.state.identityStatusHistory.push({
+      id: crypto.randomUUID(), timestamp: new Date().toISOString(), action: 'InvitationExpired',
+      userId: inv.id, userName: inv.name, role: inv.role, actor: this.state.currentPerson,
+      reason: 'Simulated invitation passed its expiration time'
+    });
+    this.logEvent(`Simulated invitation expired: ${inv.name}`, inv.id);
+    return true;
+  }
+
   public revokeSimulatedInvitation(invitationId: string, reason: string) {
     requireActiveIdentity(this.state);
     requireGlobalAdmin(this.state, 'revoke simulated invitations');
@@ -473,6 +486,10 @@ class PrototypeStore {
     this.state.simulatedInvitations ||= [];
     const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
     if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    if (this.recordInvitationExpiry(inv)) {
+      this.notify();
+      throw new GuardError('INVALID_STATE', 'Expired invitations cannot be revoked. Renew it first if the recipient is still required.');
+    }
     if (inv.status !== 'Pending') throw new GuardError('INVALID_STATE', 'Only pending invitations can be revoked.');
     inv.status = 'Revoked';
     inv.revokedAt = new Date().toISOString();
@@ -498,6 +515,10 @@ class PrototypeStore {
     this.state.simulatedInvitations ||= [];
     const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
     if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    if (this.recordInvitationExpiry(inv)) {
+      this.notify();
+      throw new GuardError('INVALID_STATE', 'This simulated invitation has expired. Renew it before acceptance.');
+    }
     if (inv.status !== 'Pending') throw new GuardError('INVALID_STATE', 'Only pending invitations can be accepted.');
     inv.status = 'Accepted';
     let user = this.state.users.find(u => u.email.toLowerCase() === inv.email.toLowerCase());
@@ -538,6 +559,7 @@ class PrototypeStore {
     this.state.simulatedInvitations ||= [];
     const inv = this.state.simulatedInvitations.find(i => i.id === invitationId);
     if (!inv) throw new GuardError('INVALID_STATE', `Invitation "${invitationId}" not found.`);
+    this.recordInvitationExpiry(inv);
     const now = new Date();
     inv.status = 'Pending';
     inv.invitedAt = now.toISOString();
@@ -1600,12 +1622,15 @@ class PrototypeStore {
   public updateConsolidationGroup(group: ConsolidationGroupRecord) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'change consolidation groups');
-    if (!group.name.trim() || group.components.length !== 2) throw new GuardError('INVALID_STATE', 'This prototype supports consolidation groups with exactly two explicitly selected components.');
+    if (!group.name.trim() || group.components.length !== 2 || new Set(group.components.map(c => c.componentId)).size !== 2) throw new GuardError('INVALID_STATE', 'This prototype supports named consolidation groups with exactly two distinct explicitly selected components.');
+    if (!/FY\s+\d{4}/.test(group.period) || !/^[A-Z]{3}$/.test(group.presentationCurrency || group.currency)) throw new GuardError('INVALID_STATE', 'Enter a reporting period and ISO currency code.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
       requireEngagementScope(this.state, engagement.id);
       if (!Number.isInteger(component.packageRevisionPinned) || component.packageRevisionPinned! < 1 || !component.packageRows) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an explicit pinned package snapshot.`);
+      if (!Number.isFinite(component.ownershipPercent) || component.ownershipPercent <= 0 || component.ownershipPercent > 100) throw new GuardError('INVALID_STATE', `Component ${component.componentId} ownership must be greater than 0 and no more than 100 percent.`);
+      if (!/^[A-Z]{3}$/.test(component.currency)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an ISO currency code.`);
     }
     const index = this.state.consolidationGroups.findIndex(g => g.id === group.id);
     if (index >= 0) {
@@ -1614,6 +1639,25 @@ class PrototypeStore {
       this.state.consolidationGroups.push(group);
     }
     this.logEvent(`Consolidation group updated: ${group.name}`, group.id);
+    this.notify();
+  }
+
+  public updateConsolidationFxRate(groupId: string, currency: string, rate: number, effectiveDate: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'change consolidation exchange rates');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    if (!group) throw new GuardError('INVALID_STATE', `Consolidation group "${groupId}" was not found.`);
+    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    const presentationCurrency = group.presentationCurrency || group.currency;
+    if (!/^[A-Z]{3}$/.test(currency) || currency === presentationCurrency || !group.components.some(component => component.currency === currency)) throw new GuardError('INVALID_STATE', 'Select a foreign currency used by a group component.');
+    if (!Number.isFinite(rate) || rate <= 0) throw new GuardError('INVALID_STATE', 'Exchange rate must be a finite number greater than zero.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) || Number.isNaN(Date.parse(effectiveDate)) || new Date(`${effectiveDate}T00:00:00Z`).toISOString().slice(0, 10) !== effectiveDate) throw new GuardError('INVALID_STATE', 'Enter a valid effective date.');
+    group.fxRateHistory ||= {};
+    const history = group.fxRateHistory[currency] ||= [];
+    history.push({ revision: history.length + 1, rate, purpose: 'Closing', effectiveDate, changedBy: this.state.currentPerson, changedAt: new Date().toISOString() });
+    group.fxRates[currency] = rate;
+    group.status = 'In progress';
+    this.logEvent(`Consolidation ${currency} closing rate updated to ${rate} for ${effectiveDate}`, groupId);
     this.notify();
   }
 
