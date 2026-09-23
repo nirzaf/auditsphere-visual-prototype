@@ -591,6 +591,26 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-13: explicitly applies a published template with fresh tasks and no copied work state', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));if(!b)throw Error('Missing job templates route');b.click();})()`);
+    const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const t=s.jobTemplates.find(x=>x.id==='TPL-JOB-01');return {jobs:s.jobs.length,tasks:s.jobTasks.length,jobIds:s.jobs.map(j=>j.id),template:t};})()`);
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('TPL-JOB-01'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Use Template');if(!b)return false;b.click();return true;})()`);
+    assert.equal(opened, true);
+    await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('.modal-backdrop select')].find(x=>[...x.options].some(o=>o.value==='ENG-26001'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'ENG-26001');s.dispatchEvent(new Event('change',{bubbles:true}));const d=document.querySelector('.modal-backdrop input[type=date]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(d,'2026-11-01');d.dispatchEvent(new Event('input',{bubbles:true}));d.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Instantiate Job');
+    const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const j=s.jobs.find(x=>x.fromTemplateId==='TPL-JOB-01'&&!${JSON.stringify(before.jobIds)}.includes(x.id));return {jobs:s.jobs.length,tasks:s.jobTasks.length,job:j,tree:j?s.jobTasks.filter(t=>t.jobId===j.id):[]};})()`);
+    assert.equal(after.jobs, before.jobs + 1);
+    assert.ok(after.job, 'one fresh template job was created');
+    assert.equal(after.job.clientId, 'CL-001');
+    assert.equal(after.job.engagementId, 'ENG-26001');
+    assert.equal(after.tasks > before.tasks, true);
+    assert.equal(after.tree.length, before.template.tasks.reduce((n: number, t: any) => n + 1 + (t.subtasks?.length || 0), 0));
+    assert.ok(after.tree.every((task: any) => task.status === 'Not started'), 'template application does not copy prior task state');
+    assert.ok(after.tree.every((task: any) => task.jobId === after.job.id && task.id !== 'TSK-103'), 'template application assigns a fresh job/task tree');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
