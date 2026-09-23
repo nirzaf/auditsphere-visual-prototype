@@ -940,7 +940,22 @@ class PrototypeStore {
     if (!isValidMoney(inv.amount, true) || !Array.isArray(inv.lines) || Math.abs(inv.lines.reduce((s, line) => s + line.amount, 0) - inv.amount) > 0.005) throw new GuardError('INVALID_STATE', 'Invoice total must match its line items.');
     if (inv.status !== 'Draft') throw new GuardError('INVALID_STATE', 'New invoices must begin as drafts.');
     if (this.state.invoices.some(i => i.id === inv.id || i.invoiceNumber === inv.invoiceNumber)) throw new GuardError('INVALID_STATE', 'Invoice ID and number must be unique.');
+    const timeLines = inv.lines.filter(line => line.sourceType === 'Time entry');
+    const sourceIds = timeLines.map(line => line.sourceId);
+    if (sourceIds.some(id => !id) || new Set(sourceIds).size !== sourceIds.length) throw new GuardError('INVALID_STATE', 'Each billed time line must identify one unique approved time entry.');
+    const timeSources = timeLines.map(line => {
+      const time = this.state.times.find(entry => entry.id === line.sourceId);
+      if (!time || time.status !== 'Approved' || !time.billable || time.supersedesId || time.billedInvoiceId) throw new GuardError('INVALID_STATE', `Time source "${line.sourceId}" is not approved, billable, current, and available for invoicing.`);
+      if (time.clientId !== inv.clientId || time.engagementId !== (inv.engagementId || inv.eng)) throw new GuardError('FORBIDDEN_SCOPE', `Time source "${time.id}" does not belong to this invoice's client and engagement.`);
+      if (!time.currency || time.currency !== inv.currency || !Number.isFinite(time.billingRatePerHour) || time.billingRatePerHour! <= 0) throw new GuardError('INVALID_STATE', `Time source "${time.id}" has no compatible approved billing rate and currency.`);
+      const quantity = time.durationMinutes / 60;
+      const amount = Math.round(quantity * time.billingRatePerHour! * 100) / 100;
+      if (line.quantity !== quantity || line.rate !== time.billingRatePerHour || line.amount !== amount) throw new GuardError('INVALID_STATE', `Invoice line for "${time.id}" does not match its approved duration and pinned rate.`);
+      if (this.state.invoices.some(existing => existing.lines.some(existingLine => existingLine.sourceType === 'Time entry' && existingLine.sourceId === time.id))) throw new GuardError('INVALID_STATE', `Time source "${time.id}" has already been consumed by an invoice.`);
+      return time;
+    });
     this.state.invoices.push(inv);
+    timeSources.forEach(time => { time.billedInvoiceId = inv.id; });
     this.logEvent(`Invoice draft created: ${inv.invoiceNumber}`, inv.id);
     this.notify();
   }

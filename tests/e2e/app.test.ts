@@ -765,6 +765,25 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-30/VP-030: drafts an invoice from approved time and reserves the source once', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'billing');s.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Billing & Invoices'));if(!b)throw Error('Billing navigation is missing');b.click();})()`);
+    await clickButton('Draft New Invoice');
+    const selected = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Bank reconciliations & circularisations'));const input=label?.querySelector('input[type=checkbox]');if(!input)return false;input.click();return input.checked;})()`);
+    assert.equal(selected, true, `approved time should be selectable as an invoice source; modal=${await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop .modal-body")?.innerText || "missing"')}`);
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=text]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'INV-AT30');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.match(await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop input[type=number]")?.value || ""'), /^600$/, 'three approved hours at QAR 200/hour should total QAR 600');
+    await clickButton('Create Draft');
+    const result = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const i=s.invoices.find(x=>x.invoiceNumber==='INV-AT30');const t=s.times.find(x=>x.id==='TIME-01');return {invoice:i,time:t};})()`);
+    assert.equal(result.invoice.status, 'Draft');
+    assert.equal(result.invoice.amount, 600);
+    assert.deepEqual(result.invoice.lines.map((line: any) => [line.sourceType,line.sourceId,line.quantity,line.rate,line.amount]), [['Time entry','TIME-01',3,200,600]]);
+    assert.equal(result.time.billedInvoiceId, result.invoice.id);
+    await clickButton('Draft New Invoice');
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('.modal-backdrop label')].some(x=>x.innerText.includes('Bank reconciliations & circularisations'))`), false, 'reserved time source must disappear from future draft choices');
+    await clickButton('Cancel');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-031: requires independent invoice and credit review before issue', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Billing & Invoices'));if(!b)throw Error('Billing navigation is missing');b.click();})()`);
     await clickButton('Draft New Invoice');

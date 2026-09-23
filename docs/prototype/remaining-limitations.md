@@ -13,9 +13,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.
-- **VP-030 — source-linked billing:** the invoice/credit journey verifies
-  review and issuance separation, but draft creation from approved time/service
-  sources and prevention of duplicate source consumption remain incomplete.
+- **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
+  billable time at its pinned rate, and the store reserves each time source once
+  to prevent duplicate billing. Fixed-service source/milestone billing and the
+  related acceptance paths remain incomplete.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
   authorized staff mention stay absent from the client portal. Comment editing,
   moderation and recipient-specific notification browsing remain incomplete.
@@ -107,8 +108,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 101/101 unit checks and 21/21 E2E checks passed. AT-05/06,
-AT-23/24, AT-28 and AT-38/40 have actual Chrome workflow coverage. E2E includes
-five static checks and sixteen actual Chrome checks, including rendering all 31 staff navigation
-routes and selected workflow journeys. Route rendering is not full workflow acceptance. See
-`verification.md`; earlier counts in this repository are historical.
+Latest recorded run: 108/108 unit checks and 34/34 E2E checks passed. E2E
+includes five static checks and 29 actual Chrome checks. It exercises the
+approved-time invoice source path alongside selected workflow journeys; the
+full AT-01–AT-54 suite has not run, and route rendering is not full workflow
+acceptance. See `verification.md`; earlier counts in this repository are
+historical.

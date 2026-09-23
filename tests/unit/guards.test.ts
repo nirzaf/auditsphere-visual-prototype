@@ -394,6 +394,21 @@ describe('evidence adequacy (AT-20/46)', () => {
 });
 
 describe('money guards (AT-30/31/32)', () => {
+  it('VP-030 invoices approved time at its pinned rate exactly once', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    setPersona(isolated, 'Leila Hassan');
+    isolated.currentRole = 'billing';
+    const source = isolated.times.find(time => time.id === 'TIME-01')!;
+    const line = { id: 'LINE-TIME-01', description: source.taskTitle, quantity: 3, rate: 200, amount: 600, sourceType: 'Time entry' as const, sourceId: source.id };
+    const invoice = { id: 'INV-TIME-01', clientId: source.clientId, eng: source.engagementId, engagementId: source.engagementId, invoiceNumber: 'INV-TIME-01', description: 'Approved time', amount: 600, paid: 0, currency: 'QAR', status: 'Draft' as const, due: '2026-10-31', preparedBy: 'Leila Hassan', lines: [line] };
+    prototypeStore.addInvoice(invoice);
+    assert.equal(source.billedInvoiceId, invoice.id, 'creating a draft reserves its source');
+    assert.throws(() => prototypeStore.addInvoice({ ...invoice, id: 'INV-TIME-02', invoiceNumber: 'INV-TIME-02' }), /not approved, billable, current, and available/);
+    assert.equal(source.billedInvoiceId, invoice.id, 'a duplicate attempt cannot move the reservation');
+  });
+
   it('rejects over-allocation and cross-client allocation atomically', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();

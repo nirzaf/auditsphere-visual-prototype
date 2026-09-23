@@ -13,6 +13,7 @@ interface BillingInvoicingViewProps {
 export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [selectedTimeSourceIds, setSelectedTimeSourceIds] = useState<string[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -30,9 +31,30 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const invoices = state.invoices;
   const selectedEngagement = state.engagements.find(e => e.id === state.selectedEngagement);
   const client = state.clients.find(c => c.id === selectedEngagement?.client);
+  const currency = selectedEngagement?.currency || 'QAR';
+  const availableTimeSources = state.times.filter(time =>
+    time.status === 'Approved' && time.billable && !time.supersedesId && !time.billedInvoiceId &&
+    time.clientId === client?.id && time.engagementId === selectedEngagement?.id &&
+    time.currency === selectedEngagement?.currency && Number.isFinite(time.billingRatePerHour) && (time.billingRatePerHour || 0) > 0 &&
+    !invoices.some(invoice => invoice.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === time.id))
+  );
+  const selectedTimeSources = availableTimeSources.filter(time => selectedTimeSourceIds.includes(time.id));
+  const sourcedTotal = Math.round(selectedTimeSources.reduce((sum, time) => sum + time.durationMinutes / 60 * (time.billingRatePerHour || 0), 0) * 100) / 100;
 
   const handleCreateDraft = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const lines = selectedTimeSources.length
+      ? selectedTimeSources.map(time => ({
+        id: `LINE-${time.id}`,
+        description: `${time.date} · ${time.taskTitle} · ${time.person}`,
+        quantity: time.durationMinutes / 60,
+        rate: time.billingRatePerHour!,
+        amount: Math.round(time.durationMinutes / 60 * time.billingRatePerHour! * 100) / 100,
+        sourceType: 'Time entry' as const,
+        sourceId: time.id
+      }))
+      : [{ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' as const }];
 
     const newInv: InvoiceRecord = {
       id: `INV-${Date.now().toString().slice(-4)}`,
@@ -40,20 +62,25 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       eng: state.selectedEngagement,
       engagementId: state.selectedEngagement,
       invoiceNumber: invNumber,
-      description,
-      amount,
+      description: selectedTimeSources.length ? `Approved time billing · ${selectedTimeSources.length} entries` : description,
+      amount: selectedTimeSources.length ? sourcedTotal : amount,
       paid: 0,
       creditsApplied: 0,
-      currency: 'QAR',
+      currency,
       issueDate: new Date().toISOString().split('T')[0],
       due,
       status: 'Draft',
       preparedBy: state.currentPerson,
-      lines: [{ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' }]
+      lines
     };
 
-    prototypeStore.addInvoice(newInv);
-    setShowDraftModal(false);
+    try {
+      prototypeStore.addInvoice(newInv);
+      setSelectedTimeSourceIds([]);
+      setShowDraftModal(false);
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+    }
   };
 
   const handleApprove = (inv: InvoiceRecord) => {
@@ -280,6 +307,16 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
             </div>
             <form onSubmit={handleCreateDraft}>
               <div className="modal-body stack" style={{ gap: 12 }}>
+                <fieldset className="stack" style={{ gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <legend className="caption">Approved billable time (optional)</legend>
+                  {availableTimeSources.length === 0 ? <div className="caption">No unbilled approved time with a pinned rate for this engagement.</div> : availableTimeSources.map(time => (
+                    <label key={time.id} className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+                      <span><input type="checkbox" checked={selectedTimeSourceIds.includes(time.id)} onChange={e => setSelectedTimeSourceIds(ids => e.target.checked ? [...ids, time.id] : ids.filter(id => id !== time.id))} /> {time.date} · {time.taskTitle} · {time.person}</span>
+                      <b>{formatCurrency(time.durationMinutes / 60 * (time.billingRatePerHour || 0), time.currency || 'QAR')}</b>
+                    </label>
+                  ))}
+                  {selectedTimeSources.length > 0 && <div className="caption">Selected sources will be reserved by this draft and cannot be billed twice. Total: <b>{formatCurrency(sourcedTotal, selectedTimeSources[0].currency || 'QAR')}</b></div>}
+                </fieldset>
                 <div className="grid2">
                   <div>
                     <label className="caption">Invoice Number</label>
@@ -313,12 +350,13 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   />
                 </div>
                 <div>
-                  <label className="caption">Invoice Amount (QAR)</label>
+                  <label className="caption">Invoice Amount ({currency})</label>
                   <input
                     type="number"
                     className="input"
-                    value={amount}
+                    value={selectedTimeSources.length ? sourcedTotal : amount}
                     onChange={e => setAmount(Number(e.target.value))}
+                    readOnly={selectedTimeSources.length > 0}
                     required
                   />
                 </div>
