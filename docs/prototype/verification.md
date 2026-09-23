@@ -376,3 +376,16 @@ Unit checks passed 139/139; full build and Chrome acceptance
 passed 58/58, including AT-34 edit/save/reload and version history. The existing
 large-bundle advisory remains. This slice does not complete the other accounting
 mapping/statement journey criteria; Module 20 remains Partial.
+
+Deployment verification: commits `97e703a` and `109bc39` are on `main`; the
+latest production Pages deployment is `b80bf015-6808-41f1-a07a-9f2fbc9707ab`
+from source commit `109bc39` in the existing `steaudit-prototype` project on
+`production`. The immutable release URL
+`https://b80bf015.steaudit-prototype.pages.dev` and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-BHsMriQO.js`, 2,195,699 bytes, SHA-256
+`bd38e283eca45299658f7c5663f0c6cc53fba33d56bc8cf54b3114c36100a550`. Both
+bundles contain the setup editor and guarded-import controls. Wrangler reports
+the same production deployment/source SHA. Verification: 139/139 unit tests,
+58/58 build/static/Chrome checks, and `git diff --check` passed. Build retains
+the existing >500 kB chunk advisory.
