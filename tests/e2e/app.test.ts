@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
+import { calculateReceivablesAging } from '../../src/services/calculations.js';
+import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
@@ -1216,6 +1218,46 @@ describe('actual Chrome browser acceptance', () => {
       await clickButton('Export Active Report (CSV)');
       const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
       assert.ok(csv.split('\n')[0].split(',').length >= 4, `${report.label} export should include report columns`);
+      const sourceState = await browserTab!.evaluate<any>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2"))');
+      const visibleClients = visibleClientIds(sourceState);
+      const visibleEngagements = visibleEngagementIds(sourceState);
+      const clients = sourceState.clients.filter((item: any) => visibleClients === 'ALL' || visibleClients.includes(item.id));
+      const engagements = sourceState.engagements.filter((item: any) => (visibleEngagements === 'ALL' || visibleEngagements.includes(item.id)) && (visibleClients === 'ALL' || visibleClients.includes(item.client)));
+      const engagementIds = new Set(engagements.map((item: any) => item.id));
+      const jobs = sourceState.jobs.filter((item: any) => engagementIds.has(item.engagementId));
+      const jobIds = new Set(jobs.map((item: any) => item.id));
+      const invoices = sourceState.invoices.filter((item: any) => item.engagementId && engagementIds.has(item.engagementId));
+      const invoiceIds = new Set(invoices.map((item: any) => item.id));
+      const clientIds = new Set(clients.map((item: any) => item.id));
+      const credits = sourceState.creditNotes.filter((item: any) => invoiceIds.has(item.invoiceId) && clientIds.has(item.clientId));
+      const receipts = sourceState.receipts.filter((item: any) => clientIds.has(item.clientId));
+      const aging = calculateReceivablesAging(invoices, credits, receipts, sourceState.asOfDate);
+      const expectedRows: Record<string, number> = {
+        wip: engagements.length + 1,
+        utilization: sourceState.users.filter((item: any) => item.group === 'Professional').length,
+        compliance: engagements.length,
+        clients: engagements.length,
+        jobs: jobs.length,
+        tasks: sourceState.jobTasks.filter((item: any) => jobIds.has(item.jobId)).length,
+        pbc: engagements.flatMap((item: any) => item.pbc.filter((p: any) => !['Accepted', 'Cancelled'].includes(p.status))).length,
+        time: sourceState.times.filter((item: any) => item.status === 'Approved' && engagementIds.has(item.engagementId)).length,
+        budget: sourceState.budgets.filter((item: any) => engagementIds.has(item.engagementId)).length,
+        invoices: invoices.filter((item: any) => clientIds.has(item.clientId)).length,
+        credits: credits.length,
+        receipts: receipts.length,
+        ar: aging.invoiceBreakdown.length,
+        findings: sourceState.findings.filter((item: any) => engagementIds.has(item.engagementId)).length,
+        reviews: engagements.reduce((sum: number, item: any) => sum + item.reviews.length, 0),
+        packages: engagements.length
+      };
+      let records = 1;
+      let quoted = false;
+      for (let i = 0; i < csv.length; i++) {
+        if (csv[i] === '"' && csv[i + 1] === '"' && quoted) { i++; continue; }
+        if (csv[i] === '"') quoted = !quoted;
+        else if (csv[i] === '\n' && !quoted) records++;
+      }
+      assert.equal(records - 1, expectedRows[report.value], `${report.label} CSV row count should reconcile to current source records`);
     }
 
     await browserTab!.evaluate(`(() => {
