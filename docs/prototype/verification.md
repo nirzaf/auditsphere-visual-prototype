@@ -1,9 +1,9 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `56a59bf` is the current deployed baseline in the
-existing `steaudit-prototype` Pages project at `prototype.steaudit.com`. The
-time-correction change below has passed local checks; deployment is pending.
+acceptance assertions. Commit `d5e98cb` is deployed as Pages release
+`ca6fb6b2-082a-4053-9faa-3b00bdee05f6` in the existing `steaudit-prototype`
+project at `prototype.steaudit.com`.
 
 ## Commands
 
@@ -22,6 +22,7 @@ time-correction change below has passed local checks; deployment is pending.
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
 | 2026-09-23 | working tree after `56a59bf` | `npm run test:unit` | PASS — 98/98, 21 suites | Added AT-28 lifecycle evidence: manager return, owner resubmission, independent approval, approved-time correction and retained superseded revisions. |
 | 2026-09-23 | working tree after `56a59bf` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve actual Chrome checks; no new browser journey was added for the time correction UI. Existing executed journey coverage and limits are unchanged. |
+| 2026-09-23 | `d5e98cb` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, release `ca6fb6b2-082a-4053-9faa-3b00bdee05f6`; `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BihXii4q.js`. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
