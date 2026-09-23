@@ -16,7 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree (VP-032 multi-invoice journey) | `npm run test:e2e` | PASS — 41/41 | AT-32 applies one receipt across two issued invoices, reverses the first allocation with a reason, and verifies the second invoice settlement remains intact. The second invoice is an isolated synthetic browser fixture. |
+| 2026-09-23 | current working tree (VP-032/033 receivables) | `npm run test:e2e` | PASS — 41/41 | AT-32 applies one receipt across two issued invoices, reverses the first with a reason, preserves the second settlement, then reads the generated statement CSV and reconciles every field. The CSV excludes another client’s Draft invoice; second invoice is an isolated synthetic fixture. |
 | 2026-09-23 | current working tree (VP-060 CSV reconciliation) | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks. AT-49/60 compares every exported cell for 13 table-backed reports with the rendered table, independently recomputes all rows for WIP, utilization and compliance, and checks client scoping. |
 | 2026-09-23 | current working tree (AT-20 dependency invalidation) | `npm run test:unit` | PASS — 118/118 | Replacement creates a Pending verification evidence reference, stales linked procedures, blocks clearance/submission without current evidence, and records then invalidates direct workpaper clearance pins. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks; AT-20 verifies the old evidence pin stays exact while PRC-01/02 become stale and WP-A1 clearance moves to history. |
@@ -154,8 +154,8 @@ journey allocates one receipt over two issued invoices and reverses one allocati
 without disturbing the second invoice. The browser suite is 41/41;
 AT-49/60 now checks every CSV cell against the displayed values for 13 reports
 and independently computes all rows for three formula reports. Broader source
-mapping, multi-invoice UI journey and statement workflow remain unverified. The
-full AT-01–AT-54 contract has not been executed end to end.
+mapping and the complete statement workflow remain unverified. The full
+AT-01–AT-54 contract has not been executed end to end.
 
 The 64 story rows and 39 module rows remain **Partial**. The Chrome suite checks
 shell behavior and route rendering; it does not execute and verify every

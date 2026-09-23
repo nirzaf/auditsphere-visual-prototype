@@ -1046,6 +1046,12 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(reversed.other.amount,30000);
     assert.equal(reversed.otherInvoice.paid,twoAllocations.allocations[1].paid);
     assert.equal(reversed.receipt.allocatedAmount,30000);
+    await browserTab!.evaluate(`(() => {window.__statementBlob=null;URL.createObjectURL=blob=>{window.__statementBlob=blob;return 'blob:statement-test';};const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('Export Statement CSV'));if(!b)throw Error('Statement export control is missing');b.click();})()`);
+    const statementText = await browserTab!.evaluate<string>(`window.__statementBlob ? window.__statementBlob.text() : ''`);
+    const statement = parseCsv(statementText);
+    const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;return [ ['Document No','Date','Type','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&(i.status==='Issued'||i.status==='Paid')).map(i=>[i.invoiceNumber,i.issueDate||i.due,'Invoice',String(i.amount),String(i.paid),String(i.amount-i.paid)]), ...s.receipts.filter(r=>r.clientId===clientId).map(r=>[r.receiptNumber,r.date,'Receipt',String(-r.amount),String(r.allocatedAmount),String(r.amount-r.allocatedAmount)]) ];})()`);
+    assert.deepEqual(statement,statementSource);
+    assert.equal(statement.some(row=>row.includes('INV-2026-003')),false,'client statement must exclude another client draft invoice');
     assert.deepEqual(browserTab!.exceptions,[]);
   });
 

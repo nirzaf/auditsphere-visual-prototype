@@ -77,9 +77,11 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   };
 
   const handleExportStatementCSV = () => {
+    const statementInvoices = invoices.filter(inv => inv.clientId === client?.id && (inv.status === 'Issued' || inv.status === 'Paid'));
+    const statementReceipts = receipts.filter(rec => rec.clientId === client?.id);
     const rows = [
       ['Document No', 'Date', 'Type', 'Billed Amount', 'Paid / Allocated', 'Balance'],
-      ...invoices.map(inv => [
+      ...statementInvoices.map(inv => [
         inv.invoiceNumber,
         inv.issueDate || inv.due || '',
         'Invoice',
@@ -87,7 +89,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
         inv.paid.toString(),
         (inv.amount - inv.paid).toString()
       ]),
-      ...receipts.map(rec => [
+      ...statementReceipts.map(rec => [
         rec.receiptNumber,
         rec.date,
         'Receipt',
