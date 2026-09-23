@@ -57,8 +57,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **AT-13 — job templates:** Chrome authors and publishes a Draft, applies it
   to a fresh job/tree, then creates and publishes a separate edited revision.
   The existing job and prior published template remain unchanged, and jobs pin
-  the exact source revision. Unit coverage verifies same-operation retry
-  idempotency; a rapid browser double-click is not separately simulated.
+  the exact source revision. Chrome submits the same instantiation form twice
+  with one operation ID and observes only one created job; unit checks reject
+  reuse of that ID with changed details.
 
 - **VP-050 — audit fieldwork:** Chrome records work performed against PRC-01,
   submits it with a linked current adequate evidence revision, denies preparer

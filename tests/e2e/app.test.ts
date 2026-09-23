@@ -734,7 +734,7 @@ describe('actual Chrome browser acceptance', () => {
     await clickButton('Publish Template');
     const jobsBeforeRevision = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`);
     await clickButton('Create Job from Template');
-    await clickButton('Instantiate Job');
+    await browserTab!.evaluate(`(() => {const form=document.querySelector('.modal-backdrop form');if(!form)throw Error('Template instantiation form missing');form.requestSubmit();form.requestSubmit();})()`);
     const jobFromRevision = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.fromTemplateId===${JSON.stringify(revised.id)})`);
     assert.equal(jobFromRevision.fromTemplateRevision, 2);
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), jobsBeforeRevision + 1);

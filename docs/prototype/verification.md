@@ -17,7 +17,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
 | 2026-09-23 | current working tree (VP-015 revision changes) | `npm run test:unit` | PASS — 118/118 | AT-13 store checks preserve published template revisions, bind generated jobs to the exact version, deduplicate repeated operation IDs and reject conflicting reuse. |
-| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks; AT-13 edits a published template into a new Draft revision, confirms the old template/job are unchanged, then publishes and applies the new version. Rapid browser double-click remains unverified. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 41/41 | Five static checks and 36 Chrome checks; AT-13 edits a published template into a new Draft revision, confirms the old template/job are unchanged, then publishes and applies the new version. The form is submitted twice with one operation ID and creates one job. |
 | 2026-09-23 | `33cef1b` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` project, production branch, release `9246edf3.steaudit-prototype.pages.dev`; cache-busted custom domain and release URL returned HTTP 200 and served `assets/index-tSx5GCFa.js` with matching SHA-256 `68667147768f83713c7d449904d01e63efdf9cadb9cf85f04558d8f399c57b4b`. |
 | 2026-09-23 | `03577ba` | `npm run test:unit` | PASS — 117/117 | Schema v13 adds acceptance evidence references; legacy approvals preserve history while losing unsupported active authority; VP-032 splits one receipt across two invoices and reverses one allocation independently. |
 | 2026-09-23 | working tree after `812f9cc` | `npm run test:e2e` | PASS — 40/40 | AT-49/60 now reconciles CSV row counts for all 16 reports against current permitted source registers, in addition to client scoping and CSV-column checks. |
@@ -121,9 +121,9 @@ it does not automatically re-clear dependent procedures or workpapers.
 The AT-13 journey also authors a two-phase Draft in Chrome, publishes and
 instantiates it, then creates an edited Draft revision without changing the
 published source or existing job. It publishes and applies the new revision;
-jobs retain the exact template revision. Unit checks cover retry idempotency for
-the same operation ID; rapid browser double-click behavior is not separately
-simulated.
+jobs retain the exact template revision. Chrome submits the same operation
+twice and verifies only one job exists; unit checks reject reuse of the ID with
+changed details.
 The AT-22 journey selects a local file, persists only metadata and its digest,
 reloads, then verifies the preview explains that original bytes are unavailable
 and offers no misleading original-download action.
