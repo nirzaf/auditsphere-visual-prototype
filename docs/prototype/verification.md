@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `2f95298` is deployed as Pages release
-`3ebc950f-6308-41de-8fa0-2d918c5a760d` in the existing `steaudit-prototype`
+acceptance assertions. Commit `f0f9b5e` is deployed as Pages release
+`0f73c89d-4b52-411f-8827-dee3d30ffb28` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -51,6 +51,7 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | `b78505c` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `f07dad8c-7302-447b-9245-dc20a53e93b0`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BCLU5nQI.js`. |
 | 2026-09-23 | `86a83c8` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `6cfc81cc-8f62-4c0e-ac8d-eb35fa5ee976`; release URL and fresh `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-B1wq733t.js`. |
 | 2026-09-23 | `2f95298` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `3ebc950f-6308-41de-8fa0-2d918c5a760d`; release URL and fresh `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-eFWsIY_D.js`. |
+| 2026-09-23 | `f0f9b5e` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `0f73c89d-4b52-411f-8827-dee3d30ffb28`; release URL and `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BZuaglhu.js`. |
 | 2026-09-23 | `cabe09a` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `8af7da76-b424-4d46-9ca5-822de6748697`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-Bk0-Z_4X.js` with scoped internal notes and mentions. |
 | 2026-09-23 | `6f9441d` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `b045b304-3f94-4c23-b065-cdc6d546e6e0`; cache-busted custom domain returned HTTP 200 and referenced `assets/index-vTNLMhnj.js`. |
 | 2026-09-23 | `bf9610f` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, production branch, release `573e424f-3cf9-450c-a308-10f6b13608ad`; cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-cQ67ul7c.js`. |
