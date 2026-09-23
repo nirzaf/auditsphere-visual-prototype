@@ -209,8 +209,8 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,158.26 kB,
-  603.83 kB gzip in the latest build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,158.27 kB,
+  603.83 kB gzip in the latest deployed build).
 
 ## Verification snapshot
 
