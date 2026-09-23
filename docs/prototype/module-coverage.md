@@ -44,7 +44,7 @@ only after its complete journey has direct, recorded evidence in `verification.m
 | 35 | VP-055 | reviews | addReviewNote/respondReviewNote/clearReviewNote | RN-001/002 | queues update without widening | responder cannot self-clear | subject change reopens | Partial | — |
 | 36 | VP-056 | approvals | recordApproval (per-engagement) | ENG approvals | EQR per engagement | partner≠EQR; self-approve denied | artifact change needs fresh decision | Partial | No signatures |
 | 37 | VP-057, VP-058 | delivery | prepareReleaseCandidate/issueRelease/prepareAmendedRelease | releases | gates block with links; manifest frozen | duplicate click = one release | amendment needs fresh review | Partial | Dispatch simulation |
-| 38 | VP-059 | records | archiveEngagement | archive manifest + IndexedDB artifacts | exact released bytes copied and SHA-256 rechecked | optional retention; no Purview gate | re-archive verifies source before copy; hold/handover pathways remain partly unverified | Partial | Browser-local; no server immutability |
+| 38 | VP-059 | records | archiveEngagement | archive manifest + IndexedDB artifacts | exact released bytes copied and SHA-256 rechecked | optional retention; no Purview gate | Chrome hold/handover journey now verifies active-hold block and local request after release; successor re-archive and metadata correction history remain open | Partial | Browser-local; no server immutability |
 | 39 | VP-019, VP-062 | administration | updateFirmSettings | firmSettings | settings apply prospectively | business-role gates hold | issued/released history unchanged | Partial | No excluded toggles |
 
 Cross-cutting VP-001–VP-004, VP-063–VP-064 apply to every row (scope freeze,

@@ -241,7 +241,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   be cleared or altered outside the app. This remains within logical local archive
   scope; Purview locks, physical deletion controls and external retention services
   are excluded. Retention dates are optional firm-selected metadata and do not
-  assert legal requirements or schedule deletion.
+  assert legal requirements or schedule deletion. Chrome now verifies an active
+  application hold blocks handover without recording a request, then permits a
+  local successor-auditor request after the hold is lifted. Successor-release
+  re-archive and archive metadata correction history still need direct journeys.
 - **Cross-cutting:** Chrome network observation covers the exercised journeys only;
   no formal all-state egress policy is established. This is a browser-local,
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,

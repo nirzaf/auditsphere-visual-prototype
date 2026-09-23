@@ -1585,6 +1585,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.ok(copy.size > 0);
       assert.equal(copy.sha, copy.expected, 'archived copy must retain exact released bytes');
     }
+    await clickButton('Place Application Legal Hold');
+    assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return a?.onApplicationHold&&a.holdReason?.includes('tax authority');})()`), true, 'application hold requires and retains its reason');
+    await clickButton('Process Successor Handover');
+    await clickButton('Authorize Handover Record');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("active application hold blocks the handover request")'), true, 'active application hold blocks the handover request');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return !a.handoverRequested&&!a.handoverRequester;})()`), true, 'blocked handover creates no request record');
+    await clickButton('Cancel');
+    await clickButton('Lift Application Legal Hold');
+    await clickButton('Process Successor Handover');
+    await clickButton('Authorize Handover Record');
+    assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return a.handoverRequested&&a.handoverRequester==='KPMG Qatar (Successor Audit Firm)'&&a.handoverNotes.includes('ISA 510');})()`), true, 'after hold release, an authorized handover request is recorded locally');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Not specified/);
     assert.deepEqual(browserTab!.exceptions, []);
   });
