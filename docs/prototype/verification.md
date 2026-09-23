@@ -256,3 +256,9 @@ visible engagement scope before its effective date. Unit checks passed 131/131;
 E2E passed 56/56, including the Chrome grant form, history, and scoped access
 journey. The wider professional-role approval and group-scope matrix remains
 open, so Module 19 remains Partial. Production deployment evidence follows.
+Commit `256c83a` was pushed to `main` and deployed to the existing
+`steaudit-prototype` production Pages project as release
+`b88d44fa-b63f-4995-be09-f47fe445438f`. A no-cache request to both the release
+URL and `https://prototype.steaudit.com` returned HTTP 200 and served
+`assets/index-DStF5-hW.js`; that bundle contains the required request-reference
+and effective-date grant controls.
