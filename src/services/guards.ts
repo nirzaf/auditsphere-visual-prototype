@@ -130,7 +130,8 @@ const PROFESSIONAL_ROUTES: RouteKey[] = [
 ];
 
 /** Shared UI route policy; App checks it again so direct navigation cannot bypass the sidebar. */
-export function canOpenRoute(role: RoleKey, route: RouteKey): boolean {
+export function canOpenRoute(role: RoleKey, route: RouteKey, active = true): boolean {
+  if (!active) return route === 'requirements';
   if (route === 'requirements') return true;
   if (isClientRole(role)) return route === 'portal';
   if (role === 'partner') return PROFESSIONAL_ROUTES.includes(route);

@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, requireEngagementScope, GuardError } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition } from './packageFixture.js';
@@ -139,6 +139,12 @@ describe('fixture integrity (AT-02/AT-54)', () => {
 });
 
 describe('simulated invitation expiry (VP-018)', () => {
+  it('limits a disabled identity to the requirements screen', () => {
+    assert.equal(canOpenRoute('preparer', 'overview', false), false);
+    assert.equal(canOpenRoute('preparer', 'jobs', false), false);
+    assert.equal(canOpenRoute('preparer', 'requirements', false), true);
+  });
+
   it('blocks acceptance after expiry, records expiry, and creates no identity', () => {
     const saved = prototypeStore.exportStateJSON();
     try {
@@ -1028,7 +1034,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
     setPersona((prototypeStore as any).state, 'Layla Rahman');
-    const template = { name: 'Revenue verification', area: 'Revenue', description: 'Test recorded revenue.', procedures: [{ title: 'Trace transactions', objective: 'Confirm occurrence', instructions: 'Trace to invoices.', defaultAssertions: ['Occurrence'], requiredEvidenceType: 'Invoice' }] };
+    const template = { name: 'Revenue verification', area: 'Revenue & Receivables', description: 'Test recorded revenue.', procedures: [{ title: 'Trace transactions', objective: 'Confirm occurrence', instructions: 'Trace to invoices.', defaultAssertions: ['Occurrence'], requiredEvidenceType: 'Invoice' }] };
+    assert.throws(() => prototypeStore.createAuditProgramTemplate({ ...template, area: 'Payroll' }), /supported audit area/);
     const id = prototypeStore.createAuditProgramTemplate(template);
     assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
     prototypeStore.publishAuditProgramTemplate(id);
@@ -1041,7 +1048,11 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal((prototypeStore as any).state.auditProgramTemplates.find((item: any) => item.id === id).status, 'Draft');
     assert.equal((prototypeStore as any).state.auditProgramTemplateHistory[0].status, 'Published');
     assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
+    prototypeStore.retireAuditProgramTemplate(id);
+    assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
+    assert.equal((prototypeStore as any).state.auditProgramTemplates.find((item: any) => item.id === id).status, 'Retired');
     assert.equal(applied.sourceTemplateVersion, 1);
+    assert.equal(applied.procedures[0].instructions, 'Trace to invoices.');
   });
 
   it('EQR sign-off blocked when unresolved EQR concerns exist (VP-056 / F03)', async () => {

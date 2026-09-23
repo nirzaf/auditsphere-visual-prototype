@@ -16,6 +16,9 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript and Vite build passed; main bundle 2,155.48 kB (603.06 kB gzip), with the existing >500 kB advisory. |
+| 2026-09-23 | current working tree | `npm run test:unit` | PASS — 135/135 | Includes disabled-identity route denial, unsupported audit-template area rejection, retirement behavior, mapping, sampling, release and migration checks. |
+| 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. VP-018 verifies local creation without grants, disable/recovery, requirements-only routing, invitation expiry/revoke history; VP-049 verifies risk links, coverage gaps, fresh template application and retirement without changing existing work. |
 | 2026-09-23 | current working tree | `npm run build` | PASS | TypeScript check and Vite production build passed; main bundle 2,149.68 kB (601.93 kB gzip), with the existing >500 kB advisory. |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 134/134 | Includes schema v0–v19 migration, VP-012 pending-acceptance/lifecycle guards and terminal states, statement revision review/staleness, opportunity guards, mapping, sampling, package, finance and release checks. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks plus 52 serial Chrome journeys. VP-012 verifies reasoned suspend/resume/cancel history; AT-07 covers inquiry editing, Lost/Unqualified reasons, list/rework, Won conversion and existing-client linking; AT-37 saves/reviews comparative statements. VP-009, VP-051 and VP-052 are Verified; overall coverage remains Partial. |

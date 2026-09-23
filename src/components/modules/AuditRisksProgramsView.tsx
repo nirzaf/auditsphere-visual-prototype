@@ -42,6 +42,12 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const risks = state.auditRisks.filter(risk => risk.engagementId === selectedEng.id || (!risk.engagementId && selectedEng.id === state.engagements[0]?.id));
   const templates = state.auditProgramTemplates || [];
   const activeProgram = programs.find(program => program.id === selectedProgramId) || programs[0];
+  const supportedAuditAreas = [...new Set([...state.auditPrograms.map(program => program.area), ...templates.map(template => template.area)])].sort();
+  const coverageGaps = [
+    ...risks.filter(risk => !programs.some(program => program.procedures.some(procedure => procedure.linkedRiskIds?.includes(risk.id) && risk.linkedProcedureIds.includes(procedure.id)))).map(risk => `Risk ${risk.id} (${risk.title}) has no reciprocal procedure link.`),
+    ...programs.flatMap(program => program.procedures.filter(procedure => risks.length > 0 && !procedure.linkedRiskIds?.some(id => risks.some(risk => risk.id === id && risk.linkedProcedureIds.includes(procedure.id)))).map(procedure => `Procedure ${procedure.id} (${procedure.title || procedure.text}) has no reciprocal risk link.`))
+  ];
+  const coverageGapPanel = <div className="panel panel-pad" role="status"><b>Unresolved risk coverage gaps ({coverageGaps.length})</b>{coverageGaps.length ? <ul className="sub">{coverageGaps.map(gap => <li key={gap}>{gap}</li>)}</ul> : <p className="sub">Every risk and procedure has a reciprocal link.</p>}</div>;
 
   const handleUpdateProcedureStatus = (procId: string, status: AuditProcedureItem['status']) => {
     try {
@@ -120,13 +126,13 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
           <div className="between"><div><h3>Reusable audit program templates</h3><p className="sub">Published versions are copied into the selected engagement with new procedure identities; later template edits do not alter applied programs.</p></div><button className="btn sm" onClick={() => { setTemplateDraft({ name: '', area: '', description: '', procedures: [{ title: '', objective: '', instructions: '', defaultAssertions: ['Existence'], requiredEvidenceType: '' }] }); setEditingTemplateId(null); }}>New template</button></div>
           {(templates.length === 0) && <p className="sub mt12">No reusable templates yet.</p>}
           <div className="stack mt12" style={{ gap: 10 }}>{templates.map(template => <div className="borderbox panel-pad" key={template.id}>
-            <div className="between"><div><b>{template.name} · v{template.version}</b><div className="caption">{template.area} · {template.status} · {template.procedures.length} procedures</div><p className="sub mt4">{template.description}</p></div><div className="row">{template.status === 'Draft' && <button className="btn sm primary" onClick={() => { try { prototypeStore.publishAuditProgramTemplate(template.id); setNotice(`Published ${template.name} v${template.version}.`); } catch (err: any) { setNotice(err.message); } }}>Publish</button>}{template.status === 'Published' && <button className="btn sm" onClick={() => { try { const id = prototypeStore.applyAuditProgramTemplate(selectedEng.id, template.id); setSelectedProgramId(id); setActiveTab('programs'); setNotice(`Applied ${template.name} v${template.version} to ${selectedEng.id}.`); } catch (err: any) { setNotice(err.message); } }}>Apply to engagement</button>}<button className="btn sm ghost" onClick={() => { setTemplateDraft({ name: template.name, area: template.area, description: template.description, procedures: structuredClone(template.procedures) }); setEditingTemplateId(template.id); }}>Revise</button></div></div>
+            <div className="between"><div><b>{template.name} · v{template.version}</b><div className="caption">{template.area} · {template.status} · {template.procedures.length} procedures</div><p className="sub mt4">{template.description}</p></div><div className="row">{template.status === 'Draft' && <button className="btn sm primary" onClick={() => { try { prototypeStore.publishAuditProgramTemplate(template.id); setNotice(`Published ${template.name} v${template.version}.`); } catch (err: any) { setNotice(err.message); } }}>Publish</button>}{template.status === 'Published' && <button className="btn sm" onClick={() => { try { const id = prototypeStore.applyAuditProgramTemplate(selectedEng.id, template.id); setSelectedProgramId(id); setActiveTab('programs'); setNotice(`Applied ${template.name} v${template.version} to ${selectedEng.id}.`); } catch (err: any) { setNotice(err.message); } }}>Apply to engagement</button>}<button className="btn sm ghost" disabled={template.status === 'Retired'} onClick={() => { setTemplateDraft({ name: template.name, area: template.area, description: template.description, procedures: structuredClone(template.procedures) }); setEditingTemplateId(template.id); }}>Revise</button>{template.status !== 'Retired' && <button className="btn sm ghost" aria-label={`Retire ${template.name}`} onClick={() => { if (window.confirm(`Retire ${template.name}? Existing engagement programs will remain unchanged.`)) try { prototypeStore.retireAuditProgramTemplate(template.id); setNotice(`Retired ${template.name} v${template.version}.`); } catch (err: any) { setNotice(err.message); } }}>Retire</button>}</div></div>
             {(state.auditProgramTemplateHistory || []).filter(version => version.id === template.id).map(version => <div className="caption" key={version.version}>Archived v{version.version} · {version.status}</div>)}
           </div>)}</div>
         </div>
         {templateDraft && <form className="panel panel-pad stack" onSubmit={e => { e.preventDefault(); try { if (editingTemplateId) prototypeStore.reviseAuditProgramTemplate(editingTemplateId, templateDraft); else prototypeStore.createAuditProgramTemplate(templateDraft); setTemplateDraft(null); setEditingTemplateId(null); setNotice('Template draft saved. Publish it before applying.'); } catch (err: any) { setNotice(err.message); } }}>
           <h3>{editingTemplateId ? 'Save a new template revision' : 'Create a reusable template draft'}</h3>
-          <div className="grid2"><label className="caption">Name<input className="input mt4" aria-label="Template name" required value={templateDraft.name} onChange={e => setTemplateDraft({ ...templateDraft, name: e.target.value })} /></label><label className="caption">Audit area<input className="input mt4" aria-label="Template audit area" required value={templateDraft.area} onChange={e => setTemplateDraft({ ...templateDraft, area: e.target.value })} /></label></div>
+          <div className="grid2"><label className="caption">Name<input className="input mt4" aria-label="Template name" required value={templateDraft.name} onChange={e => setTemplateDraft({ ...templateDraft, name: e.target.value })} /></label><label className="caption">Supported audit area<select className="input mt4" aria-label="Template audit area" required value={templateDraft.area} onChange={e => setTemplateDraft({ ...templateDraft, area: e.target.value })}><option value="">Select a supported area</option>{supportedAuditAreas.map(area => <option key={area} value={area}>{area}</option>)}</select></label></div>
           <label className="caption">Purpose<textarea className="input mt4" aria-label="Template purpose" required value={templateDraft.description} onChange={e => setTemplateDraft({ ...templateDraft, description: e.target.value })} /></label>
           {templateDraft.procedures.map((procedure, index) => <fieldset className="borderbox stack" key={index}><legend className="caption">Procedure {index + 1}</legend><input className="input" aria-label={`Template procedure title ${index + 1}`} placeholder="Procedure title" required value={procedure.title} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, title: e.target.value } : p) })} /><input className="input" placeholder="Objective" required value={procedure.objective} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, objective: e.target.value } : p) })} /><textarea className="input" placeholder="Instructions" required value={procedure.instructions} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, instructions: e.target.value } : p) })} /><div className="grid2"><input className="input" placeholder="Assertions, comma separated" required value={procedure.defaultAssertions.join(', ')} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, defaultAssertions: e.target.value.split(',').map(x => x.trim()).filter(Boolean) } : p) })} /><input className="input" placeholder="Required evidence type" required value={procedure.requiredEvidenceType} onChange={e => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.map((p, i) => i === index ? { ...p, requiredEvidenceType: e.target.value } : p) })} /></div><button type="button" className="btn sm ghost" disabled={templateDraft.procedures.length === 1} onClick={() => setTemplateDraft({ ...templateDraft, procedures: templateDraft.procedures.filter((_, i) => i !== index) })}>Remove procedure</button></fieldset>)}
           <button type="button" className="btn sm" onClick={() => setTemplateDraft({ ...templateDraft, procedures: [...templateDraft.procedures, { title: '', objective: '', instructions: '', defaultAssertions: ['Existence'], requiredEvidenceType: '' }] })}>Add procedure</button>
@@ -136,7 +142,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
 
       {/* Programs Tab */}
       {activeTab === 'programs' && (
-        <div className="grid-main">
+        <div className="stack" style={{ gap: 16 }}>{coverageGapPanel}<div className="grid-main">
           {/* Left: Program List */}
           <div className="stack" style={{ gap: 16 }}>
             <div className="panel">
@@ -188,6 +194,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                       <th>Method</th>
                       <th>Fieldwork Status</th>
                       <th>Sign-off</th>
+                      <th>Linked risks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -227,6 +234,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                           </select>
                         </td>
                         <td>{p.reviewedByUserId ? `Reviewed by ${state.users.find(user => user.id === p.reviewedByUserId)?.name || p.reviewedByUserId}` : p.preparedByUserId ? `Prepared by ${state.users.find(user => user.id === p.preparedByUserId)?.name || p.preparedByUserId}` : 'No sign-off'}</td>
+                        <td>{p.linkedRiskIds?.length ? p.linkedRiskIds.map(id => <span className="tag gray" key={id}>{id}</span>) : <span className="badge amber">Unlinked</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -234,12 +242,12 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
               </div>
             </div>}
           </div>
-        </div>
+        </div></div>
       )}
 
       {/* Risks Tab */}
       {activeTab === 'risks' && (
-        <div className="stack">
+        <div className="stack">{coverageGapPanel}
           <div className="panel">
             <div className="panel-head"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3></div>
             <div className="tablewrap"><table>

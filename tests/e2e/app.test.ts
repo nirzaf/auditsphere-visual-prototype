@@ -2091,6 +2091,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const dialog = await browserTab!.evaluate<boolean>(`(() => {window.prompt=()=> 'Test suspension';const row=[...document.querySelectorAll('tr')].find(x=>x.innerText.includes('test.identity@example.demo'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Disable');if(!b)return false;b.click();return true;})()`);
       assert.equal(dialog, true);
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).users.find(x=>x.email==='test.identity@example.demo').status==='Disabled'`), true);
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const id=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).users.find(x=>x.email==='test.identity@example.demo').id;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,id);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`document.body.innerText.includes('Prototype Requirements')`), true, 'disabled persona is restricted to requirements');
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const id=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).users.find(x=>x.role==='admin'&&x.status==='Active').id;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,id);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Firm Administration');
+      await clickButton('Identity Lifecycle (4 invitations)');
+      const reactivate = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tr')].find(x=>x.innerText.includes('test.identity@example.demo'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Reactivate');if(!b)return false;b.click();return true;})()`);
+      assert.equal(reactivate, true);
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.users.find(x=>x.email==='test.identity@example.demo').status==='Active'&&['Created','Disabled','Activated'].every(a=>s.identityStatusHistory.some(e=>e.userId===s.users.find(x=>x.email==='test.identity@example.demo').id&&e.action===a));})()`), true, 'reactivation restores identity and preserves the complete status history');
       const lifecycle = await browserTab!.evaluate<string>('document.body.innerText');
       assert.match(lifecycle, /Pending/); assert.match(lifecycle, /Expired/); assert.match(lifecycle, /Revoked/); assert.match(lifecycle, /No live account or message/);
       await set('Invitation name', 'Pending Demo Recipient');
@@ -2125,9 +2133,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Risks & Audit Programs');
       assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Reusable Program Templates'));if(!b)return false;b.click();return true;})()`), true);
       await clickButton('New template');
-      const setInput = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      const setInput = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);
       await setInput('input[aria-label="Template name"]', 'Revenue substantive template');
-      await setInput('input[aria-label="Template audit area"]', 'Revenue');
+      await setInput('select[aria-label="Template audit area"]', 'Revenue & Receivables');
       await setInput('textarea[aria-label="Template purpose"]', 'Verify recorded revenue assertions.');
       await setInput('input[aria-label="Template procedure title 1"]', 'Verify recorded revenue');
       await setInput('input[placeholder="Objective"]', 'Confirm existence and accuracy');
@@ -2142,6 +2150,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const apply = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.borderbox')].find(e=>e.innerText.includes('Verify recorded revenue'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Apply to engagement');if(!b)return false;b.click();return true;})()`);
       assert.equal(apply, true);
       assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPrograms.find(p=>p.sourceTemplateId===${JSON.stringify(templateId)});return !!p&&p.sourceTemplateVersion===1&&p.procedures.length===1&&p.procedures[0].title==='Verify recorded revenue'&&p.procedures[0].status==='Not started'&&!p.procedures[0].workPerformed&&!p.procedures[0].conclusion;})()`), true, 'application pins the published template and starts with empty execution state');
+      assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Unresolved risk coverage gaps')&&document.body.innerText.includes('Unlinked')`), true, 'program detail surfaces unresolved risk coverage');
+      await clickButton('Risks & Audit Programs');
+      await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Reusable Program Templates'));if(!b)throw Error('template tab unavailable');b.click();window.confirm=()=>true;})()`);
+      await waitForBrowser(`!!document.querySelector('[aria-label="Retire Revenue substantive template"]')`);
+      await browserTab!.evaluate(`document.querySelector('[aria-label="Retire Revenue substantive template"]').click()`);
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const t=s.auditProgramTemplates.find(x=>x.id===${JSON.stringify(templateId)});const p=s.auditPrograms.find(x=>x.sourceTemplateId===${JSON.stringify(templateId)});return t.status==='Retired'&&p.sourceTemplateVersion===1&&p.procedures[0].instructions==='Inspect approved source records.';})()`), true, 'retirement blocks future use and leaves the applied engagement revision unchanged');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

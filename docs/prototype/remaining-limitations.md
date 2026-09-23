@@ -100,10 +100,11 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
   RSK-01↔PRC-03 link after reload, and schema v9 repairs legacy unscoped links.
-  Reusable program templates can be drafted, independently published, applied
-  with fresh procedure IDs and empty work state, and revised with prior versions
-  retained. Risk revisions are logged and visible. The complete change/rework
-  matrix and deeper template revision journey remain incomplete.
+  Reusable program templates use supported audit areas, can be drafted, independently
+  published, applied with fresh procedure IDs and empty work state, revised with prior
+  versions retained, and retired without changing applied engagement work. Program
+  views display reciprocal risk links and unresolved coverage gaps. Risk revisions
+  are logged and visible; the complete approved-plan change/rework matrix remains open.
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.
@@ -111,10 +112,9 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   scheduled authority is excluded until its effective date, and the original
   window remains in grant history after revocation.
   The M365 wizard also saves permitted-person and initial role mappings without
-  creating access grants. Local identity creation, disable/reactivate history,
-  and simulated invite/revoke/accept actions are covered; external invitations
-  and actual authentication remain out of scope, and personas are seeded
-  simulation identities.
+  creating access grants. Local identity creation, disable/reactivate history, disabled-route restriction,
+  and simulated invite/expiry/revoke/accept actions are covered; external invitations
+  and actual authentication remain out of scope.
 
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,

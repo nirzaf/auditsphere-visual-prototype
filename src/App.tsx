@@ -68,13 +68,17 @@ export const App: React.FC = () => {
 
   const state = prototypeStore.getSnapshot();
   const isClient = isClientRole(state.currentRole);
+  const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
   const navigate = (route: RouteKey) => {
-    const role = prototypeStore.getSnapshot().currentRole;
-    setCurrentRoute(canOpenRoute(role, route) ? route : isClientRole(role) ? 'portal' : 'overview');
+    const current = prototypeStore.getSnapshot();
+    const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
+    setCurrentRoute(canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements');
   };
-  const effectiveRoute: RouteKey = isClient
+  const effectiveRoute: RouteKey = !activeIdentity
+    ? 'requirements'
+    : isClient
     ? currentRoute === 'requirements' ? 'requirements' : 'portal'
-    : canOpenRoute(state.currentRole, currentRoute) ? currentRoute : 'overview';
+    : canOpenRoute(state.currentRole, currentRoute, activeIdentity) ? currentRoute : 'overview';
 
   const renderModule = () => {
     switch (effectiveRoute) {

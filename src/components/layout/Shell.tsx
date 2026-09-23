@@ -21,6 +21,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
+  const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
 
   const allowedClientIds = visibleClientIds(state);
   const allowedEngagementIds = visibleEngagementIds(state);
@@ -116,8 +117,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     ]
   ];
 
-  const navGroups = clientMode ? clientNavGroups : staffNavGroups
-    .map(([name, items]) => [name, items.filter(item => canOpenRoute(state.currentRole, item.key))] as [string, typeof items])
+  const navGroups = (clientMode ? clientNavGroups : staffNavGroups)
+    .map(([name, items]) => [name, items.filter(item => canOpenRoute(state.currentRole, item.key, activeIdentity))] as [string, typeof items])
     .filter(([, items]) => items.length > 0);
 
   const handleRoleChange = (userId: string) => {

@@ -2553,6 +2553,7 @@ class PrototypeStore {
     if (!template.name?.trim() || !template.area?.trim() || !template.description?.trim()) {
       throw new GuardError('INVALID_STATE', 'Template name, area and description are required.');
     }
+    if (![...new Set([...this.state.auditPrograms.map(program => program.area), ...(this.state.auditProgramTemplates || []).map(item => item.area)])].includes(template.area.trim())) throw new GuardError('INVALID_STATE', 'Template audit area must match a supported audit area.');
     if (!template.procedures?.length) {
       throw new GuardError('INVALID_STATE', 'Template must include at least one procedure.');
     }
@@ -2577,6 +2578,7 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner', 'admin'], 'revise audit program templates');
     const template = this.state.auditProgramTemplates?.find(item => item.id === templateId);
     if (!template || template.status === 'Retired' || !changes.name.trim() || !changes.area.trim() || !changes.description.trim() || !changes.procedures.length) throw new GuardError('INVALID_STATE', 'A current reusable template and complete revised content are required.');
+    if (![...new Set([...this.state.auditPrograms.map(program => program.area), ...(this.state.auditProgramTemplates || []).map(item => item.area)])].includes(changes.area.trim())) throw new GuardError('INVALID_STATE', 'Template audit area must match a supported audit area.');
     this.state.auditProgramTemplateHistory ||= [];
     this.state.auditProgramTemplateHistory.push(structuredClone(template));
     Object.assign(template, structuredClone(changes), { version: template.version + 1, status: 'Draft' as const });
@@ -2591,6 +2593,18 @@ class PrototypeStore {
     if (!template || template.status !== 'Draft' || !template.procedures.length) throw new GuardError('INVALID_STATE', 'Only a complete draft audit program template can be published.');
     template.status = 'Published';
     this.logEvent(`Audit program template ${template.name} v${template.version} published`, template.id);
+    this.notify();
+  }
+
+  public retireAuditProgramTemplate(templateId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'admin'], 'retire audit program templates');
+    const template = this.state.auditProgramTemplates?.find(item => item.id === templateId);
+    if (!template || template.status === 'Retired') throw new GuardError('INVALID_STATE', 'A current audit program template is required.');
+    this.state.auditProgramTemplateHistory ||= [];
+    this.state.auditProgramTemplateHistory.push(structuredClone(template));
+    template.status = 'Retired';
+    this.logEvent(`Audit program template ${template.name} v${template.version} retired`, template.id);
     this.notify();
   }
 
