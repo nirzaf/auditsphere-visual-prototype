@@ -57,6 +57,17 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
         </button>
       </div>
 
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype note — computed vs illustrative figures.</b>
+        <p className="sub mt4">
+          The WIP and utilization tables below are static illustrative fixtures, not values computed
+          from demo records; the CSV export mirrors the displayed fixture rows exactly. Live computed
+          reporting from budgets, approved time, invoices, receipts and aging is demonstrated in the
+          Budgets and Receivables views. Filtered operational reports with drill-downs and scoped
+          exports (VP-060) remain a documented limitation — see docs/prototype/remaining-limitations.md.
+        </p>
+      </div>
+
       {selectedReport === 'wip' && (
         <div className="stack" style={{ gap: 16 }}>
           <div className="metric-grid">

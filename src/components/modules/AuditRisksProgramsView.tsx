@@ -15,6 +15,21 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
 
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="shield" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to define audit risks and tailor substantive audit programs.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
   // Synthetic risks
   const risks = [
     { id: 'RSK-01', title: 'Improper revenue recognition near period-end (Cutoff)', level: 'Assertion', accounts: '4000 - Sales', assertions: 'Cutoff, Accuracy', inherent: 'High', control: 'Moderate', plannedResponse: 'Sample delivery notes 10 days before and after 31 Dec.' },

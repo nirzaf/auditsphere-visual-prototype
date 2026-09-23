@@ -18,7 +18,7 @@ export type RoleKey =
   | 'admin';
 
 export interface UserPersona {
-  id: RoleKey;
+  id: string;
   name: string;
   initials: string;
   role: RoleKey;
@@ -258,6 +258,15 @@ export interface EngagementRecord {
     partner: null | { by: string; at: string; generation: number; notes?: string };
     eqr: null | { by: string; at: string; generation: number; notes?: string };
   };
+  eqrConcerns?: Array<{
+    id: string;
+    text: string;
+    resolved: boolean;
+    raisedBy: string;
+    raisedAt: string;
+    resolvedAt?: string;
+    resolvedBy?: string;
+  }>;
   rows: TrialBalanceRow[];
   adjustment: number;
   journalState: 'Draft' | 'Submitted' | 'Applied' | 'Rejected';
@@ -928,5 +937,11 @@ export interface PrototypeState {
     role: RoleKey;
     scopeKind: 'Global' | 'Client' | 'Engagement';
     scopeId?: string;
+  }>;
+  folders?: Array<{
+    path: string;
+    label: string;
+    clientId?: string;
+    engagementId?: string;
   }>;
 }

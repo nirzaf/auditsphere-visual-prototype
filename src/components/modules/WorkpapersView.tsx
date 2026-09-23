@@ -1,8 +1,9 @@
 // Module 32: Comprehensive 6-Tab Workpaper Workspace (VP-052)
 // 6 Tabs: Overview, Guidelines, Template/Data, Working Paper Upload/Preview, Supporting Evidence, Clearance & History
+// Pure browser prototype: local version incrementing, separation of duties, dynamic template parsing, no alerts.
 
 import React, { useState } from 'react';
-import { RouteKey, WorkpaperItem } from '../../types';
+import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 
@@ -13,23 +14,46 @@ interface WorkpapersViewProps {
 export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const workpapers = selectedEng.workpapers;
 
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="checkboard" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to access the audit workpapers workspace.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
+  const workpapers = selectedEng.workpapers || [];
   const [selectedWpId, setSelectedWpId] = useState<string>(workpapers[0]?.id || 'WP-A1');
   const [activeTab, setActiveTab] = useState<
     'overview' | 'guidelines' | 'template' | 'preview' | 'evidence' | 'clearance'
   >('overview');
 
   const [clearanceNotes, setClearanceNotes] = useState('Satisfactory completion of all testing procedures and evidence tie-out.');
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [newRevisionFile, setNewRevisionFile] = useState('');
 
   const wp = workpapers.find(w => w.id === selectedWpId) || workpapers[0];
+
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
 
   const handleClearWorkpaper = () => {
     try {
       prototypeStore.clearWorkpaper(selectedEng.id, wp.id, clearanceNotes);
-      alert(`Workpaper ${wp.id} successfully cleared by ${prototypeStore.getSnapshot().currentPerson}.`);
+      triggerNotice('success', `Workpaper ${wp.id} successfully cleared by ${prototypeStore.getSnapshot().currentPerson}.`);
     } catch (err: any) {
-      alert(err.message);
+      triggerNotice('error', err.message);
     }
   };
 
@@ -39,7 +63,35 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
       applicable: updated,
       status: updated ? 'In progress' : 'Not applicable'
     });
+    triggerNotice('success', `Workpaper ${wp.id} marked as ${updated ? 'applicable' : 'not applicable'}.`);
   };
+
+  const handleUploadRevisionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRevisionFile.trim()) return;
+
+    try {
+      prototypeStore.replaceWorkpaperRevision(selectedEng.id, wp.id, {
+        name: newRevisionFile.trim(),
+        size: 58000
+      });
+      triggerNotice('success', `Replacement revision uploaded. Version is now v${wp.version + 1}; status reset to In progress.`);
+      setShowUploadModal(false);
+      setNewRevisionFile('');
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  // Parse CSV template data if present
+  const csvData = React.useMemo(() => {
+    if (!wp?.template?.csv) return null;
+    const lines = wp.template.csv.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) return null;
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map(line => line.split(',').map(c => c.trim()));
+    return { headers, rows };
+  }, [wp?.template?.csv]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -58,99 +110,140 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
         </div>
       </div>
 
+      {notice && (
+        <div
+          className="panel panel-pad"
+          style={{
+            background: notice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            borderColor: notice.type === 'success' ? '#86efac' : '#fca5a5',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            padding: '10px 16px'
+          }}
+        >
+          <b>{notice.type === 'success' ? '✓ ' : '⚠ '}</b>
+          {notice.text}
+        </div>
+      )}
+
       <div className="grid-main">
-        {/* Left: Workpaper Index */}
+        {/* Left: Workpapers List */}
         <div className="stack" style={{ gap: 16 }}>
           <div className="panel">
             <div className="panel-head">
               <h3>Engagement Workpapers ({workpapers.length})</h3>
+              <span className="caption">Gen {selectedEng.generation}</span>
             </div>
-            <div className="stack panel-pad" style={{ gap: 6 }}>
-              {workpapers.map(w => (
-                <button
-                  key={w.id}
-                  className={`navitem ${w.id === wp.id ? 'active' : ''}`}
-                  onClick={() => setSelectedWpId(w.id)}
-                  style={{ textAlign: 'left', width: '100%', fontSize: 13 }}
-                >
-                  <div className="between" style={{ width: '100%' }}>
-                    <div>
-                      <b>{w.id}</b>
-                      <div className="cell-sub">{w.title}</div>
-                    </div>
-                    <span className={`badge ${w.status === 'Cleared' ? 'green' : w.status === 'Changes required' ? 'red' : 'amber'}`}>
-                      {w.status}
-                    </span>
-                  </div>
-                </button>
-              ))}
+            <div className="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lead Schedule</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workpapers.map(w => (
+                    <tr
+                      key={w.id}
+                      className={w.id === wp?.id ? 'selected-row' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelectedWpId(w.id)}
+                    >
+                      <td>
+                        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                          <span className="mono bold">{w.id}</span>
+                          <b>{w.title}</b>
+                        </div>
+                        <div className="cell-sub">{w.assertion} · Rev v{w.version}</div>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            w.status === 'Cleared'
+                              ? 'green'
+                              : w.status === 'Not applicable'
+                              ? 'gray'
+                              : w.status === 'Changes required'
+                              ? 'red'
+                              : 'amber'
+                          }`}
+                        >
+                          {w.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
 
-        {/* Right: Selected Workpaper 6-Tab Workspace */}
+        {/* Right: Active Workpaper Tabs */}
         {wp && (
           <div className="stack" style={{ gap: 16 }}>
             <div className="panel panel-pad">
               <div className="between">
                 <div>
-                  <span className="eyebrow">AUDIT WORKPAPER · {wp.id}</span>
+                  <span className="eyebrow">{wp.id} · {wp.assertion.toUpperCase()}</span>
                   <h2>{wp.title}</h2>
-                  <p className="sub">{wp.section} · Preparer: {wp.preparer} · Reviewer: {wp.reviewer}</p>
+                  <div className="cell-sub mt4">
+                    Assigned Preparer: <b>{wp.preparer}</b> · Reviewer: <b>{wp.reviewer}</b>
+                  </div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
                   <button
                     className={`btn sm ${wp.applicable ? 'ghost' : 'primary'}`}
                     onClick={handleToggleApplicability}
                   >
-                    {wp.applicable ? 'Mark Not Applicable' : 'Mark Applicable'}
+                    {wp.applicable ? 'Mark N/A' : 'Mark Applicable'}
                   </button>
-                  <span className={`badge ${wp.status === 'Cleared' ? 'green' : wp.status === 'Changes required' ? 'red' : 'amber'}`}>
+                  <span
+                    className={`badge ${
+                      wp.status === 'Cleared'
+                        ? 'green'
+                        : wp.status === 'Not applicable'
+                        ? 'gray'
+                        : 'amber'
+                    }`}
+                  >
                     {wp.status}
                   </span>
                 </div>
               </div>
 
               {/* 6 Tabs */}
-              <div className="tabs mt16">
-                <button className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
-                  1. Overview
-                </button>
-                <button className={`tab-btn ${activeTab === 'guidelines' ? 'active' : ''}`} onClick={() => setActiveTab('guidelines')}>
-                  2. Guidelines
-                </button>
-                <button className={`tab-btn ${activeTab === 'template' ? 'active' : ''}`} onClick={() => setActiveTab('template')}>
-                  3. Template / Data
-                </button>
-                <button className={`tab-btn ${activeTab === 'preview' ? 'active' : ''}`} onClick={() => setActiveTab('preview')}>
-                  4. Working Paper Upload / Preview
-                </button>
-                <button className={`tab-btn ${activeTab === 'evidence' ? 'active' : ''}`} onClick={() => setActiveTab('evidence')}>
-                  5. Supporting Evidence ({(wp.evidenceRefs || []).length})
-                </button>
-                <button className={`tab-btn ${activeTab === 'clearance' ? 'active' : ''}`} onClick={() => setActiveTab('clearance')}>
-                  6. Clearance & History
-                </button>
+              <div className="tabs mt20">
+                {[
+                  { key: 'overview', label: '1. Objective & Scope' },
+                  { key: 'guidelines', label: '2. Testing Guidelines' },
+                  { key: 'template', label: '3. Lead Schedule Data' },
+                  { key: 'preview', label: '4. Artifact & Revision' },
+                  { key: 'evidence', label: '5. Pinned Evidence' },
+                  { key: 'clearance', label: '6. Clearance & History' }
+                ].map(t => (
+                  <button
+                    key={t.key}
+                    className={`tab-btn ${activeTab === t.key ? 'active' : ''}`}
+                    onClick={() => setActiveTab(t.key as any)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Tab 1: Overview */}
+            {/* Tab 1: Objective */}
             {activeTab === 'overview' && (
               <div className="panel panel-pad">
-                <h3>Workpaper Overview</h3>
-                <div className="info-grid mt12">
-                  <div><label>Workpaper Reference</label><b>{wp.id}</b></div>
-                  <div><label>Section Area</label><span>{wp.section}</span></div>
-                  <div><label>Fieldwork Preparer</label><span>{wp.preparer}</span></div>
-                  <div><label>Independent Reviewer</label><span>{wp.reviewer}</span></div>
-                  <div><label>Working Paper Version</label><span className="mono">v{wp.version}</span></div>
-                  <div><label>Applicability</label><span className="badge green">{wp.applicable ? 'In Scope' : 'Not Applicable'}</span></div>
-                </div>
-                <div className="divider" />
                 <h4>Audit Objective</h4>
                 <p className="sub mt8">{wp.objective}</p>
                 <h4 className="mt16">Testing Scope</h4>
-                <p className="sub mt8">{wp.scope}</p>
+                <p className="sub mt8">{wp.scope || 'Full population testing and substantive analytical review.'}</p>
+                <h4 className="mt16">Key Audit Risk</h4>
+                <p className="sub mt8">{wp.risk || 'Risk of material misstatement due to management override or valuation errors.'}</p>
+                <h4 className="mt16">Auditor Conclusion</h4>
+                <p className="sub mt8">{wp.conclusion || 'Substantive testing completed with no unresolved material misstatements.'}</p>
               </div>
             )}
 
@@ -162,18 +255,32 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   ISA testing directives applicable to {wp.title}.
                 </p>
                 <div className="stack" style={{ gap: 10 }}>
-                  <div className="borderbox" style={{ padding: 12 }}>
-                    <b>1. Assertion Verification</b>
-                    <p className="sub mt4">Verify that all material balances exist, are rights of the entity, and are completely recorded at accurate cutoff valuation.</p>
-                  </div>
-                  <div className="borderbox" style={{ padding: 12 }}>
-                    <b>2. Independent Confirmation</b>
-                    <p className="sub mt4">Obtain external confirmation letters from registered financial institutions and key third-party counterparties.</p>
-                  </div>
-                  <div className="borderbox" style={{ padding: 12 }}>
-                    <b>3. Cutoff & Subsequent Events</b>
-                    <p className="sub mt4">Inspect transactions occurring in the 15-day post-balance-sheet window to verify completeness and identify any subsequent adjusting events.</p>
-                  </div>
+                  {wp.guidelines && wp.guidelines.length > 0 ? (
+                    wp.guidelines.map((g, idx) => (
+                      <div key={idx} className="borderbox" style={{ padding: 12 }}>
+                        <div className="between">
+                          <b>{g.title}</b>
+                          {g.mandatory && <span className="badge amber">Mandatory ISA</span>}
+                        </div>
+                        <p className="sub mt4">{g.desc}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <div className="borderbox" style={{ padding: 12 }}>
+                        <b>1. Assertion Verification</b>
+                        <p className="sub mt4">Verify that all material balances exist, are rights of the entity, and are completely recorded at accurate cutoff valuation.</p>
+                      </div>
+                      <div className="borderbox" style={{ padding: 12 }}>
+                        <b>2. Independent Confirmation</b>
+                        <p className="sub mt4">Obtain external confirmation letters from registered financial institutions and key third-party counterparties.</p>
+                      </div>
+                      <div className="borderbox" style={{ padding: 12 }}>
+                        <b>3. Cutoff & Subsequent Events</b>
+                        <p className="sub mt4">Inspect transactions occurring in the post-balance-sheet window to verify completeness and identify any subsequent adjusting events.</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -181,38 +288,64 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
             {/* Tab 3: Template / Data */}
             {activeTab === 'template' && (
               <div className="panel panel-pad">
-                <h3>Embedded Tabular Schedule / Template Data</h3>
-                <p className="sub" style={{ marginBottom: 16 }}>
-                  Underlying lead schedule and trial balance account tie-out.
-                </p>
-                <div className="tablewrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Account Code</th>
-                        <th>Account Description</th>
-                        <th>Per Trial Balance</th>
-                        <th>Per Audit Fieldwork</th>
-                        <th>Difference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><span className="mono">1000</span></td>
-                        <td><b>Cash and bank balances (QNB Operating)</b></td>
-                        <td>500,000 QAR</td>
-                        <td>500,000 QAR</td>
-                        <td><span className="badge green">0.00</span></td>
-                      </tr>
-                      <tr>
-                        <td><span className="mono">1010</span></td>
-                        <td><b>Petty cash imprest fund</b></td>
-                        <td>15,000 QAR</td>
-                        <td>15,000 QAR</td>
-                        <td><span className="badge green">0.00</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="between">
+                  <div>
+                    <h3>Embedded Tabular Schedule / Template Data</h3>
+                    <p className="sub">
+                      {wp.template?.name || 'Lead Schedule'} · Ref: {wp.template?.ref || wp.id}
+                    </p>
+                  </div>
+                  {wp.template?.instructions && (
+                    <span className="caption text-muted">{wp.template.instructions}</span>
+                  )}
+                </div>
+
+                <div className="tablewrap mt16">
+                  {csvData ? (
+                    <table>
+                      <thead>
+                        <tr>
+                          {csvData.headers.map((h, i) => (
+                            <th key={i}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvData.rows.map((row, rI) => (
+                          <tr key={rI}>
+                            {row.map((cell, cI) => (
+                              <td key={cI} className={cI === 0 ? 'mono bold' : ''}>
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Account Code</th>
+                          <th>Account Description</th>
+                          <th>Per Trial Balance</th>
+                          <th>Mapped Line</th>
+                          <th>Audit Difference</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedEng.rows.map(row => (
+                          <tr key={row.code}>
+                            <td><span className="mono bold">{row.code}</span></td>
+                            <td><b>{row.name}</b></td>
+                            <td>{Math.abs(row.balance).toLocaleString('en-GB')} QAR</td>
+                            <td>{row.mappedStatementLine}</td>
+                            <td><span className="badge green">0.00</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             )}
@@ -223,23 +356,34 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                 <div className="between">
                   <div>
                     <h3>Working Paper Artifact Preview</h3>
-                    <p className="sub">{wp.documentName} · Version {wp.version}</p>
+                    <p className="sub">
+                      {wp.workingPaper?.name || wp.documentName || `${wp.id}_Fieldwork.xlsx`} · Version {wp.version}
+                    </p>
                   </div>
-                  <button className="btn sm" onClick={() => alert('Simulated workpaper version incremented.')}>
-                    Upload Replacement Revision
+                  <button
+                    className="btn sm primary"
+                    onClick={() => {
+                      setNewRevisionFile(`${wp.id}_Revision_v${wp.version + 1}.xlsx`);
+                      setShowUploadModal(true);
+                    }}
+                  >
+                    <Icon name="plus" size="sm" /> Upload Replacement Revision
                   </button>
                 </div>
                 <div className="borderbox mt16" style={{ background: '#f8fafc', padding: 20, minHeight: 140 }}>
                   <div className="between">
-                    <b>{wp.documentName}</b>
-                    <span className="mono">SHA: 9988aabbcc...</span>
+                    <b>{wp.workingPaper?.name || wp.documentName || `${wp.id}_Fieldwork.xlsx`}</b>
+                    <span className="mono">
+                      SHA: {wp.workingPaper?.sha?.slice(0, 16) || '9988aabbcc112233'}...
+                    </span>
                   </div>
                   <p className="sub mt12" style={{ fontFamily: 'monospace', fontSize: 13 }}>
                     === AUDIT WORKING PAPER ARCHIVE ===<br />
                     Lead Schedule: {wp.id}<br />
+                    Objective: {wp.objective}<br />
                     Testing procedures executed by {wp.preparer}.<br />
-                    All bank reconciliations inspected, unpresented cheques cleared in January bank statements.<br />
-                    Independent bank confirmations received directly from Qatar National Bank (QNB).
+                    Artifact revision v{wp.version} registered in SharePoint canonical engagement hierarchy.<br />
+                    Clearance State: {wp.status}
                   </p>
                 </div>
               </div>
@@ -253,18 +397,22 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                   Direct evidence links registered in SharePoint and pinned to this workpaper.
                 </p>
                 <div className="stack" style={{ gap: 8 }}>
-                  {(wp.evidenceRefs || []).map(ref => (
-                    <div key={ref} className="between borderbox" style={{ padding: 12 }}>
-                      <div className="row" style={{ gap: 10 }}>
-                        <Icon name="file" />
-                        <div>
-                          <b>{ref}</b>
-                          <div className="cell-sub">SharePoint Document Service · Verified Checksum</div>
+                  {(wp.evidenceRefs && wp.evidenceRefs.length > 0) ? (
+                    wp.evidenceRefs.map(ref => (
+                      <div key={ref} className="between borderbox" style={{ padding: 12 }}>
+                        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                          <Icon name="file" />
+                          <div>
+                            <b>{ref}</b>
+                            <div className="cell-sub">SharePoint Document Service · Verified Checksum</div>
+                          </div>
                         </div>
+                        <span className="badge green">Adequate</span>
                       </div>
-                      <span className="tag green">Adequate</span>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="cell-sub text-muted">No external evidence attachments pinned yet.</div>
+                  )}
                 </div>
               </div>
             )}
@@ -298,6 +446,11 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
                     <h4>Clear Workpaper as Independent Reviewer</h4>
                     <p className="sub mt8">
                       Logged in persona: <b>{prototypeStore.getSnapshot().currentPerson}</b>
+                      {prototypeStore.getSnapshot().currentPerson === wp.preparer && (
+                        <span className="tag red sm" style={{ marginLeft: 8 }}>
+                          Preparer (cannot sign off own workpaper)
+                        </span>
+                      )}
                     </p>
                     <div className="mt12">
                       <label className="caption">Clearance Review Memo</label>
@@ -319,14 +472,14 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
 
                 <h4 className="mt20">Clearance History & Revisions</h4>
                 <div className="stack mt8" style={{ gap: 6 }}>
-                  {wp.clearanceHistory.length === 0 ? (
-                    <span className="caption">No prior clearance records.</span>
-                  ) : (
+                  {wp.clearanceHistory && wp.clearanceHistory.length > 0 ? (
                     wp.clearanceHistory.map((h, i) => (
                       <div key={i} className="cell-sub borderbox" style={{ padding: 8 }}>
                         Cleared by {h.clearedBy} on {new Date(h.clearedAt).toLocaleString('en-GB')} (Workpaper v{h.version}, Source v{h.sourceVersion})
                       </div>
                     ))
+                  ) : (
+                    <span className="caption">No prior clearance records.</span>
                   )}
                 </div>
               </div>
@@ -334,6 +487,43 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) =>
           </div>
         )}
       </div>
+
+      {/* Replacement Revision Modal */}
+      {showUploadModal && wp && (
+        <div className="modal-backdrop" onClick={() => setShowUploadModal(false)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Upload Replacement Workpaper Revision</h2>
+              <button className="icon-btn" onClick={() => setShowUploadModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleUploadRevisionSubmit}>
+              <div className="modal-body stack" style={{ gap: 12 }}>
+                <div>
+                  <label className="caption">Target Workpaper</label>
+                  <div><b>{wp.id} · {wp.title}</b> (Current v{wp.version})</div>
+                </div>
+                <div>
+                  <label className="caption">Replacement File Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={newRevisionFile}
+                    onChange={e => setNewRevisionFile(e.target.value)}
+                    required
+                  />
+                  <span className="caption" style={{ color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Uploading a new revision invalidates prior clearances and transitions the workpaper to 'In progress'.
+                  </span>
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn ghost sm" onClick={() => setShowUploadModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary sm">Upload Revision v{wp.version + 1}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

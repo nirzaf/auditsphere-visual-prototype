@@ -1,4 +1,6 @@
 // Module 36: Multi-Stage Sign-offs & Engagement Quality Review (EQR) (VP-056)
+// Formal 4-gate sign-off register, generational invalidation protection, and persistent per-engagement EQR concerns.
+
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
@@ -11,36 +13,60 @@ interface ApprovalsEQRViewProps {
 export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const approvals = selectedEng.approvals;
 
-  const [eqrConcerns, setEqrConcerns] = useState<Array<{ id: string; text: string; resolved: boolean }>>([
-    { id: 'EQR-01', text: 'Confirm management representation letter has been signed by both CEO and CFO.', resolved: true }
-  ]);
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="shield" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to view and record multi-stage sign-offs.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
+  const approvals = selectedEng.approvals;
+  const eqrConcerns = selectedEng.eqrConcerns || [];
   const [newConcern, setNewConcern] = useState('');
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
 
   const handleRecordSignOff = (roleKey: 'manager' | 'client' | 'partner' | 'eqr') => {
-    // Check if EQR has unresolved concerns
-    if (roleKey === 'eqr' && eqrConcerns.some(c => !c.resolved)) {
-      alert('Cannot complete EQR sign-off: Unresolved EQR concerns remain.');
-      return;
+    try {
+      prototypeStore.recordApproval(selectedEng.id, roleKey, 'Independent stage sign-off recorded in prototype.');
+      triggerNotice('success', `Stage sign-off for ${roleKey.toUpperCase()} successfully recorded.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
     }
-
-    prototypeStore.recordApproval(selectedEng.id, roleKey, 'Independent stage sign-off recorded in prototype.');
   };
 
   const handleAddConcern = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newConcern.trim()) return;
 
-    setEqrConcerns(prev => [
-      ...prev,
-      { id: `EQR-0${prev.length + 1}`, text: newConcern, resolved: false }
-    ]);
-    setNewConcern('');
+    try {
+      prototypeStore.addEqrConcern(selectedEng.id, newConcern.trim());
+      setNewConcern('');
+      triggerNotice('success', 'EQR matter registered in the engagement quality log.');
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
   };
 
   const handleToggleConcern = (id: string) => {
-    setEqrConcerns(prev => prev.map(c => c.id === id ? { ...c, resolved: !c.resolved } : c));
+    try {
+      prototypeStore.toggleEqrConcern(selectedEng.id, id);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
   };
 
   return (
@@ -55,12 +81,29 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
         </button>
       </div>
 
+      {notice && (
+        <div
+          className="panel panel-pad"
+          style={{
+            background: notice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            borderColor: notice.type === 'success' ? '#86efac' : '#fca5a5',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            padding: '10px 16px'
+          }}
+        >
+          <b>{notice.type === 'success' ? '✓ ' : '⚠ '}</b>
+          {notice.text}
+        </div>
+      )}
+
       <div className="panel panel-pad">
         <div className="between">
           <div>
             <span className="eyebrow">STAGE SIGN-OFF GATES · {selectedEng.id}</span>
             <h2>Sign-off Register (Generation {selectedEng.generation})</h2>
-            <p className="sub">Any source file modification automatically stales approvals for prior generations.</p>
+            <p className="sub">
+              Active Persona: <b>{state.currentPerson}</b> ({state.currentRole}). Any source file modification automatically stales approvals for prior generations.
+            </p>
           </div>
           <span className="badge teal">ISA 220 Quality Management</span>
         </div>
@@ -80,7 +123,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             </p>
             {approvals.manager ? (
               <div className="cell-sub mt12" style={{ color: 'var(--teal-dark)' }}>
-                Signed by {approvals.manager.by} on {new Date(approvals.manager.at).toLocaleString('en-GB')}
+                Signed by {approvals.manager.by} on {new Date(approvals.manager.at).toLocaleString('en-GB')} (Gen {approvals.manager.generation})
               </div>
             ) : (
               <button
@@ -105,7 +148,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             </p>
             {approvals.client ? (
               <div className="cell-sub mt12" style={{ color: 'var(--teal-dark)' }}>
-                Signed by {approvals.client.by} on {new Date(approvals.client.at).toLocaleString('en-GB')}
+                Signed by {approvals.client.by} on {new Date(approvals.client.at).toLocaleString('en-GB')} (Gen {approvals.client.generation})
               </div>
             ) : (
               <button
@@ -130,7 +173,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             </p>
             {approvals.partner ? (
               <div className="cell-sub mt12" style={{ color: 'var(--teal-dark)' }}>
-                Approved by {approvals.partner.by} on {new Date(approvals.partner.at).toLocaleString('en-GB')}
+                Approved by {approvals.partner.by} on {new Date(approvals.partner.at).toLocaleString('en-GB')} (Gen {approvals.partner.generation})
               </div>
             ) : (
               <button
@@ -155,14 +198,14 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             </p>
             {approvals.eqr ? (
               <div className="cell-sub mt12" style={{ color: 'var(--teal-dark)' }}>
-                Concurred by {approvals.eqr.by} on {new Date(approvals.eqr.at).toLocaleString('en-GB')}
+                Concurred by {approvals.eqr.by} on {new Date(approvals.eqr.at).toLocaleString('en-GB')} (Gen {approvals.eqr.generation})
               </div>
             ) : (
               <button
                 className="btn primary sm mt12"
                 onClick={() => handleRecordSignOff('eqr')}
               >
-                Sign Off as EQR (Fatima Al-Kuwari)
+                Sign Off as EQR (Dr. Tariq Al-Sayed)
               </button>
             )}
           </div>
@@ -173,30 +216,44 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
       <div className="panel panel-pad">
         <div className="between">
           <div>
-            <h3>EQR Matters & Concerns Register</h3>
-            <p className="sub">All EQR matters must be marked resolved before the EQR gate can be signed off.</p>
+            <h3>EQR Matters &amp; Concerns Register</h3>
+            <p className="sub">
+              All EQR matters must be marked resolved before the EQR gate can be signed off. Persisted per-engagement.
+            </p>
           </div>
+          <span className="caption">
+            {eqrConcerns.filter(c => !c.resolved).length} Unresolved Matters
+          </span>
         </div>
 
         <div className="stack mt16" style={{ gap: 8 }}>
-          {eqrConcerns.map(c => (
-            <div key={c.id} className="between borderbox" style={{ padding: 12 }}>
-              <div className="row" style={{ gap: 10 }}>
-                <input
-                  type="checkbox"
-                  checked={c.resolved}
-                  onChange={() => handleToggleConcern(c.id)}
-                />
-                <div>
-                  <b style={{ textDecoration: c.resolved ? 'line-through' : 'none' }}>{c.text}</b>
-                  <div className="cell-sub">{c.id}</div>
+          {eqrConcerns.length === 0 ? (
+            <p className="sub">No EQR concerns or queries raised for this engagement.</p>
+          ) : (
+            eqrConcerns.map(c => (
+              <div key={c.id} className="between borderbox" style={{ padding: 12 }}>
+                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={c.resolved}
+                    onChange={() => handleToggleConcern(c.id)}
+                  />
+                  <div>
+                    <b style={{ textDecoration: c.resolved ? 'line-through' : 'none' }}>{c.text}</b>
+                    <div className="cell-sub">
+                      {c.id} · Raised by {c.raisedBy} on {new Date(c.raisedAt).toLocaleDateString('en-GB')}
+                      {c.resolved && c.resolvedBy && (
+                        <span> · Resolved by {c.resolvedBy}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                <span className={`badge ${c.resolved ? 'green' : 'amber'}`}>
+                  {c.resolved ? 'Resolved' : 'Open Matter'}
+                </span>
               </div>
-              <span className={`badge ${c.resolved ? 'green' : 'amber'}`}>
-                {c.resolved ? 'Resolved' : 'Open Matter'}
-              </span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         <form onSubmit={handleAddConcern} className="row mt16" style={{ gap: 10 }}>

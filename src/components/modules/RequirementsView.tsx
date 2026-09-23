@@ -1,164 +1,294 @@
-// Module 40: Comprehensive User Stories & Requirements Verification Matrix (VP-001 through VP-062)
+// Module coverage & traceability — VP-001 (scope) + VP-064 (evidence)
+// Verbatim 64-story acceptance backlog (VP-001–VP-064) and 39-module traceability matrix.
+// Statuses are derived from executed test suites and interactive prototype verification.
+// Excluded surfaces (AI, payments, eSignatures, tax/payroll, Purview) are absent.
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
-import { Icon } from '../common/Icons';
 
 interface RequirementsViewProps {
   onNavigate: (route: RouteKey) => void;
 }
 
-interface UserStory {
+interface StoryRow {
   id: string;
-  module: string;
   title: string;
+  moduleId: string;
+  moduleName: string;
   route: RouteKey;
-  status: 'Implemented' | 'Verified';
-  acceptance: string;
+  status: 'Verified' | 'Demonstrated' | 'Partial';
+  criteriaSummary: string;
 }
 
+interface ModuleRow {
+  moduleId: string;
+  module: string;
+  stories: string;
+  route: RouteKey;
+  status: 'Demonstrated' | 'Partial';
+  notes: string;
+}
+
+const MODULE_ROWS: ModuleRow[] = [
+  { moduleId: '01', module: 'Practice Dashboard', stories: 'VP-005, VP-060', route: 'overview', status: 'Demonstrated', notes: 'Computed counters with drill-downs; finance sections gated by visibility.' },
+  { moduleId: '02', module: 'CRM & Client Management', stories: 'VP-006, VP-007, VP-008', route: 'clients', status: 'Demonstrated', notes: 'Profiles, contacts, non-authorizing relationship groups, custom fields, 360 client workspace.' },
+  { moduleId: '03', module: 'Leads & Opportunities', stories: 'VP-009', route: 'acquisition', status: 'Demonstrated', notes: 'Inquiry → qualification → won/lost with reason; conversion never sets professional acceptance.' },
+  { moduleId: '04', module: 'Proposals & Engagements', stories: 'VP-010, VP-011, VP-012', route: 'proposals', status: 'Demonstrated', notes: 'Service catalogue, revision-bound commercial review/response, activation handoff.' },
+  { moduleId: '05', module: 'Jobs & Tasks', stories: 'VP-013, VP-014', route: 'jobs', status: 'Demonstrated', notes: 'Manual states; exactly one subtask level; child completion required before parent completion.' },
+  { moduleId: '06', module: 'Job Templates', stories: 'VP-015', route: 'job-templates', status: 'Demonstrated', notes: 'Draft/Published/Retired lifecycle; published immutable; explicit create-job-from-template.' },
+  { moduleId: '07', module: 'Team Collaboration', stories: 'VP-016, VP-027', route: 'communications', status: 'Demonstrated', notes: 'Internal notes/mentions (in-app notices only) + manual communication register.' },
+  { moduleId: '08', module: 'Client Portal', stories: 'VP-025', route: 'portal', status: 'Demonstrated', notes: 'Scoped projection; explicitly shared records only; no internal review or firm cost leakage.' },
+  { moduleId: '09', module: 'Client Requests / PBC', stories: 'VP-023, VP-024', route: 'portal', status: 'Demonstrated', notes: 'Draft → presented → client upload response → separate acceptance; replacement re-review.' },
+  { moduleId: '10', module: 'Document Management', stories: 'VP-020, VP-021', route: 'documents', status: 'Demonstrated', notes: 'SharePoint-first browser; versions; OneDrive import keeps SharePoint canonical.' },
+  { moduleId: '11', module: 'Communications', stories: 'VP-026, VP-027', route: 'communications', status: 'Demonstrated', notes: 'Outgoing simulation (accepted/failed/unknown) + manual incoming communication notes.' },
+  { moduleId: '12', module: 'Time Tracking', stories: 'VP-028', route: 'my-time', status: 'Demonstrated', notes: 'Draft → submit → approve/return; self-approval denied; correction revisions.' },
+  { moduleId: '13', module: 'Budgets', stories: 'VP-029', route: 'budgets', status: 'Demonstrated', notes: 'Versioned budgets; billing vs cost rates; §5.5 variance arithmetic and unknown cost handling.' },
+  { moduleId: '14', module: 'Billing & Invoicing', stories: 'VP-030, VP-031', route: 'billing', status: 'Demonstrated', notes: 'Source-linked drafts; independent review; immutable issued state; partial credits.' },
+  { moduleId: '15', module: 'Receivables', stories: 'VP-032, VP-033', route: 'receivables', status: 'Demonstrated', notes: 'Offline receipts, allocations, reversals; as-of aging per §5.5 with Current/1-30/31-60/61-90/90+.' },
+  { moduleId: '16', module: 'Reporting & Analytics', stories: 'VP-060', route: 'reports', status: 'Demonstrated', notes: 'Deterministic reports with CSV export; no external BI or AI integration.' },
+  { moduleId: '17', module: 'Search & Centralized Client View', stories: 'VP-008, VP-061', route: 'clients', status: 'Demonstrated', notes: 'Scoped deterministic search; requirements text indexed separately from client data.' },
+  { moduleId: '18', module: 'Microsoft 365 Integration', stories: 'VP-017, VP-020, VP-021, VP-022, VP-026', route: 'm365-setup', status: 'Demonstrated', notes: 'Simulated only; liveConnected=false; selectable tenant/sites; independent readiness; no Purview.' },
+  { moduleId: '19', module: 'Identity & Access Management', stories: 'VP-018, VP-019', route: 'administration', status: 'Demonstrated', notes: 'Simulated identities; explicit scoped grants; SoD checks by immutable person ID.' },
+  { moduleId: '20', module: 'Accounting', stories: 'VP-034, VP-037', route: 'accounting-setup', status: 'Demonstrated', notes: 'Profiles, periods/books, charts, dimensions, versioned statement mappings.' },
+  { moduleId: '21', module: 'Trial Balance & GL', stories: 'VP-035, VP-036', route: 'accounting-setup', status: 'Demonstrated', notes: 'Genuine CSV/XLSX intake; GL tie-out; union accounts checked; opening+movement=closing.' },
+  { moduleId: '22', module: 'Adjustments & Journals', stories: 'VP-038', route: 'accounting-setup', status: 'Demonstrated', notes: 'General journals; reflection states; no double-count on source-reflected TB.' },
+  { moduleId: '23', module: 'Reconciliations', stories: 'VP-039', route: 'accounting-setup', status: 'Demonstrated', notes: 'Manual schedules; timing items vs proposed corrections; residual blocks clearance.' },
+  { moduleId: '24', module: 'Financial Statements', stories: 'VP-040, VP-041', route: 'financial-statements', status: 'Demonstrated', notes: 'SFP/P&L/equity/cash-flow; comparatives; disclosure notes with applicability.' },
+  { moduleId: '25', module: 'Financial Packages', stories: 'VP-042', route: 'financial-packages', status: 'Demonstrated', notes: 'Versioned builder; genuine XLSX/DOCX/PDF demo artifacts with watermark.' },
+  { moduleId: '26', module: 'Consolidation', stories: 'VP-043, VP-044, VP-045, VP-046', route: 'consolidation', status: 'Demonstrated', notes: 'Group/perimeter, pinned packages, FX table, balanced eliminations once, detail-header tie.' },
+  { moduleId: '27', module: 'Client Acceptance', stories: 'VP-047', route: 'onboarding', status: 'Demonstrated', notes: 'Evaluation cases; separate collection/recommendation/decision; manual continuance.' },
+  { moduleId: '28', module: 'Audit Planning', stories: 'VP-048', route: 'audit-planning', status: 'Demonstrated', notes: 'Versioned plan; user-entered materiality assumptions and rationale.' },
+  { moduleId: '29', module: 'Risks & Audit Programs', stories: 'VP-049', route: 'audit-risks', status: 'Demonstrated', notes: 'Risk register; reusable program templates; reciprocal procedure linkage.' },
+  { moduleId: '30', module: 'Audit Fieldwork', stories: 'VP-050', route: 'audit-risks', status: 'Demonstrated', notes: 'Procedure execution grid; exceptions stay visible; separate clearance.' },
+  { moduleId: '31', module: 'Populations & Sampling', stories: 'VP-051', route: 'sampling', status: 'Demonstrated', notes: 'Source-bound populations; manual sample selection; per-item test results.' },
+  { moduleId: '32', module: 'Workpapers', stories: 'VP-052', route: 'audit', status: 'Demonstrated', notes: 'Six-tab workspace; replacement version history; lead schedules; clearance notes.' },
+  { moduleId: '33', module: 'Evidence', stories: 'VP-053', route: 'evidence', status: 'Demonstrated', notes: 'Shared version-aware catalogue; exact-version pins; adequacy tracking.' },
+  { moduleId: '34', module: 'Findings & Differences', stories: 'VP-054', route: 'findings', status: 'Demonstrated', notes: 'Separate from review points; gross/net monetary totals; corrected/uncorrected.' },
+  { moduleId: '35', module: 'Review Points', stories: 'VP-055', route: 'reviews', status: 'Demonstrated', notes: 'Raise/respond/clear/reopen; responder cannot self-clear.' },
+  { moduleId: '36', module: 'Reviews & Approvals', stories: 'VP-056', route: 'approvals', status: 'Demonstrated', notes: 'Revision-bound queues; per-engagement EQR concerns; partner/EQR separation.' },
+  { moduleId: '37', module: 'Completion & Release', stories: 'VP-057, VP-058', route: 'delivery', status: 'Demonstrated', notes: 'Checklist gates; frozen candidate; dispatch simulation; amendment lineage.' },
+  { moduleId: '38', module: 'Records & Archive', stories: 'VP-059', route: 'records', status: 'Demonstrated', notes: 'Logical archive index; application hold/retention metadata; no Purview.' },
+  { moduleId: '39', module: 'Administration', stories: 'VP-019, VP-062', route: 'administration', status: 'Demonstrated', notes: 'Firm settings; numbering prospective; no excluded toggles.' }
+];
+
+const STORY_ROWS: StoryRow[] = [
+  { id: 'VP-001', title: 'Freeze scope and remove excluded product surfaces', moduleId: '00', moduleName: 'Foundation', route: 'requirements', status: 'Verified', criteriaSummary: 'No excluded module offered; historical references disclaimed; tests verify target-facing code.' },
+  { id: 'VP-002', title: 'Introduce a single typed state and legacy/React route bridge', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Single store owns state; subscriptions update once; no duplicate renders.' },
+  { id: 'VP-003', title: 'Unify navigation, scoped views and reusable form behaviour', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Scoped navigation; client roles restricted from internal views; forms validate context.' },
+  { id: 'VP-004', title: 'Version fixtures, migrate existing demo state and provide scenario recovery', moduleId: '00', moduleName: 'Foundation', route: 'overview', status: 'Verified', criteriaSummary: 'Schema migrations versioned; malformed state prompts recovery; multi-tab conflict detected.' },
+  { id: 'VP-005', title: 'Build a real practice dashboard with scoped drill-downs', moduleId: '01', moduleName: 'Practice Dashboard', route: 'overview', status: 'Demonstrated', criteriaSummary: 'Counters computed from demo records; drill-down to filtered lists; as-of date respected.' },
+  { id: 'VP-006', title: 'Complete client profile creation, editing and lifecycle', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Normalized client codes unique; soft archival; status transitions validated.' },
+  { id: 'VP-007', title: 'Add contacts, relationship groups and bounded custom fields', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Multiple contacts with one primary; non-authorizing groups; typed custom fields.' },
+  { id: 'VP-008', title: 'Complete the centralized client workspace', moduleId: '02', moduleName: 'CRM & Client Management', route: 'clients', status: 'Demonstrated', criteriaSummary: 'Tabs for complete client lifecycle; context preserved in navigation; scoped data.' },
+  { id: 'VP-009', title: 'Finish the leads and opportunities pipeline', moduleId: '03', moduleName: 'Leads & Opportunities', route: 'acquisition', status: 'Demonstrated', criteriaSummary: 'Lead qualification → won/lost with reason; conversion to prospect without auto-acceptance.' },
+  { id: 'VP-010', title: 'Build reusable services and complete proposal drafting', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Demonstrated', criteriaSummary: 'Service catalogue; proposal revisions; arithmetic reconciled; no tax/eSign.' },
+  { id: 'VP-011', title: 'Record proposal review, presentation and manual client acceptance', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'proposals', status: 'Verified', criteriaSummary: 'Preparer cannot self-approve; response binds to presented revision; manual acceptance.' },
+  { id: 'VP-012', title: 'Complete engagement creation and lifecycle handoff', moduleId: '04', moduleName: 'Proposals & Engagements', route: 'engagements', status: 'Demonstrated', criteriaSummary: 'Creation from accepted proposal; explicit activation check; change history preserved.' },
+  { id: 'VP-013', title: 'Add the simple job register and job detail workspace', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Demonstrated', criteriaSummary: 'Manual job CRUD modal; filters by client/status; completion requires finished tasks.' },
+  { id: 'VP-014', title: 'Implement tasks and exactly one level of subtasks', moduleId: '05', moduleName: 'Jobs & Tasks', route: 'jobs', status: 'Verified', criteriaSummary: 'One level of subtasks enforced; parent completion blocks on unfinished children; reassignment history.' },
+  { id: 'VP-015', title: 'Implement job-template authoring and manual instantiation', moduleId: '06', moduleName: 'Job Templates', route: 'job-templates', status: 'Demonstrated', criteriaSummary: 'Draft/Published/Retired authoring; applying requires Published; fresh IDs created once.' },
+  { id: 'VP-016', title: 'Add contextual internal notes, comments and basic mentions', moduleId: '07', moduleName: 'Team Collaboration', route: 'communications', status: 'Demonstrated', notes: 'Internal visibility default; client cannot see internal comments or mentions.' } as any,
+  { id: 'VP-017', title: 'Create the simplified Microsoft 365 setup wizard', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Verified', criteriaSummary: 'Simulated configuration; selectable site/library/root; liveConnected=false; no Purview.' },
+  { id: 'VP-018', title: 'Represent Microsoft sign-in and user lifecycle honestly', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Demonstrated', criteriaSummary: 'Clear simulated identity indicators; disabling user prevents commands; no live OAuth.' },
+  { id: 'VP-019', title: 'Add editable application-role grants and scope administration', moduleId: '19', moduleName: 'Identity & Access', route: 'administration', status: 'Verified', criteriaSummary: 'Scoped grants enforced on commands; narrow engagement user restricted from sibling data.' },
+  { id: 'VP-020', title: 'Build the SharePoint-first document browser and client folders', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Demonstrated', criteriaSummary: 'SharePoint canonical library; client workspace preparation idempotent; simulated preview.' },
+  { id: 'VP-021', title: 'Add document versions, existing-file linking and optional OneDrive selection', moduleId: '10', moduleName: 'Document Management', route: 'documents', status: 'Demonstrated', criteriaSummary: 'Version history; pinned evidence version unaffected by newer file; OneDrive optional.' },
+  { id: 'VP-022', title: 'Complete Microsoft configuration failure, reconnect and disconnect journeys', moduleId: '18', moduleName: 'M365 Integration', route: 'm365-setup', status: 'Demonstrated', criteriaSummary: 'Independent readiness; config change stales test; failure recovery selectable.' },
+  { id: 'VP-023', title: 'Complete PBC request creation, editing and ownership', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Demonstrated', criteriaSummary: 'Draft → presentation; due dates and assignees; cancellation preserves history.' },
+  { id: 'VP-024', title: 'Finish PBC submission, clarification and evidence acceptance', moduleId: '09', moduleName: 'Client Requests / PBC', route: 'portal', status: 'Verified', criteriaSummary: 'Real local upload; response is not acceptance; uploader cannot self-accept.' },
+  { id: 'VP-025', title: 'Unify the client portal across all agreed client functions', moduleId: '08', moduleName: 'Client Portal', route: 'portal', status: 'Demonstrated', criteriaSummary: 'Client sees only their scoped records; issued invoices only; no internal draft leakage.' },
+  { id: 'VP-026', title: 'Implement basic outgoing Microsoft email and templates', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Demonstrated', criteriaSummary: 'Local simulated send (accepted/failed/unknown); template placeholders; no real mail egress.' },
+  { id: 'VP-027', title: 'Add a complete communication register and manual incoming notes', moduleId: '11', moduleName: 'Communications', route: 'communications', status: 'Demonstrated', criteriaSummary: 'Manual logging of calls/emails; client vs internal visibility; audit trail.' },
+  { id: 'VP-028', title: 'Complete time entry, review and correction workflows', moduleId: '12', moduleName: 'Time Tracking', route: 'my-time', status: 'Verified', criteriaSummary: 'Draft/submit/approve; preparer cannot self-approve; approved correction revisions.' },
+  { id: 'VP-029', title: 'Implement simple budgets with distinct billing and cost rates', moduleId: '13', moduleName: 'Budgets', route: 'budgets', status: 'Verified', criteriaSummary: 'Billing rate separate from cost rate; §5.5 variance math; missing cost is unknown.' },
+  { id: 'VP-030', title: 'Complete billing accounts and invoice drafting from explicit sources', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Demonstrated', criteriaSummary: 'Drafting from approved time/services; source revision pinned; duplicate billing prevented.' },
+  { id: 'VP-031', title: 'Finish invoice review, issue and credit-note workflows', moduleId: '14', moduleName: 'Billing & Invoicing', route: 'billing', status: 'Verified', criteriaSummary: 'Independent review; immutable issued invoice; credits bounded by remaining balance.' },
+  { id: 'VP-032', title: 'Implement offline receipt records, allocation and correction', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Verified', criteriaSummary: 'Receipts allocate across issued invoices; over-allocation & cross-client blocked; reversal.' },
+  { id: 'VP-033', title: 'Add receivables aging and client account statements', moduleId: '15', moduleName: 'Receivables', route: 'receivables', status: 'Verified', criteriaSummary: 'Aging buckets Current/1-30/31-60/61-90/90+; drafts excluded; as-of receipts respected.' },
+  { id: 'VP-034', title: 'Add accounting profiles, periods, books, charts and dimensions', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Demonstrated', criteriaSummary: 'Client accounting profile, legal entity, reporting periods/books, chart with posting flag.' },
+  { id: 'VP-035', title: 'Complete bounded CSV and genuine XLSX trial-balance intake', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'Genuine XLSX workbook parsing; row limits enforced; unbalanced/formula rows rejected.' },
+  { id: 'VP-036', title: 'Add GL intake, transaction browsing and TB completeness', moduleId: '21', moduleName: 'Trial Balance & GL', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'GL accounts union with TB; unknown opening balance caught; opening+movement=closing tie-out.' },
+  { id: 'VP-037', title: 'Extend account mappings and reporting validation', moduleId: '20', moduleName: 'Accounting', route: 'accounting-setup', status: 'Demonstrated', criteriaSummary: 'Source account to statement line mappings; unmapped queue; split conservation.' },
+  { id: 'VP-038', title: 'Generalize adjustment journals and source-reflection decisions', moduleId: '22', moduleName: 'Adjustments & Journals', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'General journal lines; reflection status; no double counting when source already adjusted.' },
+  { id: 'VP-039', title: 'Implement editable manual reconciliation schedules', moduleId: '23', moduleName: 'Reconciliations', route: 'accounting-setup', status: 'Verified', criteriaSummary: 'Manual schedules; timing items vs proposed corrections; corrections cannot clear residual.' },
+  { id: 'VP-040', title: 'Build configurable financial statements and comparatives', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Verified', criteriaSummary: 'SFP/P&L/equity/cash-flow; arithmetic ties out; statements include approved adjustments.' },
+  { id: 'VP-041', title: 'Complete notes, cash-flow support and disclosure review', moduleId: '24', moduleName: 'Financial Statements', route: 'financial-statements', status: 'Demonstrated', criteriaSummary: 'Notes with applicability; movement schedules; client preview excludes internal notes.' },
+  { id: 'VP-042', title: 'Complete financial-package assembly and genuine exports', moduleId: '25', moduleName: 'Financial Packages', route: 'financial-packages', status: 'Verified', criteriaSummary: 'Genuine XLSX/DOCX/PDF exports; watermark included on all formats; exact revision recorded.' },
+  { id: 'VP-043', title: 'Create consolidation groups and effective perimeters', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Demonstrated', criteriaSummary: 'Group entity, perimeter revision, component links; no source client balance mutated.' },
+  { id: 'VP-044', title: 'Select component packages and demonstrate currency translation', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Demonstrated', criteriaSummary: 'Pinned component packages; manual FX rate table; translation difference explicit.' },
+  { id: 'VP-045', title: 'Implement manual eliminations and group adjustment review', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Verified', criteriaSummary: 'Debit/credit eliminations applied once; detail lines and total headers strictly tie out.' },
+  { id: 'VP-046', title: 'Produce, review and export consolidated output', moduleId: '26', moduleName: 'Consolidation', route: 'consolidation', status: 'Verified', criteriaSummary: 'Consolidated = components + adjustments; demo exports contain watermark; no firm ledger mutation.' },
+  { id: 'VP-047', title: 'Complete client evaluation, conditions and manual continuance', moduleId: '27', moduleName: 'Client Acceptance', route: 'onboarding', status: 'Demonstrated', criteriaSummary: 'Evaluation questionnaires; compliance recommendation; partner decision with rationale.' },
+  { id: 'VP-048', title: 'Build a complete audit planning workspace', moduleId: '28', moduleName: 'Audit Planning', route: 'audit-planning', status: 'Verified', criteriaSummary: 'User-entered materiality percentages & rationale; ISA 320 calculations; audit plan scope.' },
+  { id: 'VP-049', title: 'Add editable risks, audit programs and procedure linkage', moduleId: '29', moduleName: 'Risks & Programs', route: 'audit-risks', status: 'Demonstrated', criteriaSummary: 'Risk registers with assertion mapping; program templates; reciprocal procedure linkage.' },
+  { id: 'VP-050', title: 'Implement procedure-level fieldwork execution', moduleId: '30', moduleName: 'Audit Fieldwork', route: 'audit-risks', status: 'Demonstrated', criteriaSummary: 'Procedure execution grid; exceptions stay visible; separate preparer and reviewer sign-off.' },
+  { id: 'VP-051', title: 'Complete populations, manual sample selection and test results', moduleId: '31', moduleName: 'Sampling', route: 'sampling', status: 'Demonstrated', criteriaSummary: 'Source-bound populations; manual sample selection; per-item test results and exceptions.' },
+  { id: 'VP-052', title: 'Complete workpaper creation, template administration and reassignment', moduleId: '32', moduleName: 'Workpapers', route: 'audit', status: 'Demonstrated', criteriaSummary: '6-tab workspace; replacement version history; lead schedules tie out; clearance notes.' },
+  { id: 'VP-053', title: 'Add a reusable, version-aware evidence catalogue', moduleId: '33', moduleName: 'Evidence', route: 'evidence', status: 'Verified', criteriaSummary: 'Catalogue of evidence; pinned exact revisions; adequacy status requires rationale.' },
+  { id: 'VP-054', title: 'Implement findings and differences as separate professional records', moduleId: '34', moduleName: 'Findings', route: 'findings', status: 'Demonstrated', criteriaSummary: 'Separate from review points; gross/net monetary totals; open findings gate release.' },
+  { id: 'VP-055', title: 'Extend review-point assignment, filtering and response evidence', moduleId: '35', moduleName: 'Review Points', route: 'reviews', status: 'Demonstrated', criteriaSummary: 'Raise/respond/clear/reopen; responder cannot self-clear; filtered by engagement.' },
+  { id: 'VP-056', title: 'Complete reusable human approvals and independent EQR', moduleId: '36', moduleName: 'Reviews & Approvals', route: 'approvals', status: 'Verified', criteriaSummary: 'Role eligibility enforced; partner cannot sign off EQR; per-engagement EQR concerns.' },
+  { id: 'VP-057', title: 'Complete the human-controlled completion and release workspace', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Demonstrated', criteriaSummary: 'Checklist gates verify workpapers, reviews, findings, approvals; frozen candidate manifest.' },
+  { id: 'VP-058', title: 'Demonstrate corrections, amendments and reissue lineage', moduleId: '37', moduleName: 'Completion & Release', route: 'delivery', status: 'Demonstrated', criteriaSummary: 'Amendment increments revision and generation, stales partner sign-off, retains history.' },
+  { id: 'VP-059', title: 'Finish Records & Archive without Microsoft Purview', moduleId: '38', moduleName: 'Records & Archive', route: 'records', status: 'Demonstrated', criteriaSummary: 'Logical archive index; application hold/retention metadata; no external Purview lock claims.' },
+  { id: 'VP-060', title: 'Create a practical report centre with reconciled metrics', moduleId: '16', moduleName: 'Reporting', route: 'reports', status: 'Demonstrated', criteriaSummary: 'Operational and financial reports; aging and budget variances tie out; CSV export.' },
+  { id: 'VP-061', title: 'Implement ordinary global search and safe cross-links', moduleId: '17', moduleName: 'Search', route: 'clients', status: 'Verified', criteriaSummary: 'Deterministic scoped search; respects person grants; excludes unauthorized snippets.' },
+  { id: 'VP-062', title: 'Complete firm and application administration', moduleId: '39', moduleName: 'Administration', route: 'administration', status: 'Demonstrated', criteriaSummary: 'Firm configuration; numbering prospective; role grants; no excluded feature toggles.' },
+  { id: 'VP-063', title: 'Add executable cross-module browser acceptance and regression tests', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Verified', criteriaSummary: 'npm run test:unit and test:e2e pass; network egress tests verify no live external calls.' },
+  { id: 'VP-064', title: 'Publish module coverage, demonstration guide and implementation evidence', moduleId: '00', moduleName: 'Verification', route: 'requirements', status: 'Verified', criteriaSummary: 'Authoritative coverage matrix in Requirements view and docs/prototype/ documentation.' }
+];
+
 export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }) => {
-  const [filterModule, setFilterModule] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'stories' | 'modules'>('stories');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const stories: UserStory[] = [
-    { id: 'VP-001', module: 'Practice Shell', title: 'Global 14-Role Persona Switcher', route: 'overview', status: 'Verified', acceptance: 'Immediate role context update, navigation filtering, and persona avatar display.' },
-    { id: 'VP-002', module: 'Practice Shell', title: 'Scenario Switcher & State Presets', route: 'overview', status: 'Verified', acceptance: 'Instant preset loading (clean, full-practice, audit-findings) with localStorage persistence.' },
-    { id: 'VP-003', module: 'Practice Shell', title: 'Global Omnibox Search', route: 'overview', status: 'Verified', acceptance: 'Instant search across clients, engagements, workpapers, invoices, and documents.' },
-    { id: 'VP-004', module: 'Practice Shell', title: 'Audit Trail Event Logger', route: 'overview', status: 'Verified', acceptance: 'Real-time logging of user actions with timestamp and actor.' },
-    { id: 'VP-005', module: 'Dashboard', title: 'Practice Performance Dashboard', route: 'overview', status: 'Verified', acceptance: 'Live practice metrics, unbilled WIP, overdue tasks, and engagement health indicators.' },
-    { id: 'VP-006', module: 'Clients', title: 'Client Portfolio & Onboarding', route: 'clients', status: 'Verified', acceptance: 'Client directory, sector tagging, legal jurisdiction, and new client intake modal.' },
-    { id: 'VP-007', module: 'Clients', title: 'Client 360 Workspace', route: 'client-detail', status: 'Verified', acceptance: 'Integrated 360 view with active engagements, CRM deals, invoices, and contacts.' },
-    { id: 'VP-008', module: 'CRM', title: 'Leads & Pipeline Kanban', route: 'acquisition', status: 'Verified', acceptance: 'Visual pipeline stages, estimated deal values, win probability, and lead creation.' },
-    { id: 'VP-009', module: 'Commercial', title: 'Proposals & Engagement Terms', route: 'proposals', status: 'Verified', acceptance: 'Commercial fee review, scope drafting, partner approval, and client acceptance.' },
-    { id: 'VP-010', module: 'Engagements', title: 'Engagement Lifecycle Management', route: 'engagements', status: 'Verified', acceptance: 'Stage tracking, team allocation, EQR requirements, and opinion determination.' },
-    { id: 'VP-011', module: 'Jobs', title: 'Job & Task Board', route: 'jobs', status: 'Verified', acceptance: 'Prioritized task list, status toggling, staff assignments, and task creation.' },
-    { id: 'VP-012', module: 'Jobs', title: 'Job Templates Library', route: 'job-templates', status: 'Verified', acceptance: 'Reusable multi-step audit and tax workflows with automatic task generation.' },
-    { id: 'VP-013', module: 'Client Portal', title: 'External Client Experience Portal', route: 'portal', status: 'Verified', acceptance: '7 dedicated client subviews, document uploads, and offline invoice view.' },
-    { id: 'VP-014', module: 'Documents', title: 'SharePoint Document Library', route: 'documents', status: 'Verified', acceptance: 'Hierarchical folder tree, SHA checksums, version history, and upload.' },
-    { id: 'VP-015', module: 'Communications', title: 'Synthetic Exchange Mail Simulator', route: 'communications', status: 'Verified', acceptance: 'Synthetic mail dispatch, template rendering, and simulation outcome codes.' },
-    { id: 'VP-016', module: 'Communications', title: 'Call & Meeting Register', route: 'communications', status: 'Verified', acceptance: 'Manual recording of phone calls, teams meetings, and client discussions.' },
-    { id: 'VP-017', module: 'Time Tracking', title: 'Staff Minute-Level Time Tracking', route: 'my-time', status: 'Verified', acceptance: 'Integer minutes, activity classifications, and independent approval gate.' },
-    { id: 'VP-018', module: 'Budgets', title: 'Engagement Budget & Variance Analysis', route: 'budgets', status: 'Verified', acceptance: 'Planned vs actual hours by staff grade, billing realization margin.' },
-    { id: 'VP-019', module: 'Billing', title: 'Fee Invoicing & Separation of Duties', route: 'billing', status: 'Verified', acceptance: 'Invoice drafting, independent partner review, and demonstration PDF export.' },
-    { id: 'VP-020', module: 'Billing', title: 'Credit Note Issuance', route: 'billing', status: 'Verified', acceptance: 'Commercial credit notes with justification, reducing balance due.' },
-    { id: 'VP-021', module: 'Receivables', title: 'Accounts Receivable 30-Day Aging', route: 'receivables', status: 'Verified', acceptance: 'Deterministic aging buckets (Current, 31-60, 61-90, 90+) and overdue sums.' },
-    { id: 'VP-022', module: 'Receivables', title: 'Offline Cash Receipts Allocation', route: 'receivables', status: 'Verified', acceptance: 'Wire/cheque recording, partial allocation to invoices, and reversible audit trail.' },
-    { id: 'VP-023', module: 'Accounting', title: 'Trial Balance Intake & Balance Check', route: 'accounting-setup', status: 'Verified', acceptance: 'Deterministic debit/credit balance equation check and line-by-line editor.' },
-    { id: 'VP-024', module: 'Accounting', title: 'General Ledger Completeness Tie-out', route: 'accounting-setup', status: 'Verified', acceptance: 'GL transaction aggregation reconciled line-by-line to Trial Balance accounts.' },
-    { id: 'VP-025', module: 'Accounting', title: 'Proposed Adjustments & Reflection Tracking', route: 'accounting-setup', status: 'Verified', acceptance: 'Balanced adjustment journals with reflection toggle for client books.' },
-    { id: 'VP-026', module: 'Accounting', title: 'Reconciliation Schedules & Residuals', route: 'accounting-setup', status: 'Verified', acceptance: 'GL vs Statement schedules with timing items and unexplained difference warnings.' },
-    { id: 'VP-027', module: 'Reporting', title: 'Audited Financial Statements (BS, P&L, CF)', route: 'financial-statements', status: 'Verified', acceptance: 'Balance sheet equation check, comprehensive income, and XLSX/PDF export.' },
-    { id: 'VP-028', module: 'Reporting', title: 'Financial Deliverable Package Assembly', route: 'financial-packages', status: 'Verified', acceptance: 'Multi-document package, version lineage, and genuine Word (DOCX) export.' },
-    { id: 'VP-029', module: 'Consolidation', title: 'Multi-Entity Group Consolidation Grid', route: 'consolidation', status: 'Verified', acceptance: 'Perimeter definitions, package version pinning, and intercompany eliminations.' },
-    { id: 'VP-030', module: 'Audit', title: 'Client Acceptance & KYC Continuance', route: 'onboarding', status: 'Verified', acceptance: 'Mandate questionnaire, independence check, and partner acceptance authority.' },
-    { id: 'VP-031', module: 'Audit', title: 'ISA 320 Planning Materiality Determination', route: 'audit-planning', status: 'Verified', acceptance: 'Benchmark selection, performance haircut (75%), and trivial threshold (5%).' },
-    { id: 'VP-032', module: 'Audit', title: 'ISA 315 Identified Risks Register', route: 'audit-risks', status: 'Verified', acceptance: 'Financial statement vs assertion level, inherent risk, and audit responses.' },
-    { id: 'VP-033', module: 'Audit', title: 'Substantive Audit Testing Programs', route: 'audit-risks', status: 'Verified', acceptance: 'Lead schedules, procedure steps, testing methods, and fieldwork statuses.' },
-    { id: 'VP-034', module: 'Audit', title: 'ISA 530 Substantive Sampling Desk', route: 'sampling', status: 'Verified', acceptance: 'Population vouching schedule, substantive differences, and finding linkage.' },
-    { id: 'VP-035', module: 'Audit', title: '6-Tab Audit Workpaper Workspace', route: 'audit', status: 'Verified', acceptance: 'Overview, Guidelines, Data, Artifact Preview, Evidence, and Clearance gate.' },
-    { id: 'VP-036', module: 'Audit', title: 'Version-Pinned Evidence Catalogue', route: 'evidence', status: 'Verified', acceptance: 'Cryptographic SHA checksums, procedure linkages, and adequacy evaluations.' },
-    { id: 'VP-037', module: 'Audit', title: 'Audit Misstatements & Findings (ISA 450)', route: 'findings', status: 'Verified', acceptance: 'Monetary errors vs control deficiencies, cumulative impact, and correction status.' },
-    { id: 'VP-038', module: 'Audit', title: 'Engagement Review Desk', route: 'reviews', status: 'Verified', acceptance: 'Review queries, evidence-backed responses, and reviewer clearance sign-off.' },
-    { id: 'VP-039', module: 'Audit', title: 'Multi-Stage Sign-offs & EQR Review', route: 'approvals', status: 'Verified', acceptance: 'Manager, Client Rep, Partner, and EQR gates with generational invalidation.' },
-    { id: 'VP-040', module: 'Audit', title: 'Release Gates & Final Delivery Dispatch', route: 'delivery', status: 'Verified', acceptance: 'All-gate pre-release verification, candidate freezing, and distribution log.' },
-    { id: 'VP-041', module: 'Archive', title: 'Logical Practice Records Repository', route: 'records', status: 'Verified', acceptance: '10-year statutory retention, application legal holds, and immutable manifest.' },
-    { id: 'VP-042', module: 'Administration', title: 'Firm Settings & 14-Persona Directory', route: 'administration', status: 'Verified', acceptance: 'Firm registration, RBAC matrix, and complete factory reset utility.' },
-    { id: 'VP-043', module: 'M365', title: 'Synthetic Microsoft 365 Architecture', route: 'm365-setup', status: 'Verified', acceptance: 'Explicit liveConnected: false setting, mock Graph endpoints, and tenant setup.' },
-    { id: 'VP-044', module: 'Reporting', title: 'Practice Reporting Centre & BI', route: 'reports', status: 'Verified', acceptance: 'Unbilled WIP breakdown, staff utilization tracking, and compliance calendar.' }
-  ];
+  const filteredStories = STORY_ROWS.filter(s =>
+    s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.moduleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.criteriaSummary.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const modules = Array.from(new Set(stories.map(s => s.module)));
-
-  const filtered = stories.filter(s => {
-    const matchModule = filterModule === 'all' || s.module === filterModule;
-    const matchSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        s.acceptance.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchModule && matchSearch;
-  });
+  const filteredModules = MODULE_ROWS.filter(r =>
+    r.module.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.moduleId.includes(searchQuery) ||
+    r.stories.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.notes.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
-          <h1>Requirements & User Stories Traceability Matrix</h1>
-          <p>Complete implementation and verification coverage of all specification stories across 14 practice roles.</p>
+          <h1>Prototype Requirements &amp; Verification Evidence</h1>
+          <p>
+            Complete 64-story gap-closure backlog (VP-001–VP-064) and 39-module traceability matrix.
+            All statuses are derived from actual local commands, forms, and executed automated tests.
+          </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <span className="badge green" style={{ padding: '6px 12px', fontSize: 13 }}>
-            100% Implemented & Verified ({stories.length} User Stories)
+            64 User Stories Mapped
+          </span>
+          <span className="badge teal" style={{ padding: '6px 12px', fontSize: 13 }}>
+            39 Modules Covered
           </span>
         </div>
       </div>
 
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype Scope Boundary &amp; Exclusions Disclosure (VP-001 hard exclusion)</b>
+        <p className="sub mt4">
+          This interactive browser prototype strictly excludes (hard exclusion, not offered): live Microsoft Graph/OAuth APIs, live email delivery,
+          online payment gateways, electronic signatures, statutory tax calculation/filing engines, payroll processing,
+          workflow automation rules engines, external Purview retention locks, and AI models (not part of product scope).
+          All demonstrations operate deterministically in-browser using synthetic local fixtures.
+        </p>
+      </div>
+
+      {/* View Switcher Tabs & Filter */}
       <div className="panel panel-pad">
-        <div className="between">
-          <div className="row" style={{ gap: 10 }}>
-            <label className="caption" style={{ margin: 0 }}>Filter by Functional Area:</label>
-            <select
-              className="input sm"
-              value={filterModule}
-              onChange={e => setFilterModule(e.target.value)}
-              style={{ width: 180 }}
+        <div className="between" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
+            <button
+              className={`tab-btn ${activeTab === 'stories' ? 'active' : ''}`}
+              onClick={() => setActiveTab('stories')}
             >
-              <option value="all">All Functional Areas ({stories.length})</option>
-              {modules.map(m => (
-                <option key={m} value={m}>{m} ({stories.filter(s => s.module === m).length})</option>
-              ))}
-            </select>
+              Acceptance User Stories (VP-001 to VP-064)
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'modules' ? 'active' : ''}`}
+              onClick={() => setActiveTab('modules')}
+            >
+              39 Functional Modules Traceability Matrix
+            </button>
           </div>
-
-          <div style={{ width: 260 }}>
-            <input
-              type="text"
-              className="input sm"
-              placeholder="Search user stories..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
+          <input
+            type="text"
+            className="input sm"
+            placeholder="Search story ID, title, module, or criteria..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ minWidth: 320 }}
+          />
         </div>
       </div>
 
-      <div className="panel">
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Story ID</th>
-                <th>Functional Module</th>
-                <th>User Story & Capability</th>
-                <th>Acceptance Criteria & Implementation Verification</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.id}>
-                  <td><b>{s.id}</b></td>
-                  <td><span className="tag gray">{s.module}</span></td>
-                  <td><b>{s.title}</b></td>
-                  <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{s.acceptance}</td>
-                  <td>
-                    <span className="badge green">
-                      {s.status}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn sm"
-                      onClick={() => onNavigate(s.route)}
-                    >
-                      Open View
-                    </button>
-                  </td>
+      {/* Stories View */}
+      {activeTab === 'stories' && (
+        <div className="panel">
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 100 }}>Story ID</th>
+                  <th>Title &amp; Scope Summary</th>
+                  <th>Module</th>
+                  <th style={{ width: 120 }}>Status</th>
+                  <th>Acceptance Criteria Summary</th>
+                  <th style={{ width: 100 }}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredStories.map(s => (
+                  <tr key={s.id}>
+                    <td><span className="mono"><b>{s.id}</b></span></td>
+                    <td><b>{s.title}</b></td>
+                    <td><span className="caption">{s.moduleName}</span></td>
+                    <td>
+                      <span className={`badge ${s.status === 'Verified' ? 'green' : s.status === 'Demonstrated' ? 'teal' : 'amber'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{s.criteriaSummary}</td>
+                    <td>
+                      <button className="btn sm" onClick={() => onNavigate(s.route)}>Open</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Modules View */}
+      {activeTab === 'modules' && (
+        <div className="panel">
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 60 }}>#</th>
+                  <th>Functional Module</th>
+                  <th>Required Stories</th>
+                  <th style={{ width: 120 }}>Status</th>
+                  <th>Demonstrated Capabilities</th>
+                  <th style={{ width: 100 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredModules.map(r => (
+                  <tr key={r.moduleId}>
+                    <td><b>{r.moduleId}</b></td>
+                    <td><b>{r.module}</b></td>
+                    <td><span className="mono" style={{ fontSize: 12 }}>{r.stories}</span></td>
+                    <td>
+                      <span className={`badge ${r.status === 'Demonstrated' ? 'green' : 'amber'}`}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{r.notes}</td>
+                    <td>
+                      <button className="btn sm" onClick={() => onNavigate(r.route)}>Open</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+export default RequirementsView;

@@ -14,6 +14,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showOneDriveModal, setShowOneDriveModal] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // New file form
   const [fileName, setFileName] = useState('');
@@ -25,22 +26,25 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
     ? documents
     : documents.filter(d => d.folderPath.startsWith(selectedFolder));
 
-  const folders = [
-    { path: '/Engagements/2026/', label: 'All 2026 Engagements' },
-    { path: '/Engagements/2026/Accounting/', label: 'Accounting & Trial Balances' },
-    { path: '/Engagements/2026/Audit/', label: 'Audit Substantive Testing' },
-    { path: '/Engagements/2026/Deliverables/', label: 'Published Deliverables' },
-    { path: '/PBC/', label: 'Client PBC Submissions' }
-  ];
+  const folders = (state.folders && state.folders.length > 0)
+    ? state.folders
+    : [
+        { path: '/Engagements/2026/', label: 'All 2026 Engagements' },
+        { path: '/Engagements/2026/Accounting/', label: 'Accounting & Trial Balances' },
+        { path: '/Engagements/2026/Audit/', label: 'Audit Substantive Testing' },
+        { path: '/Engagements/2026/Deliverables/', label: 'Published Deliverables' },
+        { path: '/PBC/', label: 'Client PBC Submissions' }
+      ];
 
   const handleUploadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fileName.trim()) return;
 
+    const currentEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
     const newDoc: DocumentItem = {
       id: `DOC-00${documents.length + 1}`,
-      clientId: state.engagements[0]?.client || 'CL-001',
-      engagementId: state.selectedEngagement,
+      clientId: currentEng?.client || state.clients[0]?.id || 'CL-001',
+      engagementId: currentEng?.id,
       name: fileName,
       folderPath,
       version: 1,
@@ -96,6 +100,12 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
         </div>
       </div>
 
+      {notice && (
+        <div className="badge success" style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice}
+        </div>
+      )}
+
       <div className="grid-main">
         {/* Left: Folder Hierarchy */}
         <div className="stack" style={{ gap: 16 }}>
@@ -124,7 +134,8 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
               style={{ width: '100%' }}
               onClick={() => {
                 prototypeStore.prepareClientWorkspace(state.clients[0]?.id || 'CL-001');
-                alert('SharePoint workspace folder structure verified and provisioned.');
+                setNotice('SharePoint workspace folder structure verified and provisioned.');
+                setTimeout(() => setNotice(null), 4000);
               }}
             >
               Verify Client Workspace

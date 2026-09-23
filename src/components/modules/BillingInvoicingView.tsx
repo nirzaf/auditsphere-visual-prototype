@@ -15,6 +15,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New draft invoice form
   const [invNumber, setInvNumber] = useState(`INV-2600${state.invoices.length + 1}`);
@@ -57,8 +58,11 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const handleApprove = (inv: InvoiceRecord) => {
     try {
       prototypeStore.reviewInvoice(inv.id, true);
+      setNotice({ type: 'success', text: `Invoice ${inv.invoiceNumber} reviewed and approved.` });
+      setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -118,6 +122,12 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
           <Icon name="plus" /> Draft New Invoice
         </button>
       </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">

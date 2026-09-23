@@ -14,6 +14,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
   const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Review state
   const [reviewNotes, setReviewNotes] = useState('');
@@ -34,8 +35,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
       prototypeStore.reviewProposal(selectedProposal.id, reviewApproved, reviewNotes);
       setShowReviewModal(false);
       setSelectedProposal(null);
+      setNotice({ type: 'success', text: `Proposal ${selectedProposal.title} commercial review recorded.` });
+      setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -63,6 +67,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate }) => {
           <p>Standardized service deliverables, independent commercial review, and client acceptance recording.</p>
         </div>
       </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">

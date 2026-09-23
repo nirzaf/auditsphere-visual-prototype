@@ -9,7 +9,9 @@
     "lint": "tsc --noEmit",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "legacy:build": "py -3 build.py",
-    "legacy:check": "node --check app.bundle.js"
+    "legacy:check": "node --check app.bundle.js",
+    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:e2e": "tsx --test tests/e2e/*.test.ts"
   },
   "dependencies": {
     "docx": "^9.7.1",

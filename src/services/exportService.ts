@@ -27,20 +27,25 @@ export function exportToXLSX(
 ) {
   const wb = XLSX.utils.book_new();
 
+  const headerMeta: Array<Array<string | number>> = [
+    ['AuditSphere · Synthetic Role Prototype'],
+    [`Artifact: ${title}`],
+    ['WATERMARK: DEMONSTRATION RECORD ONLY — NO LEGAL CERTIFICATION'],
+    ['Generated on:', new Date().toISOString()],
+    []
+  ];
+
   let ws: XLSX.WorkSheet;
   if (Array.isArray(sheetData) && sheetData.length > 0 && !Array.isArray(sheetData[0])) {
-    ws = XLSX.utils.json_to_sheet(sheetData as Array<Record<string, any>>);
-  } else {
-    // Prepend title and watermark
-    const rows: Array<Array<string | number>> = [
-      ['AuditSphere · Synthetic Role Prototype'],
-      [`Artifact: ${title}`],
-      ['WATERMARK: DEMONSTRATION RECORD ONLY — NO LEGAL CERTIFICATION'],
-      ['Generated on:', new Date().toISOString()],
-      [],
-      ...(sheetData as Array<Array<string | number>>)
+    const records = sheetData as Array<Record<string, any>>;
+    const keys = Array.from(new Set(records.flatMap(r => Object.keys(r))));
+    const dataRows = [
+      keys,
+      ...records.map(r => keys.map(k => r[k] ?? ''))
     ];
-    ws = XLSX.utils.aoa_to_sheet(rows);
+    ws = XLSX.utils.aoa_to_sheet([...headerMeta, ...dataRows]);
+  } else {
+    ws = XLSX.utils.aoa_to_sheet([...headerMeta, ...(sheetData as Array<Array<string | number>>)]);
   }
 
   XLSX.utils.book_append_sheet(wb, ws, 'Financial Data');

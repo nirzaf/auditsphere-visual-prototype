@@ -28,6 +28,22 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   };
 
   const parentEng = state.engagements[0];
+
+  if (!parentEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="layers" size="xl" className="text-muted mb16" />
+        <h3>No Engagements Available for Consolidation</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          At least one parent engagement with trial balance data is required to perform group consolidation.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
   const subEng = state.engagements[1] || {
     ...parentEng,
     id: 'ENG-26002',

@@ -1,4 +1,3 @@
-// Module 33: Version-Pinned Evidence Catalogue (VP-053)
 import React, { useState } from 'react';
 import { RouteKey, EvidenceItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
@@ -10,16 +9,25 @@ interface EvidenceCatalogueViewProps {
 
 export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>(state.evidenceCatalogue);
+  const evidenceList = state.evidenceCatalogue;
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleToggleAdequacy = (id: string) => {
-    setEvidenceList(prev => prev.map(item => {
-      if (item.id === id) {
-        const nextStatus = item.adequacyStatus === 'Adequate' ? 'Inadequate' : 'Adequate';
-        return { ...item, adequacyStatus: nextStatus };
+  const handleToggleAdequacy = (id: string, current: EvidenceItem['adequacyStatus']) => {
+    try {
+      if (current === 'Adequate') {
+        const rationale = prompt('Record the rationale for flagging this evidence as deficient:');
+        if (rationale === null) return;
+        prototypeStore.setEvidenceAdequacy(id, 'Deficient', rationale || 'Flagged deficient in review');
+        setNotice({ type: 'success', text: 'Evidence marked deficient with attributable rationale.' });
+      } else {
+        prototypeStore.setEvidenceAdequacy(id, 'Adequate');
+        setNotice({ type: 'success', text: 'Evidence status updated to Adequate.' });
       }
-      return item;
-    }));
+      setTimeout(() => setNotice(null), 4000);
+    } catch (e) {
+      setNotice({ type: 'error', text: (e as Error).message });
+      setTimeout(() => setNotice(null), 6000);
+    }
   };
 
   return (
@@ -32,6 +40,22 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
         <button className="btn sm ghost" onClick={() => onNavigate('documents')}>
           <Icon name="folder" /> SharePoint Document Library
         </button>
+      </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
+
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype note — evidence replacement impact.</b>
+        <p className="sub mt4">
+          Adequacy changes here are persisted and attributable. Flagging an evidence version as
+          deficient does not yet automatically mark dependent procedures, workpapers or reviews as
+          requiring reassessment; reviewers must open each linked subject and re-clear it explicitly.
+          Document-to-evidence version comparison is a manual side-by-side check in the library.
+        </p>
       </div>
 
       <div className="panel">
@@ -75,9 +99,9 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                   <td>
                     <button
                       className="btn sm ghost"
-                      onClick={() => handleToggleAdequacy(item.id)}
+                      onClick={() => handleToggleAdequacy(item.id, item.adequacyStatus)}
                     >
-                      {item.adequacyStatus === 'Adequate' ? 'Flag Inadequate' : 'Mark Adequate'}
+                      {item.adequacyStatus === 'Adequate' ? 'Flag Deficient' : 'Mark Adequate'}
                     </button>
                   </td>
                 </tr>

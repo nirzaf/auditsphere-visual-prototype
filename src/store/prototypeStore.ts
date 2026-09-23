@@ -1,29 +1,66 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
+import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, GuardError } from '../services/guards';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
+const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
 
 class PrototypeStore {
   private state: PrototypeState;
   private listeners: Set<() => void> = new Set();
   private isSessionOnly = false;
+  private loadError: string | null = null;
+  private storageConflict = false;
 
   constructor() {
     this.state = this.loadInitialState();
+    // VP-004: one active editing tab. A storage event from another tab surfaces
+    // reload/conflict guidance instead of silently overwriting.
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY) {
+          this.storageConflict = true;
+          this.listeners.forEach(fn => fn());
+        }
+      });
+    }
   }
+
+  public hasStorageConflict(): boolean { return this.storageConflict; }
+  public dismissStorageConflict(): void { this.storageConflict = false; this.notify(); }
+  public isSessionOnlyMode(): boolean { return this.isSessionOnly; }
+  public getLoadError(): string | null { return this.loadError; }
 
   private loadInitialState(): PrototypeState {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.schema >= 2 && Array.isArray(parsed.engagements)) {
-          return { ...createInitialState(), ...parsed };
+        let parsed: unknown = null;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          this.loadError = 'Saved demo state could not be parsed. Recovery: keep the preserved payload, reset, or import a validated file. Nothing was silently deleted.';
+          try { localStorage.setItem(STORAGE_BACKUP_KEY, raw); } catch { /* quota */ }
+          return createInitialState();
         }
+        const schema = (parsed as { schema?: unknown }).schema;
+        if (typeof schema === 'number' && schema > CURRENT_SCHEMA) {
+          this.loadError = `Saved demo state uses schema v${schema}, newer than supported v${CURRENT_SCHEMA}. Recovery: export/preserve the payload, then reset or import a compatible file.`;
+          try { localStorage.setItem(STORAGE_BACKUP_KEY, raw); } catch { /* quota */ }
+          return createInitialState();
+        }
+        if (parsed && typeof schema === 'number' && Array.isArray((parsed as { engagements?: unknown }).engagements)) {
+          try { localStorage.setItem(STORAGE_BACKUP_KEY, raw); } catch { /* quota */ }
+          const { state } = migratePersistedState(parsed, createInitialState());
+          return state;
+        }
+        this.loadError = 'Saved demo state was ambiguous or incomplete. Recovery: the prior payload was preserved; reset or import a validated file.';
+        try { localStorage.setItem(STORAGE_BACKUP_KEY, raw); } catch { /* quota */ }
       }
     } catch (e) {
       console.warn('Storage read error, starting with default session state', e);
@@ -73,8 +110,19 @@ class PrototypeStore {
   }
 
   public setPerson(name: string) {
-    this.state.currentPerson = name;
+    const user = this.state.users.find(u => u.name === name);
+    if (user) {
+      this.state.currentPerson = user.name;
+      this.state.currentRole = user.role;
+    } else {
+      this.state.currentPerson = name;
+    }
     this.notify();
+  }
+
+  /** Switch to an exact persona (supports two people sharing one role). */
+  public setPersona(personName: string) {
+    this.setPerson(personName);
   }
 
   public setSelectedEngagement(id: string) {
@@ -84,16 +132,79 @@ class PrototypeStore {
 
   // --- Client Actions (VP-006, VP-007) ---
   public addClient(client: ClientRecord) {
+    requireActiveIdentity(this.state);
+    if (!client.name || !client.name.trim()) {
+      throw new GuardError('INVALID_STATE', 'Client legal name is required.');
+    }
+    if (!client.code || !client.code.trim()) {
+      throw new GuardError('INVALID_STATE', 'Client code is required.');
+    }
+    const normalized = client.code.trim().toUpperCase();
+    if (this.state.clients.some(c => c.code.trim().toUpperCase() === normalized)) {
+      throw new GuardError('INVALID_STATE', `Duplicate client code "${client.code}". Review the similar-name warning instead of merging distinct legal entities.`);
+    }
     this.state.clients.push(client);
     this.logEvent(`New client profile created: ${client.name}`, client.id);
     this.notify();
   }
 
   public updateClient(client: ClientRecord) {
+    requireActiveIdentity(this.state);
+    if (!client.name || !client.name.trim()) {
+      throw new GuardError('INVALID_STATE', 'Client legal name is required.');
+    }
+    const normalized = client.code.trim().toUpperCase();
+    if (this.state.clients.some(c => c.id !== client.id && c.code.trim().toUpperCase() === normalized)) {
+      throw new GuardError('INVALID_STATE', `Duplicate client code "${client.code}".`);
+    }
     const index = this.state.clients.findIndex(c => c.id === client.id);
     if (index >= 0) {
       this.state.clients[index] = client;
       this.logEvent(`Client profile updated: ${client.name}`, client.id);
+      this.notify();
+    }
+  }
+
+  /** Contacts never create portal logins, management authority or staff roles (VP-007). */
+  public addContact(contact: PrototypeState['contacts'][0]) {
+    requireActiveIdentity(this.state);
+    requireClientScope(this.state, contact.clientId);
+    if (!contact.name || !contact.name.trim()) {
+      throw new GuardError('INVALID_STATE', 'Contact full name is required.');
+    }
+    this.state.contacts.push(contact);
+    this.logEvent(`Contact added: ${contact.name} (${contact.clientId})`, contact.id);
+    this.notify();
+  }
+
+  public setPrimaryContact(clientId: string, contactId: string) {
+    requireActiveIdentity(this.state);
+    const contact = this.state.contacts.find(c => c.id === contactId && c.clientId === clientId);
+    if (!contact) throw new GuardError('INVALID_STATE', 'Contact not found in this client.');
+    if (!contact.active) throw new GuardError('INVALID_STATE', 'An inactive contact cannot be primary.');
+    this.state.contacts.forEach(c => {
+      if (c.clientId === clientId) c.isPrimary = c.id === contactId;
+    });
+    this.notify();
+  }
+
+  /** Explicit scoped grants (VP-019). Admin alone never grants professional authority. */
+  public grantAccess(userName: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement', scopeId?: string, reason = '') {
+    requireActiveIdentity(this.state);
+    if ((scopeKind === 'Client' || scopeKind === 'Engagement') && !scopeId) {
+      throw new GuardError('INVALID_STATE', 'Scoped grants require a scope ID.');
+    }
+    this.state.roleGrants.push({ userId: userName, role, scopeKind, scopeId });
+    this.logEvent(`Access granted: ${userName} → ${role} (${scopeKind}${scopeId ? ':' + scopeId : ''})${reason ? ' — ' + reason : ''}`, scopeId || userName);
+    this.notify();
+  }
+
+  public revokeAccess(userName: string, role: RoleKey, scopeId?: string) {
+    requireActiveIdentity(this.state);
+    const idx = this.state.roleGrants.findIndex(g => g.userId === userName && g.role === role && (g.scopeId || undefined) === (scopeId || undefined));
+    if (idx >= 0) {
+      this.state.roleGrants.splice(idx, 1);
+      this.logEvent(`Access revoked: ${userName} → ${role}${scopeId ? ' (' + scopeId + ')' : ''}`, scopeId || userName);
       this.notify();
     }
   }
@@ -152,8 +263,11 @@ class PrototypeStore {
   }
 
   public reviewProposal(propId: string, approved: boolean, notes?: string) {
+    requireActiveIdentity(this.state);
     const prop = this.state.proposals.find(p => p.id === propId);
     if (!prop) return;
+    // Same-person commercial approval denied even under another role label (VP-011).
+    requireIndependentActor(prop.preparedBy, this.state.currentPerson, 'commercially approve this proposal');
     prop.commercialReview = {
       reviewedBy: this.state.currentPerson,
       reviewedAt: new Date().toISOString(),
@@ -206,15 +320,44 @@ class PrototypeStore {
   }
 
   public addTask(task: JobTaskItem) {
+    requireActiveIdentity(this.state);
+    this.assertTaskHierarchy(task);
     this.state.jobTasks.push(task);
     this.notify();
   }
 
   public updateTask(task: JobTaskItem) {
+    requireActiveIdentity(this.state);
+    this.assertTaskHierarchy(task, task.id);
     const index = this.state.jobTasks.findIndex(t => t.id === task.id);
     if (index >= 0) {
+      // Completing a parent with unfinished required children is blocked (VP-014).
+      if (task.status === 'Completed' && !task.parentTaskId) {
+        const children = this.state.jobTasks.filter(t => t.parentTaskId === task.id && t.status !== 'Cancelled');
+        if (children.some(c => c.status !== 'Completed')) {
+          throw new GuardError('INVALID_STATE', 'Parent task cannot complete while required subtasks are unfinished.');
+        }
+      }
+      if (task.status === 'Blocked' && !task.blockedReason) {
+        throw new GuardError('INVALID_STATE', 'Blocked status requires a reason.');
+      }
       this.state.jobTasks[index] = task;
       this.notify();
+    }
+  }
+
+  private assertTaskHierarchy(task: JobTaskItem, selfId?: string) {
+    if (!task.title || !task.title.trim()) {
+      throw new GuardError('INVALID_STATE', 'Task title is required.');
+    }
+    if (task.parentTaskId) {
+      if (task.parentTaskId === (selfId || task.id)) {
+        throw new GuardError('INVALID_STATE', 'A task cannot be its own parent (cycle rejected).');
+      }
+      const parent = this.state.jobTasks.find(t => t.id === task.parentTaskId);
+      if (!parent) throw new GuardError('INVALID_STATE', 'Parent task not found in this job.');
+      if (parent.jobId !== task.jobId) throw new GuardError('INVALID_STATE', 'Cross-job parents are rejected.');
+      if (parent.parentTaskId) throw new GuardError('INVALID_STATE', 'Only one level of subtasks is supported (VP-014).');
     }
   }
 
@@ -233,9 +376,38 @@ class PrototypeStore {
     this.notify();
   }
 
+  public addJobTemplate(template: JobTemplateItem) {
+    requireActiveIdentity(this.state);
+    if (!template.name || !template.name.trim()) throw new GuardError('INVALID_STATE', 'Template name is required.');
+    this.state.jobTemplates.push(template);
+    this.logEvent(`Job template created: ${template.name}`, template.id);
+    this.notify();
+  }
+
+  public publishJobTemplate(templateId: string) {
+    requireActiveIdentity(this.state);
+    const tpl = this.state.jobTemplates.find(t => t.id === templateId);
+    if (!tpl) throw new GuardError('INVALID_STATE', 'Template not found.');
+    tpl.status = 'Published';
+    this.logEvent(`Job template published: ${tpl.name}`, tpl.id);
+    this.notify();
+  }
+
+  public retireJobTemplate(templateId: string) {
+    requireActiveIdentity(this.state);
+    const tpl = this.state.jobTemplates.find(t => t.id === templateId);
+    if (!tpl) throw new GuardError('INVALID_STATE', 'Template not found.');
+    tpl.status = 'Retired';
+    this.logEvent(`Job template retired: ${tpl.name}`, tpl.id);
+    this.notify();
+  }
+
   public applyJobTemplate(templateId: string, engagementId: string, jobTitle: string, dueDate: string, owner: string) {
     const tpl = this.state.jobTemplates.find(t => t.id === templateId);
     if (!tpl) return;
+    if (tpl.status !== 'Published') {
+      throw new GuardError('INVALID_STATE', 'Only Published templates can be applied to create jobs (VP-015).');
+    }
     const eng = this.state.engagements.find(e => e.id === engagementId) || this.state.engagements[0];
     const newJobId = `JOB-260${this.state.jobs.length + 1}`;
 
@@ -295,13 +467,6 @@ class PrototypeStore {
   public addDocument(doc: DocumentItem) {
     this.state.documents.push(doc);
     this.logEvent(`Document registered in library: ${doc.name} (v${doc.version})`, doc.id);
-    this.notify();
-  }
-
-  public prepareClientWorkspace(clientId: string) {
-    const client = this.state.clients.find(c => c.id === clientId);
-    if (!client) return;
-    this.logEvent(`SharePoint client workspace prepared for ${client.name}`, client.id);
     this.notify();
   }
 
@@ -379,9 +544,20 @@ class PrototypeStore {
   }
 
   public addCreditNote(credit: CreditNoteRecord) {
-    this.state.creditNotes.push(credit);
+    requireActiveIdentity(this.state);
     const inv = this.state.invoices.find(i => i.id === credit.invoiceId);
-    if (inv) {
+    if (!inv) throw new GuardError('INVALID_STATE', 'Credit note must link to an existing invoice.');
+    if (inv.clientId !== credit.clientId) throw new GuardError('FORBIDDEN_SCOPE', 'Cross-client credits are rejected.');
+    if (credit.amount <= 0) throw new GuardError('INVALID_STATE', 'Credit amount must be positive.');
+    const issuedCredits = this.state.creditNotes
+      .filter(c => c.invoiceId === credit.invoiceId && c.status === 'Issued')
+      .reduce((s, c) => s + c.amount, 0);
+    const remaining = inv.amount - issuedCredits;
+    if (credit.amount > remaining) {
+      throw new GuardError('INVALID_STATE', `Credit ${credit.amount} exceeds remaining creditable amount ${remaining}.`);
+    }
+    this.state.creditNotes.push(credit);
+    if (credit.status === 'Issued') {
       inv.creditsApplied = (inv.creditsApplied || 0) + credit.amount;
     }
     this.logEvent(`Credit note issued: ${credit.creditNumber} (${credit.amount} QAR)`, credit.id);
@@ -390,22 +566,57 @@ class PrototypeStore {
 
   // --- Offline Receipts & Allocations (VP-032) ---
   public addReceipt(receipt: ReceiptRecord) {
+    requireActiveIdentity(this.state);
+    if (receipt.amount <= 0) throw new GuardError('INVALID_STATE', 'Receipt amount must be positive.');
+    if (!receipt.clientId) throw new GuardError('INVALID_STATE', 'Receipt requires a client billing account.');
     this.state.receipts.unshift(receipt);
     this.logEvent(`Offline receipt recorded: ${receipt.receiptNumber} (${receipt.amount} ${receipt.currency})`, receipt.id);
     this.notify();
   }
 
   public allocateReceipt(receiptId: string, invoiceId: string, amount: number) {
+    requireActiveIdentity(this.state);
     const receipt = this.state.receipts.find(r => r.id === receiptId);
     const invoice = this.state.invoices.find(i => i.id === invoiceId);
     if (!receipt || !invoice) return;
-
-    const unallocated = receipt.amount - receipt.allocatedAmount;
-    if (amount > unallocated) {
-      throw new Error('Allocation exceeds available unallocated receipt balance.');
+    if (receipt.clientId !== invoice.clientId) {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Cross-client allocation is rejected.');
+    }
+    if (receipt.currency !== invoice.currency) {
+      throw new GuardError('INVALID_STATE', 'Cross-currency allocation is rejected.');
+    }
+    if (invoice.status !== 'Issued' && invoice.status !== 'Paid') {
+      throw new GuardError('INVALID_STATE', 'Only issued invoices can receive allocations (draft/cancelled excluded).');
+    }
+    if (amount <= 0) {
+      throw new GuardError('INVALID_STATE', 'Allocation amount must be positive.');
     }
 
-    receipt.allocatedAmount += amount;
+    const unallocated = receipt.amount - (receipt.allocatedAmount || 0);
+    if (amount > unallocated) {
+      throw new GuardError('INVALID_STATE', `Allocation amount ${amount} exceeds available unallocated receipt balance ${unallocated}.`);
+    }
+
+    // Invoice net remaining outstanding balance
+    const issuedCredits = this.state.creditNotes
+      .filter(c => c.invoiceId === invoice.id && c.status === 'Issued')
+      .reduce((s, c) => s + c.amount, 0);
+
+    let totalAllocated = 0;
+    this.state.receipts.forEach(r => {
+      (r.allocations || []).forEach(a => {
+        if (a.invoiceId === invoice.id && !a.reversed) {
+          totalAllocated += a.amount;
+        }
+      });
+    });
+
+    const remainingInvoice = Math.max(0, invoice.amount - issuedCredits - totalAllocated);
+    if (amount > remainingInvoice) {
+      throw new GuardError('INVALID_STATE', `Allocation ${amount} exceeds remaining invoice balance ${remainingInvoice}.`);
+    }
+
+    receipt.allocatedAmount = (receipt.allocatedAmount || 0) + amount;
     receipt.allocations.push({
       invoiceId,
       amount,
@@ -413,7 +624,7 @@ class PrototypeStore {
     });
 
     invoice.paid += amount;
-    if (invoice.paid >= invoice.amount) {
+    if (invoice.paid >= invoice.amount - issuedCredits) {
       invoice.status = 'Paid';
     }
 
@@ -567,8 +778,37 @@ class PrototypeStore {
   }
 
   public recordApproval(engId: string, roleKey: 'manager' | 'client' | 'partner' | 'eqr', notes = '') {
+    requireActiveIdentity(this.state);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) return;
+
+    // Role authority checks (VP-019, VP-056 / EX14)
+    const role = this.state.currentRole;
+    if (roleKey === 'partner' && role !== 'partner') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only a partner can record partner clearance.');
+    }
+    if (roleKey === 'eqr' && role !== 'eqr') {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only an Engagement Quality Reviewer can record EQR concurrence.');
+    }
+    if (roleKey === 'manager' && !['manager', 'senior_reviewer', 'partner'].includes(role)) {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only an engagement manager or senior reviewer can record manager clearance.');
+    }
+    if (roleKey === 'client' && !['client_approver', 'client_admin', 'management_approver'].includes(role)) {
+      throw new GuardError('FORBIDDEN_SCOPE', 'Only an authorized client management approver can record representation sign-off.');
+    }
+
+    requireEngagementScope(this.state, engId);
+
+    // EQR check: unresolved concerns block EQR sign-off (VP-056 / F03)
+    if (roleKey === 'eqr' && eng.eqrConcerns?.some(c => !c.resolved)) {
+      throw new GuardError('INVALID_STATE', 'Cannot complete EQR sign-off: Unresolved EQR concerns remain.');
+    }
+
+    // Partner cannot also complete EQR for the same engagement (VP-056), scoped
+    // per engagement — never a global shared object.
+    if (roleKey === 'eqr' && eng.approvals.partner?.by === this.state.currentPerson) {
+      throw new GuardError('SELF_APPROVAL', 'A partner cannot also complete EQR for the same engagement.');
+    }
     eng.approvals[roleKey] = {
       by: this.state.currentPerson,
       at: new Date().toISOString(),
@@ -577,6 +817,261 @@ class PrototypeStore {
     };
     this.logEvent(`Stage approval recorded: ${roleKey.toUpperCase()} by ${this.state.currentPerson}`, eng.id);
     this.notify();
+  }
+
+  public addEqrConcern(engId: string, text: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    if (!text || !text.trim()) throw new GuardError('INVALID_STATE', 'Concern text is required.');
+    if (!eng.eqrConcerns) eng.eqrConcerns = [];
+    const concernId = `EQR-0${eng.eqrConcerns.length + 1}`;
+    eng.eqrConcerns.push({
+      id: concernId,
+      text: text.trim(),
+      resolved: false,
+      raisedBy: this.state.currentPerson,
+      raisedAt: new Date().toISOString()
+    });
+    this.logEvent(`EQR concern ${concernId} raised by ${this.state.currentPerson}`, eng.id);
+    this.notify();
+  }
+
+  public toggleEqrConcern(engId: string, concernId: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    const concern = eng.eqrConcerns?.find(c => c.id === concernId);
+    if (!concern) throw new GuardError('INVALID_STATE', 'Concern not found.');
+    concern.resolved = !concern.resolved;
+    if (concern.resolved) {
+      concern.resolvedAt = new Date().toISOString();
+      concern.resolvedBy = this.state.currentPerson;
+    } else {
+      concern.resolvedAt = undefined;
+      concern.resolvedBy = undefined;
+    }
+    this.logEvent(`EQR concern ${concernId} marked ${concern.resolved ? 'resolved' : 'open'}`, eng.id);
+    this.notify();
+  }
+
+  public replaceWorkpaperRevision(engId: string, wpId: string, fileDetails: { name: string; size?: number }) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    const wp = eng.workpapers.find(w => w.id === wpId);
+    if (!wp) throw new GuardError('INVALID_STATE', 'Workpaper not found.');
+    if (!fileDetails.name || !fileDetails.name.trim()) throw new GuardError('INVALID_STATE', 'File name is required.');
+
+    wp.version += 1;
+    wp.status = 'In progress';
+    if (wp.clearance) {
+      wp.clearanceHistory.push({ ...wp.clearance });
+      wp.clearance = null;
+    }
+    wp.documentName = fileDetails.name;
+    wp.workingPaper = {
+      file: fileDetails.name,
+      name: fileDetails.name,
+      size: fileDetails.size || 64000,
+      sha: 'a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef',
+      version: wp.version,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: this.state.currentPerson,
+      local: true
+    };
+    this.logEvent(`Workpaper ${wp.id} revision v${wp.version} uploaded by ${this.state.currentPerson}`, wp.id);
+    this.notify();
+  }
+
+  // --- PBC lifecycle (VP-023, VP-024): response is not acceptance ---------------
+  public uploadPbcResponse(engId: string, requestId: string, file: { name: string; size?: number }) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    const req = eng.pbc.find(r => r.id === requestId);
+    if (!req) throw new GuardError('INVALID_STATE', 'PBC request not found.');
+    if (!file.name || !file.name.trim()) throw new GuardError('INVALID_STATE', 'File name is required.');
+
+    const docId = `DOC-PBC-${Date.now().toString().slice(-4)}`;
+    const newDoc: DocumentItem = {
+      id: docId,
+      clientId: eng.client,
+      engagementId: eng.id,
+      name: file.name,
+      folderPath: `/PBC/`,
+      version: 1,
+      size: file.size || 50000,
+      sha: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      classification: 'Client provided',
+      visibility: 'Client shared',
+      source: 'Local In-Session',
+      linkedPbcId: req.id,
+      uploadedBy: this.state.currentPerson,
+      uploadedAt: new Date().toISOString()
+    };
+    this.state.documents.unshift(newDoc);
+
+    if (!req.sharedFiles) req.sharedFiles = [];
+    req.sharedFiles.push({
+      id: docId,
+      name: file.name,
+      version: req.version,
+      size: file.size || 50000,
+      sha: newDoc.sha,
+      uploadedBy: this.state.currentPerson,
+      uploadedAt: new Date().toISOString(),
+      source: 'Client Portal'
+    });
+
+    if (!req.thread) req.thread = [];
+    req.thread.push({
+      id: `TH-${Date.now()}`,
+      kind: 'response',
+      author: this.state.currentPerson,
+      role: this.state.currentRole,
+      text: `Uploaded evidence file: ${file.name}`,
+      time: new Date().toISOString(),
+      file: file.name,
+      version: req.version,
+      clientVisible: true
+    });
+
+    req.status = 'Received';
+    this.logEvent(`PBC response file uploaded by ${this.state.currentPerson}: ${file.name}`, req.id);
+    this.notify();
+  }
+  public addPbcRequest(engId: string, request: PbcRequestItem) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    if (!request.title || !request.title.trim()) throw new GuardError('INVALID_STATE', 'Request title is required.');
+    eng.pbc.unshift({ ...request, status: 'Draft', version: 1 });
+    this.logEvent(`PBC request drafted: ${request.title}`, request.id);
+    this.notify();
+  }
+
+  public presentPbcRequest(engId: string, requestId: string) {
+    requireActiveIdentity(this.state);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    const req = eng?.pbc.find(r => r.id === requestId);
+    if (!req) return;
+    if (!req.title || (req as { contributor?: string }).contributor === undefined) {
+      // Recipient recorded via contributor/owner fields; presentation requires context.
+    }
+    if (req.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only draft requests can be presented.');
+    req.status = 'Requested';
+    req.requestedBy = this.state.currentPerson;
+    req.requestedAt = new Date().toISOString();
+    this.logEvent(`PBC request presented: ${req.title}`, req.id);
+    this.notify();
+  }
+
+  public acceptPbcResponse(engId: string, requestId: string) {
+    // Only a different authorized person may accept; uploader cannot self-accept (VP-024).
+    requireActiveIdentity(this.state);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    const req = eng?.pbc.find(r => r.id === requestId);
+    if (!req) return;
+    const lastUploadBy = req.thread?.filter(t => t.kind === 'response').at(-1)?.author || req.contributor || '';
+    if (lastUploadBy) requireIndependentActor(lastUploadBy, this.state.currentPerson, 'accept this PBC response');
+    req.status = 'Accepted';
+    this.logEvent(`PBC response accepted: ${req.title}`, req.id);
+    this.notify();
+  }
+
+  // --- Time correction revision (VP-028): approved entries are never overwritten -
+  public correctApprovedTime(entryId: string, correctedMinutes: number, reason: string) {
+    requireActiveIdentity(this.state);
+    const entry = this.state.times.find(t => t.id === entryId);
+    if (!entry) return;
+    if (entry.status !== 'Approved') throw new GuardError('INVALID_STATE', 'Only approved entries use correction revisions.');
+    if (correctedMinutes <= 0) throw new GuardError('INVALID_STATE', 'Corrected duration must be positive.');
+    entry.status = 'Superseded';
+    const correction: TimeEntryItem = {
+      ...entry,
+      id: `${entry.id}-R${(entry.correctionRevision || 0) + 1}`,
+      durationMinutes: correctedMinutes,
+      status: 'Submitted',
+      correctionRevision: (entry.correctionRevision || 0) + 1,
+      reviewedBy: undefined,
+      reviewedAt: undefined,
+      returnReason: `Correction of ${entry.id}: ${reason}`
+    };
+    this.state.times.unshift(correction);
+    this.logEvent(`Time correction submitted for ${entry.id}: ${reason}`, correction.id);
+    this.notify();
+  }
+
+  // --- Evidence catalogue (VP-053): version-pinned shared references ------------
+  public setEvidenceAdequacy(evidenceId: string, status: 'Adequate' | 'Pending verification' | 'Deficient', rationale = '') {
+    requireActiveIdentity(this.state);
+    const ev = this.state.evidenceCatalogue.find(e => e.id === evidenceId);
+    if (!ev) throw new GuardError('INVALID_STATE', 'Evidence record not found.');
+    if (status !== 'Adequate' && !rationale.trim()) {
+      throw new GuardError('INVALID_STATE', 'A non-adequate determination requires a recorded rationale.');
+    }
+    ev.adequacyStatus = status;
+    this.logEvent(`Evidence ${evidenceId} adequacy set to ${status} by ${this.state.currentPerson}${rationale ? ': ' + rationale : ''}`, evidenceId);
+    this.notify();
+  }
+
+  public linkEvidenceProcedure(evidenceId: string, procedureId: string) {    requireActiveIdentity(this.state);
+    const ev = this.state.evidenceCatalogue.find(e => e.id === evidenceId);
+    if (!ev) throw new GuardError('INVALID_STATE', 'Evidence record not found.');
+    if (!ev.linkedProcedures.includes(procedureId)) ev.linkedProcedures.push(procedureId);
+    this.logEvent(`Evidence ${evidenceId} linked to procedure ${procedureId}`, evidenceId);
+    this.notify();
+  }
+
+  // --- Findings disposition (VP-054) -------------------------------------------
+  public setFindingDisposition(findingId: string, disposition: PrototypeState['findings'][0]['disposition'], rationale: string) {
+    requireActiveIdentity(this.state);
+    const f = this.state.findings.find(x => x.id === findingId);
+    if (!f) return;
+    if (!rationale || !rationale.trim()) throw new GuardError('INVALID_STATE', 'Finding disposition requires human rationale.');
+    f.disposition = disposition;
+    f.managementResponse = rationale;
+    this.logEvent(`Finding ${findingId} disposition: ${disposition}`, findingId);
+    this.notify();
+  }
+
+  // --- Amendment / reissue lineage (VP-058) ------------------------------------
+  public prepareAmendedRelease(engId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    const latest = eng.releases.at(-1);
+    if (!latest) throw new GuardError('INVALID_STATE', 'No released package to amend.');
+    eng.candidate = {
+      generation: eng.generation + 1,
+      preparedAt: new Date().toISOString(),
+      preparedBy: this.state.currentPerson,
+      manifest: [...latest.manifest.map(m => m.name), `Amendment note: ${reason}`]
+    };
+    eng.generation += 1;
+    // Fresh review required: clear currentness of prior approvals for the new content.
+    eng.approvals = { manager: null, client: null, partner: null, eqr: null };
+    this.logEvent(`Amended release prepared from ${latest.id}: ${reason}`, eng.id);
+    this.notify();
+  }
+
+  // --- Firm settings apply prospectively (VP-062) -------------------------------
+  public updateFirmSettings(patch: Partial<PrototypeState['firmSettings']>, reason = '') {
+    requireActiveIdentity(this.state);
+    this.state.firmSettings = { ...this.state.firmSettings, ...patch };
+    this.logEvent(`Firm settings updated${reason ? ': ' + reason : ''}`, 'FIRM');
+    this.notify();
+  }
+
+  /** Fixture integrity snapshot for tests and the coverage report. */
+  public checkIntegrity() {
+    return validateFixtures(this.state);
   }
 
   // --- Release & Archive (VP-057, VP-058, VP-059) ---
@@ -601,6 +1096,7 @@ class PrototypeStore {
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng || !eng.candidate) return;
     const releaseId = `REL-2600${eng.releases.length + 1}`;
+    const prevRelease = eng.releases.at(-1);
     eng.releases.push({
       id: releaseId,
       version: eng.releases.length + 1,
@@ -609,6 +1105,7 @@ class PrototypeStore {
       releasedBy: this.state.currentPerson,
       delivered: true,
       dispatchNote,
+      predecessorId: prevRelease ? prevRelease.id : undefined,
       recipients: ['Omar Nasser (CFO)', 'Daniel James (Partner)'],
       manifest: [
         { id: 'M-01', name: 'Auditor_Report_FY2026.pdf', type: 'PDF', sha: '99aabbccddeeff001122334455667788' },
@@ -617,6 +1114,53 @@ class PrototypeStore {
     });
     eng.candidate = null;
     this.logEvent(`Report package released in demo: ${releaseId}`, eng.id);
+    this.notify();
+  }
+
+  public reopenReleaseForAmendment(engId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) return;
+    if (!reason || !reason.trim()) throw new GuardError('INVALID_STATE', 'Amendment reason is required.');
+
+    const lastRelease = eng.releases.at(-1);
+    if (lastRelease) {
+      lastRelease.isAmended = true;
+    }
+
+    eng.packageRevision++;
+    eng.generation++;
+    eng.candidate = null;
+    // Approvals for partner are invalidated for the new generation
+    eng.approvals.partner = null;
+    if (eng.eqrRequired) {
+      eng.approvals.eqr = null;
+    }
+    this.logEvent(`Release re-opened for amendment: ${reason} (Gen ${eng.generation})`, eng.id);
+    this.notify();
+  }
+
+  public prepareClientWorkspace(clientId: string, year = 2026) {
+    requireActiveIdentity(this.state);
+    const client = this.state.clients.find(c => c.id === clientId);
+    const code = client?.code || clientId;
+    if (!this.state.folders) this.state.folders = [];
+    const canonical = [
+      { path: `/Clients/${code}/`, label: `${client?.name || code} Root`, clientId },
+      { path: `/Clients/${code}/${year}/`, label: `FY ${year} Records`, clientId },
+      { path: `/Clients/${code}/${year}/01_Acceptance/`, label: '01 Acceptance & KYC', clientId },
+      { path: `/Clients/${code}/${year}/02_Planning/`, label: '02 Audit Planning', clientId },
+      { path: `/Clients/${code}/${year}/03_Fieldwork/`, label: '03 Substantive Fieldwork', clientId },
+      { path: `/Clients/${code}/${year}/04_Deliverables/`, label: '04 Signed Deliverables', clientId },
+      { path: `/Clients/${code}/${year}/05_Correspondence/`, label: '05 Client Communications', clientId }
+    ];
+    canonical.forEach(folder => {
+      if (!this.state.folders!.some(f => f.path === folder.path)) {
+        this.state.folders!.push(folder);
+      }
+    });
+    this.logEvent(`Canonical SharePoint workspace prepared for client ${code}`, clientId);
     this.notify();
   }
 
@@ -675,16 +1219,32 @@ class PrototypeStore {
   }
 
   public importStateJSON(jsonStr: string) {
+    let parsed: unknown = null;
     try {
-      const parsed = JSON.parse(jsonStr);
-      if (parsed && Array.isArray(parsed.engagements)) {
-        this.state = { ...createInitialState(), ...parsed };
-        this.logEvent('Custom JSON state imported successfully', 'SYS');
-        this.notify();
-      }
-    } catch (e) {
+      parsed = JSON.parse(jsonStr);
+    } catch {
       throw new Error('Invalid JSON format for AuditSphere state import.');
     }
+    const p = parsed as { engagements?: unknown; schema?: unknown };
+    if (!p || !Array.isArray(p.engagements)) {
+      throw new Error('Imported state is ambiguous: missing engagements. Prior payload preserved; nothing was overwritten.');
+    }
+    if (typeof p.schema === 'number' && p.schema > CURRENT_SCHEMA) {
+      throw new Error(`Imported state uses schema v${p.schema}, newer than supported v${CURRENT_SCHEMA}.`);
+    }
+    try {
+      const current = localStorage.getItem(STORAGE_KEY);
+      if (current) localStorage.setItem(STORAGE_BACKUP_KEY, current);
+    } catch { /* quota */ }
+    const { state, warnings } = migratePersistedState(parsed, createInitialState());
+    const issues = validateFixtures(state);
+    if (issues.length > 0) {
+      throw new Error(`Imported state failed integrity: ${issues[0].message} (${issues.length} issue(s)). Prior payload preserved.`);
+    }
+    this.state = state;
+    warnings.forEach(w => this.logEvent(w, 'SYS'));
+    this.logEvent('Validated synthetic state imported successfully', 'SYS');
+    this.notify();
   }
 }
 

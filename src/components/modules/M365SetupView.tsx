@@ -1,14 +1,29 @@
-// Module 18: Microsoft 365 Integration Configuration & Simulator (VP-017, VP-022)
-// NOTE: Explicitly maintains liveConnected: false for client-side synthetic prototype.
+// Module 18: Microsoft 365 setup simulation — VP-017 (wizard) + VP-022 (failure/recovery)
+// Simulated Entra identity, SharePoint (canonical), basic Exchange mail (optional),
+// bounded OneDrive import (optional, disabled by default). No Purview anywhere.
+// No OAuth, credentials, tokens, external fetch/XHR or tenant provisioning.
+// liveConnected is always false. SharePoint/mail/OneDrive readiness is independent:
+// a failed optional mail test never blocks SharePoint or local work.
 
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { Icon } from '../common/Icons';
 
 interface M365SetupViewProps {
   onNavigate: (route: RouteKey) => void;
 }
+
+type CardKey = 'identity' | 'sharepoint' | 'mail' | 'onedrive';
+type SimOutcome = 'success' | 'access-denied' | 'missing-resource' | 'expired-session' | 'throttled' | 'unavailable';
+
+const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
+  { key: 'success', label: 'Success (simulated)', detail: 'Local scenario fixture reports the selected synthetic resource as reachable.' },
+  { key: 'access-denied', label: 'Access denied (simulated)', detail: 'The selected synthetic identity lacks permission for the chosen resource. Pick a permitted person or resource, then retry.' },
+  { key: 'missing-resource', label: 'Missing resource (simulated)', detail: 'The site, library, folder or sender does not exist in the synthetic tenant. Correct the selection, then retry.' },
+  { key: 'expired-session', label: 'Expired session (simulated)', detail: 'The demonstration session expired. Re-run the setup simulation to refresh local state.' },
+  { key: 'throttled', label: 'Throttled (simulated)', detail: 'The local fixture reports throttling. Wait, then retry — no background polling occurs.' },
+  { key: 'unavailable', label: 'Service unavailable (simulated)', detail: 'The synthetic provider is unavailable. Local business modules keep working with fixture data.' }
+];
 
 export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
@@ -17,8 +32,14 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
   const [tenantId, setTenantId] = useState(config.tenantId);
   const [tenantName, setTenantName] = useState(config.tenantName);
   const [siteUrl, setSiteUrl] = useState(config.sharePointSite);
+  const [library, setLibrary] = useState(config.sharePointLibrary);
+  const [folderRoot, setFolderRoot] = useState(config.folderRoot);
   const [mailSender, setMailSender] = useState(config.mailSenderAccount);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [oneDriveEnabled, setOneDriveEnabled] = useState(config.oneDriveEnabled);
+  const [dirty, setDirty] = useState(false);
+  const [results, setResults] = useState<Partial<Record<CardKey, { outcome: SimOutcome; at: string; stale: boolean }>>>({});
+
+  const markDirty = () => setDirty(true);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,131 +48,156 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
       tenantId,
       tenantName,
       sharePointSite: siteUrl,
-      mailSenderAccount: mailSender
+      sharePointLibrary: library,
+      folderRoot,
+      mailSenderAccount: mailSender,
+      oneDriveEnabled,
+      status: config.status === 'Not configured' ? 'Not configured' : config.status
     });
-    alert('M365 configuration saved locally in prototype storage.');
+    // A configuration change stales prior test results (VP-022).
+    setResults(prev => {
+      const next: typeof prev = {};
+      (Object.keys(prev) as CardKey[]).forEach(k => {
+        const r = prev[k];
+        if (r) next[k] = { ...r, stale: true };
+      });
+      return next;
+    });
+    setDirty(false);
   };
 
-  const handleTestConnection = () => {
-    setTestResult('Connecting to synthetic Microsoft Graph API...');
-    setTimeout(() => {
-      setTestResult('Simulation Successful: Microsoft Graph endpoint responsive (Synthetic Mode: 200 OK).');
-    }, 400);
+  const runTest = (card: CardKey, outcome: SimOutcome) => {
+    if (card === 'onedrive' && !oneDriveEnabled) return;
+    setResults(prev => ({ ...prev, [card]: { outcome, at: new Date().toISOString(), stale: false } }));
+    if (outcome === 'success') {
+      prototypeStore.simulateM365Verification();
+      if (card === 'sharepoint') {
+        state.clients.forEach(c => prototypeStore.prepareClientWorkspace(c.id));
+      }
+    }
+  };
+
+  const handleDisconnect = () => {
+    prototypeStore.simulateM365Disconnect();
+    onNavigate('overview');
+  };
+
+  const cardStatus = (card: CardKey): string => {
+    const r = results[card];
+    if (!r) return 'Not tested in this session';
+    return `${r.outcome}${r.stale ? ' (stale — configuration changed)' : ''} · ${new Date(r.at).toLocaleString('en-GB')}`;
   };
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
-          <h1>Microsoft 365 Architecture & Settings</h1>
-          <p>Synthetic tenant configuration, simulated SharePoint site URLs, and Exchange mail parameters.</p>
+          <h1>Microsoft 365 Setup (Simulated)</h1>
+          <p>Guided Microsoft-only simulation: Entra identity concept, SharePoint canonical library, basic outgoing mail, optional bounded OneDrive import. No live connection.</p>
         </div>
+        <span className="tag blue">liveConnected: false</span>
       </div>
 
-      {/* Synthetic Mode Banner */}
       <div className="panel panel-pad" style={{ background: '#f8fafc', borderLeft: '4px solid var(--teal)' }}>
-        <div className="between">
-          <div>
-            <b>Synthetic Prototype Environment (Offline Mode)</b>
-            <p className="sub mt4">
-              Live external Microsoft Graph API connectivity is disabled (<code>liveConnected: false</code>). All Exchange mail delivery and SharePoint storage operations run within the local synthetic browser harness.
-            </p>
-          </div>
-          <span className="badge teal">Synthetic Active</span>
-        </div>
+        <b>Simulation boundary</b>
+        <p className="sub mt4">
+          This wizard stores synthetic IDs and resource selections only. It never opens a Microsoft sign-in,
+          asks for credentials or secrets, provisions a tenant resource, or performs an external fetch/XHR.
+          Configuration may be skipped: disconnected simulation never locks unrelated local modules.
+          SharePoint, mail and OneDrive readiness are independent. Microsoft Purview is not part of this product.
+        </p>
       </div>
 
-      <div className="panel panel-pad">
-        <form onSubmit={handleSave} className="stack" style={{ gap: 16 }}>
-          <h3>Integration Parameters</h3>
-
-          <div className="grid2">
-            <div>
-              <label className="caption">Azure Active Directory Tenant ID</label>
-              <input
-                type="text"
-                className="input mono"
-                value={tenantId}
-                onChange={e => setTenantId(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="caption">Tenant Domain Name</label>
-              <input
-                type="text"
-                className="input mono"
-                value={tenantName}
-                onChange={e => setTenantName(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
+      <form onSubmit={handleSave} className="panel panel-pad stack" style={{ gap: 16 }}>
+        <h3>1 · Synthetic tenant &amp; people</h3>
+        <div className="grid2">
           <div>
-            <label className="caption">SharePoint Online Root Site URL</label>
-            <input
-              type="text"
-              className="input mono"
-              value={siteUrl}
-              onChange={e => setSiteUrl(e.target.value)}
-              required
-            />
+            <label className="caption">Synthetic tenant ID (fixture)</label>
+            <input type="text" className="input mono" value={tenantId} onChange={e => { setTenantId(e.target.value); markDirty(); }} required />
           </div>
-
           <div>
-            <label className="caption">Exchange Online Outbound Sender Mailbox</label>
-            <input
-              type="email"
-              className="input"
-              value={mailSender}
-              onChange={e => setMailSender(e.target.value)}
-              required
-            />
+            <label className="caption">Synthetic tenant domain (fixture)</label>
+            <input type="text" className="input mono" value={tenantName} onChange={e => { setTenantName(e.target.value); markDirty(); }} required />
           </div>
+        </div>
 
-          <div className="row mt12" style={{ gap: 10 }}>
-            <button type="submit" className="btn primary sm">
-              Save Configuration
-            </button>
-            <button type="button" className="btn sm ghost" onClick={handleTestConnection}>
-              Test Graph API Simulation
-            </button>
+        <h3>2 · SharePoint canonical library</h3>
+        <div>
+          <label className="caption">SharePoint site (synthetic)</label>
+          <input type="text" className="input mono" value={siteUrl} onChange={e => { setSiteUrl(e.target.value); markDirty(); }} required />
+        </div>
+        <div className="grid2">
+          <div>
+            <label className="caption">Library</label>
+            <input type="text" className="input" value={library} onChange={e => { setLibrary(e.target.value); markDirty(); }} required />
           </div>
+          <div>
+            <label className="caption">Folder root</label>
+            <input type="text" className="input mono" value={folderRoot} onChange={e => { setFolderRoot(e.target.value); markDirty(); }} required />
+          </div>
+        </div>
 
-          {testResult && (
-            <div className="borderbox mt8" style={{ background: '#f0fdf4', padding: 12 }}>
-              <span className="mono" style={{ color: 'var(--teal-dark)', fontSize: 13 }}>{testResult}</span>
+        <h3>3 · Optional mail sender</h3>
+        <div>
+          <label className="caption">Exchange Online outbound sender (synthetic mailbox label)</label>
+          <input type="email" className="input" value={mailSender} onChange={e => { setMailSender(e.target.value); markDirty(); }} required />
+        </div>
+
+        <h3>4 · Optional bounded OneDrive access (disabled by default)</h3>
+        <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={oneDriveEnabled} onChange={e => { setOneDriveEnabled(e.target.checked); markDirty(); }} />
+          <span>Enable bounded OneDrive file selection/import simulation (never a second canonical archive)</span>
+        </label>
+
+        <div className="row mt12" style={{ gap: 10 }}>
+          <button type="submit" className="btn primary sm">Save simulated configuration</button>
+          {dirty && <span className="tag amber">Unsaved changes — prior verification is stale until re-tested</span>}
+          <button type="button" className="btn sm ghost" onClick={handleDisconnect}>Simulate disconnect</button>
+        </div>
+      </form>
+
+      {(['identity', 'sharepoint', 'mail', 'onedrive'] as CardKey[]).map(card => (
+        <div key={card} className="panel panel-pad">
+          <div className="between">
+            <h3 style={{ textTransform: 'capitalize' }}>{card === 'onedrive' ? 'OneDrive (optional)' : card} — simulated test</h3>
+            <span className="tag gray">{cardStatus(card)}</span>
+          </div>
+          {card === 'onedrive' && !oneDriveEnabled && (
+            <p className="sub mt4">OneDrive simulation is disabled. Enabling it never changes the canonical archive away from SharePoint.</p>
+          )}
+          <div className="grid3 mt12">
+            {OUTCOMES.map(o => (
+              <button
+                key={o.key}
+                type="button"
+                className="btn sm ghost"
+                disabled={card === 'onedrive' && !oneDriveEnabled}
+                onClick={() => runTest(card, o.key)}
+                title={o.detail}
+              >
+                Simulate: {o.label}
+              </button>
+            ))}
+          </div>
+          {results[card] && results[card]!.outcome !== 'success' && (
+            <div className="borderbox mt8" style={{ background: '#fef2f2', padding: 12 }}>
+              <b>Recovery (local, no background polling): </b>
+              <span>{OUTCOMES.find(o => o.key === results[card]!.outcome)?.detail} </span>
+              <button type="button" className="btn sm" style={{ marginLeft: 8 }} onClick={() => runTest(card, 'success')}>
+                Retry with success fixture
+              </button>
             </div>
           )}
-        </form>
-      </div>
+        </div>
+      ))}
 
       <div className="panel panel-pad">
-        <h3>Simulated Microsoft 365 Services Health</h3>
-        <div className="grid3 mt12">
-          <div className="borderbox" style={{ padding: 12 }}>
-            <div className="between">
-              <b>SharePoint Online</b>
-              <span className="badge green">Healthy</span>
-            </div>
-            <div className="cell-sub mt8">Document libraries & version tree active</div>
-          </div>
-          <div className="borderbox" style={{ padding: 12 }}>
-            <div className="between">
-              <b>Exchange Online</b>
-              <span className="badge green">Healthy</span>
-            </div>
-            <div className="cell-sub mt8">Synthetic SMTP dispatcher ready</div>
-          </div>
-          <div className="borderbox" style={{ padding: 12 }}>
-            <div className="between">
-              <b>Microsoft Graph</b>
-              <span className="badge green">Healthy</span>
-            </div>
-            <div className="cell-sub mt8">User directory lookup synchronized</div>
-          </div>
-        </div>
+        <b>What disconnect does</b>
+        <p className="sub mt4">
+          Simulating disconnect preserves metadata and history and marks provider-dependent actions as
+          simulated-unavailable. It never deletes clients, engagements or archive records. No success or
+          error banner here describes simulated state as production readiness.
+        </p>
       </div>
     </div>
   );

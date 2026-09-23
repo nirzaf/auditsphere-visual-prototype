@@ -1,4 +1,6 @@
 // Module 27: Acceptance, Continuance & KYC Questionnaire (VP-047)
+// Engagement onboarding, independence evaluation, partner sign-off, and canonical workspace preparation.
+
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
@@ -11,7 +13,24 @@ interface AuditAcceptanceViewProps {
 export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="shield" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to perform client acceptance and KYC procedures.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
+  const client = state.clients.find(c => c.id === selectedEng.client);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [questions, setQuestions] = useState([
     { id: 0, text: 'Are all beneficial owners identified and verified against sanctions and PEP lists?', answered: true, notes: 'Passport copy and CR verified.' },
@@ -25,21 +44,53 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
 
   const allCompleted = questions.every(q => q.answered);
 
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
+
+  const handlePartnerAcceptance = () => {
+    try {
+      if (client) {
+        prototypeStore.prepareClientWorkspace(client.id, selectedEng.year);
+      }
+      prototypeStore.logEvent(`Acceptance & KYC confirmed by ${selectedEng.partner} (${partnerDecision})`, selectedEng.id);
+      triggerNotice('success', `Engagement acceptance status recorded. Canonical SharePoint workspace prepared for ${client?.name || selectedEng.client}.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
-          <h1>Client Acceptance & Continuance (KYC)</h1>
+          <h1>Client Acceptance &amp; Continuance (KYC)</h1>
           <p>Annual continuance evaluation, independence verification, and partner acceptance record.</p>
         </div>
       </div>
 
+      {notice && (
+        <div
+          className="panel panel-pad"
+          style={{
+            background: notice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            borderColor: notice.type === 'success' ? '#86efac' : '#fca5a5',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            padding: '10px 16px'
+          }}
+        >
+          <b>{notice.type === 'success' ? '✓ ' : '⚠ '}</b>
+          {notice.text}
+        </div>
+      )}
+
       <div className="panel panel-pad">
         <div className="between">
           <div>
-            <span className="eyebrow">ANNUAL ACCEPTANCE & CONTINUANCE</span>
-            <h2>{client?.name} · FY {selectedEng.year}</h2>
-            <p className="sub">{selectedEng.service} · Jurisdiction: {client?.jurisdiction}</p>
+            <span className="eyebrow">ANNUAL ACCEPTANCE &amp; CONTINUANCE</span>
+            <h2>{client?.name || selectedEng.client} · FY {selectedEng.year}</h2>
+            <p className="sub">{selectedEng.service} · Jurisdiction: {client?.jurisdiction || 'State of Qatar'}</p>
           </div>
           <span className={`badge ${allCompleted ? 'green' : 'amber'}`}>
             {allCompleted ? 'Questionnaire Completed' : 'Pending Verification'}
@@ -51,7 +102,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           {questions.map(q => (
             <div key={q.id} className="borderbox" style={{ padding: 14 }}>
               <div className="between">
-                <div className="row" style={{ gap: 10 }}>
+                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                   <input
                     type="checkbox"
                     checked={q.answered}
@@ -108,14 +159,20 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
 
           <button
             className="btn primary sm mt12"
-            onClick={() => {
-              prototypeStore.logEvent(`Acceptance & KYC confirmed by ${selectedEng.partner}`, selectedEng.id);
-              alert('Engagement acceptance status recorded successfully.');
-            }}
+            onClick={handlePartnerAcceptance}
           >
             Record Partner Acceptance Sign-off
           </button>
         </div>
+      </div>
+
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype note — evaluation depth and continuance (VP-047)</b>
+        <p className="sub mt4">
+          Recording partner acceptance triggers the creation of canonical SharePoint client folders
+          (01_Acceptance, 02_Planning, 03_Fieldwork, 04_Deliverables, 05_Correspondence) in the local store.
+          No live screening APIs or cloud identity systems are contacted.
+        </p>
       </div>
     </div>
   );

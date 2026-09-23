@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { RouteKey, RoleKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
 import { SCENARIO_DEFINITIONS, ScenarioName } from '../../store/scenarios';
 import { Icon } from '../common/Icons';
 
@@ -33,7 +34,9 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     }, 4500);
   };
 
-  const navGroups: Array<[string, Array<{ key: RouteKey; label: string; icon: string; count?: number }>]> = [
+  const clientMode = isClientRole(state.currentRole);
+
+  const staffNavGroups: Array<[string, Array<{ key: RouteKey; label: string; icon: string; count?: number }>]> = [
     [
       'PRACTICE',
       [
@@ -78,10 +81,10 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
         { key: 'audit-planning', label: 'Audit Planning & Materiality', icon: 'target' },
         { key: 'audit-risks', label: 'Risks & Audit Programs', icon: 'shield' },
         { key: 'sampling', label: 'Sampling & Populations', icon: 'checkboard' },
-        { key: 'audit', label: 'Audit Workpapers', icon: 'checkboard', count: selectedEng?.workpapers.length },
+        { key: 'audit', label: 'Audit Workpapers', icon: 'checkboard', count: selectedEng?.workpapers?.length },
         { key: 'evidence', label: 'Evidence Catalogue', icon: 'folder' },
         { key: 'findings', label: 'Findings & Differences', icon: 'target', count: state.findings.length },
-        { key: 'reviews', label: 'Review Desk', icon: 'message', count: selectedEng?.reviews.filter(r => r.status !== 'Cleared').length },
+        { key: 'reviews', label: 'Review Desk', icon: 'message', count: selectedEng?.reviews?.filter(r => r.status !== 'Cleared').length },
         { key: 'approvals', label: 'Sign-offs & EQR', icon: 'shield' },
         { key: 'delivery', label: 'Release & Completion', icon: 'archive' },
         { key: 'records', label: 'Records & Archive', icon: 'archive' }
@@ -99,9 +102,25 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     ]
   ];
 
-  const handleRoleChange = (role: RoleKey) => {
-    prototypeStore.setRole(role);
-    triggerToast(`Switched active role to ${prototypeStore.getSnapshot().currentPerson} (${role})`);
+  const clientNavGroups: Array<[string, Array<{ key: RouteKey; label: string; icon: string; count?: number }>]> = [
+    [
+      'CLIENT SECURE PORTAL',
+      [
+        { key: 'portal', label: 'Client Experience Portal', icon: 'globe' },
+        { key: 'requirements', label: 'Specifications & PRD', icon: 'book' }
+      ]
+    ]
+  ];
+
+  const navGroups = clientMode ? clientNavGroups : staffNavGroups;
+
+  const handleRoleChange = (personName: string) => {
+    prototypeStore.setPersona(personName);
+    const snap = prototypeStore.getSnapshot();
+    if (isClientRole(snap.currentRole)) {
+      onRouteChange('portal');
+    }
+    triggerToast(`Switched simulated identity to ${snap.currentPerson} (${snap.currentRole})`);
   };
 
   const handleEngagementChange = (engId: string) => {
@@ -115,26 +134,58 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     triggerToast(`Loaded scenario preset: ${scenId}`, 'success');
   };
 
-  // Global search filtering
-  const searchResults = searchQuery.trim()
-    ? [
-        ...state.clients
-          .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(c => ({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'clients' as RouteKey })),
-        ...state.engagements
-          .filter(e => e.service.toLowerCase().includes(searchQuery.toLowerCase()) || e.id.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(e => ({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements' as RouteKey })),
-        ...state.jobs
-          .filter(j => j.title.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(j => ({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs' as RouteKey })),
-        ...state.documents
-          .filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(d => ({ title: d.name, sub: `Document · v${d.version}`, route: 'documents' as RouteKey })),
-        ...state.invoices
-          .filter(i => i.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(i => ({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing' as RouteKey }))
-      ]
-    : [];
+  // Global search filtering — VP-061: deterministic local metadata search, scoped by
+  // grants. Unauthorized records contribute no title, snippet, count or ordering.
+  // Historical requirements text is NOT indexed here (separate Requirements view).
+  const searchResults = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const allowedClients = visibleClientIds(state);
+    const allowedEngs = visibleEngagementIds(state);
+    const clientAllowed = (id?: string) =>
+      !id || allowedClients === 'ALL' || (id && (allowedClients as string[]).includes(id));
+    const engAllowed = (id?: string) =>
+      !id || allowedEngs === 'ALL' || (id && (allowedEngs as string[]).includes(id));
+    const clientRole = isClientRole(state.currentRole);
+    const out: Array<{ title: string; sub: string; route: RouteKey }> = [];
+    state.clients.filter(c => clientAllowed(c.id) && c.name.toLowerCase().includes(q))
+      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'clients' }));
+    state.contacts.filter(c => clientAllowed(c.clientId) && c.name.toLowerCase().includes(q))
+      .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'clients' }));
+    state.engagements.filter(e => engAllowed(e.id) && (e.service.toLowerCase().includes(q) || e.id.toLowerCase().includes(q)))
+      .forEach(e => out.push({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements' }));
+    state.jobs.filter(j => engAllowed(j.engagementId) && j.title.toLowerCase().includes(q))
+      .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs' }));
+    if (!clientRole) {
+      state.jobTasks.filter(t => {
+        const job = state.jobs.find(j => j.id === t.jobId);
+        return job && engAllowed(job.engagementId) && t.title.toLowerCase().includes(q);
+      }).forEach(t => out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs' }));
+    }
+    state.documents.filter(d => clientAllowed(d.clientId) && d.name.toLowerCase().includes(q))
+      .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents' }));
+    if (!clientRole) {
+      state.invoices.filter(i => clientAllowed(i.clientId) && i.invoiceNumber.toLowerCase().includes(q))
+        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing' }));
+      state.communications.filter(c => clientAllowed(c.clientId) && (c.summary.toLowerCase().includes(q) || c.participants.toLowerCase().includes(q)))
+        .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications' }));
+      state.findings.filter(f => {
+        const eng = state.engagements.find(e => e.id === f.engagementId);
+        return eng && engAllowed(eng.id) && f.title.toLowerCase().includes(q);
+      }).forEach(f => out.push({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings' }));
+      state.engagements.filter(e => engAllowed(e.id)).forEach(e => {
+        e.workpapers.filter(w => w.title.toLowerCase().includes(q))
+          .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit' }));
+        e.pbc.filter(p => p.title.toLowerCase().includes(q))
+          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'portal' }));
+      });
+    } else {
+      // Client projection: only explicitly shared documents/packages surface.
+      state.documents.filter(d => clientAllowed(d.clientId) && d.visibility === 'Client shared' && d.name.toLowerCase().includes(q))
+        .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal' }));
+    }
+    return out.slice(0, 30);
+  })();
 
   return (
     <div id="app-root">
@@ -254,15 +305,15 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
                 {currentPersona.initials}
               </div>
               <div>
-                <label htmlFor="role-select">SIMULATED ROLE</label>
+                <label htmlFor="role-select">SIMULATED IDENTITY (NOT LIVE AUTH)</label>
                 <select
                   id="role-select"
-                  value={state.currentRole}
-                  onChange={e => handleRoleChange(e.target.value as RoleKey)}
+                  value={state.currentPerson}
+                  onChange={e => handleRoleChange(e.target.value)}
                 >
                   {state.users.map(u => (
-                    <option key={u.id} value={u.role}>
-                      {u.label} ({u.name})
+                    <option key={`${u.name}-${u.role}`} value={u.name}>
+                      {u.label} — {u.name}{u.status !== 'Active' ? ' (disabled)' : ''}
                     </option>
                   ))}
                 </select>

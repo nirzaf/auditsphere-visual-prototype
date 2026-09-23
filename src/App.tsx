@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { RouteKey } from './types';
 import { prototypeStore } from './store/prototypeStore';
+import { isClientRole } from './services/guards';
 import { Shell } from './components/layout/Shell';
 
 // Practice & CRM Modules
@@ -65,8 +66,14 @@ export const App: React.FC = () => {
     return unsubscribe;
   }, []);
 
+  const state = prototypeStore.getSnapshot();
+  const isClient = isClientRole(state.currentRole);
+  const effectiveRoute: RouteKey = isClient && currentRoute !== 'portal' && currentRoute !== 'requirements'
+    ? 'portal'
+    : currentRoute;
+
   const renderModule = () => {
-    switch (currentRoute) {
+    switch (effectiveRoute) {
       // Practice & CRM
       case 'overview':
         return <DashboardView onNavigate={setCurrentRoute} />;
@@ -182,7 +189,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <Shell currentRoute={currentRoute} onRouteChange={setCurrentRoute}>
+    <Shell currentRoute={effectiveRoute} onRouteChange={setCurrentRoute}>
       {renderModule()}
     </Shell>
   );

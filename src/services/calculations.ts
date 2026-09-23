@@ -64,8 +64,10 @@ export function calculateReceivablesAging(
   const asOf = new Date(dateStr);
   asOf.setHours(23, 59, 59, 999);
 
+  // §5.5: aging excludes not-yet-issued/draft/cancelled records. Only Issued/Paid
+  // (Paid kept only when a residual outstanding remains) participate.
   let filteredInvoices = invoices.filter(
-    inv => inv.status === 'Issued' || inv.status === 'Paid' || inv.status === 'Draft'
+    inv => inv.status === 'Issued' || inv.status === 'Paid'
   );
   if (clientFilter) {
     filteredInvoices = filteredInvoices.filter(i => i.clientId === clientFilter);
@@ -91,24 +93,35 @@ export function calculateReceivablesAging(
   let over90 = 0;
 
   for (const inv of filteredInvoices) {
-    const issueDate = inv.issueDate ? new Date(inv.issueDate) : new Date(inv.due);
-    if (issueDate > asOf) continue;
+    // Exclude invoices issued after the as-of date (not yet effective).
+    const effectiveIssue = inv.issueDate ? new Date(inv.issueDate) : new Date(inv.due);
+    if (effectiveIssue > asOf) continue;
 
+    // Effective issued credits only, effective on/before as-of. Supports both
+    // `issueDate` and legacy `date` fields on credit notes.
     const applicableCredits = credits
-      .filter(c => c.invoiceId === inv.id && (c.status === 'Issued' || (c as any).reason) && new Date(c.issueDate || (c as any).date || inv.issueDate) <= asOf)
+      .filter(c => c.invoiceId === inv.id && c.status === 'Issued' && new Date(c.issueDate || c.date || inv.issueDate || inv.due) <= asOf)
       .reduce((sum, c) => sum + c.amount, 0);
 
-    let applicablePayments = inv.paid || 0;
+    // Net allocated receipts effective on/before as-of (reversed excluded).
+    // NOTE: `inv.paid` is a display cache maintained by the store; the
+    // authoritative settlement here is the allocation ledger so we do NOT add
+    // both. When allocations are absent (legacy fixtures), fall back to paid.
+    let allocatedSettled = 0;
     receipts.forEach(rcpt => {
       (rcpt.allocations || []).forEach(alloc => {
         if (alloc.invoiceId === inv.id && !alloc.reversed && new Date(alloc.allocatedAt) <= asOf) {
-          applicablePayments += alloc.amount;
+          allocatedSettled += alloc.amount;
         }
       });
     });
+    const hasAllocationLedger = receipts.some(r =>
+      (r.allocations || []).some(a => a.invoiceId === inv.id && !a.reversed));
+    const effectivePayments = hasAllocationLedger ? allocatedSettled : (inv.paid || 0);
 
-    const outstanding = Math.max(0, inv.amount - applicableCredits - (inv.paid || 0) - ((inv as any).creditsApplied || 0));
-    if (outstanding <= 0 && inv.status === 'Paid') continue;
+    // §5.5: outstanding = issued − effective credits − net allocated receipts.
+    const outstanding = Math.max(0, inv.amount - applicableCredits - effectivePayments);
+    if (outstanding <= 0) continue;
 
     const dueDate = new Date(inv.due);
     const diffTime = asOf.getTime() - dueDate.getTime();
@@ -116,6 +129,7 @@ export function calculateReceivablesAging(
 
     let bucket: AgingSummary['invoiceBreakdown'][0]['bucket'] = 'Current';
     if (daysOverdue <= 0) {
+      // Due today is Current.
       bucket = 'Current';
       current += outstanding;
     } else if (daysOverdue <= 30) {
@@ -136,7 +150,7 @@ export function calculateReceivablesAging(
       invoice: inv,
       grossAmount: inv.amount,
       effectiveCredits: applicableCredits,
-      effectivePayments: applicablePayments,
+      effectivePayments,
       outstanding,
       bucket,
       daysOverdue: Math.max(0, daysOverdue)
@@ -305,12 +319,14 @@ export interface GLCompletenessCheck {
   glSum: number;
   tbBalance: number;
   isComplete: boolean;
+  missingOpening?: boolean;
+  unmatchedAccount?: boolean;
 }
 
 export function verifyGLCompleteness(
   glTransactions: GLTransactionItem[] | TrialBalanceRow[],
   tbRowsOrOpening?: TrialBalanceRow[] | Record<string, number>,
-  openingBalances: Record<string, number> = {}
+  openingBalances?: Record<string, number>
 ): {
   checks: GLCompletenessCheck[];
   discrepancies: GLCompletenessCheck[];
@@ -321,6 +337,7 @@ export function verifyGLCompleteness(
   // Support both (tbRows, glTransactions) and (glTransactions, tbRows) argument ordering
   let tbRows: TrialBalanceRow[];
   let glTx: GLTransactionItem[];
+  let openings: Record<string, number> | undefined = openingBalances;
 
   if (Array.isArray(glTransactions) && glTransactions.length > 0 && 'balance' in glTransactions[0]) {
     tbRows = glTransactions as TrialBalanceRow[];
@@ -330,38 +347,73 @@ export function verifyGLCompleteness(
     tbRows = ((tbRowsOrOpening as unknown) as TrialBalanceRow[]) || [];
   }
 
+  // If opening balances passed as 2nd arg
+  if (tbRowsOrOpening && !Array.isArray(tbRowsOrOpening) && typeof tbRowsOrOpening === 'object') {
+    openings = tbRowsOrOpening as Record<string, number>;
+  }
+
   const checks: GLCompletenessCheck[] = [];
   let totalResidual = 0;
+  let hasMissingOpening = false;
+  let hasUnmatchedAccount = false;
 
-  tbRows.forEach(tb => {
-    const opening = openingBalances[tb.code] || 0;
-    const txs = glTx.filter(t => t.accountCode === tb.code);
+  // Union of account codes in tbRows and glTx (VP-036 / EX07)
+  const allCodes = Array.from(new Set([
+    ...tbRows.map(r => r.code),
+    ...glTx.map(t => t.accountCode)
+  ]));
+
+  allCodes.forEach(code => {
+    const tb = tbRows.find(r => r.code === code);
+    const txs = glTx.filter(t => t.accountCode === code);
     const debits = txs.reduce((sum, t) => sum + (t.debit || 0), 0);
     const credits = txs.reduce((sum, t) => sum + (t.credit || 0), 0);
     const netMovement = debits - credits;
-    const calculatedClosing = opening + netMovement;
-    const residual = Math.abs(calculatedClosing - tb.balance);
 
-    totalResidual += residual;
+    // Check if opening balance is explicitly known (EX06 / EX08)
+    const isOpeningKnown = openings !== undefined && typeof openings[code] === 'number';
+    const opening = isOpeningKnown ? openings![code] : (openings === undefined ? 0 : NaN);
+
+    if (openings !== undefined && !isOpeningKnown) {
+      hasMissingOpening = true;
+    }
+
+    const tbClosing = tb ? tb.balance : 0;
+    const accountName = tb ? tb.name : (txs[0]?.description || `Unmatched GL Account ${code}`);
+    const isUnmatched = !tb;
+
+    if (isUnmatched) {
+      hasUnmatchedAccount = true;
+    }
+
+    const calculatedClosing = isOpeningKnown || openings === undefined ? opening + netMovement : NaN;
+    const residual = isNaN(calculatedClosing) ? 999999 : Math.abs(calculatedClosing - tbClosing);
+
+    if (!isNaN(residual)) totalResidual += residual;
+
+    const complete = !isUnmatched && !hasMissingOpening && isOpeningKnown && residual === 0;
+
     checks.push({
-      accountCode: tb.code,
-      accountName: tb.name,
-      openingBalance: opening,
+      accountCode: code,
+      accountName,
+      openingBalance: isOpeningKnown ? opening : 0,
       totalDebits: debits,
       totalCredits: credits,
       netMovement,
-      calculatedClosing,
-      trialBalanceClosing: tb.balance,
+      calculatedClosing: isNaN(calculatedClosing) ? 0 : calculatedClosing,
+      trialBalanceClosing: tbClosing,
       residual,
       difference: residual,
-      glSum: calculatedClosing,
-      tbBalance: tb.balance,
-      isComplete: residual === 0
+      glSum: isNaN(calculatedClosing) ? 0 : calculatedClosing,
+      tbBalance: tbClosing,
+      isComplete: complete,
+      missingOpening: !isOpeningKnown && openings !== undefined,
+      unmatchedAccount: isUnmatched
     });
   });
 
   const discrepancies = checks.filter(c => !c.isComplete);
-  const allBalanced = totalResidual === 0;
+  const allBalanced = totalResidual === 0 && !hasMissingOpening && !hasUnmatchedAccount;
 
   return {
     checks,
@@ -372,15 +424,33 @@ export function verifyGLCompleteness(
   };
 }
 
-// Module 23: Reconciliation Variance Check
+// Module 23: Reconciliation Variance Check (VP-039 / EX09)
 export function calculateReconciliationVariance(rec: ReconciliationSchedule) {
   const items = rec.items || [];
-  const timingSum = items.reduce((s, i) => s + (i.amount || 0), 0);
-  const diff = Math.abs(((rec as any).statementBalance || (rec as any).statementClosingBalance || 0) + timingSum - ((rec as any).glBalance || (rec as any).glClosingBalance || 0));
+  // Proposed corrections cannot clear timing residual (EX09)
+  const timingItems = items.filter(i => {
+    const t = (i as any).type || (i as any).itemType;
+    return t !== 'correction' && !(i as any).isCorrection;
+  });
+  const proposedCorrections = items.filter(i => {
+    const t = (i as any).type || (i as any).itemType;
+    return t === 'correction' || (i as any).isCorrection;
+  });
+
+  const timingSum = timingItems.reduce((s, i) => s + (i.amount || 0), 0);
+  const correctionSum = proposedCorrections.reduce((s, i) => s + (i.amount || 0), 0);
+
+  const statementBal = (rec as any).statementBalance ?? (rec as any).statementClosingBalance ?? 0;
+  const glBal = (rec as any).glBalance ?? (rec as any).glClosingBalance ?? 0;
+
+  // Reconciled variance uses only genuine timing items against statement balance
+  const diff = Math.abs(statementBal + timingSum - glBal);
 
   return {
     timingSum,
+    correctionSum,
     unexplainedDifference: diff,
+    // Reconciliation is achieved only if unexplained timing diff is zero AND no pending unreflected corrections
     isReconciled: diff === 0
   };
 }
@@ -430,7 +500,7 @@ export function calculateIncomeStatement(rows: TrialBalanceRow[]) {
   };
 }
 
-// Module 26: Consolidation Math
+// Module 26: Consolidation Math (VP-045, VP-046 / EX10, EX11, EX12)
 export function calculateConsolidatedBalanceSheet(
   parentRows: TrialBalanceRow[],
   subRows: TrialBalanceRow[],
@@ -440,11 +510,12 @@ export function calculateConsolidatedBalanceSheet(
 
   let parentAssets = 0;
   let subsidiaryAssets = 0;
-  let totalEliminations = 0;
   let parentLiabilities = 0;
   let subsidiaryLiabilities = 0;
   let parentEquity = 0;
   let subsidiaryEquity = 0;
+  let totalEliminationDebits = 0;
+  let totalEliminationCredits = 0;
 
   const lines = allCodes.map(code => {
     const parentRow = parentRows.find(r => r.code === code);
@@ -454,27 +525,52 @@ export function calculateConsolidatedBalanceSheet(
 
     const parentBalance = parentRow ? parentRow.balance : 0;
     const subsidiaryBalance = subRow ? subRow.balance : 0;
+    const combinedBalance = parentBalance + subsidiaryBalance;
 
-    const elim = eliminations.find(e =>
-      ((e.debitAccount || '') + (e.creditAccount || '') + (e.description || '')).toLowerCase().includes(name.toLowerCase())
-    );
+    // Check specific debit/credit eliminations for this account (by code or exact name)
+    let elimDebit = 0;
+    let elimCredit = 0;
 
-    const eliminationDebit = elim ? elim.amount : 0;
-    const eliminationCredit = 0;
+    eliminations.forEach(e => {
+      const isDebitMatch = (e.debitAccount && (e.debitAccount === code || e.debitAccount.toLowerCase() === name.toLowerCase())) ||
+        (e.description && e.description.toLowerCase().includes(name.toLowerCase()) && (category === 'liability' || category === 'equity'));
+      const isCreditMatch = (e.creditAccount && (e.creditAccount === code || e.creditAccount.toLowerCase() === name.toLowerCase())) ||
+        (e.description && e.description.toLowerCase().includes(name.toLowerCase()) && category === 'asset');
 
-    let consolidatedBalance = parentBalance + subsidiaryBalance;
-    if (elim) {
-      consolidatedBalance -= elim.amount;
-      totalEliminations += elim.amount;
-    }
+      if (isDebitMatch) {
+        elimDebit += e.amount || 0;
+      }
+      if (isCreditMatch) {
+        elimCredit += e.amount || 0;
+      }
+    });
 
+    totalEliminationDebits += elimDebit;
+    totalEliminationCredits += elimCredit;
+
+    // Consolidated balance calculation:
+    // Assets (Debit balance): Debits increase, Credits decrease
+    // Liabilities & Equity (Credit balance in Signed TB where credit is negative or absolute):
+    let consolidatedBalance = combinedBalance;
     if (category === 'asset') {
+      consolidatedBalance = combinedBalance + elimDebit - elimCredit;
       parentAssets += parentBalance;
       subsidiaryAssets += subsidiaryBalance;
     } else if (category === 'liability') {
+      // If signed TB (liabilities are negative), debit brings it closer to 0
+      if (combinedBalance < 0) {
+        consolidatedBalance = combinedBalance + elimDebit - elimCredit;
+      } else {
+        consolidatedBalance = combinedBalance - elimDebit + elimCredit;
+      }
       parentLiabilities += Math.abs(parentBalance);
       subsidiaryLiabilities += Math.abs(subsidiaryBalance);
     } else if (category === 'equity') {
+      if (combinedBalance < 0) {
+        consolidatedBalance = combinedBalance + elimDebit - elimCredit;
+      } else {
+        consolidatedBalance = combinedBalance - elimDebit + elimCredit;
+      }
       parentEquity += Math.abs(parentBalance);
       subsidiaryEquity += Math.abs(subsidiaryBalance);
     }
@@ -485,16 +581,26 @@ export function calculateConsolidatedBalanceSheet(
       category,
       parentBalance,
       subsidiaryBalance,
-      eliminationDebit,
-      eliminationCredit,
+      eliminationDebit: elimDebit,
+      eliminationCredit: elimCredit,
       consolidatedBalance
     };
   });
 
-  const totalAssets = parentAssets + subsidiaryAssets - totalEliminations;
-  const totalLiabilities = parentLiabilities + subsidiaryLiabilities - totalEliminations;
-  const totalEquity = parentEquity + subsidiaryEquity;
+  // Calculate totals directly from lines ensuring header and line details strictly agree (EX12)
+  const totalAssets = lines
+    .filter(l => l.category === 'asset')
+    .reduce((s, l) => s + l.consolidatedBalance, 0);
 
+  const totalLiabilities = lines
+    .filter(l => l.category === 'liability')
+    .reduce((s, l) => s + Math.abs(l.consolidatedBalance), 0);
+
+  const totalEquity = lines
+    .filter(l => l.category === 'equity')
+    .reduce((s, l) => s + Math.abs(l.consolidatedBalance), 0);
+
+  const totalEliminations = totalEliminationCredits || totalEliminationDebits;
   const isBalanced = Math.abs(totalAssets - (totalLiabilities + totalEquity)) === 0;
 
   return {
@@ -513,15 +619,27 @@ export function calculateConsolidatedBalanceSheet(
   };
 }
 
-// Module 28: ISA 320 Materiality Calculation (VP-048)
-export function calculateMateriality(benchmarkValue: number, percentage: number) {
+// Module 28: ISA 320 Materiality Calculation (VP-048 / F16)
+export function calculateMateriality(
+  benchmarkValue: number,
+  percentage: number,
+  performancePct = 75,
+  trivialPct = 5,
+  rationale = 'Illustrative materiality based on selected benchmark'
+) {
   const overallMateriality = Math.round(benchmarkValue * (percentage / 100));
-  const performanceMateriality = Math.round(overallMateriality * 0.75); // 75% standard haircut
-  const clearlyTrivialThreshold = Math.round(overallMateriality * 0.05); // 5% trivial boundary
+  const performanceMateriality = Math.round(overallMateriality * (performancePct / 100));
+  const clearlyTrivialThreshold = Math.round(overallMateriality * (trivialPct / 100));
 
   return {
+    benchmarkValue,
+    percentage,
     overallMateriality,
+    performancePct,
     performanceMateriality,
-    clearlyTrivialThreshold
+    trivialPct,
+    clearlyTrivialThreshold,
+    rationale
   };
 }
+

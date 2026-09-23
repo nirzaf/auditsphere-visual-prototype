@@ -1,4 +1,6 @@
 // Module 37: Final Release Completion, Gates & Delivery (VP-057, VP-058)
+// Rigorous pre-release verification gates, exact generation freezing, artifact dispatch, and reissue lineage.
+
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
@@ -11,60 +13,101 @@ interface ReleaseCompletionViewProps {
 export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="archive" size="lg" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to access the release and final completion desk.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
+  const client = state.clients.find(c => c.id === selectedEng.client);
 
   const [dispatchNote, setDispatchNote] = useState('Official audit report and audited financial statements dispatched to Board of Directors.');
   const [amendReason, setAmendReason] = useState('');
   const [showAmendModal, setShowAmendModal] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Gates evaluation
-  const allWpCleared = selectedEng.workpapers.every(w => w.status === 'Cleared');
+  const triggerNotice = (type: 'success' | 'error', text: string) => {
+    setNotice({ type, text });
+    setTimeout(() => setNotice(null), 6000);
+  };
+
+  // Comprehensive 4-part release gate checklist (VP-057)
+  const allWpCleared = selectedEng.workpapers.every(w => w.status === 'Cleared' || w.status === 'Not applicable');
   const noOpenReviews = selectedEng.reviews.every(r => r.status === 'Cleared');
-  const allSignOffsDone = Boolean(
-    selectedEng.approvals.manager &&
-    selectedEng.approvals.client &&
-    selectedEng.approvals.partner &&
-    (!selectedEng.eqrRequired || selectedEng.approvals.eqr)
+
+  // Gate 3: Findings resolution (no unresolved material misstatements)
+  const openMaterialFindings = state.findings.filter(
+    f => f.engagementId === selectedEng.id &&
+      !['Corrected in TB', 'Corrected by client', 'Waived as immaterial', 'Uncorrected waived'].includes(f.disposition) &&
+      (f.severity === 'Material' || f.category === 'Monetary misstatement')
+  );
+  const noMaterialFindings = openMaterialFindings.length === 0;
+
+  // Gate 4: Multi-stage sign-offs recorded and valid for current generation
+  const approvalsValid = Boolean(
+    selectedEng.approvals.manager?.generation === selectedEng.generation &&
+    selectedEng.approvals.client?.generation === selectedEng.generation &&
+    selectedEng.approvals.partner?.generation === selectedEng.generation &&
+    (!selectedEng.eqrRequired || selectedEng.approvals.eqr?.generation === selectedEng.generation)
   );
 
-  const gatesPass = allWpCleared && noOpenReviews && allSignOffsDone;
+  const gatesPass = allWpCleared && noOpenReviews && noMaterialFindings && approvalsValid;
 
   const handleFreezeCandidate = () => {
     if (!gatesPass) {
-      alert('Cannot freeze release candidate: One or more release gates remain unfulfilled.');
+      triggerNotice('error', 'Cannot freeze release candidate: One or more release gates remain unfulfilled.');
       return;
     }
-    prototypeStore.prepareReleaseCandidate(selectedEng.id);
+    try {
+      prototypeStore.prepareReleaseCandidate(selectedEng.id);
+      triggerNotice('success', `Release candidate frozen for Generation ${selectedEng.generation}.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
   };
 
   const handleIssueRelease = () => {
     if (!selectedEng.candidate) {
-      alert('Must freeze release candidate first before issuing delivery.');
+      triggerNotice('error', 'Must freeze release candidate first before issuing delivery.');
       return;
     }
-    prototypeStore.issueRelease(selectedEng.id, dispatchNote);
-    alert('Release published successfully.');
+    try {
+      prototypeStore.issueRelease(selectedEng.id, dispatchNote);
+      triggerNotice('success', 'Release package published successfully with cryptographic manifest.');
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
   };
 
   const handleAmendSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amendReason.trim()) return;
 
-    // Increment package revision and stale candidate
-    selectedEng.packageRevision++;
-    selectedEng.generation++;
-    selectedEng.candidate = null;
-    selectedEng.approvals.partner = null;
-    prototypeStore.logEvent(`Release re-opened for amendment: ${amendReason}`, selectedEng.id);
-    setShowAmendModal(false);
-    setAmendReason('');
+    try {
+      prototypeStore.reopenReleaseForAmendment(selectedEng.id, amendReason.trim());
+      setShowAmendModal(false);
+      setAmendReason('');
+      triggerNotice('success', `Release re-opened for amendment. Partner clearance invalidated for Generation ${selectedEng.generation + 1}.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
   };
 
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
-          <h1>Release & Final Completion Desk</h1>
+          <h1>Release &amp; Final Completion Desk</h1>
           <p>Rigorous pre-release verification gates, exact generation freezing, artifact dispatch, and reissue lineage.</p>
         </div>
         <button className="btn sm ghost" onClick={() => onNavigate('records')}>
@@ -72,12 +115,27 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
         </button>
       </div>
 
+      {notice && (
+        <div
+          className="panel panel-pad"
+          style={{
+            background: notice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            borderColor: notice.type === 'success' ? '#86efac' : '#fca5a5',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            padding: '10px 16px'
+          }}
+        >
+          <b>{notice.type === 'success' ? '✓ ' : '⚠ '}</b>
+          {notice.text}
+        </div>
+      )}
+
       {/* Gates Checklist */}
       <div className="panel panel-pad">
         <div className="between">
           <div>
             <span className="eyebrow">PRE-RELEASE VERIFICATION GATES · {selectedEng.id}</span>
-            <h2>Deliverable Readiness Evaluation</h2>
+            <h2>Deliverable Readiness Evaluation (Generation {selectedEng.generation})</h2>
             <p className="sub">Every prerequisite gate must be satisfied before candidate generation is permitted.</p>
           </div>
           <span className={`badge ${gatesPass ? 'green' : 'amber'}`}>
@@ -86,35 +144,61 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
         </div>
 
         <div className="stack mt20" style={{ gap: 10 }}>
+          {/* Gate 1: Workpapers */}
           <div className="between borderbox" style={{ padding: 12 }}>
-            <div className="row" style={{ gap: 10 }}>
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
               <Icon name={allWpCleared ? 'checkcircle' : 'target'} className={allWpCleared ? 'text-green' : 'text-amber'} />
               <div>
                 <b>1. All Audit Workpapers Cleared</b>
-                <div className="cell-sub">{selectedEng.workpapers.filter(w => w.status === 'Cleared').length} of {selectedEng.workpapers.length} cleared</div>
+                <div className="cell-sub">
+                  {selectedEng.workpapers.filter(w => w.status === 'Cleared' || w.status === 'Not applicable').length} of {selectedEng.workpapers.length} cleared / N/A
+                </div>
               </div>
             </div>
             <button className="btn sm ghost" onClick={() => onNavigate('audit')}>Inspect Workpapers</button>
           </div>
 
+          {/* Gate 2: Review Desk */}
           <div className="between borderbox" style={{ padding: 12 }}>
-            <div className="row" style={{ gap: 10 }}>
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
               <Icon name={noOpenReviews ? 'checkcircle' : 'message'} className={noOpenReviews ? 'text-green' : 'text-amber'} />
               <div>
                 <b>2. Review Desk Queries Cleared</b>
-                <div className="cell-sub">{selectedEng.reviews.filter(r => r.status === 'Cleared').length} of {selectedEng.reviews.length} review points cleared</div>
+                <div className="cell-sub">
+                  {selectedEng.reviews.filter(r => r.status === 'Cleared').length} of {selectedEng.reviews.length} review points cleared
+                </div>
               </div>
             </div>
             <button className="btn sm ghost" onClick={() => onNavigate('reviews')}>Inspect Desk</button>
           </div>
 
+          {/* Gate 3: Material Findings */}
           <div className="between borderbox" style={{ padding: 12 }}>
-            <div className="row" style={{ gap: 10 }}>
-              <Icon name={allSignOffsDone ? 'checkcircle' : 'shield'} className={allSignOffsDone ? 'text-green' : 'text-amber'} />
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <Icon name={noMaterialFindings ? 'checkcircle' : 'shield'} className={noMaterialFindings ? 'text-green' : 'text-amber'} />
               <div>
-                <b>3. Multi-Stage Sign-off Approvals Recorded</b>
+                <b>3. No Unresolved Material Misstatements</b>
                 <div className="cell-sub">
-                  Manager: {selectedEng.approvals.manager ? '✓' : '✗'} · Client Rep: {selectedEng.approvals.client ? '✓' : '✗'} · Partner: {selectedEng.approvals.partner ? '✓' : '✗'} · EQR: {selectedEng.approvals.eqr ? '✓' : '✗'}
+                  {openMaterialFindings.length === 0
+                    ? 'All audit findings resolved or classified as trivial'
+                    : `${openMaterialFindings.length} unresolved material finding(s) pending resolution`}
+                </div>
+              </div>
+            </div>
+            <button className="btn sm ghost" onClick={() => onNavigate('findings')}>Inspect Findings</button>
+          </div>
+
+          {/* Gate 4: Multi-stage approvals */}
+          <div className="between borderbox" style={{ padding: 12 }}>
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <Icon name={approvalsValid ? 'checkcircle' : 'shield'} className={approvalsValid ? 'text-green' : 'text-amber'} />
+              <div>
+                <b>4. Multi-Stage Sign-offs Valid for Generation {selectedEng.generation}</b>
+                <div className="cell-sub">
+                  Manager: {selectedEng.approvals.manager?.generation === selectedEng.generation ? '✓' : '✗'} ·
+                  Client Rep: {selectedEng.approvals.client?.generation === selectedEng.generation ? '✓' : '✗'} ·
+                  Partner: {selectedEng.approvals.partner?.generation === selectedEng.generation ? '✓' : '✗'} ·
+                  EQR: {!selectedEng.eqrRequired ? 'N/A' : selectedEng.approvals.eqr?.generation === selectedEng.generation ? '✓' : '✗'}
                 </div>
               </div>
             </div>
@@ -143,7 +227,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                   Prepared by {selectedEng.candidate.preparedBy} on {new Date(selectedEng.candidate.preparedAt).toLocaleString('en-GB')}
                 </div>
                 <div className="mt12">
-                  <label className="caption">Dispatch Memo & Distribution Record</label>
+                  <label className="caption">Dispatch Memo &amp; Distribution Record</label>
                   <textarea
                     className="input"
                     rows={2}
@@ -169,7 +253,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
       <div className="panel">
         <div className="panel-head">
           <h3>Published Releases ({selectedEng.releases.length})</h3>
-          <span className="caption">Cryptographic Delivery Manifest</span>
+          <span className="caption">Cryptographic Delivery Manifest &amp; Reissue Lineage</span>
         </div>
         <div className="tablewrap">
           <table>
@@ -177,7 +261,9 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
               <tr>
                 <th>Release ID</th>
                 <th>Version</th>
-                <th>Generation</th>
+                <th>Gen</th>
+                <th>Predecessor</th>
+                <th>Status</th>
                 <th>Date Dispatched</th>
                 <th>Signatory</th>
                 <th>Recipients</th>
@@ -185,17 +271,27 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
               </tr>
             </thead>
             <tbody>
-              {selectedEng.releases.map(rel => (
-                <tr key={rel.id}>
-                  <td><b>{rel.id}</b></td>
-                  <td>v{rel.version}</td>
-                  <td>Gen {rel.generation}</td>
-                  <td>{new Date(rel.releasedAt).toLocaleDateString('en-GB')}</td>
-                  <td>{rel.releasedBy}</td>
-                  <td>{(rel.recipients || []).join(', ')}</td>
-                  <td>{rel.dispatchNote}</td>
-                </tr>
-              ))}
+              {selectedEng.releases.length === 0 ? (
+                <tr><td colSpan={9} className="text-center sub" style={{ padding: 20 }}>No official release packages issued yet for this engagement.</td></tr>
+              ) : (
+                selectedEng.releases.map(rel => (
+                  <tr key={rel.id}>
+                    <td><b>{rel.id}</b></td>
+                    <td>v{rel.version}</td>
+                    <td>Gen {rel.generation}</td>
+                    <td><span className="mono">{rel.predecessorId || 'Initial Release'}</span></td>
+                    <td>
+                      <span className={`badge ${rel.isAmended ? 'amber' : 'green'}`}>
+                        {rel.isAmended ? 'Superseded (Amended)' : 'Current Official'}
+                      </span>
+                    </td>
+                    <td>{new Date(rel.releasedAt).toLocaleDateString('en-GB')}</td>
+                    <td>{rel.releasedBy}</td>
+                    <td>{(rel.recipients || []).join(', ')}</td>
+                    <td>{rel.dispatchNote}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -212,7 +308,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
             <form onSubmit={handleAmendSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <p className="sub">
-                  Re-opening a release increments the revision lineage and invalidates signing partner approval until re-evaluated.
+                  Re-opening a release increments the revision lineage, supersedes the prior release record, and invalidates signing partner approval until re-evaluated.
                 </p>
                 <div>
                   <label className="caption">Amendment Reason (Required Governance Record)</label>

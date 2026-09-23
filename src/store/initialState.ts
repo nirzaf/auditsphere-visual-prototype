@@ -17,26 +17,49 @@ export const ALL_PERSONAS: UserPersona[] = [
   { id: 'admin', role: 'admin', name: 'Khalid Al-Nuaimi', initials: 'KN', label: 'System administrator', group: 'Operations', email: 'khalid.alnuaimi@ste-audit.demo', status: 'Active' },
   { id: 'client_admin', role: 'client_admin', name: 'Amal Nasser', initials: 'AN', label: 'Client administrator', group: 'Client', email: 'amal.nasser@example-trading.demo', status: 'Active' },
   { id: 'client_finance', role: 'client_finance', name: 'Rami Nasser', initials: 'RN', label: 'Finance contributor', group: 'Client', email: 'rami.nasser@example-trading.demo', status: 'Active' },
-  { id: 'client', role: 'client', name: 'Omar Nasser', initials: 'ON', label: 'Management approver', group: 'Client', email: 'omar.nasser@example-trading.demo', status: 'Active' }
+  { id: 'client', role: 'client', name: 'Omar Nasser', initials: 'ON', label: 'Management approver', group: 'Client', email: 'omar.nasser@example-trading.demo', status: 'Active' },
+  // Second same-role people so reassignment/substitution can actually be demonstrated (VP-014, VP-055)
+  { id: 'preparer-2', role: 'preparer', name: 'Nadia Rahman', initials: 'NR', label: 'Audit preparer (second)', group: 'Professional', email: 'nadia.rahman@ste-audit.demo', status: 'Active' },
+  { id: 'reviewer-2', role: 'reviewer', name: 'Bilal Ahmed', initials: 'BA', label: 'Senior reviewer (second)', group: 'Professional', email: 'bilal.ahmed@ste-audit.demo', status: 'Active' },
+  // Multi-role person: same natural person holds preparer + billing duties; SoD still
+  // applies by person name, not role label (§5.3)
+  { id: 'multirole-1', role: 'billing', name: 'Adam Khan', initials: 'AK', label: 'Billing officer (also preparer)', group: 'Operations', email: 'adam.khan.billing@ste-audit.demo', status: 'Active' },
+  // Disabled identity for lifecycle tests (VP-018)
+  { id: 'reviewer-disabled', role: 'reviewer', name: 'Tariq Aziz', initials: 'TA', label: 'Senior reviewer (disabled)', group: 'Professional', email: 'tariq.aziz@ste-audit.demo', status: 'Inactive' },
+  // Narrowly scoped group-reporting user: sees one engagement only (VP-019 negative tests)
+  { id: 'group-user', role: 'manager', name: 'Mona Khalil', initials: 'MK', label: 'Group accountant (narrow scope)', group: 'Professional', email: 'mona.khalil@ste-audit.demo', status: 'Active' }
 ];
 
 export function createInitialState(): PrototypeState {
   return {
-    schema: 3,
+    schema: 4,
     asOfDate: '2026-09-23',
     selectedEngagement: 'ENG-26001',
     currentRole: 'manager',
     currentPerson: 'Layla Rahman',
     users: ALL_PERSONAS,
     roleGrants: [
-      { userId: 'manager', role: 'manager', scopeKind: 'Global' },
-      { userId: 'partner', role: 'partner', scopeKind: 'Global' },
-      { userId: 'preparer', role: 'preparer', scopeKind: 'Global' },
-      { userId: 'reviewer', role: 'reviewer', scopeKind: 'Global' },
-      { userId: 'eqr', role: 'eqr', scopeKind: 'Global' },
-      { userId: 'client_admin', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-001' },
-      { userId: 'client_finance', role: 'client_finance', scopeKind: 'Client', scopeId: 'CL-001' },
-      { userId: 'client', role: 'client', scopeKind: 'Client', scopeId: 'CL-001' }
+      { userId: 'Layla Rahman', role: 'manager', scopeKind: 'Global' },
+      { userId: 'Daniel James', role: 'partner', scopeKind: 'Global' },
+      { userId: 'Adam Khan', role: 'preparer', scopeKind: 'Global' },
+      { userId: 'Nadia Rahman', role: 'preparer', scopeKind: 'Global' },
+      { userId: 'Sara Malik', role: 'reviewer', scopeKind: 'Global' },
+      { userId: 'Bilal Ahmed', role: 'reviewer', scopeKind: 'Global' },
+      { userId: 'Dr. Tariq Al-Sayed', role: 'eqr', scopeKind: 'Global' },
+      { userId: 'Amira Qasim', role: 'relationship', scopeKind: 'Global' },
+      { userId: 'Hana Ali', role: 'onboarding', scopeKind: 'Global' },
+      { userId: 'Yusuf Ahmed', role: 'compliance', scopeKind: 'Global' },
+      { userId: 'Leila Hassan', role: 'billing', scopeKind: 'Global' },
+      { userId: 'Farooq Mansour', role: 'records', scopeKind: 'Global' },
+      { userId: 'Khalid Al-Nuaimi', role: 'admin', scopeKind: 'Global' },
+      // Client identities carry explicit per-client grants; Amal holds two entity
+      // grants to exercise multi-entity portal switching (VP-025).
+      { userId: 'Amal Nasser', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'Amal Nasser', role: 'client_admin', scopeKind: 'Client', scopeId: 'CL-003' },
+      { userId: 'Rami Nasser', role: 'client_finance', scopeKind: 'Client', scopeId: 'CL-001' },
+      { userId: 'Omar Nasser', role: 'client', scopeKind: 'Client', scopeId: 'CL-001' },
+      // Narrow group-reporting scope: consolidation components only, no sibling access.
+      { userId: 'Mona Khalil', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' }
     ],
 
     // Module 02: Clients
@@ -125,6 +148,28 @@ export function createInitialState(): PrototypeState {
         partner: 'Daniel James',
         manager: 'Layla Rahman',
         notes: 'Internal audit and process risk review.'
+      },
+      // Similar-name control: distinct legal entity, must never auto-merge (VP-006).
+      {
+        id: 'CL-005',
+        code: 'EXP-TRAD-SVC',
+        name: 'Example Trading Services',
+        tradingName: 'Example Trading Services W.L.L.',
+        initials: 'ES',
+        color: 'teal',
+        industry: 'Trading & distribution',
+        contact: 'Omar Nasser',
+        email: 'omar.nasser@example-trading-services.demo',
+        phone: '+974 4411 2299',
+        jurisdiction: 'State of Qatar (MOCI)',
+        registrationNumber: 'CR-112233',
+        status: 'Prospect',
+        risk: 'Low',
+        revenue: 250000,
+        relationshipOwner: 'Amira Qasim',
+        partner: 'Daniel James',
+        manager: 'Layla Rahman',
+        notes: 'Similarly named prospect used for duplicate/similar-name warning tests. Separate legal entity from CL-001.'
       }
     ],
 
@@ -213,6 +258,17 @@ export function createInitialState(): PrototypeState {
           partner: null,
           eqr: null
         },
+        eqrConcerns: [
+          {
+            id: 'EQR-01',
+            text: 'Confirm management representation letter has been signed by both CEO and CFO.',
+            resolved: true,
+            raisedBy: 'Dr. Tariq Al-Sayed',
+            raisedAt: '2026-09-18T10:00:00Z',
+            resolvedBy: 'Layla Rahman',
+            resolvedAt: '2026-09-20T14:30:00Z'
+          }
+        ],
         rows: [
           { code: '1000', name: 'Cash and bank balances', type: 'asset', balance: 1000000, dimensionDept: 'Treasury', mappedStatementLine: 'Cash and cash equivalents' },
           { code: '1100', name: 'Trade and other receivables', type: 'asset', balance: 500000, dimensionDept: 'Sales', mappedStatementLine: 'Trade and other receivables' },
@@ -439,6 +495,55 @@ export function createInitialState(): PrototypeState {
           { code: '3000', name: 'Retained capital', type: 'equity', balance: -450000 },
           { code: '4000', name: 'Consulting fees', type: 'revenue', balance: -800000 },
           { code: '5000', name: 'Consultant costs & software', type: 'expense', balance: 650000 }
+        ],
+        adjustment: 0,
+        journalState: 'Applied',
+        sourceReflection: true,
+        supplements: true,
+        reconciliations: [],
+        workpapers: [],
+        reviews: [],
+        pbc: [],
+        annual: { confirmed: [], decision: null, nextId: null },
+        questionnaire: { answers: { 0: true, 1: true, 2: true, 3: true }, status: 'Completed' },
+        events: []
+      },
+      // Second engagement for the SAME client: sibling-exclusion negative tests
+      // (VP-019) must hide this engagement from narrow ENG-26001 grants and vice versa.
+      {
+        id: 'ENG-26003',
+        client: 'CL-001',
+        service: 'Annual accounts',
+        stage: 'Accounting',
+        year: 2025,
+        mode: 'Client accounting records',
+        period: '01 Jan – 31 Dec 2025',
+        due: '2026-08-30',
+        manager: 'Layla Rahman',
+        partner: 'Daniel James',
+        team: ['Layla Rahman', 'Nadia Rahman'],
+        agreedFee: 120000,
+        currency: 'QAR',
+        acceptance: true,
+        terms: true,
+        planning: true,
+        sourceAccepted: true,
+        mappingApproved: false,
+        generation: 1,
+        packageRevision: 1,
+        builtGeneration: 1,
+        sourceVersion: 1,
+        eqrRequired: false,
+        opinion: 'Compilation report',
+        releases: [],
+        approvals: { manager: null, client: null, partner: null, eqr: null },
+        rows: [
+          { code: '1000', name: 'Cash and bank balances', type: 'asset', balance: 600000 },
+          { code: '1100', name: 'Trade and other receivables', type: 'asset', balance: 200000 },
+          { code: '2000', name: 'Trade and other payables', type: 'liability', balance: -150000 },
+          { code: '3000', name: 'Share capital & retained earnings', type: 'equity', balance: -500000 },
+          { code: '4000', name: 'Revenue from contracts', type: 'revenue', balance: -400000 },
+          { code: '5000', name: 'Operating and administrative expenses', type: 'expense', balance: 250000 }
         ],
         adjustment: 0,
         journalState: 'Applied',
@@ -961,6 +1066,19 @@ export function createInitialState(): PrototypeState {
 
     events: [
       { text: 'Initial demonstration state loaded', ref: 'SYS-INIT', time: 'Today · 08:00', type: 'checkcircle' }
+    ],
+
+    folders: [
+      { path: '/Engagements/2026/', label: 'All 2026 Engagements' },
+      { path: '/Engagements/2026/Accounting/', label: 'Accounting & Trial Balances' },
+      { path: '/Engagements/2026/Audit/', label: 'Audit Substantive Testing' },
+      { path: '/Engagements/2026/Deliverables/', label: 'Published Deliverables' },
+      { path: '/PBC/', label: 'Client PBC Submissions' },
+      { path: '/Clients/CL-001/2026/01_Acceptance/', label: '01 Acceptance & KYC', clientId: 'CL-001' },
+      { path: '/Clients/CL-001/2026/02_Planning/', label: '02 Audit Planning', clientId: 'CL-001' },
+      { path: '/Clients/CL-001/2026/03_Fieldwork/', label: '03 Substantive Fieldwork', clientId: 'CL-001' },
+      { path: '/Clients/CL-001/2026/04_Deliverables/', label: '04 Signed Deliverables', clientId: 'CL-001' },
+      { path: '/Clients/CL-001/2026/05_Correspondence/', label: '05 Client Communications', clientId: 'CL-001' }
     ]
   };
 }

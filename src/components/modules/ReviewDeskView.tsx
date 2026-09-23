@@ -11,11 +11,28 @@ interface ReviewDeskViewProps {
 export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="message" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to inspect reviewer notes and query resolution.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
   const reviews = selectedEng.reviews;
 
   const [selectedNote, setSelectedNote] = useState<ReviewNoteItem | null>(null);
   const [showRaiseModal, setShowRaiseModal] = useState(false);
   const [showRespondModal, setShowRespondModal] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New review point form
   const [targetWp, setTargetWp] = useState('WP-A1');
@@ -72,8 +89,11 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   const handleClearNote = (noteId: string) => {
     try {
       prototypeStore.clearReviewNote(selectedEng.id, noteId);
+      setNotice({ type: 'success', text: `Review note ${noteId} cleared successfully.` });
+      setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -90,6 +110,12 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">

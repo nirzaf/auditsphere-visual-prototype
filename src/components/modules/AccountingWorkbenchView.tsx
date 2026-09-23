@@ -6,6 +6,7 @@ import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedul
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
+import { TBImportWizard } from './TBImportWizard';
 
 interface AccountingWorkbenchViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -17,6 +18,21 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="calculator" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to work with trial balances, GL transactions, adjustments, and reconciliations.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
 
   // TB State
   const [editRowCode, setEditRowCode] = useState<string | null>(null);
@@ -108,6 +124,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
       {/* Tab 1: Trial Balance */}
       {activeTab === 'tb' && (
         <div className="stack" style={{ gap: 16 }}>
+          <TBImportWizard engagementId={selectedEng.id} onCommitted={() => undefined} />
           {/* Status banner */}
           <div className="panel panel-pad" style={{ background: tbTotals.isBalanced ? '#f0fdf4' : '#fef2f2' }}>
             <div className="between">

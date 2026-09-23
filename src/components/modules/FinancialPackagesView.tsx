@@ -14,6 +14,21 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
 
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="archive" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to compile and export financial packages.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
   const [packageNotes, setPackageNotes] = useState('Standard statutory disclosures and IFRS accounting policies included.');
 
   const handleExportDOCX = async () => {
@@ -25,7 +40,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         `Reporting Period: ${selectedEng.period}`,
         `Engagement Service: ${selectedEng.service}`,
         `Audit Signatory: ${selectedEng.partner} (Partner)`,
-        `Quality Reviewer: ${selectedEng.eqrRequired ? 'Fatima Al-Kuwari (EQR)' : 'N/A'}`,
+        `Quality Reviewer: ${selectedEng.eqrRequired ? 'Dr. Tariq Al-Sayed (EQR)' : 'N/A (EQR not required)'}`,
         `Package Revision: Version ${selectedEng.packageRevision}`,
         `Auditor Opinion: ${selectedEng.opinion}`,
         '',
@@ -126,6 +141,18 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
             onChange={e => setPackageNotes(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype note — package assembly.</b>
+        <p className="sub mt4">
+          Exports above are genuine files (XLSX via the statements view, DOCX/PDF here) carrying the
+          displayed entity, period, revision and demo watermark. Interactive contents selection and
+          ordering, a multi-revision version list, a validation summary, and source/mapping/notes
+          lineage are not yet editable in this view; the package identity shown (revision, source
+          version, generation) is the lineage carried into release and archive. Internal workpapers
+          and reviewer comments are excluded from these outputs by default.
+        </p>
       </div>
     </div>
   );

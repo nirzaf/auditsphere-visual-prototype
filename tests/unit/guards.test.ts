@@ -1,0 +1,394 @@
+// VP-063 unit: guards + store commands (AT-11/12/18/24/28/31/32/47/54).
+// Same-person, scope, hierarchy, allocation and stale-revision rules share one
+// implementation between UI actions and tests.
+import { describe, it, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { createInitialState } from '../../src/store/initialState.js';
+import { visibleClientIds, visibleEngagementIds, GuardError } from '../../src/services/guards.js';
+import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
+import type { PrototypeState } from '../../src/types/index.js';
+
+let state: PrototypeState;
+beforeEach(() => { state = createInitialState(); });
+
+describe('scope guards (AT-18)', () => {
+  it('global manager sees all; narrow group user sees one engagement only', () => {
+    state.currentPerson = 'Layla Rahman';
+    assert.equal(visibleEngagementIds(state), 'ALL');
+    state.currentPerson = 'Mona Khalil';
+    const engs = visibleEngagementIds(state);
+    assert.deepEqual(engs, ['ENG-26001']);
+    const clients = visibleClientIds(state, 'Mona Khalil');
+    assert.deepEqual(clients, ['CL-001']);
+  });
+
+  it('sibling engagement ENG-26003 is hidden from the narrow ENG-26001 grant', () => {
+    state.currentPerson = 'Mona Khalil';
+    const engs = visibleEngagementIds(state) as string[];
+    assert.equal(engs.includes('ENG-26003'), false);
+  });
+
+  it('client identity with two grants sees both entities', () => {
+    const clients = visibleClientIds(state, 'Amal Nasser');
+    assert.deepEqual([...(clients as string[])].sort(), ['CL-001', 'CL-003']);
+  });
+});
+
+describe('fixture integrity (AT-02/54)', () => {
+  it('seed fixtures pass integrity with no broken references', () => {
+    const issues = validateFixtures(state);
+    assert.deepEqual(issues, []);
+  });
+
+  it('rejects inline binary payloads in persisted state', () => {
+    (state as any).notes = 'data:image/png;base64,iVBORw0KGgo=';
+    const issues = validateFixtures(state);
+    assert.equal(issues.some(i => i.code === 'PERSISTENCE_BINARY'), true);
+  });
+
+  it('migrates legacy payloads deterministically and preserves history', () => {
+    const legacy = { schema: 2, engagements: state.engagements, asOfDate: '2026-09-23' };
+    const { state: migrated, migratedFrom, warnings } = migratePersistedState(legacy, createInitialState());
+    assert.equal(migratedFrom, 2);
+    assert.equal(migrated.engagements.length > 0, true);
+    assert.equal(warnings.length > 0, true);
+    assert.equal(migrated.schema, 4);
+  });
+});
+
+describe('client rules (AT-05)', () => {
+  it('duplicate normalized client codes are rejected', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Amira Qasim';
+    assert.throws(
+      () => prototypeStore.addClient({ id: 'CL-X', code: 'exp-trad', name: 'Dup', initials: 'D', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
+      /Duplicate client code/
+    );
+  });
+});
+
+describe('task hierarchy (AT-11)', () => {
+  it('rejects second nesting levels and cross-job parents', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    assert.throws(
+      () => prototypeStore.addTask({ id: 'T-DEEP', jobId: 'JOB-2601', parentTaskId: 'TSK-103-1', title: 'Too deep', assignee: 'Adam Khan', status: 'Not started', order: 9 }),
+      /one level/
+    );
+    assert.throws(
+      () => prototypeStore.addTask({ id: 'T-XJOB', jobId: 'JOB-2602', parentTaskId: 'TSK-101', title: 'Cross job', assignee: 'Adam Khan', status: 'Not started', order: 9 }),
+      /Cross-job/
+    );
+  });
+
+  it('blocks completing a parent with unfinished children', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    const parent = (prototypeStore as any).state.jobTasks.find((t: any) => t.id === 'TSK-103');
+    assert.throws(
+      () => prototypeStore.updateTask({ ...parent, status: 'Completed' }),
+      /unfinished/
+    );
+  });
+});
+
+describe('separation of duties (AT-24/31/47)', () => {
+  it('a person cannot approve their own proposal, time, workpaper or review point', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const { GuardError: GE } = await import('../../src/services/guards.js');
+    (prototypeStore as any).state = createInitialState();
+    // Proposal prepared by Amira → Amira cannot approve even as manager label.
+    (prototypeStore as any).state.currentPerson = 'Amira Qasim';
+    assert.throws(() => prototypeStore.reviewProposal('PROP-001', true), (e: any) => e instanceof GE || /Separation of duties/.test(e.message));
+    // Own time entry.
+    (prototypeStore as any).state.currentPerson = 'Adam Khan';
+    assert.throws(() => prototypeStore.reviewTimeEntry('TIME-01', 'Approved'), /own time/);
+  });
+
+  it('GuardError carries machine-readable codes', () => {
+    const e = new GuardError('SELF_APPROVAL', 'x');
+    assert.equal(e.code, 'SELF_APPROVAL');
+  });
+});
+
+describe('evidence adequacy (AT-20/46)', () => {
+  it('persists attributable adequacy and requires rationale for deficiency', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Sara Malik';
+    assert.throws(
+      () => prototypeStore.setEvidenceAdequacy('EVD-01', 'Deficient', ''),
+      /rationale/
+    );
+    prototypeStore.setEvidenceAdequacy('EVD-01', 'Deficient', 'Bank confirmation missing signature page');
+    const ev = (prototypeStore as any).state.evidenceCatalogue.find((e: any) => e.id === 'EVD-01');
+    assert.equal(ev.adequacyStatus, 'Deficient');
+    prototypeStore.setEvidenceAdequacy('EVD-01', 'Adequate');
+    assert.equal(
+      (prototypeStore as any).state.evidenceCatalogue.find((e: any) => e.id === 'EVD-01').adequacyStatus,
+      'Adequate'
+    );
+  });
+});
+
+describe('money guards (AT-30/31/32)', () => {
+  it('rejects over-allocation and cross-client allocation atomically', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    assert.throws(() => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', 999999), /unallocated/);
+    assert.throws(() => prototypeStore.allocateReceipt('RCPT-02', 'INV-26003', 10), /Cross-client/);
+  });
+
+  it('credits cannot exceed the remaining creditable amount', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    assert.throws(
+      () => prototypeStore.addCreditNote({ id: 'C-X', invoiceId: 'INV-26002', clientId: 'CL-001', creditNumber: 'CRN-X', amount: 999999, reason: 'too big', status: 'Issued', issueDate: '2026-09-23', preparedBy: 'Leila Hassan' }),
+      /remaining creditable/
+    );
+  });
+
+  // Isolated Acceptance Reproductions (EX13 - EX18)
+  it('EX13: Proposal prevents self approval', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    // PROP-001 preparedBy: 'Amira Qasim'
+    (prototypeStore as any).state.currentPerson = 'Amira Qasim';
+    (prototypeStore as any).state.currentRole = 'manager';
+    assert.throws(
+      () => prototypeStore.reviewProposal('PROP-001', true),
+      /commercially approve/
+    );
+  });
+
+  it('EX14: Client contributor cannot record partner decision', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Tariq Al-Mansoor';
+    (prototypeStore as any).state.currentRole = 'client_contributor';
+    assert.throws(
+      () => prototypeStore.recordApproval('ENG-26001', 'partner'),
+      /Only a partner/
+    );
+  });
+
+  it('EX15: Allocation rejects wrong client/currency/draft invoice', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    (prototypeStore as any).state.currentRole = 'billing_officer';
+    // Create draft invoice with same client as RCPT-02
+    const rcpt = (prototypeStore as any).state.receipts.find((r: any) => r.id === 'RCPT-02');
+    const draftInv = {
+      id: 'INV-DRAFT-X', clientId: rcpt.clientId, invoiceNumber: 'INV-DRAFT', amount: 500, paid: 0, currency: 'QAR', status: 'Draft', due: '2026-10-01', lines: []
+    };
+    (prototypeStore as any).state.invoices.push(draftInv);
+    assert.throws(
+      () => prototypeStore.allocateReceipt('RCPT-02', draftInv.id, 100),
+      /Only issued invoices/
+    );
+    // Cross client
+    assert.throws(
+      () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26003', 10),
+      /Cross-client/
+    );
+  });
+
+  it('EX16: Allocation rejects negative amount', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    (prototypeStore as any).state.currentRole = 'billing_officer';
+    assert.throws(
+      () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', -100),
+      /positive/
+    );
+  });
+
+  it('EX17: Allocation rejects amount above invoice outstanding', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    (prototypeStore as any).state.currentRole = 'billing_officer';
+    // INV-26002 amount is 85000 QAR
+    assert.throws(
+      () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', 90000),
+      /exceeds/
+    );
+  });
+
+  it('EX18 positive control: rejects exceeding receipt funds', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Leila Hassan';
+    (prototypeStore as any).state.currentRole = 'billing_officer';
+    const rcpt = (prototypeStore as any).state.receipts.find((r: any) => r.id === 'RCPT-02');
+    const unallocated = rcpt.amount - (rcpt.allocatedAmount || 0);
+    assert.throws(
+      () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', unallocated + 1000),
+      /exceeds available unallocated/
+    );
+  });
+});
+
+describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('EQR sign-off blocked when unresolved EQR concerns exist (VP-056 / F03)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Dr. Tariq Al-Sayed';
+    (prototypeStore as any).state.currentRole = 'eqr';
+
+    const eng = (prototypeStore as any).state.engagements[0];
+    eng.eqrConcerns = [
+      { id: 'EQR-99', text: 'Unresolved going concern inquiry', resolved: false, raisedBy: 'Dr. Tariq Al-Sayed', raisedAt: new Date().toISOString() }
+    ];
+
+    assert.throws(
+      () => prototypeStore.recordApproval(eng.id, 'eqr', 'Signoff attempt'),
+      /Unresolved EQR concerns/
+    );
+
+    // Resolving concern allows sign-off
+    prototypeStore.toggleEqrConcern(eng.id, 'EQR-99');
+    assert.strictEqual(eng.eqrConcerns[0].resolved, true);
+    prototypeStore.recordApproval(eng.id, 'eqr', 'Cleared after resolution');
+    assert.ok(eng.approvals.eqr);
+  });
+
+  it('Job template lifecycle: draft templates cannot be instantiated; publishing allows (VP-015 / F06)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Layla Rahman';
+    (prototypeStore as any).state.currentRole = 'manager';
+
+    const draftTpl = {
+      id: 'TPL-TEST-DRAFT',
+      name: 'Unpublished Draft Template',
+      service: 'Statutory Audit',
+      description: 'Test template',
+      defaultJobTitle: 'Test Job',
+      status: 'Draft' as const,
+      revision: 1,
+      tasks: [{ title: 'Phase 1', subtasks: ['Subtask 1'] }]
+    };
+
+    prototypeStore.addJobTemplate(draftTpl);
+
+    assert.throws(
+      () => prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman'),
+      /Only Published templates/
+    );
+
+    // Publish template
+    prototypeStore.publishJobTemplate(draftTpl.id);
+    const beforeCount = (prototypeStore as any).state.jobs.length;
+    prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman');
+    assert.strictEqual((prototypeStore as any).state.jobs.length, beforeCount + 1);
+
+    // Retire template
+    prototypeStore.retireJobTemplate(draftTpl.id);
+    assert.throws(
+      () => prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Another Job', '2026-10-31', 'Layla Rahman'),
+      /Only Published templates/
+    );
+  });
+
+  it('Workpaper version replacement invalidates clearance and resets status (VP-050 / F05)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const eng = (prototypeStore as any).state.engagements[0];
+    const wp = eng.workpapers[0];
+
+    // Mark cleared
+    wp.status = 'Cleared';
+    wp.clearance = {
+      clearedBy: 'Sara Malik',
+      clearedAt: new Date().toISOString(),
+      sourceVersion: 1,
+      generation: 1,
+      version: wp.version,
+      notes: 'Initial clearance'
+    };
+
+    (prototypeStore as any).state.currentPerson = 'Adam Khan';
+    (prototypeStore as any).state.currentRole = 'preparer';
+
+    const oldVersion = wp.version;
+    prototypeStore.replaceWorkpaperRevision(eng.id, wp.id, { name: `${wp.id}_Revision2.xlsx` });
+
+    assert.strictEqual(wp.version, oldVersion + 1);
+    assert.strictEqual(wp.status, 'In progress');
+    assert.strictEqual(wp.clearance, null);
+    assert.ok(wp.clearanceHistory.length > 0);
+  });
+
+  it('PBC response upload sets status to Received (not Accepted) and registers document (VP-023 / F05)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Omar Nasser';
+    (prototypeStore as any).state.currentRole = 'client';
+
+    const eng = (prototypeStore as any).state.engagements[0];
+    const req = eng.pbc[0];
+
+    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4.pdf', size: 102400 });
+
+    assert.strictEqual(req.status, 'Received');
+    assert.notStrictEqual(req.status, 'Accepted');
+
+    const uploadedDoc = (prototypeStore as any).state.documents.find((d: any) => d.linkedPbcId === req.id);
+    assert.ok(uploadedDoc);
+    assert.strictEqual(uploadedDoc.visibility, 'Client shared');
+  });
+
+  it('Re-open release for amendment preserves predecessor and lineage (VP-058 / F04)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Daniel James';
+    (prototypeStore as any).state.currentRole = 'partner';
+
+    const eng = (prototypeStore as any).state.engagements[0];
+    // Issue initial release
+    prototypeStore.prepareReleaseCandidate(eng.id);
+    prototypeStore.issueRelease(eng.id, 'First official release');
+    const firstRelId = eng.releases[0].id;
+
+    // Reopen for amendment
+    prototypeStore.reopenReleaseForAmendment(eng.id, 'Subsequent adjusting event: litigation settlement');
+    assert.strictEqual(eng.releases[0].isAmended, true);
+    assert.strictEqual(eng.candidate, null);
+    assert.strictEqual(eng.approvals.partner, null);
+
+    // Freeze and issue second release
+    prototypeStore.prepareReleaseCandidate(eng.id);
+    prototypeStore.issueRelease(eng.id, 'Second amended release');
+    assert.strictEqual(eng.releases.length, 2);
+    assert.strictEqual(eng.releases[1].predecessorId, firstRelId);
+  });
+
+  it('Canonical SharePoint client folders created idempotently (VP-017 / F13)', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).state.currentPerson = 'Daniel James';
+    (prototypeStore as any).state.currentRole = 'partner';
+
+    const beforeFolderCount = (prototypeStore as any).state.folders.length;
+    prototypeStore.prepareClientWorkspace('CL-001', 2026);
+    // Calling a second time should be idempotent (no duplicates)
+    prototypeStore.prepareClientWorkspace('CL-001', 2026);
+
+    const clientFolders = (prototypeStore as any).state.folders.filter((f: any) => f.clientId === 'CL-001');
+    assert.ok(clientFolders.some((f: any) => f.path.includes('01_Acceptance')));
+    assert.ok(clientFolders.some((f: any) => f.path.includes('02_Planning')));
+    assert.ok(clientFolders.some((f: any) => f.path.includes('03_Fieldwork')));
+    assert.ok(clientFolders.some((f: any) => f.path.includes('04_Deliverables')));
+    assert.ok(clientFolders.some((f: any) => f.path.includes('05_Correspondence')));
+  });
+});
+
+

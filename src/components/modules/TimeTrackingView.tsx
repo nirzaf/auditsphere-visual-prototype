@@ -15,6 +15,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [entryToReturn, setEntryToReturn] = useState<TimeEntryItem | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New time entry form
   const [person, setPerson] = useState(state.currentPerson);
@@ -51,8 +52,11 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
   const handleApprove = (entry: TimeEntryItem) => {
     try {
       prototypeStore.reviewTimeEntry(entry.id, 'Approved');
+      setNotice({ type: 'success', text: `Time entry for ${entry.person} (${entry.durationMinutes} min) approved.` });
+      setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -80,6 +84,12 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
           <Icon name="plus" /> Record Time Entry
         </button>
       </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
 
       <div className="metric-grid">
         <div className="metric">

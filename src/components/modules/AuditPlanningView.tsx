@@ -14,6 +14,21 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
 
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="target" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to calculate materiality and establish audit strategy.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
+
   const [benchmarkType, setBenchmarkType] = useState<'profit' | 'revenue' | 'assets' | 'equity'>('revenue');
   const [benchmarkValue, setBenchmarkValue] = useState<number>(client?.revenue || 2000000);
   const [percentage, setPercentage] = useState<number>(1.5);
@@ -109,6 +124,18 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
             onChange={e => setScopeNotes(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="panel panel-pad" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+        <b>Prototype note — plan persistence and review.</b>
+        <p className="sub mt4">
+          This calculator is illustrative and session-local: benchmark, percentage, rationale, team,
+          timing and significant-area selections are not yet saved as a versioned plan revision, and
+          there is no independent plan review or stale-fieldwork marking here. The deterministic
+          materiality arithmetic (overall, 75% performance haircut, 5% trivial threshold) is the
+          tested contract — see docs/prototype/demo-scenarios.md. Thresholds are entered assumptions,
+          never recommended professional values.
+        </p>
       </div>
     </div>
   );

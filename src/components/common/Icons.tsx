@@ -3,13 +3,13 @@ import React from 'react';
 
 interface IconProps {
   name: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
 export const Icon: React.FC<IconProps> = ({ name, size = 'md', className = '' }) => {
-  const dim = size === 'sm' ? 14 : size === 'lg' ? 24 : 16;
-  const stroke = size === 'lg' ? 1.8 : 2;
+  const dim = size === 'sm' ? 14 : size === 'xl' ? 32 : size === 'lg' ? 24 : 16;
+  const stroke = size === 'xl' ? 1.6 : size === 'lg' ? 1.8 : 2;
 
   switch (name) {
     case 'grid':

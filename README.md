@@ -54,3 +54,17 @@ npm run legacy:check
 ## Scope and limitations
 
 All synthetic state is inspectable in the browser and saved only in local storage when available. Uploads retain metadata and a local hash only; file bytes are not stored. The visualization does not implement production authentication, enforceable multi-user authorization, real Microsoft integrations, legal signatures, ledger postings, payments, filings, or immutable retention.
+
+Current supported scope, exclusions and historical-source labelling: `docs/prototype/scope.md`. Inspected baseline inventory: `docs/prototype/baseline.md`. 39-module route/command/test map: `docs/prototype/module-coverage.md`. Presenter scenarios with fixed arithmetic: `docs/prototype/demo-scenarios.md`. Actually executed checks (never claimed in advance): `docs/prototype/verification.md`.
+
+## Verification (VP-063)
+
+```bash
+npm ci
+npm run build
+npm run legacy:check
+npm run test:unit   # deterministic calculations, guards, migrations, scope scan, TB parsing, export formats
+npm run test:e2e    # serves dist/ on loopback; asserts shell boot, no provider egress, simulated surfaces
+```
+
+Microsoft 365 screens are local simulations (`liveConnected: false`); SharePoint is the canonical demo library, OneDrive import is optional and disabled by default, mail outcomes are simulated accepted/failed/unknown, and Microsoft Purview is not part of this product. Issued invoices, approvals and releases change local demo records only — no payment demand, signature, email delivery or external retention is performed.

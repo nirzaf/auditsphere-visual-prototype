@@ -15,6 +15,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New receipt form
   const [receiptNumber, setReceiptNumber] = useState(`RCP-2600${state.receipts.length + 1}`);
@@ -61,8 +62,11 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
       prototypeStore.allocateReceipt(selectedReceipt.id, targetInvoiceId, allocateAmount);
       setShowAllocateModal(false);
       setSelectedReceipt(null);
+      setNotice({ type: 'success', text: `Allocated ${formatCurrency(allocateAmount, selectedReceipt.currency)} to invoice ${targetInvoiceId}.` });
+      setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -112,6 +116,12 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div className={`badge ${notice.type === 'error' ? 'danger' : 'success'}`} style={{ padding: '8px 12px', display: 'block', fontSize: 13 }}>
+          {notice.text}
+        </div>
+      )}
 
       {/* Aging Metric Cards */}
       <div className="metric-grid">
