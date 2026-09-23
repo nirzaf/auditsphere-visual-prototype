@@ -30,8 +30,11 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   across two issued invoices and reverses one allocation with a reason while
   preserving the other invoice settlement. It exports a client-scoped CSV
-  statement that excludes Draft and other-client invoices. The complete
-  statement workflow remains partial; the integration is offline-only.
+  statement with issued invoices, credits and receipts; Draft and other-client
+  invoices are excluded. Client, as-of date and currency filters drive the
+  balances, including historical balances before a later receipt. Printable
+  statements and amount drill-downs remain incomplete; the integration is
+  offline-only.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted

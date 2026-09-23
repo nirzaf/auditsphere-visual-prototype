@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
-import { calculateRecordedWipValue, calculateReceivablesAging, formatMinutesToHours } from '../../src/services/calculations.js';
+import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
 
@@ -998,17 +998,31 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
-  it('AT-32/VP-032: splits one offline receipt across invoices and reverses one allocation with a reason', async t => {
+  it('AT-32/33 VP-032/033: filters aging and statements, splits one offline receipt across invoices and reverses one allocation', async t => {
     const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     t.after(async () => {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(priorState ?? JSON.stringify(createInitialState()))})`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#role-select")');
     });
-    await browserTab!.evaluate(`(() => {const s=${JSON.stringify(createInitialState())};const invoice={...s.invoices.find(i=>i.id==='INV-26002'),id:'INV-AT32-SECOND',invoiceNumber:'INV-AT32-SECOND',paid:0,status:'Issued'};s.invoices.push(invoice);localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+    await browserTab!.evaluate(`(() => {const s=${JSON.stringify(createInitialState())};const invoice={...s.invoices.find(i=>i.id==='INV-26002'),id:'INV-AT32-SECOND',invoiceNumber:'INV-AT32-SECOND',paid:0,status:'Issued'};const foreignCurrencyInvoice={...invoice,id:'INV-AT32-USD',invoiceNumber:'INV-AT32-USD',currency:'USD'};s.invoices.push(invoice,foreignCurrencyInvoice);localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'),true);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'billing');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Receivables & Receipts'));if(!b)throw Error('Receivables navigation is missing');b.click();})()`);
+    await browserTab!.evaluate(`(() => {const client=document.querySelector('[aria-label="Receivables client"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(client,'CL-001');client.dispatchEvent(new Event('change',{bubbles:true}));const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-01');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const currencyOptions = await browserTab!.evaluate<string[]>(`[...document.querySelector('[aria-label="Receivables currency"]').options].map(o=>o.value)`);
+    assert.deepEqual(currencyOptions,['QAR','USD'],'currency selector should expose each permitted balance currency separately');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Receivables currency"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'USD');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const usdAgingFixture = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoices:s.invoices.filter(i=>i.clientId==='CL-001'&&i.currency==='USD'),credits:s.creditNotes.filter(c=>c.clientId==='CL-001'),receipts:s.receipts.filter(r=>r.clientId==='CL-001'&&r.currency==='USD')};})()`);
+    const expectedUsdAging = calculateReceivablesAging(usdAgingFixture.invoices,usdAgingFixture.credits,usdAgingFixture.receipts,'2026-09-01','CL-001');
+    const displayedUsdCurrent = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.metric')].find(x=>x.querySelector('.metric-label')?.innerText.includes('Current'))?.querySelector('.metric-val')?.innerText || ''`);
+    assert.equal(displayedUsdCurrent,formatCurrency(expectedUsdAging.current,'USD'),'aging should show a single currency balance using its selected currency');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Receivables currency"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'QAR');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const agingFixture = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoices:s.invoices.filter(i=>i.clientId==='CL-001'&&i.currency==='QAR'),credits:s.creditNotes.filter(c=>c.clientId==='CL-001'),receipts:s.receipts.filter(r=>r.clientId==='CL-001'&&r.currency==='QAR')};})()`);
+    const expectedAging = calculateReceivablesAging(agingFixture.invoices,agingFixture.credits,agingFixture.receipts,'2026-09-01','CL-001');
+    const displayedCurrent = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.metric')].find(x=>x.querySelector('.metric-label')?.innerText.includes('Current'))?.querySelector('.metric-val')?.innerText || ''`);
+    assert.equal(displayedCurrent,formatCurrency(expectedAging.current),'selected client, currency and as-of date must drive aging balances');
+    await browserTab!.evaluate(`(() => {const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-23');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Record Offline Receipt');
     await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing receipt field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Receipt Number','RCP-AT32');set('Amount (QAR)','50000');set('Bank Reference / Cheque No.','AT32-BANK-REF');})()`);
     await clickButton('Record Receipt');
@@ -1046,10 +1060,11 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(reversed.other.amount,30000);
     assert.equal(reversed.otherInvoice.paid,twoAllocations.allocations[1].paid);
     assert.equal(reversed.receipt.allocatedAmount,30000);
+    await browserTab!.evaluate(`(() => {const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-23');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await browserTab!.evaluate(`(() => {window.__statementBlob=null;URL.createObjectURL=blob=>{window.__statementBlob=blob;return 'blob:statement-test';};const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('Export Statement CSV'));if(!b)throw Error('Statement export control is missing');b.click();})()`);
     const statementText = await browserTab!.evaluate<string>(`window.__statementBlob ? window.__statementBlob.text() : ''`);
     const statement = parseCsv(statementText);
-    const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;return [ ['Document No','Date','Type','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&(i.status==='Issued'||i.status==='Paid')).map(i=>[i.invoiceNumber,i.issueDate||i.due,'Invoice',String(i.amount),String(i.paid),String(i.amount-i.paid)]), ...s.receipts.filter(r=>r.clientId===clientId).map(r=>[r.receiptNumber,r.date,'Receipt',String(-r.amount),String(r.allocatedAmount),String(r.amount-r.allocatedAmount)]) ];})()`);
+    const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;return [ ['Document No','Date','Type','Currency','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&i.currency==='QAR'&&(i.status==='Issued'||i.status==='Paid')&&(i.issueDate||i.due)<='2026-09-23').map(i=>[i.invoiceNumber,i.issueDate||i.due,'Invoice',i.currency,String(i.amount),String(i.paid),String(i.amount-i.paid)]), ...s.creditNotes.filter(c=>c.clientId===clientId&&c.status==='Issued'&&c.issueDate<='2026-09-23').map(c=>[c.creditNumber,c.issueDate,'Credit note',c.currency||'QAR',String(-c.amount),'0',String(-c.amount)]), ...s.receipts.filter(r=>r.clientId===clientId&&r.currency==='QAR'&&r.date<='2026-09-23').map(r=>[r.receiptNumber,r.date,'Receipt',r.currency,String(-r.amount),String(r.allocatedAmount),String(r.amount-r.allocatedAmount)]) ];})()`);
     assert.deepEqual(statement,statementSource);
     assert.equal(statement.some(row=>row.includes('INV-2026-003')),false,'client statement must exclude another client draft invoice');
     assert.deepEqual(browserTab!.exceptions,[]);

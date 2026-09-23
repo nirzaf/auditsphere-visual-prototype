@@ -5,6 +5,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateReceivablesAging, formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
+import { visibleClientIds } from '../../services/guards';
 
 interface ReceivablesViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -12,6 +13,15 @@ interface ReceivablesViewProps {
 
 export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const allowedClientIds = visibleClientIds(state);
+  const scopedClients = state.clients.filter(c => allowedClientIds === 'ALL' || allowedClientIds.includes(c.id));
+  const currencies = Array.from(new Set([
+    ...state.invoices.filter(i => allowedClientIds === 'ALL' || allowedClientIds.includes(i.clientId)).map(i => i.currency),
+    ...state.receipts.filter(r => allowedClientIds === 'ALL' || allowedClientIds.includes(r.clientId)).map(r => r.currency)
+  ])).sort();
+  const [clientFilter, setClientFilter] = useState('ALL');
+  const [currencyFilter, setCurrencyFilter] = useState(currencies[0] || 'QAR');
+  const [asOfDate, setAsOfDate] = useState(state.asOfDate || '2026-09-23');
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
@@ -27,11 +37,22 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   const [targetInvoiceId, setTargetInvoiceId] = useState<string>('');
   const [allocateAmount, setAllocateAmount] = useState<number>(0);
 
-  const client = state.clients[0];
-  const invoices = state.invoices;
-  const receipts = state.receipts;
+  const client = scopedClients.find(c => c.id === clientFilter) || scopedClients[0];
+  const invoices = state.invoices.filter(i =>
+    (allowedClientIds === 'ALL' || allowedClientIds.includes(i.clientId)) &&
+    (clientFilter === 'ALL' || i.clientId === clientFilter) && i.currency === currencyFilter && (i.issueDate || i.due) <= asOfDate
+  );
+  const receiptLedger = state.receipts.filter(r =>
+    (allowedClientIds === 'ALL' || allowedClientIds.includes(r.clientId)) &&
+    (clientFilter === 'ALL' || r.clientId === clientFilter) && r.currency === currencyFilter
+  );
+  const receipts = receiptLedger.filter(r => r.date <= asOfDate);
+  const credits = state.creditNotes.filter(c =>
+    (allowedClientIds === 'ALL' || allowedClientIds.includes(c.clientId)) &&
+    (clientFilter === 'ALL' || c.clientId === clientFilter) && (c.currency || invoices.find(i => i.id === c.invoiceId)?.currency) === currencyFilter
+  );
 
-  const aging = calculateReceivablesAging(invoices, state.creditNotes, state.receipts, '2026-09-23');
+  const aging = calculateReceivablesAging(invoices, credits, receiptLedger, asOfDate, clientFilter === 'ALL' ? undefined : clientFilter);
 
   const handleAddReceipt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +63,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
       receiptNumber,
       amount: receiptAmount,
       allocatedAmount: 0,
-      currency: 'QAR',
+      currency: currencyFilter,
       date: new Date().toISOString().split('T')[0],
       method,
       reference,
@@ -77,22 +98,33 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   };
 
   const handleExportStatementCSV = () => {
-    const statementInvoices = invoices.filter(inv => inv.clientId === client?.id && (inv.status === 'Issued' || inv.status === 'Paid'));
-    const statementReceipts = receipts.filter(rec => rec.clientId === client?.id);
+    const statementInvoices = invoices.filter(inv => inv.clientId === client?.id && (inv.status === 'Issued' || inv.status === 'Paid') && (inv.issueDate || inv.due) <= asOfDate);
+    const statementReceipts = receipts.filter(rec => rec.clientId === client?.id && rec.date <= asOfDate);
     const rows = [
-      ['Document No', 'Date', 'Type', 'Billed Amount', 'Paid / Allocated', 'Balance'],
+      ['Document No', 'Date', 'Type', 'Currency', 'Billed Amount', 'Paid / Allocated', 'Balance'],
       ...statementInvoices.map(inv => [
         inv.invoiceNumber,
         inv.issueDate || inv.due || '',
         'Invoice',
+        inv.currency,
         inv.amount.toString(),
         inv.paid.toString(),
         (inv.amount - inv.paid).toString()
+      ]),
+      ...credits.filter(credit => credit.clientId === client?.id && credit.status === 'Issued' && credit.issueDate <= asOfDate).map(credit => [
+        credit.creditNumber,
+        credit.issueDate,
+        'Credit note',
+        credit.currency || currencyFilter,
+        String(-credit.amount),
+        '0',
+        String(-credit.amount)
       ]),
       ...statementReceipts.map(rec => [
         rec.receiptNumber,
         rec.date,
         'Receipt',
+        rec.currency,
         `-${rec.amount}`,
         rec.allocatedAmount.toString(),
         (rec.amount - rec.allocatedAmount).toString()
@@ -108,12 +140,28 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
         <div>
           <h1>Accounts Receivable Aging & Receipts</h1>
           <p>Deterministic 30-day aging buckets, offline manual cash receipts, and audit trail reversals.</p>
+          <div className="row mt12" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <label className="caption">Client
+              <select className="input" aria-label="Receivables client" value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+                <option value="ALL">All permitted clients</option>
+                {scopedClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="caption">Currency
+              <select className="input" aria-label="Receivables currency" value={currencyFilter} onChange={e => setCurrencyFilter(e.target.value)}>
+                {currencies.map(currency => <option key={currency} value={currency}>{currency}</option>)}
+              </select>
+            </label>
+            <label className="caption">As of
+              <input className="input" aria-label="Receivables as of date" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} />
+            </label>
+          </div>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn sm ghost" onClick={handleExportStatementCSV}>
+          <button className="btn sm ghost" onClick={handleExportStatementCSV} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to export a statement.' : undefined}>
             <Icon name="download" /> Export Statement CSV
           </button>
-          <button className="btn primary sm" onClick={() => setShowReceiptModal(true)}>
+          <button className="btn primary sm" onClick={() => setShowReceiptModal(true)} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to record a receipt.' : undefined}>
             <Icon name="plus" /> Record Offline Receipt
           </button>
         </div>
@@ -129,23 +177,23 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
       <div className="metric-grid">
         <div className="metric">
           <span className="metric-label">Current (&lt; 30d)</span>
-          <div className="metric-val">{formatCurrency(aging.current)}</div>
+          <div className="metric-val">{formatCurrency(aging.current, currencyFilter)}</div>
           <span className="metric-sub">Within standard credit terms</span>
         </div>
         <div className="metric blue">
           <span className="metric-label">31 – 60 Days</span>
-          <div className="metric-val">{formatCurrency(aging.days31to60)}</div>
+          <div className="metric-val">{formatCurrency(aging.days31to60, currencyFilter)}</div>
           <span className="metric-sub">Follow-up due</span>
         </div>
         <div className="metric amber">
           <span className="metric-label">61 – 90 Days</span>
-          <div className="metric-val">{formatCurrency(aging.days61to90)}</div>
+          <div className="metric-val">{formatCurrency(aging.days61to90, currencyFilter)}</div>
           <span className="metric-sub">Management attention</span>
         </div>
         <div className="metric purple">
           <span className="metric-label">90+ Days (Overdue)</span>
-          <div className="metric-val">{formatCurrency(aging.olderThan90)}</div>
-          <span className="metric-sub">Total Overdue: {formatCurrency(aging.totalOverdue)}</span>
+          <div className="metric-val">{formatCurrency(aging.olderThan90, currencyFilter)}</div>
+          <span className="metric-sub">Total Overdue: {formatCurrency(aging.totalOverdue, currencyFilter)}</span>
         </div>
       </div>
 
@@ -273,7 +321,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
                     </select>
                   </div>
                   <div>
-                    <label className="caption">Amount (QAR)</label>
+                    <label className="caption">Amount ({currencyFilter})</label>
                     <input
                       type="number"
                       className="input"
@@ -335,7 +383,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
                   </select>
                 </div>
                 <div>
-                  <label className="caption">Amount to Allocate (QAR)</label>
+                  <label className="caption">Amount to Allocate ({currencyFilter})</label>
                   <input
                     type="number"
                     max={selectedReceipt.amount - selectedReceipt.allocatedAmount}
