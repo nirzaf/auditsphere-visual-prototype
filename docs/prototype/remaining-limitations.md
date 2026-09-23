@@ -17,7 +17,8 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   revision, invalid date ranges, duplicate codes, hierarchy cycles, and invalid
   import accounts. The full mapping, unmapped-account, comparative statement
   lineage and downstream rework matrix remains incomplete, so Module 20 remains
-  Partial.
+  Partial. Migrated legacy records keep reporting basis unselected until an
+  authorized person configures it.
 - **VP-039 — manual reconciliation:** preparers can save source-version-pinned
   schedules with dated, typed items; reviewers must be independent, return
   decisions need a reason, and approval blocks unexplained residuals, missing

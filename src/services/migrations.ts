@@ -251,7 +251,7 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
           revision: 1,
           chartRevision: 1,
           legalEntityName: client.name,
-          reportingBasis: 'IFRS',
+          reportingBasis: 'Not selected',
           baseCurrency: engagements[0]?.currency || 'QAR',
           accounts: [...rows.values()].map(row => ({ code: row.code, name: row.name, type: row.type, posting: true, active: true })),
           periodBooks: engagements.map(engagement => ({ id: `PB-${engagement.id}`, name: engagement.period, bookName: engagement.mode, startDate: `${engagement.year}-01-01`, endDate: `${engagement.year}-12-31`, ownerEngagementId: engagement.id, status: 'Open' as const })),
