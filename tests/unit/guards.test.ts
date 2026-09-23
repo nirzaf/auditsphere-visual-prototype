@@ -183,6 +183,28 @@ describe('fixture integrity (AT-02/AT-54)', () => {
   });
 });
 
+describe('document reference lifecycle (VP-021)', () => {
+  it('renames and moves without changing identity, and blocks unavailable evidence until restored', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const document = state.documents.find(item => item.id === 'DOC-002')!;
+    const originalEvidence = state.evidenceCatalogue.find(item => item.documentId === document.id)!;
+    prototypeStore.updateDocumentReference(document.id, 'Renamed bank statement.pdf', '/Engagements/2026/Accounting/');
+    assert.equal(document.id, 'DOC-002');
+    assert.equal(document.folderPath, '/Engagements/2026/Accounting/');
+    assert.equal(originalEvidence.documentId, 'DOC-002');
+    assert.throws(() => prototypeStore.updateDocumentReference(document.id, 'Bad path.pdf', '/outside/'), /existing folder in this client library/);
+    assert.throws(() => prototypeStore.updateDocumentReference(document.id, 'Wrong client.pdf', '/Clients/CL-003/2026/01_Acceptance/'), /existing folder in this client library/);
+    assert.throws(() => prototypeStore.setDocumentAvailability(document.id, true), /why the document reference is unavailable/);
+    prototypeStore.setDocumentAvailability(document.id, true, 'Source item deleted');
+    assert.throws(() => prototypeStore.setEvidenceAdequacy(originalEvidence.id, 'Adequate'), /cannot be marked adequate/);
+    assert.throws(() => prototypeStore.linkWorkpaperEvidence('ENG-26001', 'WP-A1', document.id), /available document/);
+    prototypeStore.setDocumentAvailability(document.id, false);
+    prototypeStore.setEvidenceAdequacy(originalEvidence.id, 'Adequate');
+    assert.equal(document.brokenLink, false);
+  });
+});
+
 describe('simulated invitation expiry (VP-018)', () => {
   it('limits a disabled identity to the requirements screen', () => {
     assert.equal(canOpenRoute('preparer', 'overview', false), false);

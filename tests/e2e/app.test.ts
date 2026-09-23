@@ -1116,6 +1116,18 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-021: keeps stable document identity through rename, move and unavailable-reference recovery', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));b.click();})()`);
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));let i=0;window.prompt=()=>i++===0?'Moved bank statement.pdf':'/Engagements/2026/Accounting/';row.querySelectorAll('button')[1].click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const d=s.documents.find(x=>x.id==='DOC-002');return d.name==='Moved bank statement.pdf'&&d.folderPath==='/Engagements/2026/Accounting/'&&s.evidenceCatalogue.find(x=>x.id==='EVD-01').documentId==='DOC-002';})()`), true, 'renaming and moving retain stable document/evidence IDs');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));window.prompt=()=> 'Source item deleted';row.querySelectorAll('button')[2].click();})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').brokenLink===true`), true, 'unavailable reference state is persisted');
+    const blocked = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));return row.innerText.includes('Reference unavailable')&&row.querySelector('button').disabled&&row.querySelector('button').innerText==='Unavailable';})()`);
+    assert.equal(blocked, true, 'unavailable item cannot be opened');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));row.querySelectorAll('button')[2].click();})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').brokenLink===false`), true, 'restoring reference re-enables the existing stable identity');
+  });
+
   it('VP-053: records reasoned evidence unlink history and keeps the linked procedure stale', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);

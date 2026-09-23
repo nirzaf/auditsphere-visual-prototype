@@ -196,6 +196,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                           <div>
                             <b>{doc.name}</b>
                             <div className="cell-sub">{doc.id} · {(doc.size / 1024).toFixed(1)} KB</div>
+                            {doc.brokenLink && <span className="tag red">Reference unavailable</span>}
                           </div>
                         </div>
                       </td>
@@ -208,12 +209,23 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                       </td>
                       <td>{doc.uploadedBy}</td>
                       <td>
-                        <button
-                          className="btn sm"
-                          onClick={() => setPreviewDoc(doc)}
-                        >
-                          Open in M365
-                        </button>
+                        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                          <button className="btn sm" disabled={doc.brokenLink} onClick={() => setPreviewDoc(doc)}>{doc.brokenLink ? 'Unavailable' : 'Open in M365'}</button>
+                          <button className="btn sm ghost" onClick={() => {
+                            const name = window.prompt('Document name', doc.name);
+                            if (name === null) return;
+                            const path = window.prompt('Existing library folder path', doc.folderPath);
+                            if (path === null) return;
+                            try { prototypeStore.updateDocumentReference(doc.id, name, path); setNotice(`Document reference ${doc.id} updated; its identity and evidence links remain unchanged.`); }
+                            catch (err) { setNotice(err instanceof Error ? err.message : 'Document reference could not be updated.'); }
+                          }}>Rename / Move</button>
+                          <button className="btn sm ghost" onClick={() => {
+                            const reason = doc.brokenLink ? '' : window.prompt('Why is this reference unavailable?') || '';
+                            if (!doc.brokenLink && !reason) return;
+                            try { prototypeStore.setDocumentAvailability(doc.id, !doc.brokenLink, reason); setNotice(doc.brokenLink ? `Document reference ${doc.id} restored.` : `Document reference ${doc.id} marked unavailable.`); }
+                            catch (err) { setNotice(err instanceof Error ? err.message : 'Availability could not be updated.'); }
+                          }}>{doc.brokenLink ? 'Restore reference' : 'Simulate unavailable'}</button>
+                        </div>
                       </td>
                     </tr>
                   ))}

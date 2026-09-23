@@ -1259,6 +1259,36 @@ class PrototypeStore {
     return revision;
   }
 
+  public updateDocumentReference(documentId: string, name: string, folderPath: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'rename or move documents');
+    const document = this.state.documents.find(item => item.id === documentId);
+    if (!document) throw new GuardError('INVALID_STATE', 'Document was not found.');
+    requireClientScope(this.state, document.clientId);
+    if (document.engagementId) requireEngagementScope(this.state, document.engagementId);
+    const cleanName = name.trim();
+    const cleanPath = folderPath.trim();
+    const folder = this.state.folders?.find(item => item.path === cleanPath);
+    if (!cleanName || !cleanPath.startsWith('/') || !cleanPath.endsWith('/') || !folder || (folder.clientId && folder.clientId !== document.clientId)) throw new GuardError('INVALID_STATE', 'Choose a name and an existing folder in this client library.');
+    document.name = cleanName;
+    document.folderPath = cleanPath;
+    this.logEvent(`Document reference renamed or moved: ${document.id} → ${cleanPath}${cleanName}`, document.id);
+    this.notify();
+  }
+
+  public setDocumentAvailability(documentId: string, broken: boolean, reason = '') {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'change document reference availability');
+    const document = this.state.documents.find(item => item.id === documentId);
+    if (!document) throw new GuardError('INVALID_STATE', 'Document was not found.');
+    requireClientScope(this.state, document.clientId);
+    if (document.engagementId) requireEngagementScope(this.state, document.engagementId);
+    if (broken && !reason.trim()) throw new GuardError('INVALID_STATE', 'Record why the document reference is unavailable.');
+    document.brokenLink = broken;
+    this.logEvent(`Document reference ${broken ? 'marked unavailable' : 'restored'}: ${document.id}${reason.trim() ? ` — ${reason.trim()}` : ''}`, document.id);
+    this.notify();
+  }
+
   // --- Communications (VP-026, VP-027) ---
   public addCommunication(comm: CommunicationItem) {
     requireActiveIdentity(this.state);
@@ -1991,7 +2021,7 @@ class PrototypeStore {
     const engagement = this.state.engagements.find(item => item.id === engId);
     const workpaper = engagement?.workpapers.find(item => item.id === wpId);
     const document = this.state.documents.find(item => item.id === documentId && item.engagementId === engId);
-    if (!workpaper || !document) throw new GuardError('INVALID_STATE', 'Evidence must be a document in this engagement.');
+    if (!workpaper || !document || document.brokenLink) throw new GuardError('INVALID_STATE', 'Evidence must be an available document in this engagement.');
     if (this.hasNewerDocumentRevision(document.id)) throw new GuardError('STALE_REVISION', 'Pin the latest document revision before reassessing this workpaper.');
     workpaper.evidenceRefs ||= [];
     workpaper.evidenceRevisions ||= {};
@@ -2045,7 +2075,7 @@ class PrototypeStore {
     if (!workpaper.workPerformed?.trim() || !workpaper.conclusion.trim() || !workpaper.scope?.trim() || !workpaper.workingPaper || workpaper.workingPaper.version !== workpaper.version || !(workpaper.evidenceRefs || []).length) throw new GuardError('INVALID_STATE', 'Record work performed, scope, conclusion, a current workbook and linked evidence before submission.');
     if ((workpaper.evidenceRefs || []).some(id => {
       const document = this.state.documents.find(item => item.id === id && item.engagementId === engId);
-      return !document || this.hasNewerDocumentRevision(id) || workpaper.evidenceRevisions?.[id] !== document.version;
+      return !document || document.brokenLink || this.hasNewerDocumentRevision(id) || workpaper.evidenceRevisions?.[id] !== document.version;
     })) throw new GuardError('INVALID_STATE', 'Refresh every evidence link to its current same-engagement document revision before submission.');
     if ((workpaper.evidenceRefs || []).some(id => this.state.evidenceCatalogue.some(item => item.documentId === id && (item.adequacyStatus !== 'Adequate' || item.version !== this.state.documents.find(document => document.id === id)?.version)))) throw new GuardError('STALE_REVISION', 'Evidence must be adequate and pinned to its current document revision before submission.');
     workpaper.submittedBy = this.state.currentUserId;
@@ -2490,6 +2520,7 @@ class PrototypeStore {
     if (!evidenceDocument) throw new GuardError('INVALID_STATE', 'Evidence document was not found.');
     if (evidenceDocument.clientId) requireClientScope(this.state, evidenceDocument.clientId);
     if (evidenceDocument.engagementId) requireEngagementScope(this.state, evidenceDocument.engagementId);
+    if (status === 'Adequate' && evidenceDocument.brokenLink) throw new GuardError('INVALID_STATE', 'An unavailable document reference cannot be marked adequate.');
     if (status !== 'Adequate' && !rationale.trim()) {
       throw new GuardError('INVALID_STATE', 'A non-adequate determination requires a recorded rationale.');
     }
@@ -2541,7 +2572,7 @@ class PrototypeStore {
     if (doc.clientId) requireClientScope(this.state, doc.clientId);
     if (doc.engagementId && doc.engagementId !== eng.id) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same engagement.');
     if (doc.clientId !== eng.client) throw new GuardError('FORBIDDEN_SCOPE', 'Evidence and procedure must belong to the same client.');
-    if (ev.adequacyStatus !== 'Adequate' || doc.version !== ev.version || this.hasNewerDocumentRevision(doc.id)) throw new GuardError('STALE_REVISION', 'Only an adequate evidence record pinned to the current document revision can be linked.');
+    if (doc.brokenLink || ev.adequacyStatus !== 'Adequate' || doc.version !== ev.version || this.hasNewerDocumentRevision(doc.id)) throw new GuardError('STALE_REVISION', 'Only an available, adequate evidence record pinned to the current document revision can be linked.');
     if (!ev.linkedProcedures.includes(procedureId)) {
       ev.linkedProcedures.push(procedureId);
       ev.linkedProcedureHistory ||= [];
@@ -2614,7 +2645,7 @@ class PrototypeStore {
       const hasCurrentEvidence = this.state.evidenceCatalogue.some(e => {
         if (!e.linkedProcedures.includes(procedureId) || e.adequacyStatus !== 'Adequate') return false;
         let document = this.state.documents.find(d => d.id === e.documentId);
-        if (!document || document.clientId !== this.state.engagements.find(item => item.id === engId)?.client || (document.engagementId && document.engagementId !== engId) || document.version !== e.version) return false;
+        if (!document || document.brokenLink || document.clientId !== this.state.engagements.find(item => item.id === engId)?.client || (document.engagementId && document.engagementId !== engId) || document.version !== e.version) return false;
         return !this.hasNewerDocumentRevision(document.id);
       });
       if (!hasCurrentEvidence && !procedure.evidenceLimitation?.trim()) throw new GuardError('INVALID_STATE', 'Link current adequate evidence or record an evidence limitation before submitting.');

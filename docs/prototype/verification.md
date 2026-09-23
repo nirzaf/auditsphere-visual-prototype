@@ -4,6 +4,8 @@ Updated 2026-09-23. This record distinguishes executed checks from planned
 acceptance assertions. The latest source and Pages release are recorded below;
 the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
+| 2026-09-23 | VP-021 reference lifecycle | `npm run test:unit` + `npm run test:e2e` | PASS — 137/137 unit, 58/58 E2E | Unit and Chrome verify stable IDs across rename/move, invalid-folder rejection, reasoned unavailable state, blocked preview/evidence acceptance, and restoration. Production build passed with the existing large-bundle warning. |
+
 ## Commands
 
 - `npm run build` runs `tsc --noEmit && vite build`.
