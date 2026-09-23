@@ -790,6 +790,67 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-28: records, returns, resubmits and corrects approved time as retained revisions', async () => {
+    const switchPersona = async (label: string, role: string) => {
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const changed = await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === ${JSON.stringify(role)}`);
+      assert.equal(changed, true, `persona switch failed: ${JSON.stringify(await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {currentRole:s.currentRole,currentPerson:s.currentPerson,selected:document.querySelector('#role-select')?.value,options:[...document.querySelector('#role-select').options].map(o=>o.textContent)};})()`))}`);
+    };
+    const openTime = async () => {
+      const opened = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Time Tracking'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(opened, true, 'Time Tracking navigation should be available');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Practice Timesheet Register")'), true);
+    };
+    const setField = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const el=document.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing field '+${JSON.stringify(selector)});el.focus();const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+
+    await switchPersona('Audit preparer', 'preparer');
+    await openTime();
+    await clickButton('Record Time Entry');
+    await setField('.modal-backdrop input[type="number"]', '90');
+    await setField('.modal-backdrop input[type="text"]', 'AT28 correction sample');
+    await setField('.modal-backdrop textarea', 'Initial timesheet evidence');
+    await clickButton('Submit Time Entry');
+    const entryId = await browserTab!.evaluate<string>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.taskTitle==='AT28 correction sample')?.id || '')()`);
+    assert.ok(entryId, 'submitted entry should be persisted');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id===${JSON.stringify(entryId)}).status==='Submitted'`), true);
+
+    await switchPersona('Engagement manager', 'manager');
+    await openTime();
+    const returnEntry = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(entryId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Return');if(!b)return false;b.click();return true;})()`);
+    assert.equal(returnEntry, true, await browserTab!.evaluate<string>(`(() => [...document.querySelectorAll('tbody tr')].map(x=>x.innerText+' [buttons: '+[...x.querySelectorAll('button')].map(b=>b.innerText).join(',')+']').join('\\n'))()`));
+    await setField('.modal-backdrop textarea', 'Please clarify the work performed.');
+    await clickButton('Return Entry');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id===${JSON.stringify(entryId)}).status==='Returned'`), true);
+
+    await switchPersona('Audit preparer', 'preparer');
+    await openTime();
+    const resubmit = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(entryId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Resubmit correction');if(!b)return false;b.click();return true;})()`);
+    assert.equal(resubmit, true);
+    await setField('.modal-backdrop input[type="number"]', '75');
+    await setField('.modal-backdrop textarea', 'Clarified work and evidence reference.');
+    await clickButton('Submit Correction');
+    const revisionId = `${entryId}-R1`;
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.times.find(t=>t.id===${JSON.stringify(entryId)}).status==='Superseded' && s.times.find(t=>t.id===${JSON.stringify(revisionId)})?.status==='Submitted';})()`), true);
+
+    await switchPersona('Engagement manager', 'manager');
+    await openTime();
+    const approveRevision = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(revisionId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Approve');if(!b)return false;b.click();return true;})()`);
+    assert.equal(approveRevision, true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id===${JSON.stringify(revisionId)}).status==='Approved'`), true);
+    const correct = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(revisionId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Correct approved time');if(!b)return false;b.click();return true;})()`);
+    assert.equal(correct, true);
+    await setField('.modal-backdrop input[type="number"]', '60');
+    await setField('.modal-backdrop textarea', 'Correct timer rounding.');
+    await clickButton('Submit Correction');
+    const correctionId = `${revisionId}-R2`;
+    const correctionSubmitted = await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.times.find(t=>t.id===${JSON.stringify(revisionId)}).status==='Superseded' && s.times.find(t=>t.id===${JSON.stringify(correctionId)})?.status==='Submitted' && s.times.find(t=>t.id===${JSON.stringify(correctionId)}).returnReason.includes('Correct timer rounding');})()`);
+    assert.equal(correctionSubmitted, true, await browserTab!.evaluate<string>(`(() => JSON.stringify({times:JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.filter(t=>t.id.includes(${JSON.stringify(entryId)})),notices:document.body.innerText.slice(-600)}))()`));
+    const approveCorrection = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(correctionId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Approve');if(!b)return false;b.click();return true;})()`);
+    assert.equal(approveCorrection, true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id===${JSON.stringify(correctionId)}).status==='Approved'`), true);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-02/54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
     const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
     assert.equal(targetResponse.ok, true);

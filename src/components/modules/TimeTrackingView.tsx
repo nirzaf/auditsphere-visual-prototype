@@ -144,6 +144,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
           <table>
             <thead>
               <tr>
+                <th>Entry ID</th>
                 <th>Date</th>
                 <th>Staff Person</th>
                 <th>Task / Narrative</th>
@@ -157,6 +158,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
             <tbody>
               {times.map(t => (
                 <tr key={t.id}>
+                  <td><b>{t.id}</b></td>
                   <td>{t.date}</td>
                   <td><b>{t.person}</b></td>
                   <td>
