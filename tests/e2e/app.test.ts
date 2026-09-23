@@ -392,6 +392,74 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-05/06: creates a client, primary contact, typed value and non-authorizing relationship group', async () => {
+    const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));if(!o)throw Error('Missing persona '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setLabeledField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.trim()==${JSON.stringify(label)});const e=l?.parentElement?.querySelector('input');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setSelect = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+
+    await setPersona('Engagement partner');
+    const portfolio = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Client Portfolio'));if(!b)return false;b.click();return true;})()`);
+    assert.equal(portfolio, true);
+    await clickButton('Add Client Profile');
+    await setLabeledField('Legal Entity Name', 'AT05 Journey Entity');
+    await setLabeledField('Primary Contact Person', 'Nora Journey');
+    await setLabeledField('Contact Email', 'nora@journey.demo');
+    await clickButton('Create Client');
+    const clientId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.name==='AT05 Journey Entity')?.id`);
+    assert.ok(clientId);
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const c=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));const b=[...(c?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!b)return false;b.click();return true;})()`);
+    assert.equal(opened, true);
+    await setSelect('select[aria-label="Custom field"]', 'cf_entity_tier');
+    await setSelect('select[aria-label="Custom field value"]', 'Tier 2 SME');
+    await clickButton('Save custom value');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===${JSON.stringify(clientId)}).customFields.cf_entity_tier==='Tier 2 SME'`), true);
+    await browserTab!.evaluate(`(() => {const d=[...document.querySelectorAll('details')].find(x=>x.innerText.includes('Manage bounded custom fields'));d.querySelector('summary').click();})()`);
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="New custom field label"]');const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,'Journey Tier');e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setSelect('[aria-label="New custom field type"]', 'choice');
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="New custom field choices"]');const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,'Standard, Enhanced');e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Add bounded field');
+    const fieldId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).customFields.find(f=>f.label==='Journey Tier')?.id`);
+    assert.ok(fieldId);
+    await setSelect('select[aria-label="Custom field"]', fieldId);
+    await setSelect('select[aria-label="Custom field value"]', 'Enhanced');
+    await clickButton('Save custom value');
+    const fieldDisabled = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('.row')].find(x=>x.innerText.startsWith('Journey Tier · choice'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText==='Disable');if(!b)return false;b.click();return true;})()`);
+    assert.equal(fieldDisabled, true);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.customFields.find(f=>f.id===${JSON.stringify(fieldId)}).enabled===false && s.clients.find(c=>c.id===${JSON.stringify(clientId)}).customFields[${JSON.stringify(fieldId)}]==='Enhanced';})()`), true);
+    const groupName = `AT05 Relationship ${clientId}`;
+    await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="New relationship group"]');const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(groupName)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Create group');
+    const groupId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).relationshipGroups.find(g=>g.name===${JSON.stringify(groupName)})?.id`);
+    assert.ok(groupId);
+    await clickButton('Contacts');
+    await clickButton('Add Contact');
+    await setLabeledField('Full Name', 'Nora Secondary');
+    await setLabeledField('Job Title', 'Controller');
+    await setLabeledField('Email Address', 'nora.secondary@journey.demo');
+    await clickButton('Save Contact');
+    const contact = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.find(c=>c.name==='Nora Secondary')`);
+    assert.equal(contact.clientId, clientId);
+    assert.equal(contact.portalAccessRequested, false, 'a contact is not an account or access grant');
+
+    await clickButton('Back to Portfolio');
+    const linked = await browserTab!.evaluate<boolean>(`(() => {const c=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('CL-003'));const b=[...(c?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!b)return false;b.click();return true;})()`);
+    assert.equal(linked, true);
+    const grantsBeforeGroupLink = await browserTab!.evaluate<any[]>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).roleGrants');
+    await setSelect('#relationship-group', groupId);
+    const linkedState = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {members:s.relationshipGroups.find(g=>g.id===${JSON.stringify(groupId)}).clientIds, grants:s.roleGrants};})()`);
+    assert.ok(linkedState.members.includes(clientId) && linkedState.members.includes('CL-003'));
+    assert.deepEqual(linkedState.grants, grantsBeforeGroupLink, 'relationship links must not change access grants');
+    assert.ok(linkedState.grants.every((g: any) => g.scopeId !== clientId), 'relationship links must not grant access to the new related client');
+
+    for (const tab of ['Overview','Contacts','Engagements','Jobs','Documents','PBC Requests','Communications','Time & Budgets','Billing & AR','Accounting','Audit & Reviews','Audit Log']) {
+      await clickButton(tab);
+      const text = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText || ""');
+      assert.ok(text.includes('Cedar Manufacturing'), `client workspace context was lost on ${tab}`);
+      assert.doesNotMatch(text, /ENG-26001|ENG-26002/, `${tab} leaked another client's engagement`);
+    }
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

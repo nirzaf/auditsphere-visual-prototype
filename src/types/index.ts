@@ -102,6 +102,7 @@ export interface CustomFieldDefinition {
   label: string;
   type: 'text' | 'number' | 'date' | 'choice';
   options?: string[];
+  enabled?: boolean;
 }
 
 export interface ClientRecord {

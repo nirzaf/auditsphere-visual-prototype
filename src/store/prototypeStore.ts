@@ -223,17 +223,101 @@ class PrototypeStore {
   /** Contacts never create portal logins, management authority or staff roles (VP-007). */
   public addContact(contact: PrototypeState['contacts'][0]) {
     requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin', 'onboarding'], 'add client contacts');
     requireClientScope(this.state, contact.clientId);
     if (!contact.name || !contact.name.trim()) {
       throw new GuardError('INVALID_STATE', 'Contact full name is required.');
     }
+    if (!this.state.clients.some(c => c.id === contact.clientId) || !contact.email.trim() || this.state.contacts.some(c => c.id === contact.id)) throw new GuardError('INVALID_STATE', 'Contact must have a unique ID, existing client and email address.');
+    if (contact.isPrimary && !contact.active) throw new GuardError('INVALID_STATE', 'An inactive contact cannot be primary.');
+    if (contact.isPrimary) this.state.contacts.forEach(c => { if (c.clientId === contact.clientId) c.isPrimary = false; });
+    contact.portalAccessRequested = false;
     this.state.contacts.push(contact);
     this.logEvent(`Contact added: ${contact.name} (${contact.clientId})`, contact.id);
     this.notify();
   }
 
+  public setClientCustomField(clientId: string, fieldId: string, value: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'update client custom fields');
+    requireClientScope(this.state, clientId);
+    const client = this.state.clients.find(c => c.id === clientId);
+    const field = this.state.customFields.find(f => f.id === fieldId && f.enabled !== false);
+    if (!client || !field) throw new GuardError('INVALID_STATE', 'Client or active custom field was not found.');
+    const text = value.trim();
+    if (!text) throw new GuardError('INVALID_STATE', 'Custom field value is required.');
+    if (field.type === 'number' && (!Number.isFinite(Number(text)) || text === '')) throw new GuardError('INVALID_STATE', 'Enter a finite number for this custom field.');
+    if (field.type === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(`${text}T00:00:00Z`)) || new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) !== text)) throw new GuardError('INVALID_STATE', 'Enter a valid date for this custom field.');
+    if (field.type === 'choice' && !field.options?.includes(text)) throw new GuardError('INVALID_STATE', 'Select one of the configured choices for this custom field.');
+    client.customFields ||= {};
+    client.customFields[fieldId] = field.type === 'number' ? Number(text) : text;
+    this.logEvent(`Client custom field updated: ${field.label}`, clientId);
+    this.notify();
+  }
+
+  public addCustomFieldDefinition(label: string, type: PrototypeState['customFields'][number]['type'], options: string[] = []) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'define client custom fields');
+    const cleanLabel = label.trim();
+    const cleanOptions = [...new Set(options.map(option => option.trim()).filter(Boolean))];
+    if (!cleanLabel || this.state.customFields.some(field => field.label.trim().toLowerCase() === cleanLabel.toLowerCase())) throw new GuardError('INVALID_STATE', 'Enter a unique custom field label.');
+    if (type === 'choice' && cleanOptions.length < 2) throw new GuardError('INVALID_STATE', 'Choice fields need at least two distinct options.');
+    const field = { id: `cf_${crypto.randomUUID()}`, label: cleanLabel, type, options: type === 'choice' ? cleanOptions : undefined, enabled: true };
+    this.state.customFields.push(field);
+    this.logEvent(`Client custom field defined: ${cleanLabel}`, field.id);
+    this.notify();
+    return field.id;
+  }
+
+  public setCustomFieldDefinitionEnabled(fieldId: string, enabled: boolean) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'change client custom field availability');
+    const field = this.state.customFields.find(item => item.id === fieldId);
+    if (!field) throw new GuardError('INVALID_STATE', 'Custom field definition was not found.');
+    field.enabled = enabled;
+    this.logEvent(`Client custom field ${enabled ? 'enabled' : 'disabled'}: ${field.label}`, field.id);
+    this.notify();
+  }
+
+  public assignClientRelationshipGroup(clientId: string, groupId?: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'change client relationship groups');
+    requireClientScope(this.state, clientId);
+    const client = this.state.clients.find(c => c.id === clientId);
+    const group = groupId ? this.state.relationshipGroups.find(g => g.id === groupId) : undefined;
+    if (!client || (groupId && !group)) throw new GuardError('INVALID_STATE', 'Client or relationship group was not found.');
+    if (client.relationshipGroupId) {
+      const previous = this.state.relationshipGroups.find(g => g.id === client.relationshipGroupId);
+      if (previous) previous.clientIds = previous.clientIds.filter(id => id !== clientId);
+    }
+    client.relationshipGroupId = group?.id;
+    if (group && !group.clientIds.includes(clientId)) group.clientIds.push(clientId);
+    this.logEvent(`Client ${group ? 'linked to' : 'removed from'} relationship group${group ? ` ${group.name}` : ''}`, clientId);
+    this.notify();
+  }
+
+  public createClientRelationshipGroup(clientId: string, name: string, description = '') {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'create client relationship groups');
+    requireClientScope(this.state, clientId);
+    const client = this.state.clients.find(c => c.id === clientId);
+    if (!client || !name.trim()) throw new GuardError('INVALID_STATE', 'Choose an existing client and enter a relationship group name.');
+    if (this.state.relationshipGroups.some(group => group.name.trim().toLowerCase() === name.trim().toLowerCase())) throw new GuardError('INVALID_STATE', 'A relationship group with this name already exists.');
+    if (client.relationshipGroupId) {
+      const previous = this.state.relationshipGroups.find(group => group.id === client.relationshipGroupId);
+      if (previous) previous.clientIds = previous.clientIds.filter(id => id !== clientId);
+    }
+    const group = { id: `GRP-REL-${crypto.randomUUID()}`, name: name.trim(), description: description.trim(), clientIds: [clientId] };
+    this.state.relationshipGroups.push(group);
+    client.relationshipGroupId = group.id;
+    this.logEvent(`Client relationship group created: ${group.name}`, clientId);
+    this.notify();
+  }
+
   public setPrimaryContact(clientId: string, contactId: string) {
     requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'set primary client contacts');
+    requireClientScope(this.state, clientId);
     const contact = this.state.contacts.find(c => c.id === contactId && c.clientId === clientId);
     if (!contact) throw new GuardError('INVALID_STATE', 'Contact not found in this client.');
     if (!contact.active) throw new GuardError('INVALID_STATE', 'An inactive contact cannot be primary.');

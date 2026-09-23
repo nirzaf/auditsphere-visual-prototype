@@ -2,7 +2,7 @@
 // 12 Tabs: Overview, Contacts, Engagements, Jobs, Documents, Requests, Communications, Time/Budgets, Billing, Accounting, Audit, Activity
 
 import React, { useState } from 'react';
-import { RouteKey, ClientContact, PbcRequestItem } from '../../types';
+import { RouteKey, ClientContact, PbcRequestItem, CustomFieldDefinition } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
@@ -34,6 +34,13 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactTitle, setContactTitle] = useState('');
+  const [customFieldId, setCustomFieldId] = useState(state.customFields.find(f => f.enabled !== false)?.id || '');
+  const [customFieldValue, setCustomFieldValue] = useState('');
+  const [clientNotice, setClientNotice] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<CustomFieldDefinition['type']>('text');
+  const [newFieldOptions, setNewFieldOptions] = useState('');
   const client = state.clients.find(c => c.id === clientId) || state.clients[0];
   const contacts = state.contacts.filter(c => c.clientId === client.id);
   const engagements = state.engagements.filter(e => e.client === client.id);
@@ -43,6 +50,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
   const times = state.times.filter(t => t.clientId === client.id);
   const invoices = state.invoices.filter(i => i.clientId === client.id);
   const receipts = state.receipts.filter(r => r.clientId === client.id);
+  const activeCustomFields = state.customFields.filter(field => field.enabled !== false);
 
   const [showPbcForm, setShowPbcForm] = useState(false);
   const [pbcEngagementId, setPbcEngagementId] = useState(engagements[0]?.id || '');
@@ -76,21 +84,30 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
     e.preventDefault();
     if (!contactName.trim()) return;
     const newContact: ClientContact = {
-      id: `CNT-${Date.now().toString().slice(-4)}`,
+      id: `CNT-${crypto.randomUUID()}`,
       clientId: client.id,
       name: contactName,
       email: contactEmail,
       title: contactTitle,
       isPrimary: contacts.length === 0,
       active: true,
-      portalAccessRequested: true
+      portalAccessRequested: false
     };
-    state.contacts.push(newContact);
-    prototypeStore.logEvent(`Added contact ${contactName} to ${client.name}`, client.id);
+    try { prototypeStore.addContact(newContact); }
+    catch (error) { setClientNotice(error instanceof Error ? error.message : 'Contact could not be saved.'); return; }
     setShowAddContact(false);
     setContactName('');
     setContactEmail('');
     setContactTitle('');
+  };
+
+  const handleSaveCustomField = (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      prototypeStore.setClientCustomField(client.id, customFieldId, customFieldValue);
+      setClientNotice('Custom value saved to this client profile.');
+      setCustomFieldValue('');
+    } catch (error) { setClientNotice(error instanceof Error ? error.message : 'Custom value could not be saved.'); }
   };
 
   const handleCreatePbc = (e: React.FormEvent) => {
@@ -134,6 +151,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
         </button>
         <span className="caption">Client ID: {client.id} · Code: {client.code}</span>
       </div>
+      {clientNotice && <div role="status" className="panel panel-pad">{clientNotice}</div>}
 
       {/* Client Header Card */}
       <div className="panel panel-pad">
@@ -193,10 +211,65 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
             <div className="panel panel-pad">
               <h3>Custom Bounded Fields</h3>
               <div className="info-grid mt12">
-                {client.customFields && Object.entries(client.customFields).map(([k, v]) => (
-                  <div key={k}><label>{k}</label><span>{String(v)}</span></div>
+                {client.customFields && Object.entries(client.customFields).map(([id, value]) => (
+                  <div key={id}><label>{state.customFields.find(f => f.id === id)?.label || id}</label><span>{String(value)}</span></div>
                 ))}
               </div>
+              {activeCustomFields.length > 0 && <form className="row mt12" onSubmit={handleSaveCustomField}>
+                <select className="input" aria-label="Custom field" value={customFieldId} onChange={event => { setCustomFieldId(event.target.value); setCustomFieldValue(''); }}>
+                  {activeCustomFields.map(field => <option key={field.id} value={field.id}>{field.label} · {field.type}</option>)}
+                </select>
+                {(() => {
+                  const field = activeCustomFields.find(item => item.id === customFieldId);
+                  if (field?.type === 'choice') return <select className="input" aria-label="Custom field value" value={customFieldValue} onChange={event => setCustomFieldValue(event.target.value)} required><option value="">Choose…</option>{field.options?.map(option => <option key={option}>{option}</option>)}</select>;
+                  return <input className="input" aria-label="Custom field value" type={field?.type === 'date' ? 'date' : field?.type === 'number' ? 'number' : 'text'} step={field?.type === 'number' ? 'any' : undefined} value={customFieldValue} onChange={event => setCustomFieldValue(event.target.value)} required />;
+                })()}
+                <button className="btn sm" type="submit">Save custom value</button>
+              </form>}
+              <details className="mt12">
+                <summary className="caption">Manage bounded custom fields</summary>
+                <div className="stack mt8" style={{ gap: 6 }}>
+                  {state.customFields.map(field => <div className="row between" key={field.id}>
+                    <span>{field.label} · {field.type}{field.enabled === false ? ' · Disabled (saved values retained)' : ''}</span>
+                    <button className="btn xs ghost" type="button" onClick={() => {
+                      try { prototypeStore.setCustomFieldDefinitionEnabled(field.id, field.enabled === false); setClientNotice(`${field.label} ${field.enabled === false ? 'enabled' : 'disabled'}; saved client values are retained.`); }
+                      catch (error) { setClientNotice(error instanceof Error ? error.message : 'Custom field could not be changed.'); }
+                    }}>{field.enabled === false ? 'Enable' : 'Disable'}</button>
+                  </div>)}
+                  <form className="grid2 mt8" onSubmit={event => {
+                    event.preventDefault();
+                    try {
+                      const options = newFieldOptions.split(',').map(item => item.trim()).filter(Boolean);
+                      prototypeStore.addCustomFieldDefinition(newFieldLabel, newFieldType, options);
+                      setNewFieldLabel(''); setNewFieldOptions('');
+                      setClientNotice('Bounded custom field added to the shared client schema.');
+                    } catch (error) { setClientNotice(error instanceof Error ? error.message : 'Custom field could not be added.'); }
+                  }}>
+                    <label className="caption">New field<input className="input mt4" aria-label="New custom field label" value={newFieldLabel} onChange={event => setNewFieldLabel(event.target.value)} required /></label>
+                    <label className="caption">Value type<select className="input mt4" aria-label="New custom field type" value={newFieldType} onChange={event => setNewFieldType(event.target.value as CustomFieldDefinition['type'])}><option value="text">Text</option><option value="date">Date</option><option value="number">Number</option><option value="choice">Choice</option></select></label>
+                    {newFieldType === 'choice' && <label className="caption" style={{ gridColumn: '1 / -1' }}>Choices (comma separated)<input className="input mt4" aria-label="New custom field choices" value={newFieldOptions} onChange={event => setNewFieldOptions(event.target.value)} required /></label>}
+                    <button className="btn sm ghost" type="submit">Add bounded field</button>
+                  </form>
+                </div>
+              </details>
+              <div className="row mt12">
+                <label className="caption" htmlFor="relationship-group">Non-authorizing relationship group</label>
+                <select id="relationship-group" className="input" value={client.relationshipGroupId || ''} onChange={event => {
+                  try { prototypeStore.assignClientRelationshipGroup(client.id, event.target.value || undefined); setClientNotice('Relationship group updated. Group membership does not grant client access.'); }
+                  catch (error) { setClientNotice(error instanceof Error ? error.message : 'Relationship group could not be updated.'); }
+                }}>
+                  <option value="">No relationship group</option>
+                  {state.relationshipGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+                </select>
+              </div>
+              <form className="row mt8" onSubmit={event => {
+                event.preventDefault();
+                try { prototypeStore.createClientRelationshipGroup(client.id, newGroupName); setNewGroupName(''); setClientNotice('Relationship group created. Group membership does not grant client access.'); }
+                catch (error) { setClientNotice(error instanceof Error ? error.message : 'Relationship group could not be created.'); }
+              }}>
+                <input className="input" aria-label="New relationship group" placeholder="New group name" value={newGroupName} onChange={event => setNewGroupName(event.target.value)} required />
+                <button className="btn sm ghost" type="submit">Create group</button>
+              </form>
             </div>
           </div>
 
@@ -264,9 +337,10 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
                     <td>{c.phone || '—'}</td>
                     <td>Management Contact</td>
                     <td>
-                      <span className={`badge ${c.portalAccessRequested ? 'green' : 'gray'}`}>
-                        {c.portalAccessRequested ? 'Authorized' : 'Pending'}
+                      <span className={`badge ${c.portalAccessRequested ? 'amber' : 'gray'}`}>
+                        {c.portalAccessRequested ? 'Request pending' : 'No portal access'}
                       </span>
+                      {!c.isPrimary && c.active && <button className="btn xs ghost ml8" onClick={() => prototypeStore.setPrimaryContact(client.id, c.id)}>Make primary</button>}
                     </td>
                   </tr>
                 ))}
@@ -581,7 +655,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
         <div className="panel panel-pad">
           <h3>Client Activity & Audit Events</h3>
           <div className="stack mt12" style={{ gap: 8 }}>
-            {state.events.filter(e => e.ref.includes('CL-001') || e.ref.includes('ENG-26001')).map((ev, i) => (
+            {state.events.filter(e => e.ref.includes(client.id) || engagements.some(engagement => e.ref.includes(engagement.id))).map((ev, i) => (
               <div key={i} className="activity">
                 <div className="activity-dot"><Icon name={ev.type} size="sm" /></div>
                 <div>

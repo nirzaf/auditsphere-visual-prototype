@@ -101,6 +101,42 @@ describe('client rules (AT-05)', () => {
       /Duplicate client code/
     );
   });
+
+  it('validates custom values, keeps contacts non-authorizing and relationship groups outside access grants', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Amira Qasim');
+    prototypeStore.setClientCustomField('CL-001', 'cf_entity_tier', 'Tier 1 Public');
+    assert.equal(state.clients.find(c => c.id === 'CL-001')?.customFields?.cf_entity_tier, 'Tier 1 Public');
+    assert.throws(() => prototypeStore.setClientCustomField('CL-001', 'cf_entity_tier', 'exec(1)'), /configured choices/);
+    assert.throws(() => prototypeStore.setClientCustomField('CL-001', 'cf_cr_expiry', '2026-02-30'), /valid date/);
+    assert.throws(() => prototypeStore.addCustomFieldDefinition('Invalid Choice', 'choice', ['Only one']), /at least two/);
+    const fieldId = prototypeStore.addCustomFieldDefinition('Risk Tier', 'choice', ['Low', 'High']);
+    prototypeStore.setClientCustomField('CL-001', fieldId, 'High');
+    prototypeStore.setCustomFieldDefinitionEnabled(fieldId, false);
+    assert.equal(state.clients.find(c => c.id === 'CL-001')?.customFields?.[fieldId], 'High', 'disabling a used definition preserves historical values');
+    assert.throws(() => prototypeStore.setClientCustomField('CL-001', fieldId, 'Low'), /active custom field/);
+
+    const newContact = { id: 'CNT-AT05', clientId: 'CL-001', name: 'Nora Test', email: 'nora@example.demo', isPrimary: true, active: true, portalAccessRequested: true };
+    prototypeStore.addContact(newContact);
+    assert.equal(newContact.portalAccessRequested, false);
+    assert.equal(state.contacts.find(c => c.id === 'CNT-01')?.isPrimary, false);
+    prototypeStore.setPrimaryContact('CL-001', 'CNT-02');
+    assert.equal(state.contacts.find(c => c.id === 'CNT-02')?.isPrimary, true);
+    const inactive = state.contacts.find(c => c.id === 'CNT-02')!;
+    inactive.active = false;
+    assert.throws(() => prototypeStore.setPrimaryContact('CL-001', 'CNT-02'), /inactive/);
+
+    const grants = structuredClone(state.roleGrants);
+    setPersona(state, 'Omar Nasser');
+    assert.throws(() => prototypeStore.assignClientRelationshipGroup('CL-001'), /cannot change client relationship groups/);
+    setPersona(state, 'Amira Qasim');
+    prototypeStore.createClientRelationshipGroup('CL-001', 'AT-05 Related Entities');
+    prototypeStore.assignClientRelationshipGroup('CL-003', state.clients.find(c => c.id === 'CL-001')!.relationshipGroupId);
+    assert.equal(state.relationshipGroups.find(g => g.name === 'AT-05 Related Entities')?.clientIds.includes('CL-003'), true);
+    assert.deepEqual(state.roleGrants, grants, 'relationship grouping never creates client access');
+  });
 });
 
 describe('task hierarchy (AT-11)', () => {

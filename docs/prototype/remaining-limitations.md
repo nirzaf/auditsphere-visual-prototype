@@ -33,7 +33,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
   package persistence/release/amendment/archive, the full report catalogue and
   storage recovery journeys, CSV/XLSX TB replacement, and the complete PBC
-  request/response/clarification/replacement/acceptance cycle. Complete
+  request/response/clarification/replacement/acceptance cycle, plus client
+  creation/contact/custom-field/relationship-group and Client 360 navigation
+  journeys (AT-05/06). Complete
   AT-01–AT-54 have not been executed.
   Invitation/access history, AML/KYC evidence, procedures/sampling, report data
   reconciliation and other full acceptance paths still need direct evidence.
@@ -58,8 +60,8 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 ## Verification snapshot
 
-Latest recorded run: 100/100 unit checks and 20/20 E2E checks passed. AT-23/24,
-AT-28 and AT-38/40 have actual Chrome workflow coverage. E2E includes five static
-checks and fifteen Chrome checks, including rendering all 31 staff navigation
+Latest recorded run: 101/101 unit checks and 21/21 E2E checks passed. AT-05/06,
+AT-23/24, AT-28 and AT-38/40 have actual Chrome workflow coverage. E2E includes
+five static checks and sixteen actual Chrome checks, including rendering all 31 staff navigation
 routes and selected workflow journeys. Route rendering is not full workflow acceptance. See
 `verification.md`; earlier counts in this repository are historical.
