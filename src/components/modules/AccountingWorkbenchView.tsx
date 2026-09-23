@@ -16,6 +16,8 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations'>('tb');
   const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
+  const [recDraft, setRecDraft] = useState<ReconciliationSchedule | null>(null);
+  const [recNotice, setRecNotice] = useState('');
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -665,6 +667,17 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
       {/* Tab 5: Reconciliations */}
       {activeTab === 'reconciliations' && (
         <div className="stack" style={{ gap: 16 }}>
+          <div className="between"><div><h3>Manual reconciliation schedules</h3><p className="sub">Sign convention: statement balance + signed timing items = trial-balance account balance. Proposed corrections never clear the residual.</p></div><button className="btn primary sm" onClick={() => setRecDraft({ name: '', ref: '', accountCode: selectedEng.rows[0]?.code, status: 'Draft', evidence: '', asOfDate: state.asOfDate, sourceVersion: selectedEng.sourceVersion, currency: selectedEng.currency, statementBalance: 0, items: [] })}>New Schedule</button></div>
+          {recNotice && <div role="status" className="panel panel-pad">{recNotice}</div>}
+          {recDraft && <form className="panel panel-pad stack" onSubmit={event => { event.preventDefault(); try { prototypeStore.saveReconciliationSchedule(selectedEng.id, recDraft); setRecDraft(null); setRecNotice('Schedule saved as a new draft revision.'); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>
+            <h3>{recDraft.id ? `Edit ${recDraft.ref}` : 'Create reconciliation schedule'}</h3>
+            <div className="grid2"><label>Schedule name<input aria-label="Reconciliation name" className="input" required value={recDraft.name} onChange={event => setRecDraft({ ...recDraft, name: event.target.value })} /></label><label>Trial balance account<select aria-label="Reconciliation account" className="input" value={recDraft.accountCode || ''} onChange={event => setRecDraft({ ...recDraft, accountCode: event.target.value })}>{selectedEng.rows.map(row => <option key={row.code} value={row.code}>{row.code} · {row.name}</option>)}</select></label></div>
+            <div className="grid2"><label>As-of date<input aria-label="Reconciliation as-of date" className="input" type="date" required value={recDraft.asOfDate || ''} onChange={event => setRecDraft({ ...recDraft, asOfDate: event.target.value })} /></label><label>Supporting statement balance ({selectedEng.currency})<input aria-label="Reconciliation statement balance" className="input" type="number" step="0.01" required value={recDraft.statementBalance ?? recDraft.supportingBalance ?? ''} onChange={event => setRecDraft({ ...recDraft, statementBalance: Number(event.target.value) })} /></label></div>
+            <label>Schedule evidence reference<input aria-label="Reconciliation evidence" className="input" required value={recDraft.evidence} onChange={event => setRecDraft({ ...recDraft, evidence: event.target.value })} /></label>
+            <div className="between"><h4>Reconciling items</h4><button type="button" className="btn sm" onClick={() => setRecDraft({ ...recDraft, items: [...(recDraft.items || []), { id: `RI-${crypto.randomUUID()}`, date: recDraft.asOfDate || state.asOfDate, description: '', amount: 0, type: 'Timing item' }] })}>Add item</button></div>
+            {(recDraft.items || []).map((item, index) => <fieldset className="borderbox grid2" key={item.id}><legend>Item {index + 1}</legend><label>Description<input aria-label={`Reconciliation item description ${index + 1}`} className="input" value={item.description} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, description: event.target.value } : value) })} required /></label><label>Date<input aria-label={`Reconciliation item date ${index + 1}`} className="input" type="date" value={item.date} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, date: event.target.value } : value) })} required /></label><label>Signed amount ({selectedEng.currency})<input aria-label={`Reconciliation item amount ${index + 1}`} className="input" type="number" step="0.01" value={item.amount} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, amount: Number(event.target.value) } : value) })} required /></label><label>Item type<select aria-label={`Reconciliation item type ${index + 1}`} className="input" value={item.type} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, type: event.target.value as 'Timing item' | 'Proposed correction' } : value) })}><option>Timing item</option><option>Proposed correction</option></select></label><label>Evidence document ID<input aria-label={`Reconciliation item evidence ${index + 1}`} className="input" value={item.evidenceDoc || ''} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, evidenceDoc: event.target.value } : value) })} /></label>{item.type === 'Proposed correction' && <label>Linked adjustment journal ID<input aria-label={`Reconciliation item journal ${index + 1}`} className="input" value={item.journalId || ''} onChange={event => setRecDraft({ ...recDraft, items: recDraft.items!.map((value, i) => i === index ? { ...value, journalId: event.target.value } : value) })} /></label>}<button type="button" className="btn sm ghost" onClick={() => setRecDraft({ ...recDraft, items: recDraft.items!.filter((_, i) => i !== index) })}>Remove item</button></fieldset>)}
+            <div className="row"><button className="btn primary sm" type="submit">Save Reconciliation Draft</button><button className="btn ghost sm" type="button" onClick={() => setRecDraft(null)}>Cancel</button></div>
+          </form>}
           {(selectedEng.reconciliations || []).map((rec: any) => {
             const variance = calculateReconciliationVariance(rec);
             return (
@@ -672,11 +685,9 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 <div className="between">
                   <div>
                     <h3>{rec.title || rec.name}</h3>
-                    <div className="cell-sub">Reconciliation Ref: {rec.id || rec.ref} · Account: {rec.accountCode || 'N/A'}</div>
+                    <div className="cell-sub">Reconciliation Ref: {rec.id || rec.ref} · Account: {rec.accountCode || 'N/A'} · {rec.currency || selectedEng.currency} · As of {rec.asOfDate || selectedEng.period} · Source v{rec.sourceVersion ?? selectedEng.sourceVersion}</div>
                   </div>
-                  <span className={`badge ${variance.isReconciled ? 'green' : 'amber'}`}>
-                    {variance.isReconciled ? 'Reconciled (Residual 0.00)' : `Unexplained Diff: ${formatCurrency(variance.unexplainedDifference)}`}
-                  </span>
+                  <div className="stack"><span className={`badge ${rec.status === 'Approved' || rec.status === 'Cleared' ? 'green' : rec.status === 'Stale' ? 'red' : 'amber'}`}>{rec.status}</span><span className={`badge ${variance.isReconciled ? 'green' : 'amber'}`}>{variance.isReconciled ? 'Reconciled (Residual 0.00)' : `Unexplained Diff: ${formatCurrency(variance.unexplainedDifference)}`}</span></div>
                 </div>
 
                 <div className="info-grid mt16">
@@ -692,7 +703,9 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     <thead>
                       <tr>
                         <th>Description</th>
+                        <th>Type</th>
                         <th>Amount (QAR)</th>
+                        <th>Evidence / Journal</th>
                         <th>Clearance Date</th>
                       </tr>
                     </thead>
@@ -700,13 +713,18 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                       {(rec.items || []).map((item: any) => (
                         <tr key={item.id}>
                           <td>{item.description}</td>
+                          <td>{item.type}</td>
                           <td><b>{formatCurrency(item.amount)}</b></td>
+                          <td>{item.evidenceDoc || 'Missing evidence'}{item.type === 'Proposed correction' && ` · ${item.journalId || 'No journal linked'}`}</td>
                           <td>{item.clearedDate || 'Outstanding'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <div className="row mt12">{!['Approved', 'Stale'].includes(rec.status) && <button className="btn sm" onClick={() => setRecDraft({ ...rec, name: rec.name, asOfDate: rec.asOfDate || state.asOfDate, statementBalance: rec.statementBalance ?? rec.supportingBalance ?? 0, glBalance: rec.glBalance ?? rec.sourceBalance, sourceVersion: rec.sourceVersion ?? selectedEng.sourceVersion, items: structuredClone(rec.items || []) })}>Edit schedule</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm primary" onClick={() => { try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Approved'); setRecNotice('Independent approval recorded.'); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Approve schedule</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Reason for returning this reconciliation:'); if (reason?.trim()) try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Returned', reason); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Return for rework</button>}</div>
+                {rec.reviewedByUserId && <p className="caption">Reviewed by {state.users.find(user => user.id === rec.reviewedByUserId)?.name || rec.reviewedByUserId} · {rec.reviewedAt}{rec.reviewNote ? ` · ${rec.reviewNote}` : ''}</p>}
+                {rec.history?.length > 0 && <details><summary>Prior reconciliation revisions ({rec.history.length})</summary>{rec.history.map((version: any) => <div className="caption" key={`${version.revision}-${version.savedAt}`}>v{version.revision} · {version.status} · TB v{version.sourceVersion} · saved by {state.users.find(user => user.id === version.savedByUserId)?.name || version.savedByUserId}{version.reviewedByUserId ? ` · reviewed by ${state.users.find(user => user.id === version.reviewedByUserId)?.name || version.reviewedByUserId}` : ''}</div>)}</details>}
               </div>
             );
           })}

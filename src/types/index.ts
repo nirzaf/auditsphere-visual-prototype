@@ -748,6 +748,7 @@ export interface AdjustmentJournalItem {
 }
 
 export interface ReconciliationSchedule {
+  engagementId?: string;
   id?: string;
   title?: string;
   name: string;
@@ -757,8 +758,18 @@ export interface ReconciliationSchedule {
   supportingBalance?: number;
   glBalance?: number;
   statementBalance?: number;
-  status: 'Cleared' | 'In progress' | 'Differences noted';
+  status: 'Draft' | 'In Review' | 'Returned' | 'Approved' | 'Stale' | 'Cleared' | 'In progress' | 'Differences noted';
   evidence: string;
+  asOfDate?: string;
+  currency?: string;
+  sourceVersion?: number;
+  revision?: number;
+  preparedByUserId?: string;
+  preparedAt?: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  history?: Array<{ revision: number; sourceVersion: number; status: ReconciliationSchedule['status']; savedAt: string; savedByUserId: string; glBalance?: number; statementBalance?: number; items: NonNullable<ReconciliationSchedule['items']>; reviewedByUserId?: string; reviewedAt?: string }>;
   items?: Array<{
     id: string;
     date: string;
@@ -766,6 +777,8 @@ export interface ReconciliationSchedule {
     amount: number;
     type: 'Timing item' | 'Proposed correction';
     evidenceDoc?: string;
+    journalId?: string;
+    currency?: string;
     clearedDate?: string;
   }>;
 }

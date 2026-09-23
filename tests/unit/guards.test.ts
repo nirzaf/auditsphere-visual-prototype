@@ -52,6 +52,43 @@ describe('scope guards (AT-18)', () => {
   });
 });
 
+describe('reconciliation schedules (VP-039)', () => {
+  it('pins drafts to the TB source, requires independent review, preserves revisions and stales on source change', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = state;
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const account = engagement.rows.find(row => row.code === '1000')!;
+    state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
+    const id = prototypeStore.saveReconciliationSchedule(engagement.id, { name: 'VP-039 schedule', ref: 'REC-VP039', accountCode: account.code, status: 'Draft', evidence: 'DOC-002', asOfDate: state.asOfDate, sourceVersion: engagement.sourceVersion, statementBalance: account.balance, items: [] });
+    const schedule = engagement.reconciliations.find(item => item.id === id)!;
+    assert.equal(schedule.glBalance, account.balance);
+    assert.equal(schedule.status, 'Draft');
+    assert.throws(() => prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved'), /same person cannot review their own work/);
+    state.currentUserId = 'reviewer'; state.currentRole = 'reviewer'; state.currentPerson = 'Sara Malik';
+    schedule.statementBalance = account.balance - 10;
+    assert.throws(() => prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved'), /residual .* blocks approval/);
+    schedule.statementBalance = account.balance;
+    schedule.items = [{ id: 'RI-CORR', date: state.asOfDate, description: 'Proposed correction', amount: 10, type: 'Proposed correction', evidenceDoc: 'DOC-002' }];
+    assert.throws(() => prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved'), /proposed corrections must link/);
+    schedule.items = [];
+    prototypeStore.reviewReconciliationSchedule(engagement.id, id, 'Approved');
+    assert.equal(schedule.status, 'Approved');
+    state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
+    const replacement = prototypeStore.replaceDocumentRevision('DOC-002', { name: 'VP-039 bank statement v2.pdf', size: 10, sha256: 'a'.repeat(64) });
+    assert.equal(schedule.status, 'Stale');
+    prototypeStore.saveReconciliationSchedule(engagement.id, { ...schedule, statementBalance: account.balance, evidence: replacement.id });
+    let current = engagement.reconciliations.find(item => item.id === id)!;
+    assert.equal(current.status, 'Draft');
+    assert.equal(current.history?.[0].status, 'Approved');
+    assert.equal(current.evidence, replacement.id);
+    const offsetRow = engagement.rows.find(row => row.code !== account.code)!;
+    prototypeStore.updateTrialBalanceRows(engagement.id, engagement.rows.map(row => ({ ...row, balance: row.code === account.code ? row.balance + 1 : row.code === offsetRow.code ? row.balance - 1 : row.balance })));
+    current = engagement.reconciliations.find(item => item.id === id)!;
+    assert.equal(current.status, 'Stale');
+    assert.equal(current.history?.at(-1)?.status, 'Draft');
+  });
+});
+
 describe('fixture integrity (AT-02/AT-54)', () => {
   it('seed fixtures pass integrity with no broken references', () => {
     const issues = validateFixtures(state);

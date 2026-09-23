@@ -16,6 +16,9 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | VP-039 working tree | `npm run test:unit` | PASS — 136/136 | Reconciliation draft source pin, independent-review guard, residual and proposed-correction blocks, revision history, and TB/document replacement stale state; existing EX09 confirms corrections cannot clear timing residuals. |
+| 2026-09-23 | VP-039 working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. AT-39 creates and reads back a manual source-pinned schedule draft. Evidence-document replacement and complete browser review/rework journey remain unverified. |
+| 2026-09-23 | VP-039 working tree | `npm run build` | PASS | TypeScript and Vite build passed with the existing >500 kB main-chunk advisory. |
 | 2026-09-23 | current working tree | `npm run test:unit` | PASS — 135/135 | VP-012 service/year/period changes reset planning, source and mapping acceptance, stale statement sets and require procedure reassessment; earlier workflow guards remain green. |
 | 2026-09-23 | current working tree | `npm run test:e2e` | PASS — 57/57 | Five static checks and 52 Chrome journeys. VP-012 edits service, year, reporting period, due date and team; change history persists and the suite remains green. |
 | 2026-09-23 | `f01a6d1` | Wrangler Pages production deploy + live HTTP/bundle check | PASS | Existing `steaudit-prototype` production project; release `6100e7d4` (`https://6100e7d4.steaudit-prototype.pages.dev`). Release and `prototype.steaudit.com` returned HTTP 200 and served `assets/index-AkSanTQv.js` (2,158,267 bytes, SHA-256 `02dbade4f354b885f3539c6441bc044f05faeb83737b2b28220dcf16e5d94dfc`), including service/period controls and procedure reassessment. |

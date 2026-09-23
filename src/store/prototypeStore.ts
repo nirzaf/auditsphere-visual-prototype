@@ -1,11 +1,12 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
 import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, isClientRole, canOpenRoute, GuardError } from '../services/guards';
+import { calculateReconciliationVariance } from '../services/calculations';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
 const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
@@ -144,6 +145,15 @@ class PrototypeStore {
     eng.approvals.client = null;
     eng.approvals.partner = null;
     eng.approvals.eqr = null;
+  }
+
+  private staleReconciliation(rec: ReconciliationSchedule) {
+    if (rec.status === 'Stale') return;
+    if (rec.preparedAt) {
+      rec.history ||= [];
+      rec.history.push({ revision: rec.revision || 1, sourceVersion: rec.sourceVersion || 0, status: rec.status, savedAt: rec.preparedAt, savedByUserId: rec.preparedByUserId || '', glBalance: rec.glBalance ?? rec.sourceBalance, statementBalance: rec.statementBalance ?? rec.supportingBalance, items: structuredClone(rec.items || []), reviewedByUserId: rec.reviewedByUserId, reviewedAt: rec.reviewedAt });
+    }
+    rec.status = 'Stale';
   }
 
   private staleStatementSetRevisions(changedEngagementId: string) {
@@ -1215,6 +1225,13 @@ class PrototypeStore {
     for (const engagement of this.state.engagements) {
       if (previous.engagementId && engagement.id !== previous.engagementId) continue;
       if (engagement.client !== previous.clientId) continue;
+      for (const rec of engagement.reconciliations || []) {
+        const scheduleEvidence = (rec.evidence || '').split(/[\s,;]+/).includes(previous.id);
+        if (scheduleEvidence || (rec.items || []).some(item => item.evidenceDoc === previous.id)) {
+          this.staleReconciliation(rec);
+          affectedEngagementIds.add(engagement.id);
+        }
+      }
       for (const workpaper of engagement.workpapers) {
         if (!workpaper.evidenceRefs?.includes(previous.id)) continue;
         if (workpaper.clearance) workpaper.clearanceHistory.push({ ...workpaper.clearance });
@@ -1594,9 +1611,59 @@ class PrototypeStore {
       mapping: source ? { ...source.mapping } : undefined,
       predecessorVersion
     });
+    for (const rec of eng.reconciliations || []) {
+      this.staleReconciliation(rec);
+    }
     this.staleStatementSetRevisions(engId);
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Trial balance updated for ${eng.id} (Source v${eng.sourceVersion})`, eng.id);
+    this.notify();
+  }
+
+  public saveReconciliationSchedule(engagementId: string, input: ReconciliationSchedule) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager'], 'edit reconciliation schedules');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const currentIndex = engagement?.reconciliations.findIndex(item => item.id === input.id || !item.id && item.ref === input.ref) ?? -1;
+    const current = currentIndex >= 0 ? engagement?.reconciliations[currentIndex] : undefined;
+    const date = input.asOfDate || this.state.asOfDate;
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+    const row = engagement?.rows.find(item => item.code === input.accountCode);
+    const items = input.items || [];
+    if (!engagement || !row || !input.name?.trim() || !input.accountCode || !validDate || !Number.isFinite(input.statementBalance ?? input.supportingBalance) || !input.evidence?.trim() || !Array.isArray(items) || new Set(items.map(item => item.id)).size !== items.length || items.some(item => !item.id.trim() || !item.description.trim() || !Number.isFinite(item.amount) || !['Timing item', 'Proposed correction'].includes(item.type) || !/^\d{4}-\d{2}-\d{2}$/.test(item.date) || !Number.isFinite(Date.parse(`${item.date}T00:00:00Z`)) || new Date(`${item.date}T00:00:00Z`).toISOString().slice(0, 10) !== item.date || item.currency && item.currency !== engagement.currency)) throw new GuardError('INVALID_STATE', 'Reconciliation requires a scoped account, valid as-of date, finite balances and complete, dated items in the engagement currency.');
+    if (input.sourceVersion !== undefined && input.sourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'Trial balance changed; reload the schedule before editing.');
+    const history = structuredClone(current?.history || input.history || []);
+    if (current?.preparedAt) history.push({ revision: current.revision || 1, sourceVersion: current.sourceVersion || engagement.sourceVersion, status: current.status, savedAt: current.preparedAt, savedByUserId: current.preparedByUserId || '', glBalance: current.glBalance ?? current.sourceBalance, statementBalance: current.statementBalance ?? current.supportingBalance, items: structuredClone(current.items || []), reviewedByUserId: current.reviewedByUserId, reviewedAt: current.reviewedAt });
+    const schedule: ReconciliationSchedule = { ...structuredClone(input), id: current?.id || input.id || `REC-${crypto.randomUUID()}`, title: input.title || input.name, ref: current?.ref || input.ref || `REC-${Date.now()}`, engagementId, accountCode: row.code, sourceBalance: row.balance, glBalance: row.balance, statementBalance: input.statementBalance ?? input.supportingBalance, supportingBalance: input.statementBalance ?? input.supportingBalance, asOfDate: date, currency: engagement.currency, sourceVersion: engagement.sourceVersion, revision: (current?.revision || 0) + 1, status: 'Draft', preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString(), reviewedByUserId: undefined, reviewedAt: undefined, reviewNote: undefined, items: structuredClone(items), history };
+    if (current && engagement) engagement.reconciliations[currentIndex] = schedule;
+    else engagement.reconciliations.push(schedule);
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Reconciliation ${schedule.ref} saved as revision ${schedule.revision} against TB v${schedule.sourceVersion}`, engagementId);
+    this.notify();
+    return schedule.id;
+  }
+
+  public reviewReconciliationSchedule(engagementId: string, scheduleId: string, decision: 'Approved' | 'Returned', note = '') {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'manager', 'partner'], 'review reconciliation schedules');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const schedule = engagement?.reconciliations.find(item => item.id === scheduleId);
+    if (!engagement || !schedule || !['Draft', 'Returned'].includes(schedule.status) || schedule.sourceVersion !== engagement.sourceVersion || !schedule.preparedByUserId) throw new GuardError('STALE_REVISION', 'Only the current draft reconciliation can be independently reviewed.');
+    requireIndependentActor(schedule.preparedByUserId, this.state.currentUserId, 'review their reconciliation schedule', this.state);
+    if (decision === 'Returned' && !note.trim()) throw new GuardError('INVALID_STATE', 'A return reason is required.');
+    if (decision === 'Approved') {
+      const variance = calculateReconciliationVariance(schedule);
+      if (!schedule.evidence.trim() || (schedule.items || []).some(item => !item.evidenceDoc?.trim() || item.type === 'Proposed correction' && (!item.journalId || !this.state.adjustmentJournals.some(journal => journal.id === item.journalId && journal.engagementId === engagementId)))) throw new GuardError('INVALID_STATE', 'Every reconciliation item needs evidence and proposed corrections must link to an engagement journal.');
+      if (variance.unexplainedDifference > 0.005) throw new GuardError('INVALID_STATE', `Unexplained reconciliation residual ${variance.unexplainedDifference.toFixed(2)} blocks approval.`);
+    }
+    schedule.status = decision;
+    schedule.reviewedByUserId = this.state.currentUserId;
+    schedule.reviewedAt = new Date().toISOString();
+    schedule.reviewNote = note.trim() || undefined;
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Reconciliation ${schedule.ref} ${decision.toLowerCase()} by ${this.state.currentPerson}${note.trim() ? `: ${note.trim()}` : ''}`, engagementId);
     this.notify();
   }
 

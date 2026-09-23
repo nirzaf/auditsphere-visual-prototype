@@ -8,6 +8,14 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 
 ## Known acceptance gaps
 
+- **VP-039 — manual reconciliation:** preparers can save source-version-pinned
+  schedules with dated, typed items; reviewers must be independent, return
+  decisions need a reason, and approval blocks unexplained residuals, missing
+  evidence and unlinked proposed corrections. Unit coverage verifies a saved
+  approved revision is retained and TB or referenced-document replacement
+  stales the live schedule; Chrome verifies draft creation. The complete
+  browser approval/rework journey and remaining item/scope edge cases need
+  direct evidence.
 - **AT-20 — document replacement:** Chrome verifies a replacement revision is
   registered separately, preserves the prior document and evidence pin, and
   shows reviewers that a newer version exists. The replacement creates a new
@@ -214,8 +222,8 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 
 ## Verification snapshot
 
-Latest recorded run: 135/135 unit checks and 57/57 E2E checks passed. E2E
+Latest recorded run: 136/136 unit checks and 57/57 E2E checks passed. E2E
 includes five static checks and 52 Chrome journeys. VP-009, VP-051 and VP-052
-are Verified; 36 modules remain Partial because full criterion-by-criterion
+are Verified; VP-039 and 35 other modules remain Partial because full criterion-by-criterion
 acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

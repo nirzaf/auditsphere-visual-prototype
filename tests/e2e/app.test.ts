@@ -2225,6 +2225,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const text = await browserTab!.evaluate<string>('document.body.innerText');
       assert.match(text, /Total Timing Adjustments/);
       assert.match(text, /Unexplained Variance/);
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('New Schedule');
+      await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const name=document.querySelector('[aria-label="Reconciliation name"]');set.call(name,'AT-39 browser schedule');name.dispatchEvent(new Event('input',{bubbles:true}));const account=document.querySelector('[aria-label="Reconciliation account"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(account,'1000');account.dispatchEvent(new Event('change',{bubbles:true}));const date=document.querySelector('[aria-label="Reconciliation as-of date"]');set.call(date,'2026-12-31');date.dispatchEvent(new Event('input',{bubbles:true}));const balance=document.querySelector('[aria-label="Reconciliation statement balance"]');set.call(balance,'1000000');balance.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Reconciliation evidence"]');set.call(evidence,'DOC-002');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save Reconciliation Draft');
+      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
+      assert.equal(saved.status, 'Draft');
+      assert.equal(saved.sourceVersion, await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).sourceVersion`));
+      assert.equal(saved.glBalance, 1000000);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
