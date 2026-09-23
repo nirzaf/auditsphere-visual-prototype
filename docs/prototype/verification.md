@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `d5e98cb` is deployed as Pages release
-`ca6fb6b2-082a-4053-9faa-3b00bdee05f6` in the existing `steaudit-prototype`
+acceptance assertions. Commit `f645193` is deployed as Pages release
+`9ff739d4-37cf-42f0-96c4-b8b405f25177` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -22,6 +22,7 @@ project at `prototype.steaudit.com`.
 | 2026-09-23 | working tree based on `d6a226d` | `npm run test:e2e` | PASS — 17/17 | Five static checks and twelve real Chrome checks. Reporting covers all 16 views, CSV headers and client filtering. Consolidation checks pinned snapshots, QAR 50,000 elimination, balance and unchanged TB. TB import covers rejected CSV, accepted CSV/XLSX and source lineage. PBC covers draft/present, response, visible clarification, replacement and separate acceptance. Other paths cover M365, scoped grants, route rendering, continuance, release/amendment/archive and storage conflict/quota. |
 | 2026-09-23 | working tree after `823c311` | `npm run test:unit` | PASS — 98/98, 21 suites | AT-28 lifecycle covers manager return, owner resubmission, independent approval, approved-time correction and retained superseded revisions. |
 | 2026-09-23 | working tree after `823c311` | `npm run test:e2e` | PASS — 18/18 | Five static checks and thirteen actual Chrome checks. AT-28 exercises the complete entry, return, resubmission, approval and correction UI lifecycle; the other documented browser journeys remain as stated above. |
+| 2026-09-23 | `f645193` | Wrangler Pages production deploy + live HTTP check | PASS | Existing project `steaudit-prototype`, release `9ff739d4-37cf-42f0-96c4-b8b405f25177`; `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-CJxHUyQS.js`. |
 
 The Chrome request check observed only loopback requests in the exercised
 journeys. Static excluded-surface scans and this sample do not establish a formal
