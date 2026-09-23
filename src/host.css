@@ -14,6 +14,20 @@
 }
 @media print {
   body * { visibility: hidden !important; }
+  .practice-report-page,
+  .practice-report-page * { visibility: visible !important; }
+  .practice-report-page {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    color: #111;
+    background: #fff;
+  }
+  .practice-report-page button { display: none !important; }
+  .practice-report-page .tablewrap { overflow: visible !important; }
+  .practice-report-page table { width: 100%; border-collapse: collapse; }
+  .practice-report-page th,
+  .practice-report-page td { border: 1px solid #777; padding: 6px; color: #111; }
   .receivables-statement,
   .receivables-statement * { visibility: visible !important; }
   .receivables-statement {

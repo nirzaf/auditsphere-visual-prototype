@@ -3140,7 +3140,13 @@ class PrototypeStore {
     const packageDefinition = eng.packageHistory?.find(p => p.id === eng.candidate!.packageDefinitionId && p.revision === eng.packageRevision && p.generation === eng.generation);
     if (!packageDefinition || JSON.stringify(packageDefinition.artifacts) !== JSON.stringify(eng.candidate.manifest)) throw new GuardError('STALE_REVISION', 'Release candidate artifact identities no longer match the frozen package revision.');
     if ((eng.approvals.partner?.byUserId ? eng.approvals.partner.byUserId !== this.state.currentUserId : eng.approvals.partner?.by !== this.state.currentPerson) || eng.approvals.partner?.generation !== eng.generation) throw new GuardError('FORBIDDEN_SCOPE', 'The active partner must record current-generation sign-off before issue.');
-    const cleanRecipients = [...new Set(recipients.map(r => r.trim()).filter(Boolean))];
+    const seenRecipients = new Set<string>();
+    const cleanRecipients = recipients.map(r => r.trim()).filter(r => {
+      const key = r.toLowerCase();
+      if (!r || seenRecipients.has(key)) return false;
+      seenRecipients.add(key);
+      return true;
+    });
     if (cleanRecipients.length === 0) throw new GuardError('INVALID_STATE', 'Enter at least one distribution recipient for the local release record.');
     if (!dispatchNote.trim()) throw new GuardError('INVALID_STATE', 'A distribution note is required.');
 

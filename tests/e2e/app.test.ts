@@ -436,6 +436,25 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const content = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText || ""');
       assert.ok(content.trim().length > 0, `route rendered no content: ${label}`);
     }
+    try {
+      for (const width of [768, 390]) {
+        await browserTab!.command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 500 });
+        await clickButtonStartingWith('Client Portfolio');
+        const pageWidth = await browserTab!.evaluate<number>('document.documentElement.scrollWidth');
+        assert.ok(pageWidth <= width, `client portfolio overflows at ${width}px: ${pageWidth}px`);
+        await clickButton('Add Client Profile');
+        const modal = await browserTab!.evaluate<any>(`(() => {const m=document.querySelector('.modal');const r=m?.getBoundingClientRect();return r&&{left:r.left,right:r.right,width:r.width,viewport:innerWidth,scrollHeight:m.scrollHeight,clientHeight:m.clientHeight};})()`);
+        assert.ok(modal && modal.left >= 0 && modal.right <= width, `client form exceeds ${width}px viewport: ${JSON.stringify(modal)}`);
+        const tabOrder = await browserTab!.evaluate<boolean>(`(() => {const first=document.querySelector('.modal input');first.focus();return document.activeElement===first;})()`);
+        assert.equal(tabOrder, true, 'keyboard focus enters the open form');
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+        assert.equal(await browserTab!.evaluate<boolean>('!!document.querySelector(".modal")?.contains(document.activeElement)'), true, 'Tab keeps focus within the active modal controls');
+        await clickButton('✕');
+      }
+    } finally {
+      await browserTab!.command('Emulation.clearDeviceMetricsOverride');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1496,7 +1515,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'report fixture reloads from a deterministic manager state');
       await clickButton('Report Centre');
       assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
-      await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; })()`);
+      await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; window.__reportPrints=0; window.print=()=>window.__reportPrints++; })()`);
       const reports = await browserTab!.evaluate<Array<{ value: string; label: string }>>('[...document.querySelectorAll("#practice-report option")].map(o => ({ value: o.value, label: o.textContent.trim() }))');
       assert.equal(reports.length, 16, 'VP-060 report catalogue count');
       for (const report of reports) {
@@ -1516,6 +1535,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
         const csvRows = parseCsv(csv);
         assert.ok(csvRows[0].length >= 4, `${report.label} export should include report columns`);
+        await clickButton('Print Active Report');
+        assert.equal(await browserTab!.evaluate<number>('window.__reportPrints'), reports.indexOf(report) + 1, `${report.label} invokes the browser print flow`);
         const sourceState = await browserTab!.evaluate<any>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2"))');
         const visibleClients = visibleClientIds(sourceState);
         const visibleEngagements = visibleEngagementIds(sourceState);
@@ -2373,12 +2394,121 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
-  it('AT-52: opens the client portfolio and renders client data', async () => {
+  it('AT-52: carries manually entered client data through engagement, job, mapped statements and a persisted package', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
+      const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));if(!o)throw Error('Missing persona '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const setSelect = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const setField = async (label: string, value: string, tag: 'input'|'textarea' = 'input') => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector(${JSON.stringify(tag)})||l?.parentElement?.querySelector(${JSON.stringify(tag)});if(!e)throw Error('Missing field '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(${tag === 'textarea' ? 'HTMLTextAreaElement' : 'HTMLInputElement'}.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+
+      await setPersona('Relationship owner');
       await clickButtonStartingWith('Client Portfolio');
-      const text = await browserTab!.evaluate<string>('document.body.innerText');
-      assert.match(text, /Client Portfolio|Active|Relationship/);
+      await clickButton('Add Client Profile');
+      await setField('Legal Entity Name', 'AT52 Manually Entered Entity');
+      await setField('Primary Contact Person', 'Omar Nasser');
+      await setField('Contact Email', 'omar.nasser@example-trading.demo');
+      await clickButton('Create Client');
+      const clientId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.name==='AT52 Manually Entered Entity')?.id`);
+      assert.ok(clientId, 'the client originates from the visible create-client form');
+
+      await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Acquisition'));if(!b)throw Error('Missing acquisition route');b.click();})()`);
+      await clickButton('New Inquiry');
+      await setField('Prospective Client Name', 'AT52 Manually Entered Entity');
+      await setField('Primary Contact', 'Omar Nasser');
+      await clickButton('Register Inquiry');
+      const leadId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).leads.find(l=>l.name==='AT52 Manually Entered Entity')?.id`);
+      assert.ok(leadId);
+      const openLead = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.lead-card')].find(x=>x.innerText.includes('AT52 Manually Entered Entity'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Details');if(!b)return false;b.click();return true;})()`);
+      assert.equal(openLead, true);
+      const setStage = async (stage: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Update stage'));const s=l?.querySelector('select');if(!s)throw Error('Missing stage selector');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(stage)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await setStage('Discovery'); await setStage('Evaluation'); await setStage('Won');
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Existing client for conversion"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Link Won Opportunity to Client');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).leads.find(l=>l.id===${JSON.stringify(leadId)}).convertedClientId===${JSON.stringify(clientId)}`), true);
+      await clickButton('Proposals & Terms');
+      await clickButton('New Proposal');
+      await setField('Title', 'AT52 Manual Client Proposal');
+      await setSelect('.modal-backdrop select', leadId);
+      await setField('Scope', 'Annual audit of the manually entered client financial statements.', 'textarea');
+      await setField('Exclusions', 'Tax and payroll services.', 'textarea');
+      await setField('Deliverables', 'Reviewed financial statements and audit report.', 'textarea');
+      await setField('Client responsibilities', 'Provide complete and accurate records.', 'textarea');
+      await setField('Fixed fee', '18000');
+      await setField('Terms', 'Payment within 30 days of invoice.', 'textarea');
+      await clickButton('Create Draft');
+      const proposalId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.title==='AT52 Manual Client Proposal')?.id`);
+      assert.ok(proposalId);
+      const review = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('AT52 Manual Client Proposal'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Review');if(!b)return false;b.click();return true;})()`);
+      assert.equal(review, true);
+      await setPersona('Engagement partner');
+      await clickButton('Record Review Decision');
+      await clickButton('Mark Presented');
+
+      await setPersona('System administrator');
+      await clickButton('Firm Administration');
+      const userRow = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('Omar Nasser'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.includes('Grant Scope'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(userRow, true, 'management approver receives an explicit client grant');
+      await setSelect('.modal-card select', 'Client');
+      await browserTab!.evaluate(`(() => {const e=[...document.querySelectorAll('.modal-card select')].find(s=>[...s.options].some(o=>o.value===${JSON.stringify(clientId)}));if(!e)throw Error('Missing target client grant selector');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(clientId)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await browserTab!.evaluate(`(() => {const from=document.querySelector('[aria-label="Grant effective from"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(from,'2026-09-23');from.dispatchEvent(new Event('input',{bubbles:true}));from.dispatchEvent(new Event('change',{bubbles:true}));const ref=document.querySelector('[aria-label="Approved access request reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(ref,'AT52-ACCESS-001');ref.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Permit this client management approver to respond to its proposal.');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Record approved grant');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='client'&&g.scopeKind==='Client'&&g.scopeId===${JSON.stringify(clientId)})`), true);
+      await setPersona('Omar Nasser');
+      await clickButton('Proposals & Terms');
+      await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(e=>[...e.options].some(o=>o.value===${JSON.stringify(clientId)}));if(!s)throw Error('Client portal cannot select its granted entity');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT52 Manual Client Proposal/);
+      assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Record Acceptance')`), true, 'the granted client portal displays its presented proposal');
+      await browserTab!.evaluate(`(() => {const set=(label,value,textarea=false)=>{const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(label));const e=l?.querySelector(textarea?'textarea':'input');if(!e)throw Error('Missing portal field '+label);Object.getOwnPropertyDescriptor(textarea?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};set('Authorized signatory','Omar Nasser');set('Evidence reference (email','AT52-CLIENT-ACCEPTANCE-001');set('Response notes','Approved the presented scope for the current reporting period.',true);})()`);
+      await clickButton('Record Acceptance');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id===${JSON.stringify(proposalId)}).state==='Accepted'`), true);
+
+      await setPersona('Engagement partner');
+      await clickButtonStartingWith('Engagements');
+      await clickButton('New Engagement');
+      await setSelect('.modal-backdrop select', proposalId);
+      await clickButton('Create Engagement');
+      const engagementId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.proposalId===${JSON.stringify(proposalId)})?.id`);
+      assert.ok(engagementId);
+      await browserTab!.evaluate(`window.prompt=()=> 'AT52-PROFESSIONAL-ACCEPTANCE-001';`);
+      await clickButton('Activate Engagement');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(engagementId)});return e.client===${JSON.stringify(clientId)}&&e.stage==='Planning'&&e.professionalAcceptance?.evidenceRef==='AT52-PROFESSIONAL-ACCEPTANCE-001';})()`), true);
+
+      await setPersona('Engagement manager');
+      await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
+      await clickButtonStartingWith('New Job');
+      await setField('Job Title', 'AT52 Manually Entered Client Audit');
+      await browserTab!.evaluate(`(() => {const selects=[...document.querySelectorAll('.modal-backdrop select')];for(const value of [${JSON.stringify(clientId)},${JSON.stringify(engagementId)}]){const e=selects.find(s=>[...s.options].some(o=>o.value===value));if(!e)throw Error('Missing select option '+value);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+      await setField('Due Date', '2026-10-31');
+      await clickButton('Create Job');
+      const job = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.jobs.find(j=>j.title==='AT52 Manually Entered Client Audit')})()`);
+      assert.equal(job.engagementId, engagementId);
+      assert.equal(job.clientId, clientId);
+
+      await setPersona('preparer');
+      await setSelect('select[aria-label="Selected engagement"]', engagementId);
+      await clickButton('Accounting Workbench');
+      await clickButton('Statement Mappings');
+      await browserTab!.evaluate(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(engagementId)});const targets={asset:'Cash and cash equivalents',liability:'Trade payables',equity:'Share capital and reserves',revenue:'Revenue',expense:'Operating expenses'};for(const row of e.rows){const control=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');if(!control)throw Error('Missing mapping for '+row.code);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(control,targets[row.type]);control.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+      await clickButton('Save New Revision');
+      await setPersona('reviewer');
+      const mappingApproved = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Approve Revision v'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(mappingApproved, true);
+      await setPersona('manager');
+      await clickButton('Financial Packages');
+      const disclosure = await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Disclosure note applicability"]')&&!!document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]')`);
+      assert.equal(disclosure, true, 'package configuration is exposed for this dynamically created engagement');
+      await browserTab!.evaluate(`(() => {const a=document.querySelector('[aria-label="Disclosure note applicability"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(a,'Not applicable');a.dispatchEvent(new Event('change',{bubbles:true}));const n=document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(n,'No additional disclosure note is applicable in this demonstration.');n.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      const assemble = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('Assemble New Revision'));if(!b||b.disabled)return false;b.click();return true;})()`);
+      assert.equal(assemble, true, 'validated package can be assembled from the manually created client journey');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).packageHistory?.some(p=>p.artifacts?.length===3)`), true);
+      const outcome = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(engagementId)});return {client:e.client,lead:s.leads.find(x=>x.id===${JSON.stringify(leadId)}).convertedClientId,proposal:s.proposals.find(x=>x.id===${JSON.stringify(proposalId)}).state,job:s.jobs.find(x=>x.title==='AT52 Manually Entered Client Audit')?.engagementId,packageRevision:e.packageHistory.at(-1)?.revision,artifacts:e.packageHistory.at(-1)?.artifacts?.map(a=>({kind:a.kind,size:a.size,sha256:a.sha256}))};})()`);
+      assert.equal(outcome.client, clientId);
+      assert.equal(outcome.lead, clientId);
+      assert.equal(outcome.proposal, 'Accepted');
+      assert.equal(outcome.job, engagementId);
+      assert.ok(outcome.packageRevision);
+      assert.deepEqual(outcome.artifacts.map((a:any)=>a.kind).sort(), ['DOCX','PDF','XLSX']);
+      assert.ok(outcome.artifacts.every((a:any)=>a.size>0&&/^[a-f0-9]{64}$/.test(a.sha256)));
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

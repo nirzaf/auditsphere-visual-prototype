@@ -149,13 +149,16 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
   const handleExportCSV = () => exportService.exportCSV(`${report}_practice_report_${state.asOfDate}`, [activeDataset.headers, ...activeDataset.rows.map(r => r.cells)]);
 
   return (
-    <div className="stack" style={{ gap: 20 }}>
+    <div className="stack practice-report-page" style={{ gap: 20 }}>
       <div className="pagehead">
         <div>
           <h1>Practice Reporting Centre</h1>
           <p>Scoped operational and financial reports with consistent filters, drill-downs, currency context and CSV exports.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
+          <button className="btn sm ghost" onClick={() => window.print()}>
+            Print Active Report
+          </button>
           <button className="btn primary sm" onClick={handleExportCSV}>
             <Icon name="download" /> Export Active Report (CSV)
           </button>

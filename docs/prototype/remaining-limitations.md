@@ -151,8 +151,10 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 - **R05 — release evidence:** package revisions now create and persist real XLSX,
   DOCX and PDF bytes with verified SHA-256 manifests, and the issue guard binds to
   those artifacts. Chrome verifies manager, management and partner approvals,
-  release, amendment reset, and predecessor-manifest preservation. Dispatch,
-  duplicate-delivery and all release edge paths remain unverified.
+  release, amendment reset, and predecessor-manifest preservation. A unit check
+  now verifies case-insensitive recipient deduplication and blocks a second issue
+  in the same generation. External dispatch/delivery and other release edge paths
+  remain outside browser evidence.
 - **R08 — accounting history:** imported trial-balance snapshots and mapping/source
   metadata are retained by revision. Financial statements and package artifacts
   now include accepted, unreflected adjustments exactly once; reflected or

@@ -1395,8 +1395,13 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     // Issue initial release
     seedPackageDefinition(eng);
     prototypeStore.prepareReleaseCandidate(eng.id);
-    prototypeStore.issueRelease(eng.id, 'First local release record', ['board@example.demo']);
+    prototypeStore.issueRelease(eng.id, 'First local release record', ['board@example.demo', ' BOARD@example.demo ']);
+    assert.deepEqual(eng.releases[0].recipients, ['board@example.demo'], 'distribution recipients are trimmed and deduplicated without regard to case');
     const firstRelId = eng.releases[0].id;
+
+    prototypeStore.prepareReleaseCandidate(eng.id);
+    assert.throws(() => prototypeStore.issueRelease(eng.id, 'Duplicate delivery attempt', ['board@example.demo']), /already been released/);
+    assert.equal(eng.releases.length, 1, 'retrying issue in the same generation cannot create a second release');
 
     // Reopen for amendment
     prototypeStore.reopenReleaseForAmendment(eng.id, 'Subsequent adjusting event: litigation settlement');
