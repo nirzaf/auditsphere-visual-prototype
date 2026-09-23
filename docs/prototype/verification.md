@@ -1,8 +1,8 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
 Updated 2026-09-23. This record distinguishes executed checks from planned
-acceptance assertions. Commit `e7f41d1` is deployed as Pages release
-`80077bf7-795d-4752-8bbc-ad966d8c4f55` in the existing `steaudit-prototype`
+acceptance assertions. Commit `4f69bba` is deployed as Pages release
+`d7e66d06-34b6-4b6f-a6fe-482e6b34a276` in the existing `steaudit-prototype`
 project at `prototype.steaudit.com`.
 
 ## Commands
@@ -17,9 +17,10 @@ project at `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
-| 2026-09-23 | current working tree after `62e16d7` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.00 MB (570 kB gzip), above Vite's 500 kB advisory threshold. |
-| 2026-09-23 | current working tree after `62e16d7` | `npm run test:unit` | PASS — 108/108, 25 suites | VP-030 proves approved-time source validation, pinned-rate calculation and exact-once reservation; prior accounting, scope, migration, package, reporting and workflow checks remain included. |
-| 2026-09-23 | current working tree after `62e16d7` | `npm run test:e2e` | PASS — 34/34 | Five static checks and 29 actual Chrome checks. AT-30 drafts from approved time at its pinned rate, records the exact source, reserves it once and removes it from future draft choices. Fixed-service billing remains incomplete. |
+| 2026-09-23 | `4f69bba` | `npm run build` | PASS | TypeScript clean; Vite emitted the app. Main JS bundle is about 2.00 MB (570.26 kB gzip), above Vite's 500 kB advisory threshold. |
+| 2026-09-23 | `4f69bba` | `npm run test:unit` | PASS — 108/108, 25 suites | VP-030 proves approved-time source validation, pinned-rate calculation and exact-once reservation; prior accounting, scope, migration, package, reporting and workflow checks remain included. |
+| 2026-09-23 | `4f69bba` | `npm run test:e2e` | PASS — 34/34 | Five static checks and 29 actual Chrome checks. AT-30 drafts from approved time at its pinned rate, records the exact source, reserves it once and removes it from future draft choices. Fixed-service billing remains incomplete. |
+| 2026-09-23 | `4f69bba` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `d7e66d06-34b6-4b6f-a6fe-482e6b34a276`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-BLmnH2c-.js`. |
 | 2026-09-23 | `e7f41d1` | `npm run test:unit` | PASS — 107/107, 25 suites | Independent invoice and credit approval/issue lifecycle invariants, alongside prior scope, package, reporting, accounting and workflow checks. |
 | 2026-09-23 | `e7f41d1` | `npm run test:e2e` | PASS — 33/33 | Five static checks and 28 actual Chrome checks. VP-031 denies invoice self-review, requires separate invoice and credit approval/issue, and updates outstanding balance after a partial credit. |
 | 2026-09-23 | `e7f41d1` | Wrangler Pages production deploy + live HTTP check | PASS | Existing `steaudit-prototype` project, production branch, release `80077bf7-795d-4752-8bbc-ad966d8c4f55`; release URL and cache-busted `prototype.steaudit.com` returned HTTP 200 and referenced `assets/index-B7zPlDhB.js`. |
