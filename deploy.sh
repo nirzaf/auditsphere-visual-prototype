@@ -11,7 +11,7 @@ mkdir -p dist/templates
 cp -r templates/* dist/templates/
 
 echo "Deploying to Cloudflare Pages (steaudit-prototype)..."
-wrangler pages deploy dist --project-name steaudit-prototype --branch production
+npx wrangler pages deploy dist --project-name steaudit-prototype --branch production
 
 echo "Done! Live at:"
 echo "- https://prototype.steaudit.com"
