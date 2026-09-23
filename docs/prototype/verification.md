@@ -16,6 +16,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-23 | `cbd9ad6` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` production project; release `62a3110b` (`https://62a3110b.steaudit-prototype.pages.dev`). Release and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-BlMfR5dl.js` (2,172,573 bytes, SHA-256 `3c78de8e936106be6e0020cf7f561abc57a644ddd5854e70e97d8c1f8e2fd01b`), matching local `dist/`; bundle contains disclosure applicability controls and no longer seeds an unsupported IFRS inclusion claim. |
 | 2026-09-23 | VP-041 disclosure applicability follow-up | `npm run test:unit` | PASS — 136/136 | Unit suite remains green; disclosure applicability is validated in Chrome package assembly. |
 | 2026-09-23 | VP-041 disclosure applicability follow-up | `npm run test:e2e` | PASS — 57/57 | AT-41 verifies an enabled disclosure section starts unassessed and blocks package validation, then persists an Applicable decision and entered note in the exact package revision. AT-38 package artifact journey also passes. This is package-level applicability, not a per-note accounting-standard checklist. |
 | 2026-09-23 | VP-041 disclosure applicability follow-up | `npm run build` | PASS | TypeScript and Vite production build passed with the existing >500 kB main-chunk advisory. |
