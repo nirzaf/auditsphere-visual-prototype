@@ -337,7 +337,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
         <div className="modal-backdrop" onClick={() => setShowCreditModal(false)}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Issue Credit Note for {selectedInvoice.invoiceNumber}</h2>
+              <h2>Draft Credit Note for {selectedInvoice.invoiceNumber}</h2>
               <button className="icon-btn" onClick={() => setShowCreditModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateCredit}>
@@ -370,7 +370,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowCreditModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Issue Credit Note</button>
+                <button type="submit" className="btn primary sm">Create Draft Credit Note</button>
               </div>
             </form>
           </div>

@@ -765,6 +765,45 @@ describe('actual Chrome browser acceptance', () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-031: requires independent invoice and credit review before issue', async () => {
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Billing & Invoices'));if(!b)throw Error('Billing navigation is missing');b.click();})()`);
+    await clickButton('Draft New Invoice');
+    await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing invoice field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Invoice Number','INV-AT31');set('Fee Description','AT31 acceptance invoice');set('Invoice Amount (QAR)','100000');})()`);
+    await clickButton('Create Draft');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.some(i=>i.invoiceNumber==='INV-AT31')`), true);
+    const invoice = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.invoiceNumber==='INV-AT31')`);
+    assert.equal(invoice.status, 'Draft');
+    const selfApprove = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('INV-AT31'));const b=[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Approve');if(!b)return false;b.click();return true;})()`);
+    assert.equal(selfApprove, true);
+    assert.equal(await waitForBrowser('document.body.innerText.toLowerCase().includes("cannot approve their own invoice")'), true, 'preparer cannot approve own invoice');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.id===${JSON.stringify(invoice.id)}).status`), 'Draft');
+    const setPersona = async (id: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(id)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const invoiceAction = async (number: string, action: string) => browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(number)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()===${JSON.stringify(action)});if(!b)return false;b.click();return true;})()`);
+    await setPersona('billing');
+    assert.equal(await invoiceAction('INV-AT31','Approve'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.id===${JSON.stringify(invoice.id)}).status==='Approved'`), true);
+    await setPersona('partner');
+    assert.equal(await invoiceAction('INV-AT31','Issue'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.id===${JSON.stringify(invoice.id)}).status==='Issued'`), true);
+    assert.equal(await invoiceAction('INV-AT31','Credit Note'), true);
+    await clickButton('Create Draft Credit Note');
+    const credit = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.invoiceId===${JSON.stringify(invoice.id)})`);
+    assert.ok(credit);
+    assert.equal(credit.status, 'Draft');
+    await setPersona('billing');
+    assert.equal(await invoiceAction(credit.creditNumber,'Approve'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)}).status==='Approved'`), true);
+    await setPersona('manager');
+    assert.equal(await invoiceAction(credit.creditNumber,'Issue'), true);
+    const final = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoice:s.invoices.find(i=>i.id===${JSON.stringify(invoice.id)}),credit:s.creditNotes.find(c=>c.id===${JSON.stringify(credit.id)})};})()`);
+    assert.equal(final.credit.status, 'Issued');
+    assert.equal(final.credit.reviewedBy, 'Leila Hassan');
+    assert.equal(final.credit.issuedBy, 'Layla Rahman');
+    assert.equal(final.invoice.creditsApplied, credit.amount);
+    assert.equal(final.invoice.amount-final.invoice.creditsApplied, 75000);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('VP-047: records independent acceptance and creates a clean next-period draft', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');

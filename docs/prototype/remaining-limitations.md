@@ -13,6 +13,9 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 - **AT-22 — local document metadata:** Chrome registers a real selected local
   file, reloads the browser, and confirms the original bytes are not stored or
   presented as downloadable. Upload to a remote library is outside scope.
+- **VP-030 — source-linked billing:** the invoice/credit journey verifies
+  review and issuance separation, but draft creation from approved time/service
+  sources and prevention of duplicate source consumption remain incomplete.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
   authorized staff mention stay absent from the client portal. Comment editing,
   moderation and recipient-specific notification browsing remain incomplete.
