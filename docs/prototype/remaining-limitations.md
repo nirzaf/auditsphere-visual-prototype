@@ -76,8 +76,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.
-  External invitations, identity onboarding/suspension, and an account status
-  change history remain incomplete; personas are seeded simulation identities.
+  The M365 wizard also saves permitted-person and initial role mappings without
+  creating access grants. External invitations, identity onboarding/suspension,
+  and an account status change history remain incomplete; personas are seeded
+  simulation identities.
 
 - **AT-07/08 — acquisition and proposals:** Chrome now exercises inquiry
   registration, stage history, separate-currency totals, required lost reason,
