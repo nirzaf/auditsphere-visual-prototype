@@ -24,6 +24,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   // New task form state
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [noteMentions, setNoteMentions] = useState<string[]>([]);
   const [parentTaskIdForSubtask, setParentTaskIdForSubtask] = useState<string | undefined>(undefined);
@@ -55,6 +56,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const handleAddInternalNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedJob) return;
+    if (editingCommentId) {
+      try { prototypeStore.editComment(editingCommentId, noteText); setShowNoteModal(false); setEditingCommentId(null); setNoteText(''); triggerNotice('success', 'Internal note updated.'); }
+      catch (error: any) { triggerNotice('error', error.message); }
+      return;
+    }
     const comment: CommentItem = { id: `CMT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, subjectType: 'job', subjectId: selectedJob.id, author: state.currentPerson, authorRole: state.currentRole, createdAt: new Date().toISOString(), text: noteText.trim(), visibility: 'internal', mentions: noteMentions };
     try { prototypeStore.addComment(comment); setShowNoteModal(false); setNoteText(''); setNoteMentions([]); triggerNotice('success', `Internal note saved${noteMentions.length ? `; ${noteMentions.length} local mention${noteMentions.length === 1 ? '' : 's'} recorded` : ''}.`); }
     catch (error: any) { triggerNotice('error', error.message); }
@@ -362,7 +368,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                 </div>
                 <div className="divider mt20" />
                 <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => setShowNoteModal(true)}>Add Internal Note</button></div>
-                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
+                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p>{comment.author === state.currentPerson && <button className="btn sm ghost" onClick={() => { setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}</div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
               </div>
             </div>
           )}
@@ -556,7 +562,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {showNoteModal && selectedJob && <div className="modal-backdrop" onClick={() => setShowNoteModal(false)}><form className="modal" style={{ maxWidth: 500 }} onSubmit={handleAddInternalNote} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>Add Internal Job Note</h2><button type="button" className="icon-btn" onClick={() => setShowNoteModal(false)}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}><label className="caption">Note (5,000 characters maximum)<textarea className="input" rows={4} maxLength={5000} required value={noteText} onChange={e => setNoteText(e.target.value)} /></label><label className="caption">Mention authorized colleagues<select className="input" multiple value={noteMentions} onChange={e => setNoteMentions(Array.from(e.target.selectedOptions, option => option.value))}>{mentionableUsers.filter(user => user.id !== state.currentUserId).map(user => <option key={user.id} value={user.id}>{user.name} · {user.label}</option>)}</select></label><p className="caption">Mentions are local notices only. They do not grant access or send email.</p></div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setShowNoteModal(false)}>Cancel</button><button className="btn primary sm" type="submit">Save Internal Note</button></div></form></div>}
+      {showNoteModal && selectedJob && <div className="modal-backdrop" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}><form className="modal" style={{ maxWidth: 500 }} onSubmit={handleAddInternalNote} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>{editingCommentId ? 'Edit Internal Job Note' : 'Add Internal Job Note'}</h2><button type="button" className="icon-btn" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}><label className="caption">Note (5,000 characters maximum)<textarea className="input" rows={4} maxLength={5000} required value={noteText} onChange={e => setNoteText(e.target.value)} /></label>{!editingCommentId && <><label className="caption">Mention authorized colleagues<select className="input" multiple value={noteMentions} onChange={e => setNoteMentions(Array.from(e.target.selectedOptions, option => option.value))}>{mentionableUsers.filter(user => user.id !== state.currentUserId).map(user => <option key={user.id} value={user.id}>{user.name} · {user.label}</option>)}</select></label><p className="caption">Mentions are local notices only. They do not grant access or send email.</p></>}</div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}>Cancel</button><button className="btn primary sm" type="submit">{editingCommentId ? 'Save Note Changes' : 'Save Internal Note'}</button></div></form></div>}
     </div>
   );
 };

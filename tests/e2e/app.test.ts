@@ -735,10 +735,17 @@ describe('actual Chrome browser acceptance', () => {
     assert.equal(comment.visibility, 'internal');
     assert.equal(comment.mentions.length, 1);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 staff-only coordination note/);
+    await clickButton('Edit');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 revised staff-only coordination note.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Note Changes');
+    const editedComment = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.id===${JSON.stringify(comment.id)})`);
+    assert.equal(editedComment.editedBy, comment.author);
+    assert.ok(editedComment.editedAt);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 revised staff-only coordination note/);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const clientView = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(clientView, /CLIENT SECURE PORTAL/);
-    assert.doesNotMatch(clientView, /AT14 staff-only coordination note/);
+    assert.doesNotMatch(clientView, /AT14 revised staff-only coordination note/);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

@@ -34,8 +34,10 @@ modules remain Partial; see `verification.md` for the exact executed checks.
   contract balance. Fixed-fee caps are proposal-level; per-service milestone
   allocation remains unmodeled.
 - **AT-14 — internal collaboration:** Chrome verifies an internal job note and
-  authorized staff mention stay absent from the client portal. Comment editing,
-  moderation and recipient-specific notification browsing remain incomplete.
+  authorized staff mention stay absent from the client portal. Authors can now
+  edit their notes; the edit records actor and time, and another persona is
+  denied by the shared store guard. Moderation and recipient-specific
+  notification browsing remain incomplete.
 - **AT-27 — manual communications:** Chrome records an inbound meeting note with
   internal visibility and confirms the client portal omits it. Broader activity
   linking across communication/client/job views remains incomplete.

@@ -808,6 +808,19 @@ class PrototypeStore {
     this.notify();
   }
 
+  public editComment(id: string, text: string) {
+    requireActiveIdentity(this.state);
+    const comment = this.state.comments.find(item => item.id === id);
+    if (!comment) throw new GuardError('INVALID_STATE', 'Comment was not found.');
+    if (comment.author !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the comment author can edit this note.');
+    if (!text.trim() || text.length > 5000) throw new GuardError('INVALID_STATE', 'Comment text is required and must be 5,000 characters or fewer.');
+    comment.text = text.trim();
+    comment.edited = true;
+    comment.editedAt = new Date().toISOString();
+    comment.editedBy = this.state.currentPerson;
+    this.notify();
+  }
+
   // --- Document Management & SharePoint (VP-020, VP-021) ---
   public addDocument(doc: DocumentItem) {
     requireActiveIdentity(this.state);

@@ -407,6 +407,8 @@ export interface CommentItem {
   visibility: 'internal' | 'client';
   mentions?: string[];
   edited?: boolean;
+  editedAt?: string;
+  editedBy?: string;
 }
 
 // Module 09: PBC

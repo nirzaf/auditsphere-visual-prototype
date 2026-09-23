@@ -126,6 +126,24 @@ describe('fixture integrity (AT-02/54)', () => {
   });
 });
 
+describe('internal comment editing (AT-14)', () => {
+  it('limits edits to the author and records who and when changed the note', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    prototypeStore.resetState();
+    const initial = prototypeStore.getSnapshot();
+    prototypeStore.setPersona(initial.users.find(user => user.id === 'preparer')!.id);
+    const author = prototypeStore.getSnapshot().currentPerson;
+    prototypeStore.addComment({ id: 'CMT-EDIT-TEST', subjectType: 'job', subjectId: initial.jobs[0].id, author, authorRole: 'preparer', createdAt: new Date().toISOString(), text: 'Original note', visibility: 'internal' });
+    prototypeStore.editComment('CMT-EDIT-TEST', ' Revised note ');
+    const edited = prototypeStore.getSnapshot().comments.find(comment => comment.id === 'CMT-EDIT-TEST')!;
+    assert.equal(edited.text, 'Revised note');
+    assert.equal(edited.editedBy, author);
+    assert.ok(edited.editedAt);
+    prototypeStore.setPersona(prototypeStore.getSnapshot().users.find(user => user.id === 'manager')!.id);
+    assert.throws(() => prototypeStore.editComment('CMT-EDIT-TEST', 'Unauthorized change'), /Only the comment author/);
+  });
+});
+
 describe('sampling workpaper guards (VP-051)', () => {
   it('requires selection and records a variance against the scoped population item', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
