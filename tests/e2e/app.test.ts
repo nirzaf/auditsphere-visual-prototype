@@ -2343,6 +2343,31 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('AT-43: projects only granted consolidation components under a narrow group grant', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=${JSON.stringify(createInitialState())};s.currentUserId='group-user';s.currentPerson=s.users.find(u=>u.id==='group-user').name;s.currentRole='manager';s.selectedEngagement='ENG-26001';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /Example Trading Entity/, 'the granted Parent component is projected');
+      assert.match(text, /Outside your scoped grant/, 'the ungranted Subsidiary slot is redacted');
+      assert.match(text, /Consolidated output is unavailable under your scoped grant/);
+      assert.doesNotMatch(text, /Northstar Services/, 'no ungranted client detail is projected');
+      assert.doesNotMatch(text, /ENG-26002/, 'no ungranted engagement identity is projected');
+      assert.doesNotMatch(text, /Consolidated Balance Sheet Grid|Intercompany Eliminations|Currency Translation/, 'no figure-bearing tabs are offered');
+      assert.doesNotMatch(text, /Equation Satisfied|50,000|Edit group perimeter|Save perimeter revision|Revert to revision/, 'no figures, editor or history cross the grant boundary');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-35: rejects an unbalanced TB import then preserves the accepted source revision on replacement', async () => {
     await browserTab!.evaluate(`(() => {const state=${JSON.stringify(createInitialState())};state.selectedEngagement='ENG-26002';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
     await browserTab!.command('Page.reload');

@@ -1332,6 +1332,52 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.throws(() => prototypeStore.revertConsolidationPerimeter('GRP-01', 1, 'preparer attempt'), /cannot change consolidation groups/);
   });
 
+  it('rejects a self-loop component assignment as a duplicate perimeter', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const before = structuredClone(state.consolidationGroups[0]);
+    const loop = structuredClone(state.consolidationGroups[0]);
+    loop.components[1].componentId = loop.components[0].componentId;
+    assert.throws(() => prototypeStore.updateConsolidationGroup(loop, { reason: 'cycle attempt' }), /exactly two distinct/);
+    assert.deepEqual(state.consolidationGroups[0], before, 'a self-loop cannot replace the recorded perimeter');
+  });
+
+  it('keeps consolidation group revisions independent across groups', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const second = structuredClone(state.consolidationGroups[0]);
+    second.id = 'GRP-02';
+    second.name = 'Second supported group';
+    prototypeStore.updateConsolidationGroup(second);
+    assert.equal(state.consolidationGroups.find((item: any) => item.id === 'GRP-02')?.perimeterRevision, 1);
+    const edited = structuredClone(state.consolidationGroups[0]);
+    edited.components[0].effectiveDate = '2026-01-01';
+    prototypeStore.updateConsolidationGroup(edited, { reason: 'date revision on GRP-01' });
+    assert.equal(state.consolidationGroups.find((item: any) => item.id === 'GRP-01')?.perimeterRevision, 2);
+    assert.equal(state.consolidationGroups.find((item: any) => item.id === 'GRP-02')?.perimeterRevision, 1, 'editing one group leaves the other revision unchanged');
+  });
+
+  it('rejects narrow-grant perimeter saves without widening component access', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const dated = structuredClone(state.consolidationGroups[0]);
+    dated.components[0].effectiveDate = '2026-01-01';
+    prototypeStore.updateConsolidationGroup(dated, { reason: 'seed revision history' });
+    setPersona(state, 'Mona Khalil');
+    const before = structuredClone(state.consolidationGroups[0]);
+    const candidate = structuredClone(state.consolidationGroups[0]);
+    candidate.components[0].effectiveDate = '2026-02-01';
+    assert.throws(() => prototypeStore.updateConsolidationGroup(candidate, { reason: 'narrow attempt' }), /outside the current scoped grant/);
+    assert.throws(() => prototypeStore.revertConsolidationPerimeter('GRP-01', 2, 'narrow attempt'), /outside the current scoped grant/);
+    assert.deepEqual(state.consolidationGroups[0], before, 'a denied save discloses and changes nothing');
+  });
+
   it('version-controls explicit consolidation FX rates and rejects wrong context', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
