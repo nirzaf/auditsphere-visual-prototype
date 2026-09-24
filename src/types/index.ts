@@ -282,7 +282,7 @@ export interface ProposalRecord {
 export interface GeneratedArtifactRecord {
   id: string;
   name: string;
-  kind: 'XLSX' | 'DOCX' | 'PDF' | 'PBC';
+  kind: 'XLSX' | 'DOCX' | 'PDF' | 'PBC' | 'GROUP_JSON';
   mimeType: string;
   size: number;
   sha256: string;
@@ -956,6 +956,19 @@ export interface ConsolidationEliminationReviewEntry {
   evidenceRef?: string;
 }
 
+export interface ConsolidationOutputPackage {
+  id: string;
+  revision: number;
+  fingerprint: string;
+  preparedByUserId: string;
+  preparedAt: string;
+  evidenceRef: string;
+  artifact: { id: string; name: string; mimeType: string; size: number; sha256: string };
+  status: 'Draft' | 'Returned' | 'Approved';
+  reviewHistory: Array<{ status: 'Returned' | 'Approved'; byUserId: string; by: string; at: string; note: string; evidenceRef: string }>;
+  approvedFingerprint?: string;
+}
+
 export interface ConsolidationGroupRecord {
   id: string;
   name: string;
@@ -1007,6 +1020,7 @@ export interface ConsolidationGroupRecord {
     reviewHistory?: ConsolidationEliminationReviewEntry[];
     lines: Array<{ account: string; type: 'debit' | 'credit'; amount: number }>;
   }>;
+  outputPackages?: ConsolidationOutputPackage[];
 }
 
 // Module 27-36: Audit

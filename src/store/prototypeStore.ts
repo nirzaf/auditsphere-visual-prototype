@@ -8,6 +8,7 @@ import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../serv
 import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
 import { applyReportingAdjustments, calculateReconciliationVariance } from '../services/calculations';
 import { validatePbcUpload } from '../services/pbcUpload';
+import { consolidationOutputFingerprint } from '../services/consolidationOutput';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
 const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
@@ -2443,6 +2444,36 @@ class PrototypeStore {
       elimination.approvalEvidenceRef = evidenceRef.trim();
     }
     this.logEvent(`Group elimination ${elimination.id} ${decision.toLowerCase()} by ${this.state.currentPerson}: ${note.trim()}`, group.id, 'history');
+    this.notify();
+  }
+
+  public saveConsolidationOutputPackage(groupId: string, record: import('../types').ConsolidationOutputPackage) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'prepare consolidated output packages');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    if (!group || !record.evidenceRef.trim() || record.preparedByUserId !== this.state.currentUserId || record.status !== 'Draft' || !/^[a-f0-9]{64}$/i.test(record.artifact.sha256) || record.artifact.size <= 0 || !record.artifact.name || record.artifact.mimeType !== 'application/json') throw new GuardError('INVALID_STATE', 'A prepared group output requires its exact active preparer, review evidence and a verified JSON artifact identity.');
+    if (record.revision !== (group.outputPackages?.length || 0) + 1 || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'The consolidated output changed before its package could be saved. Rebuild from current reviewed inputs.');
+    for (const component of group.components) {
+      const engagement = this.state.engagements.find(item => item.id === component.componentId);
+      if (!engagement || component.status !== 'Ready' || component.packageRevisionPinned !== engagement.packageRevision || JSON.stringify(component.packageRows) !== JSON.stringify(engagement.rows) || !component.packageReview || component.packageReview.sourceVersion !== engagement.sourceVersion || component.packageReview.packageRevision !== component.packageRevisionPinned || component.packageReview.reportingBasis !== group.reportingBasis || component.packageReview.period !== group.period) throw new GuardError('STALE_REVISION', `Current reviewed component packages are required for ${component.componentId}.`);
+    }
+    group.outputPackages ||= [];
+    group.outputPackages.push(structuredClone(record));
+    this.logEvent(`Consolidated output package ${record.id} revision ${record.revision} prepared`, group.id, 'history');
+    this.notify();
+  }
+
+  public reviewConsolidationOutputPackage(groupId: string, packageId: string, decision: 'Approved' | 'Returned', note: string, evidenceRef: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['partner'], 'review consolidated output packages');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    const record = group?.outputPackages?.find(item => item.id === packageId);
+    if (!group || !record || record.status === 'Approved' || !note.trim() || !evidenceRef.trim() || record.preparedByUserId === this.state.currentUserId || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'A different partner, current exact group-output revision, rationale and review evidence are required. Rebuild stale output packages.');
+    record.reviewHistory.push({ status: decision, byUserId: this.state.currentUserId, by: this.state.currentPerson, at: new Date().toISOString(), note: note.trim(), evidenceRef: evidenceRef.trim() });
+    record.status = decision;
+    if (decision === 'Approved') record.approvedFingerprint = record.fingerprint;
+    else delete record.approvedFingerprint;
+    this.logEvent(`Consolidated output package ${record.id} ${decision.toLowerCase()} by ${this.state.currentPerson}`, group.id, 'history');
     this.notify();
   }
 

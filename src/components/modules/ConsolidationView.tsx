@@ -5,6 +5,8 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { calculateConsolidatedBalanceSheet, formatCurrency } from '../../services/calculations';
+import { artifactSha256, downloadVerifiedArtifact, persistArtifact } from '../../services/artifactStore';
+import { consolidationOutputFingerprint } from '../../services/consolidationOutput';
 
 interface ConsolidationViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -214,6 +216,10 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
 export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'perimeter' | 'grid' | 'eliminations' | 'fx'>('grid');
+  const [outputEvidence, setOutputEvidence] = useState('');
+  const [outputReviewNote, setOutputReviewNote] = useState('');
+  const [outputReviewEvidence, setOutputReviewEvidence] = useState('');
+  const [outputNotice, setOutputNotice] = useState('');
 
   const group = state.consolidationGroups[0];
   if (!group) return <div className="panel panel-pad"><h3>No consolidation group is configured.</h3><p className="sub">Create a group and select its component packages before reviewing an output.</p></div>;
@@ -354,6 +360,31 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   const lastPerimeterChange = (group.perimeterHistory || [])[(group.perimeterHistory || []).length - 1];
   const availableAccounts = new Set([...parentComp!.packageRows!, ...subComp!.packageRows!].flatMap(row => [row.code, row.name.toLowerCase()]));
   const unmatchedEliminationLines = approvedEliminations.flatMap(e => e.lines.filter(line => !availableAccounts.has(line.account) && !availableAccounts.has(line.account.trim().toLowerCase())).map(line => `${e.id}: ${line.account}`));
+  const outputFingerprint = consolidationOutputFingerprint(group, state);
+  const latestOutput = group.outputPackages?.at(-1);
+  const outputIsCurrent = latestOutput?.fingerprint === outputFingerprint;
+  const prepareGroupOutput = async () => {
+    try {
+      if (!outputEvidence.trim()) throw new Error('Enter the group-output preparation evidence reference.');
+      const payload = {
+        schema: 'ste-auditsphere-group-output-v1',
+        watermark: 'DEMO ONLY · SYNTHETIC PROTOTYPE DATA',
+        group: { id: group.id, name: group.name, period: group.period, reportingBasis: group.reportingBasis, presentationCurrency: groupCurrency, perimeterRevision: group.perimeterRevision || 1 },
+        components: group.components.map(component => ({ entityId: component.componentId, role: component.role, ownershipPercent: component.ownershipPercent, packageRevision: component.packageRevisionPinned, sourceVersion: state.engagements.find(item => item.id === component.componentId)?.sourceVersion, functionalCurrency: component.currency, closingRate: fxRate(component), rateRevision: group.fxRateHistory?.[component.currency]?.length || 0, rows: component.packageRows })),
+        eliminations: approvedEliminations.map(item => ({ id: item.id, revision: item.revision || 1, counterparties: [item.counterpartyA, item.counterpartyB], amount: item.amount, currency: item.currency, lines: item.lines, evidenceRef: item.approvalEvidenceRef })),
+        totals: { assets: consolidated.totalAssets, liabilities: consolidated.totalLiabilities, equity: consolidated.totalEquity, balanced: consolidated.isBalanced },
+        lines: consolidated.lines,
+        fingerprint: outputFingerprint
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const revision = (group.outputPackages?.length || 0) + 1;
+      const record = { id: `GROUP-${group.id}-OUT-${revision}-${crypto.randomUUID()}`, revision, fingerprint: outputFingerprint, preparedByUserId: state.currentUserId, preparedAt: new Date().toISOString(), evidenceRef: outputEvidence.trim(), artifact: { id: `GROUP-${group.id}-OUT-${revision}`, name: `${group.id}-consolidated-output-r${revision}.json`, kind: 'GROUP_JSON' as const, mimeType: blob.type, size: blob.size, sha256: await artifactSha256(blob) }, status: 'Draft' as const, reviewHistory: [] };
+      await persistArtifact(record.artifact, blob);
+      prototypeStore.saveConsolidationOutputPackage(group.id, record);
+      setOutputEvidence('');
+      setOutputNotice(`Group output revision ${revision} saved for independent review.`);
+    } catch (error: any) { setOutputNotice(error.message); }
+  };
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -498,6 +529,26 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                 </tbody>
               </table>
             </div>
+          </div>
+          <div className="panel panel-pad">
+            <h3>Consolidated output package</h3>
+            <p className="sub">Prepare a revision-bound JSON output containing only this group, its pinned component rows, approved eliminations and rate history. A separate Partner must approve it before it is treated as reviewed.</p>
+            {(!unreviewedComponents.length && !staleComponents.length && !staleEliminationApprovals.length && consolidated.isBalanced && !unmatchedEliminationLines.length) ? <>
+              <label className="caption">Preparation evidence reference<input className="input mt4" aria-label="Group output preparation evidence" value={outputEvidence} onChange={event => setOutputEvidence(event.target.value)} /></label>
+              <button className="btn primary sm mt8" onClick={() => void prepareGroupOutput()}>Prepare group output revision</button>
+            </> : <p role="alert" className="caption">Resolve component review, stale package or elimination approvals, unmatched lines and balance issues before preparing a review package.</p>}
+            {latestOutput && <div className="borderbox panel-pad mt12">
+              <b>Revision {latestOutput.revision} · {outputIsCurrent ? latestOutput.status : 'Stale — rebuild required'}</b>
+              <div className="caption mt4">Prepared by {latestOutput.preparedByUserId} · {latestOutput.evidenceRef} · SHA-256 {latestOutput.artifact.sha256}</div>
+              {outputIsCurrent && latestOutput.status !== 'Approved' && state.users.find(user => user.id === state.currentUserId)?.role === 'partner' && latestOutput.preparedByUserId !== state.currentUserId && <>
+                <label className="caption mt8">Independent review rationale<input className="input mt4" aria-label="Group output review rationale" value={outputReviewNote} onChange={event => setOutputReviewNote(event.target.value)} /></label>
+                <label className="caption mt8">Review evidence reference<input className="input mt4" aria-label="Group output review evidence" value={outputReviewEvidence} onChange={event => setOutputReviewEvidence(event.target.value)} /></label>
+                <div className="row mt8"><button className="btn primary sm" onClick={() => { try { prototypeStore.reviewConsolidationOutputPackage(group.id, latestOutput.id, 'Approved', outputReviewNote, outputReviewEvidence); setOutputNotice('Group output independently approved.'); } catch (error: any) { setOutputNotice(error.message); } }}>Approve group output</button><button className="btn sm" onClick={() => { try { prototypeStore.reviewConsolidationOutputPackage(group.id, latestOutput.id, 'Returned', outputReviewNote, outputReviewEvidence); setOutputNotice('Group output returned with review history retained.'); } catch (error: any) { setOutputNotice(error.message); } }}>Return for rework</button></div>
+              </>}
+              {outputIsCurrent && latestOutput.status === 'Approved' && latestOutput.approvedFingerprint === outputFingerprint && <button className="btn sm mt8" onClick={() => void downloadVerifiedArtifact({ ...latestOutput.artifact, kind: 'GROUP_JSON' })}>Download verified group output</button>}
+              {latestOutput.reviewHistory.map((item, index) => <div className="caption mt4" key={`${latestOutput.id}-${index}`}>{item.status} by {item.by} · {item.note} · {item.evidenceRef}</div>)}
+            </div>}
+            {outputNotice && <p role="status" className="caption mt8">{outputNotice}</p>}
           </div>
           </>}
         </div>

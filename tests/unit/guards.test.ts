@@ -1406,6 +1406,32 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
 });
 
 describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('binds group output approval to an independent reviewer and current input fingerprint', () => {
+    (prototypeStore as any).state = state;
+    state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
+    const group = state.consolidationGroups[0];
+    for (const component of group.components) {
+      const engagement = state.engagements.find(item => item.id === component.componentId)!;
+      component.packageRows = structuredClone(engagement.rows);
+      component.packageRevisionPinned = engagement.packageRevision;
+      component.status = 'Ready';
+      component.packageReview = { componentId: component.componentId, packageRevision: engagement.packageRevision, sourceVersion: engagement.sourceVersion, reportingBasis: 'IFRS', period: group.period, reviewedByUserId: 'reviewer', reviewedAt: new Date().toISOString(), evidenceRef: 'PACKAGE-REVIEW' };
+    }
+    const fingerprint = JSON.stringify({
+      group: [group.id, group.period, group.reportingBasis, group.presentationCurrency || group.currency, group.perimeterRevision || 1],
+      components: group.components.map(component => { const source = state.engagements.find(item => item.id === component.componentId); return [component.componentId, component.role, component.ownershipPercent, component.status, component.packageReview, component.packageRevisionPinned, source?.sourceVersion, component.packageRows]; }),
+      rates: group.components.map(component => [component.currency, component.currency === (group.presentationCurrency || group.currency) ? 1 : group.fxRates[component.currency], group.fxRateHistory?.[component.currency]?.length || 0]),
+      eliminations: group.eliminations.filter(item => item.status === 'Approved').map(item => [item.id, item.revision || 1, item.amount, item.lines, item.approvedPerimeterRevision, item.approvedComponentPins, item.approvedFxRates, item.approvalEvidenceRef])
+    });
+    prototypeStore.saveConsolidationOutputPackage(group.id, { id: 'GROUP-OUT-TEST', revision: 1, fingerprint, preparedByUserId: state.currentUserId, preparedAt: new Date().toISOString(), evidenceRef: 'GROUP-PREP-01', artifact: { id: 'GROUP-OUT-TEST', name: 'group.json', mimeType: 'application/json', size: 20, sha256: 'a'.repeat(64) }, status: 'Draft', reviewHistory: [] });
+    assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Approved', 'self review', 'REVIEW-01'), /Role .* cannot review consolidated output/);
+    state.currentUserId = 'partner'; state.currentRole = 'partner'; state.currentPerson = 'Daniel James';
+    prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Approved', 'Independent group review', 'GROUP-REVIEW-01');
+    assert.equal(group.outputPackages?.[0].approvedFingerprint, fingerprint);
+    group.fxRates.USD = 3.65;
+    assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale revision', 'GROUP-REVIEW-02'), /exact group-output revision/);
+  });
+
   it('rejects consolidation ownership outside the supported wholly owned parent/subsidiary profile', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
