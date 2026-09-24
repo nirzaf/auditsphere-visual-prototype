@@ -24,6 +24,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   const [asOfDate, setAsOfDate] = useState(state.asOfDate || '2026-09-23');
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
+  const [selectedAgingBucket, setSelectedAgingBucket] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -53,6 +54,14 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   );
 
   const aging = calculateReceivablesAging(invoices, credits, receiptLedger, asOfDate, clientFilter === 'ALL' ? undefined : clientFilter);
+  const agingMetrics = [
+    { label: 'Current', value: aging.current, bucket: 'Current', tone: '', detail: 'Not overdue' },
+    { label: '1–30 Days', value: aging.days1_30, bucket: '1–30 days', tone: 'blue', detail: 'Follow-up due' },
+    { label: '31–60 Days', value: aging.days31to60, bucket: '31–60 days', tone: 'amber', detail: 'Management follow-up' },
+    { label: '61–90 Days', value: aging.days61to90, bucket: '61–90 days', tone: 'purple', detail: 'Escalation recommended' },
+    { label: '90+ Days', value: aging.olderThan90, bucket: 'Over 90 days', tone: 'red', detail: `Total overdue: ${formatCurrency(aging.totalOverdue, currencyFilter)}` }
+  ];
+  const agingDetails = aging.invoiceBreakdown.filter(row => !selectedAgingBucket || row.bucket === selectedAgingBucket);
   const invoicePaymentsAsOf = (invoice: InvoiceRecord) => {
     const ledger = receiptLedger.flatMap(rec => rec.allocations
       .filter(allocation => allocation.invoiceId === invoice.id)
@@ -187,27 +196,20 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
       </div>
 
       {/* Aging Metric Cards */}
-      <div className="metric-grid">
-        <div className="metric">
-          <span className="metric-label">Current (&lt; 30d)</span>
-          <div className="metric-val">{formatCurrency(aging.current, currencyFilter)}</div>
-          <span className="metric-sub">Within standard credit terms</span>
-        </div>
-        <div className="metric blue">
-          <span className="metric-label">31 – 60 Days</span>
-          <div className="metric-val">{formatCurrency(aging.days31to60, currencyFilter)}</div>
-          <span className="metric-sub">Follow-up due</span>
-        </div>
-        <div className="metric amber">
-          <span className="metric-label">61 – 90 Days</span>
-          <div className="metric-val">{formatCurrency(aging.days61to90, currencyFilter)}</div>
-          <span className="metric-sub">Management attention</span>
-        </div>
-        <div className="metric purple">
-          <span className="metric-label">90+ Days (Overdue)</span>
-          <div className="metric-val">{formatCurrency(aging.olderThan90, currencyFilter)}</div>
-          <span className="metric-sub">Total Overdue: {formatCurrency(aging.totalOverdue, currencyFilter)}</span>
-        </div>
+      <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+        {agingMetrics.map(({ label, value, bucket, tone, detail }) => <button key={bucket} type="button" className={`metric ${tone}`} aria-label={`${label}: ${formatCurrency(value, currencyFilter)}`} aria-pressed={selectedAgingBucket === bucket} onClick={() => setSelectedAgingBucket(selectedAgingBucket === bucket ? '' : bucket)} style={{ color: 'inherit', textAlign: 'left', width: '100%' }}>
+          <div className="metric-label">{label}</div>
+          <div className="metric-val">{formatCurrency(value, currencyFilter)}</div>
+          <span className="metric-sub">{detail}</span>
+        </button>)}
+      </div>
+
+      <div className="panel">
+        <div className="panel-head between"><div><h3>{selectedAgingBucket ? `${selectedAgingBucket} invoice detail` : 'Outstanding invoice detail'}</h3><p className="sub">{agingDetails.length} issued invoice(s) · {currencyFilter} · as of {asOfDate}</p></div>{selectedAgingBucket && <button className="btn sm ghost" onClick={() => setSelectedAgingBucket('')}>Show all</button>}</div>
+        <div className="tablewrap"><table><thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Gross</th><th>Credits</th><th>Payments</th><th>Outstanding</th><th>Aging</th><th>Days overdue</th></tr></thead><tbody>
+          {agingDetails.map(row => <tr key={row.invoice.id} data-outstanding={row.outstanding}><td><b>{row.invoice.invoiceNumber}</b></td><td>{scopedClients.find(c => c.id === row.invoice.clientId)?.name || row.invoice.clientId}</td><td>{row.invoice.due}</td><td>{formatCurrency(row.grossAmount, currencyFilter)}</td><td>{formatCurrency(row.effectiveCredits, currencyFilter)}</td><td>{formatCurrency(row.effectivePayments, currencyFilter)}</td><td><b>{formatCurrency(row.outstanding, currencyFilter)}</b></td><td>{row.bucket}</td><td>{row.daysOverdue}</td></tr>)}
+          {!agingDetails.length && <tr><td colSpan={9}>No outstanding invoices match this aging bucket.</td></tr>}
+        </tbody></table></div>
       </div>
 
       {/* Receipts Register */}

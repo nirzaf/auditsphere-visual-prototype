@@ -489,3 +489,13 @@ deployed to the same `steaudit-prototype` production project as deployment
 `assets/index-81CmgsWB.js` (2,224,916 bytes; SHA-256
 `51a6cd20616a9b5b81633478f9a85a70211275da06cf7b4b9a02a060d9692cd6`), matching
 the local build. Wrangler reports production source `3cfb3e1`.
+
+VP-032/033 amount drill-down follow-up: receivables now displays all five
+aging buckets and each opens an invoice-level detail table showing gross,
+issued credits, effective payments, outstanding balance, bucket and overdue
+days. AT-32 Chrome verifies the 31–60 day invoice rows include the contributing
+INV-2026-002 and sum exactly to the bucket total before continuing the receipt
+allocation/reversal journey. `npm run lint` passed, unit tests passed 144/144,
+and build/Chrome E2E passed 63/63. The existing bundle-size advisory remains;
+OS print/PDF output is not captured, and receivables stays offline-only. The
+updated deployment evidence will be added after publication.

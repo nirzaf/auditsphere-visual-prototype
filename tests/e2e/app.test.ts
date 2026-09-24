@@ -1366,6 +1366,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const displayedCurrent = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.metric')].find(x=>x.querySelector('.metric-label')?.innerText.includes('Current'))?.querySelector('.metric-val')?.innerText || ''`);
     assert.equal(displayedCurrent,formatCurrency(expectedAging.current),'selected client, currency and as-of date must drive aging balances');
     await browserTab!.evaluate(`(() => {const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-23');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const lateInvoices = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoices:s.invoices.filter(i=>i.clientId==='CL-001'&&i.currency==='QAR'),credits:s.creditNotes.filter(c=>c.clientId==='CL-001'),receipts:s.receipts.filter(r=>r.clientId==='CL-001'&&r.currency==='QAR')};})()`);
+    const expectedLateAging = calculateReceivablesAging(lateInvoices.invoices,lateInvoices.credits,lateInvoices.receipts,'2026-09-23','CL-001');
+    await browserTab!.evaluate(`document.querySelector('[aria-label^="31–60 Days:"]')?.click()`);
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('.panel h3')].some(h=>h.innerText==='31–60 days invoice detail')`), true, 'aging metric opens matching invoice details');
+    const lateDetail = await browserTab!.evaluate<any>(`(() => {const rows=[...document.querySelectorAll('tr[data-outstanding]')];return {ids:rows.map(r=>r.innerText),total:rows.reduce((sum,r)=>sum+Number(r.getAttribute('data-outstanding')),0)};})()`);
+    assert.ok(lateDetail.ids.some((row:string)=>row.includes('INV-2026-002')),'aging drill-down shows the contributing invoice');
+    assert.equal(lateDetail.total,expectedLateAging.days31to60,'invoice detail sums to the displayed 31–60-day bucket');
     await clickButton('Record Offline Receipt');
     await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing receipt field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Receipt Number','RCP-AT32');set('Amount (QAR)','50000');set('Bank Reference / Cheque No.','AT32-BANK-REF');})()`);
     await clickButton('Record Receipt');

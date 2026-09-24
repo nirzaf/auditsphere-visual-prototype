@@ -57,8 +57,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   invoices are excluded. Client, as-of date and currency filters drive the
   balances, including historical balances before a later receipt. Printable
   layout and native print action are implemented, though OS print/PDF output is
-  not captured. Amount drill-downs remain incomplete; the integration is
-  offline-only.
+  not captured. The integration is offline-only. Five aging bucket cards now
+  open invoice-level gross, credit,
+  payment, outstanding and overdue-day detail; Chrome verifies the displayed
+  31–60 day invoices sum to the bucket total.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted
@@ -247,8 +249,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,224.91 kB,
-  619.55 kB gzip in the current build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,226.53 kB,
+  620.02 kB gzip in the current build).
 
 ## Verification snapshot
 
