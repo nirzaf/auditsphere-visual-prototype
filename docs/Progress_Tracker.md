@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 171 / 171 | Fresh full run on 2026-09-24 at app source `188ee3b` and test HEAD `a4b3a5f`; includes group-output package identity, independent approval, stale-input/tamper guards and an unmatched consolidation residual. |
-| E2E checks passing in this review | 74 / 74 | Fresh full run at test HEAD `a4b3a5f`: 5 static checks + 69 actual Chrome checks, including elimination submit/review and an unmatched amount remaining visible. |
+| Unit checks passing in this review | 172 / 172 | Fresh full run on 2026-09-24 at app source `188ee3b` and test HEAD `a4c0a3f`; includes group-output identity, independent approval, tamper guards, unmatched consolidation and incomplete GL-batch rejection. |
+| E2E checks passing in this review | 74 / 74 | Fresh full run at test HEAD `a4c0a3f`: 5 static checks + 69 actual Chrome checks, including elimination submit/review, unmatched amount visibility, and disabled import for a partial GL batch. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 109 | 77 evidence/verification actions and 32 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2358,7 +2358,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-036-R01 — Requirement/scope reconciliation:** CSV/XLSX preview, configurable and revision-retained header mapping, source history, opening-only rows, journal IDs, scoped filtering and CSV export now exist. The remaining original-control comparison is still open.
 
-- [ ] **VP-036-E02 — Verification/evidence pending:** AT-36 now imports a balanced source with explicit openings and proves the account-level tie-out after reload. Parser/unit checks reject unbalanced journals, duplicate keys, invalid dates, wrong periods and currencies; missing-opening and unmatched-account calculations remain covered separately. Partial-batch and broader negative UI cases remain open.
+- [ ] **VP-036-E02 — Verification/evidence pending:** AT-36 imports a balanced source with explicit openings and proves account-level tie-out after reload. It now also exposes a partial batch in preview and disables import; unit guards reject partial commit atomically. Duplicate-key, invalid-date, wrong-period/currency and broader negative UI cases remain open.
 
 - [ ] **VP-036-E03 — Verification/evidence pending:** Store checks prove a GL source revision preserves TB rows and prior GL revisions while staling reconciliations and invalidating the engagement release generation. Broader package/reconciliation review cycles remain open.
 
@@ -2375,13 +2375,13 @@ Provide bounded GL file mapping/preview for journal ID, line ID, account, date, 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-036-AC01 | Given coherent opening balances, GL movements and closing TB, when completeness is calculated, then per-account residuals and source references reconcile. | SUBCASE VERIFIED — AT-36 imports the engagement source, shows account-level opening/movement/closing/residual/source-journal rows, and reloads as complete; broader examples remain open |
-| VP-036-AC02 | Missing opening data, partial journal batches, duplicate line keys, unmatched accounts, unbalanced journals and wrong periods/currencies are exposed rather than marked complete. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-036-AC02 | Missing opening data, partial journal batches, duplicate line keys, unmatched accounts, unbalanced journals and wrong periods/currencies are exposed rather than marked complete. | Verified subcase: AT-36 exposes an unbalanced partial journal batch, disables import, and unit guard rejects any attempted partial commit; full missing-opening/duplicate/unmatched/wrong-context matrix remains open |
 | VP-036-AC03 | Importing/replacing GL creates a new source revision and invalidates affected reconciliations/packages without changing the original source rows. | SUBCASE VERIFIED — store regression retains revision 1 and TB rows, appends revision 2, stales reconciliations and invalidates release generation; full dependent-output review remains open |
 | VP-036-AC04 | Filters, source counts, drill-down and CSV export agree; the module never posts to client or firm books and handles the documented fixture size without freezing navigation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L895).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Tested tree `a4c0a3f76277b403338017f8ba673d0f8cc87275`; fixture ENG-26001; AC01/AC02/AC03 subcases map to `tests/e2e/app.test.ts` AT-36 and `tests/unit/gl-import.test.ts`. Full suite: 172/172 unit, 74/74 E2E and lint, 2026-09-24. Full story remains Partial.
 
 
 <a id="vp-037"></a>
@@ -2870,7 +2870,7 @@ Add elimination register with component counterparties, account/line references,
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
 
-**Next evidence update:** Test HEAD `a4b3a5f76277b403338017f8ba673d0f8cc87275`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC03/AC04 verified subcases map to `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts` and `tests/e2e/app.test.ts` AT-45/VP-045-AC03. Full suite: lint, 171/171 unit and 74/74 E2E; production deployment `f3a56591-1b3a-4990-befd-eb3d6bf25204`, source `188ee3b`, 2026-09-24. Full story acceptance remains open.
+**Next evidence update:** Test HEAD `a4c0a3f76277b403338017f8ba673d0f8cc87275`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC03/AC04 verified subcases map to `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts` and `tests/e2e/app.test.ts` AT-45/VP-045-AC03. Full suite: lint, 172/172 unit and 74/74 E2E; production deployment `f3a56591-1b3a-499b-99dc-84987d3daf5f`, source `188ee3b`, 2026-09-24. Full story acceptance remains open.
 
 
 <a id="vp-046"></a>
@@ -4027,7 +4027,7 @@ This queue contains **109 open planning actions** attached to the 48 Partial sto
 | VP-034-E02 | [VP-034](#vp-034) | P1 | Verify closed books, archived accounts and dimension changes cannot silently alter approved output; migrated unselected reporting basis stays explicit. | Pending / Unassigned / — |
 | VP-035-E01 | [VP-035](#vp-035) | P1 | Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser. | Verified / 2026-09-24 |
 | VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Verified / 2026-09-24 |
-| VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Partial — AT-36 positive import/tie-out; parser negative checks; remaining matrix open |
+| VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Partial — AT-36 positive tie-out; partial batch preview disables import and store rejects atomic commit (Chrome + unit); other matrix remains open |
 | VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Partial — source/TB immutability and stale history unit checks; full package/reconciliation walkthrough open |
 | VP-038-E01 | [VP-038](#vp-038) | P1 | Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions. | Partial evidence: AT-38 verifies evidence-required reflection, partial/unknown exclusion, history, reasoned amendment with prior approvals preserved, fresh review and source immutability; rejected/reflected replacement and evidence/workpaper/finding linkages remain open. `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc` |
 | VP-038-E02 | [VP-038](#vp-038) | P1 | Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements. | Partial evidence: AT-38 persists source/evidence decisions and reapproves amended journal; replacement-source correction and impact matrix remains open. `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc` |
