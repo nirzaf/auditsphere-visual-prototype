@@ -3551,6 +3551,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(comparative, /2026 current \(QAR\)/i);
       assert.match(comparative, /2025 comparative \(QAR\)/i);
       assert.match(comparative, /Total assets\s+QAR 2,250,000\.00\s+QAR 800,000\.00/i, 'comparative totals reconcile to the independently mapped periods');
+      await clickButton('Statement of Changes in Equity');
+      assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="Statement of Changes in Equity"]')?.innerText.includes('unavailable')`), true, 'unsupported equity statement renders its explicit unavailable state');
+      const equityStatement = await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Statement of Changes in Equity"]')?.innerText || ''`);
+      assert.match(equityStatement, /unavailable.*combines share capital and reserves.*no reviewed equity movement schedule.*No equity figures are substituted/i);
+      assert.doesNotMatch(equityStatement, /500,000|100,000/, 'unsupported opening and closing equity figures are never presented as sourced data');
       await browserTab!.evaluate(`(() => {URL.createObjectURL=(blob)=>{window.__statementExport=blob;return 'blob:statement-export'};URL.revokeObjectURL=()=>{};})()`);
       await clickButton('Export XLSX');
       const exported = await browserTab!.evaluate<string>(`(async()=>{const blob=window.__statementExport;const bytes=new Uint8Array(await blob.arrayBuffer());let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin)})()`);

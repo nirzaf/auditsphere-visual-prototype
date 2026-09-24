@@ -383,43 +383,12 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
 
       {/* 3: Statement of Changes in Equity */}
       {statementType === 'equity' && (
-        <div className="panel panel-pad">
+        <section className="panel panel-pad" aria-label="Statement of Changes in Equity">
           <h3>Statement of Changes in Equity</h3>
-          <div className="tablewrap mt12">
-            <table>
-              <thead>
-                <tr>
-                  <th>Component</th>
-                  <th>Share Capital</th>
-                  <th>Retained Earnings</th>
-                  <th>Total Equity</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Opening Balance at 01 January 2026</td>
-                  <td>{formatCurrency(500000)}</td>
-                  <td>{formatCurrency(100000)}</td>
-                  <td>{formatCurrency(600000)}</td>
-                </tr>
-                <tr>
-                  <td>Profit for the Year</td>
-                  <td>—</td>
-                  <td>{formatCurrency(is.netProfit)}</td>
-                  <td>{formatCurrency(is.netProfit)}</td>
-                </tr>
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td><b>Closing Balance at 31 December 2026</b></td>
-                  <td><b>{formatCurrency(500000)}</b></td>
-                  <td><b>{formatCurrency(100000 + is.netProfit)}</b></td>
-                  <td><b>{formatCurrency(600000 + is.netProfit)}</b></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
+          <p role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>
+            Statement of Changes in Equity is unavailable: the current account mapping combines share capital and reserves, and no reviewed equity movement schedule is recorded. No equity figures are substituted.
+          </p>
+        </section>
       )}
 
       {/* 4: Statement of Cash Flows */}

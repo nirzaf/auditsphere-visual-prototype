@@ -2563,12 +2563,12 @@ Add schedule header with account, period/as-of date, source TB/GL balance and st
 **Original journey links:** [AT-40](#at-40); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Mapped same-client/currency current and prior statements, source references, unavailable-not-zero comparatives, saved statement revisions and independent review are represented. Comparative mapping changes stale current statement review.
+Mapped same-client/currency current and prior statements, source references, unavailable-not-zero comparatives, saved statement revisions and independent review are represented. Comparative mapping changes stale current statement review. AT-37 also confirms that the unsupported Changes in Equity page reports unavailable when the mapping combines share capital and reserves without a reviewed equity movement schedule; the prior hard-coded opening/closing amounts have been removed.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-040-E01 — Verification/evidence pending:** Complete source/current-mapping/prior-period/layout-change and reviewed-output regeneration combinations with traceable expected subtotals.
+- [ ] **VP-040-E01 — Verification/evidence pending:** AT-37 verifies the unsupported equity state contains no substituted figures (`tests/e2e/app.test.ts::AT-37`, 71/71 E2E on 2026-09-24). Complete source/current-mapping/prior-period/layout-change and reviewed-output regeneration combinations with traceable expected subtotals.
 
 - [ ] **VP-040-R02 — Requirement/scope reconciliation:** Reconcile the versioned layout, grouping/order/subtotal editor requirements and fill actual missing supported-fixture operations.
 

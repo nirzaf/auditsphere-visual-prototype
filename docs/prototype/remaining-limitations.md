@@ -270,6 +270,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   verifies that the saved current-period statement becomes durably stale and
   cannot be reviewed again; the guard also has a unit check. Comparative source
   and current mapping changes are covered by the shared stale-revision path.
+  The Changes in Equity page no longer presents fixed sample opening/closing
+  balances as if they were source-backed: it reports unavailable while the chart
+  combines capital/reserves and no reviewed equity movement schedule exists.
+  Building and reconciling that schedule remains open.
   Cash-flow schedules now persist revisioned opening cash, signed operating,
   investing, financing and non-cash movements, closing cash and evidence
   references. Independent review checks evidence scope, cent accuracy, cash
