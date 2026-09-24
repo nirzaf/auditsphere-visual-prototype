@@ -238,8 +238,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   unavailable. A forced XLSX-generation failure reports the exception and leaves
   the current revision unchanged. Package artifacts now persist together in one
   IndexedDB transaction; Chrome forces the second write to fail and confirms no
-  partial blobs or package revision remain. Independent review of a replacement
-  package revision remains incomplete.
+  partial blobs or package revision remain. After amendment, Chrome verifies the
+  current package is re-presented and independently acknowledged by management;
+  the previous decision remains in history. DOCX/PDF-specific generator-failure
+  injection and broader sharing/edge combinations remain incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
@@ -305,8 +307,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 146/146 unit checks and 66/66 E2E checks passed.
-E2E includes five static checks and 61 Chrome journeys. The Chrome suite blocks
+Latest recorded full run: 149/149 unit checks and 67/67 E2E checks passed.
+E2E includes five static checks and 62 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,
