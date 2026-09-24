@@ -2980,6 +2980,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(recoveryText, /SIMULATED IDENTITY \(NOT LIVE AUTH\)/, 'the app remains usable with a fresh in-memory demo');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), corrupt, 'the exact malformed payload is retained for recovery');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), corrupt, 'recovery does not silently overwrite the original payload');
+      const validButIncomplete = JSON.stringify({ schema: 22, engagements: [] });
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(validButIncomplete)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      const incompleteText = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(incompleteText, /Saved demo state failed integrity validation/);
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), validButIncomplete, 'structurally invalid but parseable JSON is preserved exactly as recovery backup');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), validButIncomplete, 'parseable invalid state is not silently replaced');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`(() => {

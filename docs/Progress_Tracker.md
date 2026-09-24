@@ -637,7 +637,7 @@ Schema migrations, integrity checks, presenter scenarios, concurrent-save detect
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-004-E01 — Verification/evidence pending:** Extend recovery/export/import coverage across actual historical fixtures, corrupt-but-valid JSON, and every recovery choice. Chrome now downloads the preserved future-schema payload and verifies exact bytes, in addition to future-schema preservation and ambiguous-import rejection.
+- [ ] **VP-004-E01 — Verification/evidence pending:** Extend recovery/export/import coverage across actual historical fixtures and every recovery choice. Chrome now preserves both malformed JSON and syntactically valid but structurally incomplete v22 JSON byte-for-byte, in addition to future-schema export and ambiguous-import rejection.
 
 - [ ] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata; current unit checks cover the binary-payload guard and Chrome verifies future-schema backup preservation.
 
@@ -656,7 +656,7 @@ Add schema-versioned migrations and named synthetic scenarios: full practice lif
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-004-AC01 | Given a valid old storage payload, when upgraded, then existing workpaper/PBC/release history is retained and unambiguous links are migrated deterministically. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-004-AC02 | Given malformed, future-version or ambiguous state, when loaded/imported, then recovery guidance appears without silent deletion or invented scope; the prior payload can be preserved. | SUBCASES VERIFIED 2026-09-24: malformed and future-schema payloads remain preserved; ambiguous import is rejected without overwrite; the preserved payload downloads byte-for-byte; validated v22 import clears recovery state while retaining its backup. Full historical-shape coverage remains open. |
+| VP-004-AC02 | Given malformed, future-version or ambiguous state, when loaded/imported, then recovery guidance appears without silent deletion or invented scope; the prior payload can be preserved. | SUBCASES VERIFIED 2026-09-24: malformed and parseable-but-incomplete v22 payloads remain preserved byte-for-byte; future-schema export is exact; ambiguous import is rejected without overwrite; validated v22 import clears recovery state while retaining its backup. Full historical-shape coverage remains open. |
 | VP-004-AC03 | Storage denial/quota failure shows session-only mode; a stale second tab cannot silently overwrite a newer revision. | SUBCASES VERIFIED 2026-09-24 by AT-02/AT-54 Chrome conflict and storage-failure journeys; criterion breadth remains open. |
 | VP-004-AC04 | Fixture integrity tests reject broken foreign references, incoherent dates, real personal data, uploaded binary payloads and inconsistent monetary control totals. | SUBCASES VERIFIED 2026-09-24: FK, impossible date, reversed accounting period, real email, binary payload and monetary control checks pass in 161/161 unit tests; full fixture inventory sign-off remains open. |
 
