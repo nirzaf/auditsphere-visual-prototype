@@ -291,6 +291,10 @@ describe('archive metadata lineage (VP-059)', () => {
     (prototypeStore as any).state = state;
     setPersona(state, 'Layla Rahman');
 
+    assert.throws(() => prototypeStore.archiveEngagement(engagement.id, 'REL-1', '2030-02-30'), /valid retention date/);
+    assert.throws(() => prototypeStore.archiveEngagement(engagement.id, 'REL-1', undefined, true), /requires a reason/);
+    assert.throws(() => prototypeStore.archiveEngagement(engagement.id, 'REL-MISSING'), /does not exist/);
+    assert.throws(() => prototypeStore.archiveEngagement(engagement.id, 'REL-1', undefined, false, undefined, copyFor('ART-1', 'b'.repeat(64))), /exact release artifact bytes/);
     prototypeStore.archiveEngagement(engagement.id, 'REL-1', undefined, false, undefined, copyFor('ART-1', firstDigest));
     prototypeStore.archiveEngagement(engagement.id, 'REL-1', '2030-12-31', false);
     const firstArchive = state.archives![0];
