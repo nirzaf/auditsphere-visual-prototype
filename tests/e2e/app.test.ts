@@ -1428,6 +1428,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const shared = await search(sharedName);
     assert.ok(shared.includes(sharedName));
     assert.match(shared, /Shared document/);
+    const sharedEngagementId = await browserTab!.evaluate<string>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).documents.find(d=>d.name===' + JSON.stringify(sharedName) + ').engagementId');
+    const sharedContext = 'engagement:' + sharedEngagementId;
+    await browserTab!.evaluate('(() => {const type=document.querySelector("#global-search-type");Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(type,"Shared document");type.dispatchEvent(new Event("change",{bubbles:true}));const context=document.querySelector("#global-search-context");Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(context,' + JSON.stringify(sharedContext) + ');context.dispatchEvent(new Event("change",{bubbles:true}));})()');
+    assert.equal(await waitForBrowser('[...document.querySelectorAll(".modal-body button")].length===1&&[...document.querySelectorAll(".modal-body button")][0].innerText.includes("Shared document")'), true, 'client filters retain only the shared document in its permitted engagement');
+    const clientSearchContexts = await browserTab!.evaluate<string[]>('[...document.querySelector("#global-search-context").options].map(option=>option.value)');
+    assert.ok(clientSearchContexts.includes(sharedContext), 'the document result remains within its permitted engagement filter');
+    const hasHiddenEngagement = await browserTab!.evaluate<boolean>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).engagements.some(e=>!' + JSON.stringify(clientSearchContexts) + '.includes("engagement:"+e.id))');
+    assert.equal(hasHiddenEngagement, true, 'a client cannot discover ungranted engagements through filter options');
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Shared document'));if(!result)throw Error('Shared document result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('PORTAL')`), true, 'shared client search result opens the portal');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const d=s.documents.find(x=>x.name===${JSON.stringify(sharedName)});return s.selectedEngagement===d.engagementId;})()`), true, 'shared document result selects its permitted engagement context');
@@ -1438,7 +1446,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Client · CL-001'));if(!result)throw Error('Client result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'staff client search result opens the selected client detail');
     assert.ok((await browserTab!.evaluate<string>('document.body.innerText')).includes(clientName), 'client result opens the matching client record');
-    assert.match(await search('JOB-2601'), /Job · JOB-2601/, 'record IDs are searchable for jobs');
+    assert.match(await search('audit'), /Job · JOB-2601/, 'search spans matching business records');
+    const setSearchFilter = async (id: string, value: string) => {
+      const script = '(() => {const select=document.querySelector(' + JSON.stringify(id) + ');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(select,' + JSON.stringify(value) + ');select.dispatchEvent(new Event("change",{bubbles:true}));})()';
+      await browserTab!.evaluate(script);
+    };
+    await setSearchFilter('#global-search-type', 'Job');
+    assert.equal(await waitForBrowser('[...document.querySelectorAll(".modal-body button")].length>0&&[...document.querySelectorAll(".modal-body button")].every(button=>button.innerText.includes("Job ·"))'), true, 'record-type filter returns only jobs');
+    await setSearchFilter('#global-search-context', 'engagement:ENG-26002');
+    assert.equal(await waitForBrowser('document.querySelector(".modal-body")?.innerText.includes("No matching records found")'), true, 'context filter removes matching records from other engagements');
+    await setSearchFilter('#global-search-context', 'engagement:ENG-26001');
+    assert.equal(await waitForBrowser('[...document.querySelectorAll(".modal-body button")].some(button=>button.innerText.includes("Job · JOB-2601"))'), true, 'permitted engagement context restores only its matching job');
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Job · JOB-2601'));if(!result)throw Error('Job result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('JOBS')`), true, 'job result opens the Jobs workspace');
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'job result selects its engagement');

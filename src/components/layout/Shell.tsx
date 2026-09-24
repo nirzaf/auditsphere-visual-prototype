@@ -20,6 +20,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const [showScenarioModal, setShowScenarioModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchRecordType, setSearchRecordType] = useState('all');
+  const [searchContext, setSearchContext] = useState('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
@@ -191,8 +193,16 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.visibility === 'Client shared' && matches(d.name, d.id))
         .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
     }
-    return out.slice(0, 30);
+    return out;
   })();
+  const searchTypes = [...new Set(searchResults.map(item => item.sub.split(' · ')[0]))].sort();
+  const filteredSearchResults = searchResults.filter(item => {
+    const kind = item.sub.split(' · ')[0];
+    if (searchRecordType !== 'all' && kind !== searchRecordType) return false;
+    if (searchContext.startsWith('client:') && item.clientId !== searchContext.slice(7)) return false;
+    if (searchContext.startsWith('engagement:') && item.engagementId !== searchContext.slice(11)) return false;
+    return true;
+  }).slice(0, 30);
 
   return (
     <div id="app-root">
@@ -307,7 +317,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             </div>
             <button
               className="search-trigger"
-              onClick={() => setShowSearchModal(true)}
+              onClick={() => { setSearchRecordType('all'); setSearchContext('all'); setShowSearchModal(true); }}
             >
               <Icon name="search" />
               <span>Search clients, jobs, workpapers, invoices…</span>
@@ -461,28 +471,44 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               <button className="icon-btn" onClick={() => setShowSearchModal(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: 380, overflowY: 'auto' }}>
-              {searchResults.length === 0 ? (
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                <label className="caption" htmlFor="global-search-type">Record type</label>
+                <select id="global-search-type" className="input sm" value={searchRecordType} onChange={e => setSearchRecordType(e.target.value)}>
+                  <option value="all">All types</option>
+                  {searchTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                </select>
+                <label className="caption" htmlFor="global-search-context">Context</label>
+                <select id="global-search-context" className="input sm" value={searchContext} onChange={e => setSearchContext(e.target.value)}>
+                  <option value="all">All permitted contexts</option>
+                  {scopedClients.map(client => <option key={`client:${client.id}`} value={`client:${client.id}`}>Client · {client.name}</option>)}
+                  {scopedEngagements.map(engagement => <option key={`engagement:${engagement.id}`} value={`engagement:${engagement.id}`}>Engagement · {engagement.id}</option>)}
+                </select>
+              </div>
+              {filteredSearchResults.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px 10px', color: '#798e91' }}>
                   {searchQuery ? 'No matching records found in demo state.' : 'Type a query to search all practice records.'}
                 </div>
               ) : (
                 <div className="stack" style={{ gap: 8 }}>
-                  {searchResults.map((item, idx) => (
-                    <button
-                      key={idx}
-                      className="borderbox"
-                      style={{ textAlign: 'left', width: '100%', cursor: 'pointer', padding: 10 }}
-                      onClick={() => {
-                        if (item.clientId) onSelectClient(item.clientId);
-                        if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
-                        onRouteChange(item.route);
-                        setShowSearchModal(false);
-                      }}
-                    >
-                      <b>{item.title}</b>
-                      <div className="cell-sub">{item.sub}</div>
-                    </button>
-                  ))}
+                  {filteredSearchResults.map((item, idx) => {
+                    const kind = item.sub.split(' · ')[0];
+                    return <React.Fragment key={`${kind}:${item.objectId}`}>
+                      {idx === 0 || filteredSearchResults[idx - 1].sub.split(' · ')[0] !== kind ? <h4 className="eyebrow">{kind}</h4> : null}
+                      <button
+                        className="borderbox"
+                        style={{ textAlign: 'left', width: '100%', cursor: 'pointer', padding: 10 }}
+                        onClick={() => {
+                          if (item.clientId) onSelectClient(item.clientId);
+                          if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
+                          onRouteChange(item.route);
+                          setShowSearchModal(false);
+                        }}
+                      >
+                        <b>{item.title}</b>
+                        <div className="cell-sub">{item.sub}</div>
+                      </button>
+                    </React.Fragment>;
+                  })}
                 </div>
               )}
             </div>

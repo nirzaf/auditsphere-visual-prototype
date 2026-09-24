@@ -44,8 +44,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   document-name grant scoping. Shared-document results now open the client
   portal with the matching engagement selected; staff client results open the
   matching client detail; job and invoice IDs are searchable and navigate with
-  their engagement context. Other client/person grant combinations and direct
-  links for remaining result types still need journey coverage.
+  their engagement context. Search now filters by record type and permitted
+  client/engagement context; Chrome confirms these filters narrow results and
+  client filter choices omit ungranted engagements. Unavailable/archived target
+  behavior and direct target selection for contact/task/workpaper/finding/PBC
+  results still need journey coverage.
 - **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.
