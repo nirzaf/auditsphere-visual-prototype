@@ -2,17 +2,19 @@
 // ISA 320 quantitative materiality thresholds, versioned audit plan persistence,
 // team section allocations, timing milestones, and independent plan review.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, AuditPlanRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 import { calculateMateriality, formatCurrency } from '../../services/calculations';
 
 interface AuditPlanningViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate }) => {
+export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -24,43 +26,80 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
   const existingPlan = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version)[0];
   const planHistory = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version);
 
+  // VP-048: every planning input starts empty (or from a real saved plan) and must be
+  // entered deliberately. The form invents no benchmark value, rationale, team member,
+  // milestone, significant area or review note.
   const [benchmarkType, setBenchmarkType] = useState<'profit' | 'revenue' | 'assets' | 'equity'>(
     (existingPlan?.benchmark as any) || 'revenue'
   );
-  const [benchmarkValue, setBenchmarkValue] = useState<number>(
-    existingPlan?.benchmarkValue || client?.revenue || 2000000
-  );
+  const [benchmarkValue, setBenchmarkValue] = useState<number | ''>(existingPlan?.benchmarkValue ?? '');
   const [percentage, setPercentage] = useState<number>(
     existingPlan?.materialityRate || 1.5
   );
+  const [performanceRate, setPerformanceRate] = useState<number>(75);
+  const [trivialRate, setTrivialRate] = useState<number>(5);
   const [scopeNotes, setScopeNotes] = useState(
-    existingPlan?.rationales?.[0] || 'Standard external audit scope focused on revenue cutoff, bank confirmations, inventory valuation, and intercompany balances.'
+    existingPlan?.rationales?.[0] || ''
   );
 
-  const [teamAllocations, setTeamAllocations] = useState(
-    existingPlan?.teamAllocations || [
-      { person: 'Adam Khan', role: 'Audit Senior', scheduledStart: '2026-10-01', scheduledEnd: '2026-11-15' },
-      { person: 'Sara Malik', role: 'Senior Reviewer', scheduledStart: '2026-10-15', scheduledEnd: '2026-11-30' },
-      { person: 'Layla Rahman', role: 'Engagement Manager', scheduledStart: '2026-10-01', scheduledEnd: '2026-12-15' },
-      { person: 'Daniel James', role: 'Lead Signing Partner', scheduledStart: '2026-11-15', scheduledEnd: '2026-12-31' }
-    ]
+  const [teamAllocations, setTeamAllocations] = useState<AuditPlanRecord['teamAllocations']>(
+    existingPlan?.teamAllocations || []
   );
 
-  const [milestones, setMilestones] = useState(
-    existingPlan?.timingMilestones || [
-      { phase: 'Planning & Risk Assessment', targetDate: '2026-10-15', status: 'Completed' as const },
-      { phase: 'Interim Controls Testing', targetDate: '2026-10-31', status: 'In progress' as const },
-      { phase: 'Year-End Substantive Fieldwork', targetDate: '2026-11-30', status: 'Planned' as const },
-      { phase: 'Final Tie-off & Deliverable Release', targetDate: '2026-12-15', status: 'Planned' as const }
-    ]
+  const [milestones, setMilestones] = useState<AuditPlanRecord['timingMilestones']>(
+    existingPlan?.timingMilestones || []
   );
 
-  const [reviewNotes, setReviewNotes] = useState('Benchmark and 75% performance haircut approved in line with ISA 320.');
+  const [significantAreas, setSignificantAreas] = useState(
+    (existingPlan?.significantAreas || []).join(', ')
+  );
+
+  const [reviewNotes, setReviewNotes] = useState('');
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
     setTimeout(() => setNotice(null), 6000);
   };
+
+  const materiality = benchmarkValue === '' || Number(benchmarkValue) <= 0
+    ? null
+    : calculateMateriality(
+        Number(benchmarkValue),
+        percentage,
+        performanceRate,
+        trivialRate,
+        scopeNotes.trim() || 'Illustrative materiality based on selected benchmark'
+      );
+
+  // VP-003: register the planning draft so route/persona/engagement changes cannot
+  // silently drop deliberately entered work.
+  const initialDraft = useRef(JSON.stringify({ benchmarkType, benchmarkValue, percentage, performanceRate, trivialRate, scopeNotes, teamAllocations, milestones, significantAreas, reviewNotes }));
+  const draftSnapshot = () => JSON.stringify({ benchmarkType, benchmarkValue, percentage, performanceRate, trivialRate, scopeNotes, teamAllocations, milestones, significantAreas, reviewNotes });
+  const resetDraft = () => {
+    const initial = JSON.parse(initialDraft.current);
+    setBenchmarkType(initial.benchmarkType);
+    setBenchmarkValue(initial.benchmarkValue);
+    setPercentage(initial.percentage);
+    setPerformanceRate(initial.performanceRate);
+    setTrivialRate(initial.trivialRate);
+    setScopeNotes(initial.scopeNotes);
+    setTeamAllocations(initial.teamAllocations);
+    setMilestones(initial.milestones);
+    setSignificantAreas(initial.significantAreas);
+    setReviewNotes(initial.reviewNotes);
+  };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Audit planning',
+      isDirty: () => draftSnapshot() !== initialDraft.current,
+      save: () => handleSavePlan(),
+      discard: resetDraft,
+    };
+    onRegisterUnsavedForm(guard, 'audit-planning');
+    return () => onRegisterUnsavedForm(null, 'audit-planning');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchmarkType, benchmarkValue, percentage, performanceRate, trivialRate, scopeNotes, teamAllocations, milestones, significantAreas, reviewNotes, onRegisterUnsavedForm]);
 
   if (!selectedEng) {
     return (
@@ -77,10 +116,17 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
     );
   }
 
-  const materiality = calculateMateriality(benchmarkValue, percentage);
-
-  const handleSavePlan = () => {
+  const handleSavePlan = (): boolean => {
     try {
+      if (benchmarkValue === '' || Number(benchmarkValue) <= 0) {
+        throw new Error('Enter the benchmark value deliberately before saving; the form does not assume one.');
+      }
+      if (!scopeNotes.trim()) {
+        throw new Error('Record the planning rationale (ISA 320 basis) before saving; the form does not prefill one.');
+      }
+      if (!materiality) {
+        throw new Error('Materiality cannot be calculated from the current inputs.');
+      }
       const nextVersion = (existingPlan?.version || 0) + 1;
       const plan: AuditPlanRecord = {
         id: `PLAN-${selectedEng.id}-V${nextVersion}`,
@@ -88,31 +134,40 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
         version: nextVersion,
         status: 'Under review',
         benchmark: benchmarkType,
-        benchmarkValue,
+        benchmarkValue: Number(benchmarkValue),
         materialityRate: percentage,
         overallMateriality: materiality.overallMateriality,
         performanceMateriality: materiality.performanceMateriality,
         clearlyTrivialThreshold: materiality.clearlyTrivialThreshold,
-        rationales: [scopeNotes],
+        rationales: scopeNotes.trim() ? [scopeNotes.trim()] : [],
         teamAllocations,
         timingMilestones: milestones,
-        significantAreas: ['Revenue & Receivables', 'Cash & Bank Confirmations', 'Fixed Assets & Depreciation'],
+        significantAreas: significantAreas.split(',').map(area => area.trim()).filter(Boolean),
         preparedBy: state.currentPerson,
         preparedAt: new Date().toISOString()
       };
 
       prototypeStore.saveAuditPlan(plan);
       triggerNotice('success', `Audit Plan Version ${nextVersion} saved and submitted for independent review.`);
+      initialDraft.current = draftSnapshot();
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
 
   const handleReviewPlan = (approved: boolean) => {
     if (!existingPlan) return;
     try {
+      if (!approved && !reviewNotes.trim()) {
+        throw new Error('Record the rework reasons in the review notes before returning the plan.');
+      }
       prototypeStore.reviewAuditPlan(existingPlan.id, approved, reviewNotes);
-      triggerNotice('success', `Audit Plan ${approved ? 'approved' : 'returned'} by ${state.currentPerson}. Engagement planning gate cleared.`);
+      triggerNotice('success', approved
+        ? `Audit Plan ${existingPlan.id} approved by ${state.currentPerson}. The engagement planning gate is cleared for this version.`
+        : `Audit Plan ${existingPlan.id} returned by ${state.currentPerson}. The planning gate remains open — address the recorded notes and resubmit a new version.`);
+      initialDraft.current = draftSnapshot();
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -194,13 +249,18 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
               </select>
             </div>
             <div>
-              <label className="caption">Benchmark Value (QAR)</label>
+              <label className="caption">Benchmark Value ({selectedEng.currency}) *</label>
               <input
                 type="number"
                 className="input"
+                aria-label="Benchmark value"
+                placeholder="Enter deliberately — nothing is assumed"
                 value={benchmarkValue}
-                onChange={e => setBenchmarkValue(Number(e.target.value))}
+                onChange={e => setBenchmarkValue(e.target.value === '' ? '' : Number(e.target.value))}
               />
+              {client?.revenue != null && (
+                <span className="caption">Client master-data reference: {formatCurrency(client.revenue)} — confirm or replace with the filed figure.</span>
+              )}
             </div>
             <div>
               <label className="caption">Applied Benchmark Rate (%)</label>
@@ -214,32 +274,81 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
             </div>
           </div>
 
-          {/* Calculated Thresholds */}
-          <div className="metric-grid mt20">
-            <div className="metric purple">
-              <span className="metric-label">Overall Planning Materiality (PM)</span>
-              <div className="metric-val">{formatCurrency(materiality.overallMateriality)}</div>
-              <span className="metric-sub">{percentage}% of {formatCurrency(benchmarkValue)}</span>
+          <div className="grid3 mt12">
+            <div>
+              <label className="caption">Performance Materiality Haircut (% of PM)</label>
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={100}
+                className="input"
+                aria-label="Performance materiality haircut percentage"
+                value={performanceRate}
+                onChange={e => setPerformanceRate(Number(e.target.value))}
+              />
             </div>
-
-            <div className="metric blue">
-              <span className="metric-label">Performance Materiality (Haircut 75%)</span>
-              <div className="metric-val">{formatCurrency(materiality.performanceMateriality)}</div>
-              <span className="metric-sub">Substantive testing threshold</span>
+            <div>
+              <label className="caption">Clearly Trivial Threshold (% of PM)</label>
+              <input
+                type="number"
+                step={0.5}
+                min={0}
+                max={100}
+                className="input"
+                aria-label="Clearly trivial threshold percentage"
+                value={trivialRate}
+                onChange={e => setTrivialRate(Number(e.target.value))}
+              />
             </div>
-
-            <div className="metric amber">
-              <span className="metric-label">Clearly Trivial Threshold (5%)</span>
-              <div className="metric-val">{formatCurrency(materiality.clearlyTrivialThreshold)}</div>
-              <span className="metric-sub">Differences below this are not accumulated</span>
+            <div>
+              <label className="caption">Significant Areas (comma separated)</label>
+              <input
+                type="text"
+                className="input"
+                aria-label="Significant areas"
+                placeholder="e.g. Revenue &amp; Receivables, Cash &amp; Bank"
+                value={significantAreas}
+                onChange={e => setSignificantAreas(e.target.value)}
+              />
             </div>
           </div>
 
+          {/* Calculated Thresholds */}
+          {materiality ? (
+            <div className="metric-grid mt20">
+              <div className="metric purple">
+                <span className="metric-label">Overall Planning Materiality (PM)</span>
+                <div className="metric-val">{formatCurrency(materiality.overallMateriality)}</div>
+                <span className="metric-sub">{percentage}% of {formatCurrency(Number(benchmarkValue))}</span>
+              </div>
+
+              <div className="metric blue">
+                <span className="metric-label">Performance Materiality (Haircut {materiality.performancePct}%)</span>
+                <div className="metric-val">{formatCurrency(materiality.performanceMateriality)}</div>
+                <span className="metric-sub">Substantive testing threshold</span>
+              </div>
+
+              <div className="metric amber">
+                <span className="metric-label">Clearly Trivial Threshold ({materiality.trivialPct}%)</span>
+                <div className="metric-val">{formatCurrency(materiality.clearlyTrivialThreshold)}</div>
+                <span className="metric-sub">Differences below this are not accumulated</span>
+              </div>
+            </div>
+          ) : (
+            <div className="panel panel-pad mt20" role="status" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
+              <b>Enter a benchmark value to calculate the ISA 320 thresholds.</b>
+              <p className="sub mt4">Overall materiality, the performance haircut and the clearly-trivial threshold are all derived from the deliberately entered benchmark — the form does not prefill one.</p>
+            </div>
+          )}
+
           <div className="mt20">
-            <label className="caption">Planning Strategy Memo &amp; Scope Rationales</label>
+            <label className="caption">Planning Strategy Memo &amp; Scope Rationales *</label>
             <textarea
               className="input"
               rows={3}
+              aria-label="Planning strategy memo and scope rationale"
+              placeholder="Record the ISA 320 basis for the benchmark, rate and thresholds — required before the plan can be saved."
               value={scopeNotes}
               onChange={e => setScopeNotes(e.target.value)}
             />
@@ -252,7 +361,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
         <div className="panel">
           <div className="panel-head">
             <h3>Staff Resourcing &amp; Section Allocations</h3>
-            <span className="caption">Target start and completion windows</span>
+            <span className="caption">Target start and completion windows — entered deliberately, nothing is prefilled</span>
           </div>
           <div className="tablewrap">
             <table>
@@ -263,20 +372,28 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                   <th>Scheduled Start</th>
                   <th>Scheduled End</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
+                {teamAllocations.length === 0 && (
+                  <tr><td colSpan={6} className="sub">No team allocations recorded yet. Add the professionals deliberately assigned to this engagement.</td></tr>
+                )}
                 {teamAllocations.map((alloc, idx) => (
                   <tr key={idx}>
-                    <td><b>{alloc.person}</b></td>
-                    <td>{alloc.role}</td>
-                    <td>{alloc.scheduledStart}</td>
-                    <td>{alloc.scheduledEnd}</td>
+                    <td><input aria-label={`Team member name ${idx + 1}`} className="input sm" value={alloc.person} onChange={e => setTeamAllocations(prev => prev.map((item, i) => i === idx ? { ...item, person: e.target.value } : item))} /></td>
+                    <td><input aria-label={`Team member role ${idx + 1}`} className="input sm" value={alloc.role} onChange={e => setTeamAllocations(prev => prev.map((item, i) => i === idx ? { ...item, role: e.target.value } : item))} /></td>
+                    <td><input aria-label={`Team member start ${idx + 1}`} type="date" className="input sm" value={alloc.scheduledStart} onChange={e => setTeamAllocations(prev => prev.map((item, i) => i === idx ? { ...item, scheduledStart: e.target.value } : item))} /></td>
+                    <td><input aria-label={`Team member end ${idx + 1}`} type="date" className="input sm" value={alloc.scheduledEnd} onChange={e => setTeamAllocations(prev => prev.map((item, i) => i === idx ? { ...item, scheduledEnd: e.target.value } : item))} /></td>
                     <td><span className="badge green">Assigned</span></td>
+                    <td><button className="btn sm ghost" aria-label={`Remove allocation ${idx + 1}`} onClick={() => setTeamAllocations(prev => prev.filter((_, i) => i !== idx))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="row mt12">
+            <button className="btn sm" onClick={() => setTeamAllocations(prev => [...prev, { person: '', role: '', scheduledStart: '', scheduledEnd: '' }])}>Add allocation</button>
           </div>
         </div>
       )}
@@ -296,17 +413,23 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                   <th>Target Completion Date</th>
                   <th>Milestone Status</th>
                   <th>Action</th>
+                  <th>Remove</th>
                 </tr>
               </thead>
               <tbody>
+                {milestones.length === 0 && (
+                  <tr><td colSpan={5} className="sub">No timing milestones recorded yet. Add the phases this engagement commits to.</td></tr>
+                )}
                 {milestones.map((m, idx) => (
                   <tr key={idx}>
-                    <td><b>{m.phase}</b></td>
-                    <td>{m.targetDate}</td>
+                    <td><input aria-label={`Milestone phase ${idx + 1}`} className="input sm" value={m.phase} onChange={e => setMilestones(prev => prev.map((item, i) => i === idx ? { ...item, phase: e.target.value } : item))} /></td>
+                    <td><input aria-label={`Milestone target date ${idx + 1}`} type="date" className="input sm" value={m.targetDate} onChange={e => setMilestones(prev => prev.map((item, i) => i === idx ? { ...item, targetDate: e.target.value } : item))} /></td>
                     <td>
-                      <span className={`badge ${m.status === 'Completed' ? 'green' : m.status === 'In progress' ? 'blue' : 'gray'}`}>
-                        {m.status}
-                      </span>
+                      <select aria-label={`Milestone status ${idx + 1}`} className="input sm" value={m.status} onChange={e => setMilestones(prev => prev.map((item, i) => i === idx ? { ...item, status: e.target.value as typeof m.status } : item))}>
+                        <option value="Planned">Planned</option>
+                        <option value="In progress">In progress</option>
+                        <option value="Completed">Completed</option>
+                      </select>
                     </td>
                     <td>
                       {m.status !== 'Completed' && (
@@ -321,10 +444,14 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                         </button>
                       )}
                     </td>
+                    <td><button className="btn sm ghost" aria-label={`Remove milestone ${idx + 1}`} onClick={() => setMilestones(prev => prev.filter((_, i) => i !== idx))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="row mt12">
+            <button className="btn sm" onClick={() => setMilestones(prev => [...prev, { phase: '', targetDate: '', status: 'Planned' as const }])}>Add milestone</button>
           </div>
         </div>
       )}
@@ -354,10 +481,12 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
               )}
 
               <div className="mt16">
-                <label className="caption">Review Notes &amp; Sign-off Basis</label>
+                <label className="caption">Review Notes &amp; Sign-off Basis *</label>
                 <textarea
                   className="input"
                   rows={2}
+                  aria-label="Review notes and sign-off basis"
+                  placeholder="Record the reviewer's basis — required for both approval and return."
                   value={reviewNotes}
                   onChange={e => setReviewNotes(e.target.value)}
                 />

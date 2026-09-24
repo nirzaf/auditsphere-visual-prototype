@@ -52,6 +52,7 @@ import { ReportingCentreView } from './components/modules/ReportingCentreView';
 import { AdministrationView } from './components/modules/AdministrationView';
 import { M365SetupView } from './components/modules/M365SetupView';
 import { RequirementsView } from './components/modules/RequirementsView';
+import { ModuleCatalogueView } from './components/modules/ModuleCatalogueView';
 import { UnsavedFormGuard } from './services/unsavedFormGuard';
 
 export const App: React.FC = () => {
@@ -59,22 +60,29 @@ export const App: React.FC = () => {
   const [selectedClientId, setSelectedClientId] = useState<string>('CLI-001');
   const [searchTargetId, setSearchTargetId] = useState<string | undefined>();
   const [, setTick] = useState(0);
-  const unsavedForm = useRef<UnsavedFormGuard | null>(null);
+  const [guideOrigin, setGuideOrigin] = useState<RouteKey>('overview');
+  const unsavedForms = useRef<Map<string, UnsavedFormGuard>>(new Map());
   const [pendingTransition, setPendingTransition] = useState<{ run: () => void; label: string } | null>(null);
 
-  const registerUnsavedForm = useCallback((guard: UnsavedFormGuard | null) => { unsavedForm.current = guard; }, []);
+  const registerUnsavedForm = useCallback((guard: UnsavedFormGuard | null, key = 'default') => {
+    if (guard) unsavedForms.current.set(key, guard);
+    else unsavedForms.current.delete(key);
+  }, []);
   const requestContextChange = useCallback((run: () => void) => {
-    const guard = unsavedForm.current;
-    if (guard?.isDirty()) setPendingTransition({ run, label: guard.label });
+    const dirty = [...unsavedForms.current.values()].filter(guard => guard.isDirty());
+    if (dirty.length) setPendingTransition({ run, label: [...new Set(dirty.map(guard => guard.label))].join(' and ') });
     else run();
   }, []);
   const resolveTransition = (choice: 'save' | 'discard') => {
     const pending = pendingTransition;
-    const guard = unsavedForm.current;
-    if (!pending || !guard) return;
-    if (choice === 'save' && !guard.save()) return;
-    if (choice === 'discard') guard.discard();
-    unsavedForm.current = null;
+    const dirty = [...unsavedForms.current.values()].filter(guard => guard.isDirty());
+    if (!pending || !dirty.length) return;
+    if (choice === 'save') {
+      // A rejected save keeps the user, the remaining drafts and the context unchanged.
+      for (const guard of dirty) { if (!guard.save()) return; }
+    } else {
+      dirty.forEach(guard => guard.discard());
+    }
     setPendingTransition(null);
     pending.run();
   };
@@ -159,6 +167,7 @@ export const App: React.FC = () => {
   const isClient = isClientRole(state.currentRole);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
   const navigate = (route: RouteKey, targetId?: string) => {
+    if (route === 'module-guide' && effectiveRoute !== 'module-guide') setGuideOrigin(effectiveRoute);
     requestContextChange(() => {
       const current = prototypeStore.getSnapshot();
       const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
@@ -169,7 +178,7 @@ export const App: React.FC = () => {
   const effectiveRoute: RouteKey = !activeIdentity
     ? 'requirements'
     : isClient
-    ? currentRoute === 'requirements' ? 'requirements' : 'portal'
+    ? currentRoute === 'requirements' || currentRoute === 'module-guide' ? currentRoute : 'portal'
     : canOpenRoute(state.currentRole, currentRoute, activeIdentity) ? currentRoute : 'overview';
 
   const renderModule = () => {
@@ -237,7 +246,7 @@ export const App: React.FC = () => {
       case 'account-mappings':
       case 'adjustments':
       case 'reconciliations':
-        return <AccountingWorkbenchView onNavigate={navigate} />;
+        return <AccountingWorkbenchView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'financial-statements':
         return <FinancialStatementsView onNavigate={navigate} />;
       case 'financial-packages':
@@ -248,10 +257,10 @@ export const App: React.FC = () => {
 
       // Audit & Assurance
       case 'audit-planning':
-        return <AuditPlanningView onNavigate={navigate} />;
+        return <AuditPlanningView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'audit-risks':
       case 'audit-fieldwork':
-        return <AuditRisksProgramsView onNavigate={navigate} />;
+        return <AuditRisksProgramsView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'sampling':
         return <SamplingView onNavigate={navigate} />;
       case 'audit':
@@ -285,6 +294,8 @@ export const App: React.FC = () => {
       case 'requirements':
       case 'role-guide':
         return <RequirementsView onNavigate={navigate} />;
+      case 'module-guide':
+        return <ModuleCatalogueView onNavigate={navigate} originRoute={guideOrigin} />;
 
       default:
         return <DashboardView onNavigate={navigate} />;
@@ -292,7 +303,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={setSelectedClientId} onBeforeContextChange={requestContextChange}>
+    <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={(clientId) => requestContextChange(() => setSelectedClientId(clientId))} onBeforeContextChange={requestContextChange}>
       {renderModule()}
       {pendingTransition && <div className="modal-backdrop" onClick={() => setPendingTransition(null)}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
         <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={() => setPendingTransition(null)}>✕</button></div>

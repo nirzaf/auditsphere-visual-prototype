@@ -106,8 +106,13 @@ before(async () => {
   const port = typeof addr === 'object' && addr ? addr.port : 0;
   baseUrl = `http://127.0.0.1:${port}`;
 
-  const chromePath = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser']
-    .find(path => existsSync(path));
+  const chromePath = [
+    process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+  ].filter((path): path is string => Boolean(path)).find(path => existsSync(path));
   assert.ok(chromePath, 'Chrome/Chromium is required for actual browser acceptance');
   profileDir = mkdtempSync(join(tmpdir(), 'auditsphere-e2e-'));
   chrome = spawn(chromePath, [
@@ -995,9 +1000,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
     await clickButton('Audit Planning & Materiality');
+    // VP-048: the planning form no longer prefills benchmark or rationale assumptions;
+    // the journey enters them deliberately.
+    await browserTab!.evaluate(`(() => {const setField=(sel,setter,val)=>{const f=document.querySelector(sel);if(!f)throw Error('Missing '+sel);Object.getOwnPropertyDescriptor(setter.prototype,'value').set.call(f,val);f.dispatchEvent(new Event('input',{bubbles:true}));};setField('input[aria-label="Benchmark value"]',HTMLInputElement,'2000000');setField('textarea[aria-label="Planning strategy memo and scope rationale"]',HTMLTextAreaElement,'Benchmark and rate entered deliberately for the demonstration plan.');})()`);
     await clickButtonStartingWith('Plan Versions & Review');
     await clickButton('Save Version 1');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    // VP-048: reviewer notes are a deliberate, recorded input for every decision.
+    await browserTab!.evaluate(`(() => {const box=document.querySelector('textarea[aria-label="Review notes and sign-off basis"]');if(!box)throw Error('Review notes textarea missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Benchmarks and thresholds confirmed against the filed revenue figure.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Approve Audit Plan Strategy');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.engagementId==='ENG-26001').status==='Approved'`), true);
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -1018,6 +1028,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButtonStartingWith('Plan Versions & Review');
     assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Risk RSK-01 changed; audit plan v2 requires independent review.')`), true, 'superseded plan and current revision show the risk-driven review impact');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const box=document.querySelector('textarea[aria-label="Review notes and sign-off basis"]');if(!box)throw Error('Review notes textarea missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Risk-driven revision confirmed with reciprocal procedure links.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Approve Audit Plan Strategy');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.version===2).status==='Approved'`), true, 'independent review can approve the risk-driven plan revision');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -1031,6 +1042,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Save Version 4');
     assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPlans;return p.find(x=>x.version===3).status==='Superseded'&&p.find(x=>x.version===3).reviewNotes==='Rework the risk response rationale before approval.'&&p.find(x=>x.version===4).status==='Under review';})()`), true, 'manager rework creates a new revision and preserves the returned version');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const box=document.querySelector('textarea[aria-label="Review notes and sign-off basis"]');if(!box)throw Error('Review notes textarea missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Reworked revision accepted; gate restored.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Approve Audit Plan Strategy');
     assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.auditPlans.find(p=>p.version===4).status==='Approved'&&s.engagements.find(e=>e.id==='ENG-26001').planning;})()`), true, 'independent approval of the reworked revision restores the planning gate');
     assert.deepEqual(browserTab!.exceptions, []);

@@ -151,6 +151,8 @@ const PROFESSIONAL_ROUTES: RouteKey[] = [
 export function canOpenRoute(role: RoleKey, route: RouteKey, active = true): boolean {
   if (!active) return route === 'requirements';
   if (route === 'requirements') return true;
+  // The module guide is read-only client-demo guidance available to every active persona.
+  if (route === 'module-guide') return true;
   if (isClientRole(role)) return route === 'portal';
   if (role === 'partner') return PROFESSIONAL_ROUTES.includes(route);
   if (role === 'manager') return PROFESSIONAL_ROUTES.includes(route) && route !== 'administration';

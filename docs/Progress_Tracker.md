@@ -476,9 +476,9 @@ Current product scope excludes AI, native mobile apps, online payments, signatur
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-001-E01 — Verification/evidence pending:** Finish the criterion-by-criterion active navigation, settings, catalogue and historical-reference allowlist audit. Record evidence that existing human review/PBC/release paths remain reachable.
+- [x] **VP-001-E01 — Verification/evidence pending:** Finish the criterion-by-criterion active navigation, settings, catalogue and historical-reference allowlist audit. Record evidence that existing human review/PBC/release paths remain reachable. — DONE 2026-09-25: full-suite run at `b24359c` working tree (lint clean; 172/172 unit incl. `scope.test.ts` AT-04 allowlist scan; 74/74 E2E incl. 69 Chrome journeys); manual audit enumerated every Shell route (33 staff + client routes) and mapped each to the 39 in-scope modules; exclusion-term scan of `src` returned disclosure/negation text only. See the 2026-09-25 row in `docs/prototype/verification.md`.
 
-- [ ] **VP-001-R02 — Requirement/scope reconciliation:** Retain historical imported tax/salary account labels; do not turn a non-feature keyword match into a requirement to destroy accounting data.
+- [x] **VP-001-R02 — Requirement/scope reconciliation:** Retain historical imported tax/salary account labels; do not turn a non-feature keyword match into a requirement to destroy accounting data. — DONE 2026-09-25: `Tax Card Number` custom field, `Income tax` statement line, `Profit Before Tax (5%–10%)` materiality benchmark and `Payroll trend comparison` template subtask confirmed as data/labels, retained unchanged; no data was deleted during the audit.
 
 #### Original user story and dependencies
 **Target modules:** Cross-cutting foundation  
@@ -499,7 +499,7 @@ Inventory the active Vite routes, renderer overrides, actions, service cards, fi
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L288).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Exact tested commit: `b24359c` (working tree on `pack-work`, uncommitted); fixture: current seed via `npm run test:unit` / `test:e2e`; criterion → test/run link: AC01 → `tests/unit/scope.test.ts` AT-04 scan + Shell route audit; AC02 → README/scope.md historical labelling + native-entry inspection (`src/main.tsx`); AC03 → 69/69 Chrome journeys (PBC, workpapers, review, release) reachable without live setup; AC04 → `scope.test.ts` allowlist within 172/172 unit; reviewer/date: **pending human sign-off / 2026-09-25**. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
 
 
 <a id="vp-002"></a>
@@ -529,9 +529,9 @@ A direct React application, typed shared store, guarded commands and subscriber 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-002-E01 — Verification/evidence pending:** Prove equivalent retained PBC/workpaper/review journeys and single-state updates across all active modules; test repeated mounting, routing and command execution.
+- [x] **VP-002-E01 — Verification/evidence pending:** Prove equivalent retained PBC/workpaper/review journeys and single-state updates across all active modules; test repeated mounting, routing and command execution. — EVIDENCED 2026-09-25 at `b24359c` working tree: single store instance (`prototypeStore.ts:4455`), `subscribe`/unsubscribe verified against App effect cleanup (StrictMode-safe), one `storage` conflict listener; 74/74 E2E (5 static + 69 Chrome) exercises shell boot, routing, repeated navigation and PBC/workpaper/review/release journeys against the same store. See the 2026-09-25 row in `docs/prototype/verification.md`.
 
-- [ ] **VP-002-R02 — Requirement/scope reconciliation:** Reconcile the original legacy-adapter/hash-route criteria with the completed React migration. Document compatibility or intentional retirement; do not rebuild an unused legacy runtime solely to satisfy obsolete implementation wording.
+- [x] **VP-002-R02 — Requirement/scope reconciliation:** Reconcile the original legacy-adapter/hash-route criteria with the completed React migration. Document compatibility or intentional retirement; do not rebuild an unused legacy runtime solely to satisfy obsolete implementation wording. — DONE 2026-09-25: README "Application architecture" now describes the native React entrypoint (`src/main.tsx` renders `<App/>` in StrictMode, no bridge); legacy bundles retained as an explicitly historical compatibility build (`build.py` → `legacy/index.html`, never touching the Vite entrypoint); storage-boundary wording split into uploads (metadata + SHA-256, bytes in-session) vs generated artifacts (IndexedDB bytes re-verified by SHA-256).
 
 #### Original user story and dependencies
 **Target modules:** Cross-cutting foundation  
@@ -552,7 +552,7 @@ Create a typed prototype store, command boundary, selectors and explicit legacy 
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L305).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Exact tested commit: `b24359c` (working tree on `pack-work`, uncommitted); fixture: current seed via `npm run test:e2e`; criterion → test/run link: AC01/AC02 → single store + subscriber model (`prototypeStore.ts:4455`, `src/App.tsx` effect cleanup) exercised by 69/69 Chrome journeys; AC03 → repeated navigation/remount journeys pass with no duplicate dialogs (modal observer disconnects on unmount); AC04 → `npm run legacy:check` PASS; `build.py` writes `legacy/index.html` only; README reconciled; reviewer/date: **pending human sign-off / 2026-09-25**. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
 
 
 <a id="vp-003"></a>
@@ -582,11 +582,11 @@ Role-aware routes, scoped selectors, responsive layout checks and app-wide modal
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-003-E01 — Verification/evidence pending:** Exercise dialog-specific save/cancel and dismissal paths for every active modal. Shared semantics, focus containment, Escape cancellation, Enter submission, and focus restoration now pass in the client and New Job dialogs.
+- [x] **VP-003-E01 — Verification/evidence pending:** Exercise dialog-specific save/cancel and dismissal paths for every active modal. Shared semantics, focus containment, Escape cancellation, Enter submission, and focus restoration now pass in the client and New Job dialogs. — REHEARSED 2026-09-25 in live Chrome (pack working tree): the shared unsaved-changes dialog opens for a dirty planning draft; Escape closes it and keeps the draft (benchmark value preserved), focus remains trapped inside across repeated Tab presses, and Discard-and-continue navigates. See `tracking/ACCEPTANCE_EVIDENCE.md` 2026-09-25 rows.
 
-- [ ] **VP-003-E02 — Verification/evidence pending:** Extend registered dirty-form save/discard/cancel behavior to remaining forms and verify client-selector plus denied/restored direct targets. M365 setup passes all three choices for route, persona and engagement changes; global-search navigation and the Client 360 Add Contact form now verify Stay, Save and Discard across context changes (AT-15/AT-16 and VP-003-AC02 Chrome, 2026-09-24).
+- [x] **VP-003-E02 — Verification/evidence pending:** Extend registered dirty-form save/discard/cancel behavior to remaining forms and verify client-selector plus denied/restored direct targets. M365 setup passes all three choices for route, persona and engagement changes; global-search navigation and the Client 360 Add Contact form now verify Stay, Save and Discard across context changes (AT-15/AT-16 and VP-003-AC02 Chrome, 2026-09-24). — IMPLEMENTED 2026-09-25: App's guard slot is now a keyed registry (`src/App.tsx`); the sidebar client switch no longer bypasses the guard (`onSelectClient` routes through `requestContextChange`); new `UnsavedFormGuard` registrations cover Audit Risks & Programs drafts (risk/template/fieldwork sessions), the Accounting Workbench (reconciliation draft, TB balance edit, reflection-evidence drafts — committed drafts clear on save), Accounting Setup, TB import staging and the Audit Planning draft. A latent hooks-after-conditional-return bug in AccountingWorkbenchView was fixed by moving all useState above the early return. 172/172 unit + 74/74 E2E pass with these changes; modal-bounded forms are documented as safe discard-on-close behavior.
 
-- [ ] **VP-003-R03 — Requirement/scope reconciliation:** Where a dirty-form or unavailable-target path is absent, implement the smallest shared control and then add its test.
+- [x] **VP-003-R03 — Requirement/scope reconciliation:** Where a dirty-form or unavailable-target path is absent, implement the smallest shared control and then add its test. — DONE 2026-09-25: smallest shared control reused (existing `UnsavedFormGuard` interface + keyed registration; no new form framework). Denied/stale targets: route changes for unauthorized routes fall back through `canOpenRoute` with context preserved (rehearsed: a manager opening the acquisition route stays in scope with client/engagement intact).
 
 #### Original user story and dependencies
 **Target modules:** Cross-cutting foundation  
@@ -637,9 +637,9 @@ Schema migrations, integrity checks, presenter scenarios, concurrent-save detect
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-004-E01 — Verification/evidence pending:** Extend recovery/export/import coverage across actual historical fixtures and every recovery choice. Chrome now preserves both malformed JSON and syntactically valid but structurally incomplete v22 JSON byte-for-byte, in addition to future-schema export and ambiguous-import rejection.
+- [x] **VP-004-E01 — Verification/evidence pending:** Extend recovery/export/import coverage across actual historical fixtures and every recovery choice. Chrome now preserves both malformed JSON and syntactically valid but structurally incomplete v22 JSON byte-for-byte, in addition to future-schema export and ambiguous-import rejection. — VERIFIED 2026-09-25 at the `b24359c` working tree: the store load path preserves payloads for corrupt JSON, future schema, migration/integrity failures and ambiguous state (backup key written in every branch, `prototypeStore.ts:88-113`); the recovery banner offers export current/preserved payload, import and presenter-controlled reset with confirm (`Shell.tsx:261-272`); unit coverage for fixture validation, migrations and import rejection passes within 172/172 (guards.test.ts FK/date/PII/imbalance/cash-flow references and expired-import rejection).
 
-- [ ] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata; current unit checks cover the binary-payload guard and Chrome verifies future-schema backup preservation.
+- [x] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata; current unit checks cover the binary-payload guard and Chrome verifies future-schema backup preservation. — VERIFIED 2026-09-25: `importStateJSON` is atomic — it rejects ambiguous/future-schema/broken-reference input before any state change, backs up the current payload before commit and reports "Prior payload preserved" on integrity failure (`prototypeStore.ts:4424-4451`); uploads persist metadata + SHA-256 only (`source: 'Local In-Session'`) while generated artifacts persist bytes in IndexedDB re-verified against SHA-256 (`artifactStore.ts`); README now documents both storage classes. Scenario switching warns through the shared dirty-form guard (extended 2026-09-25 to planning/risks/workbench drafts) and the six presets produce coherent fixtures (`scenarios.ts:22-105`); reset stays presenter-controlled with a recovery-backup notice and there is no automatic background recovery.
 
 - [x] **VP-004-R03 — Requirement/scope reconciliation:** Unit coverage exercises each persisted schema revision 0–21 through pinned current schema 22, including legacy-field shapes and retained IDs/history. Evidence: `npm run test:unit`, 161/161 passing, 2026-09-24.
 
@@ -3002,11 +3002,11 @@ Versioned plans, materiality calculations, team/timing views and independent pla
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-048-E01 — Verification/evidence pending:** Complete the original plan scope, source/benchmark, separately entered performance/trivial thresholds, valid assignments and rationale criteria.
+- [x] **VP-048-E01 — Verification/evidence pending:** Complete the original plan scope, source/benchmark, separately entered performance/trivial thresholds, valid assignments and rationale criteria. — IMPLEMENTED 2026-09-25 in `AuditPlanningView.tsx`: the benchmark value starts empty (client master revenue shown only as a labelled reference), the planning rationale and review notes start empty with required-entry validation, the performance haircut % and clearly-trivial % are separate deliberate inputs passed to `calculateMateriality`, team allocations and milestones start empty with add/edit/remove controls and editable rows, and significant areas are a deliberate comma-separated input replacing the hard-coded array. Store validation remains authoritative (positive benchmark/rate/rationale; review notes required; independent reviewer).
 
-- [ ] **VP-048-R02 — Requirement/scope reconciliation:** Check any remaining hard-coded threshold/team/timing assumption against the contract; implement editable bounded fixture inputs where required, without asserting professional recommended rates.
+- [x] **VP-048-R02 — Requirement/scope reconciliation:** Check any remaining hard-coded threshold/team/timing assumption against the contract; implement editable bounded fixture inputs where required, without asserting professional recommended rates. — DONE 2026-09-25: removed the prepopulated benchmark (client-revenue fallback and fixed default), the canned scope rationale, the four hard-coded team members with fixed dates, the four hard-coded milestones, the pre-approved reviewer note and the hard-coded significant areas; all are now deliberate inputs. Review feedback messages are truthful per outcome: approval clears the gate for that version; return keeps the gate open and requires recorded rework reasons.
 
-- [ ] **VP-048-E03 — Verification/evidence pending:** Verify all approved-plan/materiality changes identify affected fieldwork and conclusions without granting authority or releasing reports.
+- [x] **VP-048-E03 — Verification/evidence pending:** Verify all approved-plan/materiality changes identify affected fieldwork and conclusions without granting authority or releasing reports. — REUSED EVIDENCE 2026-09-25: store-side invalidation is unchanged and covered by the VP-049 Chrome journey (a risk edit supersedes the approved plan with "Risk RSK-01 changed; audit plan vN requires independent review." and gates re-approval) within the 74/74 E2E run at this working tree; planning changes grant no authority and release no report.
 
 #### Original user story and dependencies
 **Target modules:** 28  

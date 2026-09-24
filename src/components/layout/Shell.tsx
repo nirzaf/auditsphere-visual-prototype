@@ -107,7 +107,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
         { key: 'reports', label: 'Report Centre', icon: 'calculator' },
         { key: 'administration', label: 'Firm Administration', icon: 'settings' },
         { key: 'm365-setup', label: 'Microsoft 365 Setup', icon: 'settings' },
-        { key: 'requirements', label: 'Requirements & PRD', icon: 'book' }
+        { key: 'requirements', label: 'Requirements & PRD', icon: 'book' },
+        { key: 'module-guide', label: 'Module Guide & Tour', icon: 'layers' }
       ]
     ]
   ];
@@ -117,6 +118,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       'CLIENT SECURE PORTAL',
       [
         { key: 'portal', label: 'Client Experience Portal', icon: 'globe' },
+        { key: 'module-guide', label: 'Module Guide', icon: 'layers' },
         { key: 'requirements', label: 'Specifications & PRD', icon: 'book' }
       ]
     ]

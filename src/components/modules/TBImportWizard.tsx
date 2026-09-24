@@ -4,10 +4,11 @@
 // validation, commit as a new source revision. Source bytes stay in-session only;
 // only parsed rows persist as bounded demo records. Macros/formulas never execute.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 export const TB_ROW_LIMIT = 2000;
 export const TB_FILE_BYTES_LIMIT = 2 * 1024 * 1024;
@@ -15,6 +16,7 @@ export const TB_FILE_BYTES_LIMIT = 2 * 1024 * 1024;
 interface TBImportWizardProps {
   engagementId: string;
   onCommitted: () => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
 type Convention = 'signed-net' | 'debit-credit';
@@ -128,7 +130,7 @@ export function parseTBWorkbook(
   return { rows, errors, format: isXlsx ? 'XLSX' : 'CSV' };
 }
 
-export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, onCommitted }) => {
+export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, onCommitted, onRegisterUnsavedForm }) => {
   const [fileName, setFileName] = useState('');
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -138,6 +140,33 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const [errors, setErrors] = useState<string[]>([]);
   const [format, setFormat] = useState<'XLSX' | 'CSV' | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  // VP-003: a staged import is deliberate work; navigation cannot silently drop it.
+  // There is no safe silent auto-commit for an import, so "save" explicitly refuses
+  // and keeps the staging intact — the user stays in context and decides.
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Trial-balance import',
+      isDirty: () => bytes !== null,
+      save: () => {
+        setFileError('Commit or cancel the staged trial-balance import in the wizard before leaving. Nothing was committed.');
+        return false;
+      },
+      discard: () => {
+        setFileName('');
+        setBytes(null);
+        setHeaders([]);
+        setMapping({ code: 0, name: 1, debit: 2, credit: 3, signed: 2 });
+        setConvention('signed-net');
+        setPreview(null);
+        setErrors([]);
+        setFormat(null);
+        setFileError(null);
+      },
+    };
+    onRegisterUnsavedForm(guard, 'tb-import-wizard');
+    return () => onRegisterUnsavedForm(null, 'tb-import-wizard');
+  }, [bytes, onRegisterUnsavedForm]);
   const storeSnapshot = prototypeStore.getSnapshot();
   const currentEngagement = storeSnapshot.engagements.find(e => e.id === engagementId);
   const sourceHistory = currentEngagement?.sourceHistory || [];
