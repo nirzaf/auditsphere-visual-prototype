@@ -584,7 +584,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-003-E01 — Verification/evidence pending:** Exercise dialog-specific save/cancel and dismissal paths for every active modal. Shared semantics, focus containment, Escape cancellation, Enter submission, and focus restoration now pass in the client and New Job dialogs.
 
-- [ ] **VP-003-E02 — Verification/evidence pending:** Verify save/discard/cancel for dirty forms during persona, client, engagement and route switches, including denied/restored direct targets.
+- [ ] **VP-003-E02 — Verification/evidence pending:** Extend registered dirty-form save/discard/cancel behavior to remaining forms and verify client/search, denied/restored direct targets. M365 setup now passes all three choices for route, persona and engagement changes.
 
 - [ ] **VP-003-R03 — Requirement/scope reconciliation:** Where a dirty-form or unavailable-target path is absent, implement the smallest shared control and then add its test.
 
@@ -601,7 +601,7 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-003-AC01 | Given a direct link or restored selection outside the current scope, when opened, then a safe unavailable view appears and no restricted record fields/counts are rendered. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | SUBCASES VERIFIED 2026-09-24: M365 setup Save persists before route change; Discard leaves stored config unchanged; Stay preserves the draft; route, persona and engagement changes are guarded. Other forms, client/search changes and denied/restored targets remain open. |
 | VP-003-AC03 | Keyboard-only users can open, edit, save and cancel dialogs with focus restored to the initiating control. | SUBCASES VERIFIED 2026-09-24: client/New Job keyboard open, Tab containment, Escape cancel, Enter submit and focus restoration pass in Chrome. Each dialog-specific close path and keyboard editing breadth remain open. |
 | VP-003-AC04 | Every active route has a label, required capability and at least one role fixture; client routes contain no staff economics, internal notes or presenter exports. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
@@ -3972,7 +3972,7 @@ This queue contains **117 open planning actions** attached to the 50 Partial sto
 | VP-001-E01 | [VP-001](#vp-001) | P2 | Finish the criterion-by-criterion active navigation, settings, catalogue and historical-reference allowlist audit. Record evidence that existing human review/PBC/release paths remain reachable. | Pending / Unassigned / — |
 | VP-002-E01 | [VP-002](#vp-002) | P1 | Prove equivalent retained PBC/workpaper/review journeys and single-state updates across all active modules; test repeated mounting, routing and command execution. | Pending / Unassigned / — |
 | VP-003-E01 | [VP-003](#vp-003) | P1 | Exercise dialog-specific save/cancel and dismissal paths for every active modal; shared keyboard behavior including Enter submission is tested for client and New Job dialogs. | Pending / Unassigned / — |
-| VP-003-E02 | [VP-003](#vp-003) | P1 | Verify save/discard/cancel for dirty forms during persona, client, engagement and route switches, including denied/restored direct targets. | Pending / Unassigned / — |
+| VP-003-E02 | [VP-003](#vp-003) | P1 | Extend registered dirty-form save/discard/cancel behavior to remaining forms; verify client/search, denied/restored direct targets. M365 setup passes route/persona/engagement cases. | Pending / Unassigned / — |
 | VP-004-E01 | [VP-004](#vp-004) | P1 | Complete future-schema, ambiguous-reference, corrupt-but-valid-JSON, storage-denial and recovery/export/import journeys against actual historical fixtures. | Pending / Unassigned / — |
 | VP-004-E02 | [VP-004](#vp-004) | P1 | Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata. | Pending / Unassigned / — |
 | VP-005-E01 | [VP-005](#vp-005) | P2 | Extend dashboard journeys to partner, billing, records and other supported staff personas with both broad and narrow grants. | Pending / Unassigned / — |

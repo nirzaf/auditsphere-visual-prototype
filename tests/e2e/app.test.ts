@@ -419,6 +419,38 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickPanelButton('sharepoint — simulated test', 'Prepare selected client workspace');
     const foldersAfterRetry = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
     assert.equal(foldersAfterRetry, foldersAfter, 'retry remains idempotent');
+
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Discarded tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'route changes ask how to handle a dirty setup form');
+    await clickButton('Stay');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Microsoft 365 Setup")'), true, 'cancel keeps the current route');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('input.mono')?.value==='Discarded tenant'`), true, 'cancel preserves the unsaved draft');
+    await clickButtonStartingWith('Jobs & Tasks');
+    await clickButton('Discard and continue');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'discard continues the pending route change');
+    assert.notEqual(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), 'Discarded tenant', 'discard leaves stored configuration unchanged');
+
+    await clickButton('Microsoft 365 Setup');
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Saved tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButtonStartingWith('Jobs & Tasks');
+    await clickButton('Save and continue');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'saving continues the pending route change');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), 'Saved tenant', 'save persists the dirty configuration before leaving');
+
+    await clickButton('Microsoft 365 Setup');
+    const originalContext = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {user:s.currentUserId,engagement:s.selectedEngagement};})()`);
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Persona draft');i.dispatchEvent(new Event('input',{bubbles:true}));const s=document.querySelector('#role-select');const next=[...s.options].find(o=>o.value!==s.value);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,next.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'persona changes are guarded while this form is dirty');
+    await clickButton('Stay');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId`), originalContext.user, 'cancel leaves the active persona unchanged');
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');if(i.value!=='Persona draft')throw Error('dirty form was lost');const s=[...document.querySelectorAll('select')].find(x=>x.getAttribute('aria-label')==='Selected engagement');const next=[...s.options].find(o=>o.value!==s.value);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,next.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'engagement changes are guarded while this form is dirty');
+    await clickButton('Stay');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement`), originalContext.engagement, 'cancel leaves the active engagement unchanged');
+    await clickButtonStartingWith('Jobs & Tasks');
+    await clickButton('Discard and continue');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'discard clears the form before applying another context change');
   });
 
   it('AT-18/AT-25/AT-53: switches to a client persona and exposes only the portal', async () => {

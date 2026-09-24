@@ -12,10 +12,11 @@ interface ShellProps {
   currentRoute: RouteKey;
   onRouteChange: (route: RouteKey, targetId?: string) => void;
   onSelectClient: (clientId: string) => void;
+  onBeforeContextChange: (change: () => void) => void;
   children: React.ReactNode;
 }
 
-export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSelectClient, children }) => {
+export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSelectClient, onBeforeContextChange, children }) => {
   const state = prototypeStore.getSnapshot();
   const [showScenarioModal, setShowScenarioModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -126,23 +127,27 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     .filter(([, items]) => items.length > 0);
 
   const handleRoleChange = (userId: string) => {
-    prototypeStore.setPersona(userId);
-    const snap = prototypeStore.getSnapshot();
-    if (isClientRole(snap.currentRole)) {
-      onRouteChange('portal');
-    }
-    triggerToast(`Switched simulated identity to ${snap.currentPerson} (${snap.currentRole})`);
+    onBeforeContextChange(() => {
+      prototypeStore.setPersona(userId);
+      const snap = prototypeStore.getSnapshot();
+      if (isClientRole(snap.currentRole)) onRouteChange('portal');
+      triggerToast(`Switched simulated identity to ${snap.currentPerson} (${snap.currentRole})`);
+    });
   };
 
   const handleEngagementChange = (engId: string) => {
-    prototypeStore.setSelectedEngagement(engId);
-    triggerToast(`Switched active engagement to ${engId}`);
+    onBeforeContextChange(() => {
+      prototypeStore.setSelectedEngagement(engId);
+      triggerToast(`Switched active engagement to ${engId}`);
+    });
   };
 
   const handleSelectScenario = (scenId: ScenarioName) => {
-    prototypeStore.loadScenario(scenId);
-    setShowScenarioModal(false);
-    triggerToast(`Loaded scenario preset: ${scenId}`, 'success');
+    onBeforeContextChange(() => {
+      prototypeStore.loadScenario(scenId);
+      setShowScenarioModal(false);
+      triggerToast(`Loaded scenario preset: ${scenId}`, 'success');
+    });
   };
 
   const downloadJSON = (filename: string, json: string) => {
@@ -534,10 +539,12 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                         className="borderbox"
                         style={{ textAlign: 'left', width: '100%', cursor: 'pointer', padding: 10 }}
                         onClick={() => {
-                          if (item.clientId) onSelectClient(item.clientId);
-                          if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
-                          onRouteChange(item.route, item.objectId);
-                          setShowSearchModal(false);
+                          onBeforeContextChange(() => {
+                            if (item.clientId) onSelectClient(item.clientId);
+                            if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
+                            onRouteChange(item.route, item.objectId);
+                            setShowSearchModal(false);
+                          });
                         }}
                       >
                         <b>{item.title}</b>

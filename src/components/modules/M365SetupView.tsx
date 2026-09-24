@@ -5,12 +5,14 @@
 // liveConnected is always false. SharePoint/mail/OneDrive readiness is independent:
 // a failed optional mail test never blocks SharePoint or local work.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RoleKey, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface M365SetupViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null) => void;
 }
 
 type CardKey = 'identity' | 'sharepoint' | 'mail' | 'onedrive';
@@ -26,7 +28,7 @@ const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
 ];
 const ASSIGNABLE_ROLES: RoleKey[] = ['relationship', 'onboarding', 'compliance', 'partner', 'manager', 'preparer', 'reviewer', 'eqr', 'client_admin', 'client_finance', 'client', 'billing', 'records', 'admin'];
 
-export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
+export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const config = state.m365Config;
 
@@ -45,22 +47,40 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate }) => {
 
   const markDirty = () => setDirty(true);
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    prototypeStore.updateM365Config({
-      ...config,
-      tenantId,
-      tenantName,
-      permittedUsers,
-      sharePointSite: siteUrl,
-      sharePointLibrary: library,
-      folderRoot,
-      mailSenderAccount: mailSender,
-      oneDriveEnabled,
-      status: config.status === 'Not configured' ? 'Not configured' : config.status
-    });
-    setDirty(false);
-  };
+  const saveConfiguration = useCallback(() => {
+    try {
+      prototypeStore.updateM365Config({
+        ...prototypeStore.getSnapshot().m365Config,
+        tenantId,
+        tenantName,
+        permittedUsers,
+        sharePointSite: siteUrl,
+        sharePointLibrary: library,
+        folderRoot,
+        mailSenderAccount: mailSender,
+        oneDriveEnabled
+      });
+      setDirty(false);
+      setNotice('Simulated configuration saved.');
+      return true;
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Configuration could not be saved.');
+      return false;
+    }
+  }, [tenantId, tenantName, permittedUsers, siteUrl, library, folderRoot, mailSender, oneDriveEnabled]);
+  const discardConfiguration = useCallback(() => {
+    const saved = prototypeStore.getSnapshot().m365Config;
+    setTenantId(saved.tenantId); setTenantName(saved.tenantName); setPermittedUsers(saved.permittedUsers || []);
+    setSiteUrl(saved.sharePointSite); setLibrary(saved.sharePointLibrary); setFolderRoot(saved.folderRoot);
+    setMailSender(saved.mailSenderAccount); setOneDriveEnabled(saved.oneDriveEnabled); setDirty(false);
+    setNotice('Unsaved configuration changes were discarded.');
+  }, []);
+  useEffect(() => {
+    const guard: UnsavedFormGuard = { label: 'Microsoft 365 setup', isDirty: () => dirty, save: saveConfiguration, discard: discardConfiguration };
+    onRegisterUnsavedForm(guard);
+    return () => onRegisterUnsavedForm(null);
+  }, [dirty, saveConfiguration, discardConfiguration, onRegisterUnsavedForm]);
+  const handleSave = (e: React.FormEvent) => { e.preventDefault(); saveConfiguration(); };
 
   const runTest = (card: CardKey, outcome: SimOutcome) => {
     if (dirty) {

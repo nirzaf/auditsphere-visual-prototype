@@ -1,7 +1,7 @@
 // AuditSphere Main Application Component
 // Subscribes to prototypeStore and renders modern UI Shell with all 39 functional modules
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RouteKey } from './types';
 import { prototypeStore } from './store/prototypeStore';
 import { canOpenRoute, isClientRole } from './services/guards';
@@ -52,12 +52,32 @@ import { ReportingCentreView } from './components/modules/ReportingCentreView';
 import { AdministrationView } from './components/modules/AdministrationView';
 import { M365SetupView } from './components/modules/M365SetupView';
 import { RequirementsView } from './components/modules/RequirementsView';
+import { UnsavedFormGuard } from './services/unsavedFormGuard';
 
 export const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<RouteKey>('overview');
   const [selectedClientId, setSelectedClientId] = useState<string>('CLI-001');
   const [searchTargetId, setSearchTargetId] = useState<string | undefined>();
   const [, setTick] = useState(0);
+  const unsavedForm = useRef<UnsavedFormGuard | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<{ run: () => void; label: string } | null>(null);
+
+  const registerUnsavedForm = useCallback((guard: UnsavedFormGuard | null) => { unsavedForm.current = guard; }, []);
+  const requestContextChange = useCallback((run: () => void) => {
+    const guard = unsavedForm.current;
+    if (guard?.isDirty()) setPendingTransition({ run, label: guard.label });
+    else run();
+  }, []);
+  const resolveTransition = (choice: 'save' | 'discard') => {
+    const pending = pendingTransition;
+    const guard = unsavedForm.current;
+    if (!pending || !guard) return;
+    if (choice === 'save' && !guard.save()) return;
+    if (choice === 'discard') guard.discard();
+    unsavedForm.current = null;
+    setPendingTransition(null);
+    pending.run();
+  };
 
   // Subscribe to store updates
   useEffect(() => {
@@ -139,10 +159,12 @@ export const App: React.FC = () => {
   const isClient = isClientRole(state.currentRole);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
   const navigate = (route: RouteKey, targetId?: string) => {
-    const current = prototypeStore.getSnapshot();
-    const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
-    setSearchTargetId(targetId);
-    setCurrentRoute(canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements');
+    requestContextChange(() => {
+      const current = prototypeStore.getSnapshot();
+      const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
+      setSearchTargetId(targetId);
+      setCurrentRoute(canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements');
+    });
   };
   const effectiveRoute: RouteKey = !activeIdentity
     ? 'requirements'
@@ -258,7 +280,7 @@ export const App: React.FC = () => {
       case 'services':
         return <AdministrationView onNavigate={navigate} />;
       case 'm365-setup':
-        return <M365SetupView onNavigate={navigate} />;
+        return <M365SetupView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'requirements':
       case 'role-guide':
         return <RequirementsView onNavigate={navigate} />;
@@ -269,8 +291,13 @@ export const App: React.FC = () => {
   };
 
   return (
-    <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={setSelectedClientId}>
+    <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={setSelectedClientId} onBeforeContextChange={requestContextChange}>
       {renderModule()}
+      {pendingTransition && <div className="modal-backdrop" onClick={() => setPendingTransition(null)}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
+        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={() => setPendingTransition(null)}>✕</button></div>
+        <div className="modal-body"><p>{pendingTransition.label} has unsaved changes. Save them before leaving, discard them, or stay here.</p></div>
+        <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={() => setPendingTransition(null)}>Stay</button><button type="button" className="btn primary sm" onClick={() => resolveTransition('save')}>Save and continue</button></div>
+      </section></div>}
     </Shell>
   );
 };
