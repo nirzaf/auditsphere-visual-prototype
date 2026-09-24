@@ -55,7 +55,7 @@
 | Unit checks reported passing | 154 / 154 | Rerun after revisioned cash-flow schedule and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 128 | 7 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 127 | 6 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and the new independently reviewed cash-flow movement schedule. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -2732,7 +2732,7 @@ The bounded consolidation profile is explicit: one Parent and one wholly owned S
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-043-I01 — Implementation pending:** Complete perimeter editing and recovery controls identified as incomplete for the supported two-component profile.
+- [x] **VP-043-I01 — Implemented and exercised:** Supported-profile perimeter editing, date/component validation, attributable history, revert-as-new-revision, and elimination re-review after a component change are implemented; focused AT-43 Chrome journey passed in the 68/68 E2E run on 2026-09-24. Full group acceptance remains open under VP-043-E02.
 
 - [ ] **VP-043-E02 — Verification/evidence pending:** Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access.
 
@@ -3963,7 +3963,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 - [ ] **VP-041-I02** (P1; [VP-041](#vp-041)): Complete per-note disclosure records, applicability/evidence/preparer/reviewer states and independent not-applicable decisions rather than a single package-level note flag. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-043-I01** (P1; [VP-043](#vp-043)): Complete perimeter editing and recovery controls identified as incomplete for the supported two-component profile. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-043-I01** (P1; [VP-043](#vp-043)): Implemented and verified supported-profile perimeter edit/recovery controls; full independent-scope and effective-date matrix remains open. Evidence: AT-43 Chrome, 2026-09-24.
 
 ### 9.3 Evidence / validation queue
 
