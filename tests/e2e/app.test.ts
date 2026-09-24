@@ -352,6 +352,40 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
     await clickButtonStartingWith('Jobs & Tasks');
     assert.equal(await waitForBrowser(`document.body.innerText.includes('PRIVATE-SIBLING-JOB')`), true, 'global manager retains the full job register');
+
+    const roleViewState = await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`);
+    try {
+      const selectPersona = async (userId: string) => browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(userId)});select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await selectPersona('partner');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='partner'`), true);
+      await clickButtonStartingWith('Practice Overview');
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('Billing & Receivables')`), true, 'partner sees practice finance summaries');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label^="Active Engagements"]')?.getAttribute('aria-label').match(/Active Engagements: (\\d+)/)?.[1]||''`), '3', 'partner dashboard includes all permitted engagements');
+
+      await selectPersona('billing');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='billing'`), true);
+      await clickButtonStartingWith('Practice Overview');
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('Billing & Receivables')`), true, 'billing persona receives financial summaries');
+
+      await selectPersona('records');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='records'`), true);
+      await clickButtonStartingWith('Practice Overview');
+      assert.equal(await browserTab!.evaluate<boolean>(`!document.querySelector('main#main')?.innerText.includes('Billing & Receivables')`), true, 'records persona does not receive finance summaries');
+
+      await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));state.roleGrants=state.roleGrants.filter(grant=>grant.userId!=='billing');state.roleGrants.push({userId:'billing',role:'billing',scopeKind:'Engagement',scopeId:'ENG-26001'});state.selectedEngagement='ENG-26002';localStorage.setItem(key,JSON.stringify(state));location.reload();})()`);
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      await selectPersona('billing');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='billing'`), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true);
+      const scopedBilling = await browserTab!.evaluate<any>(`(() => ({body:document.querySelector('main#main')?.innerText||'',engagements:document.querySelector('[aria-label^="Active Engagements"]')?.getAttribute('aria-label')}))()`);
+      assert.ok(scopedBilling.engagements?.includes('Active Engagements: 1.'), `narrow billing count is scoped: ${scopedBilling.engagements}`);
+      assert.equal(scopedBilling.body.includes('ENG-26002'), false, 'narrow billing dashboard contains no sibling engagement identifiers');
+      assert.equal(scopedBilling.body.includes('PRIVATE-SIBLING-JOB'), false, 'narrow billing dashboard contains no sibling jobs');
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(roleViewState)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

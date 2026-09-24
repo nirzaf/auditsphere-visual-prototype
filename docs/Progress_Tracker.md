@@ -692,7 +692,7 @@ Dashboard counts and drill-downs derive from permitted records. Client, engageme
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-005-E01 — Verification/evidence pending:** Extend dashboard journeys to partner, billing, records and other supported staff personas with both broad and narrow grants.
+- [ ] **VP-005-E01 — Verification/evidence pending:** Extend dashboard journeys to remaining supported staff personas. Chrome now verifies broad partner, billing and records views plus a narrow billing engagement grant; other role/grant combinations remain open.
 
 - [ ] **VP-005-E02 — Verification/evidence pending:** Reconcile each counter, filtered row and click-through under empty, completed, blocked, archived and no-access conditions.
 
@@ -709,7 +709,7 @@ Extend rather than discard existing role homepages. Show my tasks, jobs by state
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-005-AC01 | Given a task/date/status or PBC change, when returning to the dashboard, then its counters and drill-down rows agree with the underlying register. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-005-AC02 | Given a narrow engagement grant, when viewing a count or recent-activity card, then sibling engagements and other clients do not contribute. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-005-AC02 | Given a narrow engagement grant, when viewing a count or recent-activity card, then sibling engagements and other clients do not contribute. | SUBCASES VERIFIED 2026-09-24: narrow billing grant shows one engagement and omits ENG-26002 and its sibling job; existing group-user journey also omits sibling client/job/activity. Other narrow-grant cards and role combinations remain open. |
 | VP-005-AC03 | Overdue calculations use the fixed demo as-of date; completed/cancelled work is excluded and empty data shows an honest zero/empty state. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-005-AC04 | All headline metrics open a filtered working list; no placeholder chart or hard-coded success percentage is presented as computed data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
