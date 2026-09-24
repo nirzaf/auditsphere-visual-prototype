@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 172 / 172 | Fresh full run on 2026-09-24 at app source `188ee3b` and test HEAD `a4c0a3f`; includes group-output identity, independent approval, tamper guards, unmatched consolidation and incomplete GL-batch rejection. |
-| E2E checks passing in this review | 74 / 74 | Fresh full run at test HEAD `a4c0a3f`: 5 static checks + 69 actual Chrome checks, including elimination submit/review, unmatched amount visibility, and disabled import for a partial GL batch. |
+| Unit checks passing in this review | 172 / 172 | Fresh full run on 2026-09-24 at app source `188ee3b` and test HEAD `b04b566`; includes group-output identity, independent approval, tamper guards, unmatched consolidation and incomplete GL-batch rejection. |
+| E2E checks passing in this review | 74 / 74 | Fresh full run at test HEAD `b04b566`: 5 static checks + 69 actual Chrome checks, including elimination submit/review, unmatched amount visibility, disabled import for a partial GL batch, and internal-material exclusion from generated financial exports. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 109 | 77 evidence/verification actions and 32 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2703,11 +2703,11 @@ Add package contents selection/order, output preview, validation summary, versio
 | VP-042-AC01 | Given a valid supported package, when exported, then XLSX/DOCX/PDF files open as their actual formats and contain the displayed totals, entity, period and demo watermark. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-042-AC02 | Export generation failure or unsupported content blocks that output and reports the reason; no renamed CSV, empty PDF or fake success is accepted. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-042-AC03 | When package content changes, prior artifacts and decisions remain historical and a new artifact revision must be reviewed. | VERIFIED: AT-41/42/48 verifies unchanged prior bytes/decision history, a new presentation and independent acknowledgement for revision 4. |
-| VP-042-AC04 | External sharing remains explicit and scope-bound; internal workpapers/comments are excluded from management/client outputs by default. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-042-AC04 | External sharing remains explicit and scope-bound; internal workpapers/comments are excluded from management/client outputs by default. | VERIFIED SUBCASE: AT-38/40 keeps a reviewer-approved internal-only disclosure unshared and confirms generated XLSX/DOCX/PDF omit its sentinel, internal comment, and workpaper reference. Full scope-bound sharing matrix remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L997).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Test HEAD `b04b566ba5926fd9e16b63877c2792805061bf79`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `ENG-26002`; VP-042-AC04 subcase maps to `tests/e2e/app.test.ts` AT-38/40 and validates actual persisted XLSX/DOCX/PDF bytes. Full suite: lint, 172/172 unit and 74/74 E2E; 2026-09-24. Scope-bound sharing matrix and full story acceptance remain open.
 
 
 <a id="vp-043"></a>
@@ -2870,7 +2870,7 @@ Add elimination register with component counterparties, account/line references,
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
 
-**Next evidence update:** Test HEAD `a4c0a3f76277b403338017f8ba673d0f8cc87275`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC03/AC04 verified subcases map to `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts` and `tests/e2e/app.test.ts` AT-45/VP-045-AC03. Full suite: lint, 172/172 unit and 74/74 E2E; production deployment `f3a56591-1b3a-499b-99dc-84987d3daf5f`, source `188ee3b`, 2026-09-24. Full story acceptance remains open.
+**Next evidence update:** Test HEAD `b04b566ba5926fd9e16b63877c2792805061bf79`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC03/AC04 verified subcases map to `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts` and `tests/e2e/app.test.ts` AT-45/VP-045-AC03 and AT-38/40. Full suite: lint, 172/172 unit and 74/74 E2E; production deployment `f3a56591-1b3a-499b-99dc-84987d3daf5f`, source `188ee3b`, 2026-09-24. Full story acceptance remains open.
 
 
 <a id="vp-046"></a>
