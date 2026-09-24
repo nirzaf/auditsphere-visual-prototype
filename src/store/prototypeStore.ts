@@ -1998,7 +1998,7 @@ class PrototypeStore {
   }
 
   // --- Consolidation (VP-043–VP-046) ---
-  public updateConsolidationGroup(group: ConsolidationGroupRecord) {
+  public updateConsolidationGroup(group: ConsolidationGroupRecord, options?: { reason?: string }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'change consolidation groups');
     if (!group.name.trim() || group.components.length !== 2 || new Set(group.components.map(c => c.componentId)).size !== 2) throw new GuardError('INVALID_STATE', 'This prototype supports named consolidation groups with exactly two distinct explicitly selected components.');
@@ -2016,14 +2016,48 @@ class PrototypeStore {
       const pinsCurrentSnapshot = component.packageRevisionPinned === engagement.packageRevision && JSON.stringify(component.packageRows) === JSON.stringify(engagement.rows);
       if (!keepsPriorSnapshot && !pinsCurrentSnapshot) throw new GuardError('STALE_REVISION', `Component ${component.componentId} must retain its pinned snapshot or pin the exact current engagement package revision.`);
       if (!/^[A-Z]{3}$/.test(component.currency)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an ISO currency code.`);
+      if (component.effectiveDate !== undefined && component.effectiveDate !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(component.effectiveDate) || Number.isNaN(Date.parse(component.effectiveDate)) || new Date(`${component.effectiveDate}T00:00:00Z`).toISOString().slice(0, 10) !== component.effectiveDate)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires a valid effective date (YYYY-MM-DD).`);
     }
     if (index >= 0) {
+      const reason = options?.reason?.trim() || '';
+      if (!reason) throw new GuardError('INVALID_STATE', 'Record a reason for the perimeter change.');
+      const priorKey = existingGroup.components.map(c => c.componentId).sort().join('|');
+      const nextKey = group.components.map(c => c.componentId).sort().join('|');
+      const componentSetChanged = priorKey !== nextKey;
+      const nextRevision = (existingGroup.perimeterRevision || 1) + 1;
+      group.perimeterRevision = nextRevision;
+      group.perimeterHistory = [
+        ...(existingGroup.perimeterHistory || []),
+        { revision: nextRevision, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), reason, components: structuredClone(group.components) },
+      ];
+      if (componentSetChanged) {
+        for (const elimination of group.eliminations) {
+          if (elimination.status === 'Approved') {
+            elimination.reviewHistory = [...(elimination.reviewHistory || []), { status: 'Approved' as const, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: existingGroup.perimeterRevision || 1, note: `Approved under perimeter revision ${existingGroup.perimeterRevision || 1}; returned to draft after the component set changed.` }];
+            elimination.status = 'Draft';
+          }
+        }
+      }
       this.state.consolidationGroups[index] = group;
     } else {
+      group.perimeterRevision = group.perimeterRevision || 1;
       this.state.consolidationGroups.push(group);
     }
     this.logEvent(`Consolidation group updated: ${group.name}`, group.id);
     this.notify();
+  }
+
+  public revertConsolidationPerimeter(groupId: string, revision: number, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'change consolidation groups');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    if (!group) throw new GuardError('INVALID_STATE', `Consolidation group "${groupId}" was not found.`);
+    const entry = group.perimeterHistory?.find(item => item.revision === revision);
+    if (!entry) throw new GuardError('INVALID_STATE', `Perimeter revision ${revision} has no recorded history for group "${groupId}".`);
+    if (!reason?.trim()) throw new GuardError('INVALID_STATE', 'Record a reason for the perimeter revert.');
+    const candidate = structuredClone(group);
+    candidate.components = structuredClone(entry.components);
+    this.updateConsolidationGroup(candidate, { reason: reason.trim() });
   }
 
   public updateConsolidationFxRate(groupId: string, currency: string, rate: number, effectiveDate: string) {

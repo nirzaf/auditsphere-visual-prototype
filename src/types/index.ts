@@ -846,6 +846,22 @@ export interface ReconciliationSchedule {
 }
 
 // Module 26: Consolidation
+export interface ConsolidationPerimeterHistoryEntry {
+  revision: number;
+  changedBy: string;
+  changedAt: string;
+  reason: string;
+  components: ConsolidationGroupRecord['components'];
+}
+
+export interface ConsolidationEliminationReviewEntry {
+  status: 'Draft' | 'Approved';
+  changedBy: string;
+  changedAt: string;
+  perimeterRevision: number;
+  note: string;
+}
+
 export interface ConsolidationGroupRecord {
   id: string;
   name: string;
@@ -854,6 +870,8 @@ export interface ConsolidationGroupRecord {
   presentationCurrency?: string;
   manager: string;
   status: 'Draft' | 'In progress' | 'Reviewed' | 'Approved';
+  perimeterRevision?: number;
+  perimeterHistory?: ConsolidationPerimeterHistoryEntry[];
   components: Array<{
     componentId: string;
     clientId?: string;
@@ -863,6 +881,7 @@ export interface ConsolidationGroupRecord {
     role?: string;
     ownershipPercent: number;
     ownershipPct?: number;
+    effectiveDate?: string;
     packageRevisionPinned?: number;
     pinnedPackageRev?: number;
     packageRows?: TrialBalanceRow[];
@@ -882,6 +901,8 @@ export interface ConsolidationGroupRecord {
     description?: string;
     debitAccount?: string;
     creditAccount?: string;
+    approvedPerimeterRevision?: number;
+    reviewHistory?: ConsolidationEliminationReviewEntry[];
     lines: Array<{ account: string; type: 'debit' | 'credit'; amount: number }>;
   }>;
 }

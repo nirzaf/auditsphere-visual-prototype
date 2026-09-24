@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { calculateConsolidatedBalanceSheet, formatCurrency } from '../../services/calculations';
 
@@ -36,6 +37,83 @@ const FxRateEditor: React.FC<{ group: NonNullable<ReturnType<typeof prototypeSto
       <b>{value} → {group.presentationCurrency || group.currency}: {group.fxRates[value] ?? 'Missing rate'}</b>
       {(group.fxRateHistory?.[value] || []).map(item => <div className="caption" key={item.revision}>v{item.revision} · Closing · {item.effectiveDate} · {item.rate} · {item.changedBy}</div>)}
     </div>)}
+  </div>;
+};
+
+type ConsolidationGroup = NonNullable<ReturnType<typeof prototypeStore.getSnapshot>['consolidationGroups'][number]>;
+
+const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => {
+  const snapshot = prototypeStore.getSnapshot();
+  const periodYear = Number(group.period.match(/\d{4}/)?.[0]);
+  const subComp = group.components.find(c => c.role === 'Subsidiary');
+  const visible = visibleEngagementIds(snapshot);
+  const candidates = snapshot.engagements.filter(e =>
+    e.year === periodYear &&
+    (visible === 'ALL' || visible.includes(e.id)) &&
+    (e.lifecycleStatus || 'Active') === 'Active'
+  );
+  const [dates, setDates] = useState<Record<string, string>>(() => Object.fromEntries(group.components.map(c => [c.componentId, c.effectiveDate || ''])));
+  const [subsidiaryId, setSubsidiaryId] = useState(subComp?.componentId || '');
+  const [reason, setReason] = useState('');
+  const [notice, setNotice] = useState('');
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      const next = structuredClone(group);
+      for (const component of next.components) {
+        const value = (dates[component.componentId] ?? '').trim();
+        if (value) component.effectiveDate = value;
+        else delete component.effectiveDate;
+      }
+      if (subsidiaryId !== subComp?.componentId) {
+        const engagement = snapshot.engagements.find(e => e.id === subsidiaryId);
+        if (!engagement) throw new Error(`Engagement "${subsidiaryId}" is not available as a subsidiary component.`);
+        const clientName = snapshot.clients.find(c => c.id === engagement.client)?.name || engagement.client;
+        const target = next.components.find(c => c.role === 'Subsidiary');
+        if (!target) throw new Error('This group has no Subsidiary slot to replace.');
+        target.componentId = engagement.id;
+        target.legalEntityName = `${clientName} (Subsidiary)`;
+        target.currency = engagement.currency;
+        target.functionalCurrency = engagement.currency;
+        delete target.effectiveDate;
+        target.packageRevisionPinned = engagement.packageRevision;
+        target.packageRows = structuredClone(engagement.rows);
+        target.status = 'Ready';
+      }
+      prototypeStore.updateConsolidationGroup(next, { reason });
+      const saved = prototypeStore.getSnapshot().consolidationGroups.find(g => g.id === group.id);
+      setNotice(`Perimeter revision ${saved?.perimeterRevision || 'updated'} saved; prior perimeter retained in history.`);
+    } catch (error: any) { setNotice(error.message); }
+  };
+  const revert = (revision: number) => {
+    try {
+      prototypeStore.revertConsolidationPerimeter(group.id, revision, reason);
+      const saved = prototypeStore.getSnapshot().consolidationGroups.find(g => g.id === group.id);
+      setNotice(`Perimeter reverted; now at revision ${saved?.perimeterRevision}.`);
+    } catch (error: any) { setNotice(error.message); }
+  };
+  return <div className="panel panel-pad mt16">
+    <h3>Edit group perimeter</h3>
+    <p className="sub">Current perimeter revision {group.perimeterRevision || 1}. The Parent slot is fixed for the supported profile; the Subsidiary slot accepts a same-period permitted engagement and re-pins its exact current package. Duplicate, wrong-period and out-of-scope selections are rejected with the recorded perimeter left unchanged. Replacing the component set returns approved eliminations to draft for re-review.</p>
+    <form className="mt12" onSubmit={save}>
+      <div className="grid2">
+        {group.components.map(component => <label className="caption" key={component.componentId}>Effective date — {component.role} ({component.componentId})<input className="input mt4" aria-label={`Effective date for ${component.role} component`} placeholder="YYYY-MM-DD" value={dates[component.componentId] ?? ''} onChange={event => setDates({ ...dates, [component.componentId]: event.target.value })} /></label>)}
+      </div>
+      <div className="grid2 mt8">
+        <label className="caption">Subsidiary component engagement<select className="input mt4" aria-label="Subsidiary component engagement" value={subsidiaryId} onChange={event => setSubsidiaryId(event.target.value)}>{candidates.map(e => <option key={e.id} value={e.id}>{e.id} · {snapshot.clients.find(c => c.id === e.client)?.name || e.client} · FY {e.year}</option>)}</select></label>
+        <label className="caption">Reason for perimeter change or revert<input className="input mt4" aria-label="Reason for perimeter change" placeholder="e.g. Correct subsidiary to the in-scope 2026 engagement" value={reason} onChange={event => setReason(event.target.value)} /></label>
+      </div>
+      <div className="row mt12"><button className="btn primary sm" type="submit">Save perimeter revision</button></div>
+      {notice && <p role="status" className="caption mt8">{notice}</p>}
+    </form>
+    {(group.perimeterHistory || []).length > 0 && <div className="mt16">
+      <h4>Perimeter history</h4>
+      {[...(group.perimeterHistory || [])].reverse().map(entry => <div className="borderbox panel-pad mt8" key={entry.revision}>
+        <div className="between"><b>Revision {entry.revision}</b><span className="caption">{entry.changedBy} · {entry.changedAt}</span></div>
+        <div className="caption mt4">{entry.reason} · Components: {entry.components.map(c => `${c.role} ${c.componentId}${c.effectiveDate ? ` from ${c.effectiveDate}` : ''}`).join('; ')}</div>
+        <div className="row mt8"><button className="btn sm" type="button" aria-label={`Revert to perimeter revision ${entry.revision}`} disabled={entry.revision === group.perimeterRevision} onClick={() => revert(entry.revision)}>Revert to revision {entry.revision}</button></div>
+      </div>)}
+    </div>}
   </div>;
 };
 
@@ -94,6 +172,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   );
   const parentClient = state.clients.find(c => c.id === parentEng!.client);
   const subClient = state.clients.find(c => c.id === subEng!.client);
+  const lastPerimeterChange = (group.perimeterHistory || [])[(group.perimeterHistory || []).length - 1];
   const availableAccounts = new Set([...parentComp!.packageRows!, ...subComp!.packageRows!].flatMap(row => [row.code, row.name.toLowerCase()]));
   const unmatchedEliminationLines = approvedEliminations.flatMap(e => e.lines.filter(line => !availableAccounts.has(line.account) && !availableAccounts.has(line.account.trim().toLowerCase())).map(line => `${e.id}: ${line.account}`));
 
@@ -234,6 +313,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
 
       {/* Perimeter Tab */}
       {activeTab === 'perimeter' && (
+        <div className="stack" style={{ gap: 0 }}>
         <div className="panel">
           <div className="panel-head">
             <h3>Group Entity Perimeter</h3>
@@ -245,6 +325,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                   <th>Client Entity</th>
                   <th>Role</th>
                   <th>Ownership %</th>
+                  <th>Effective Date</th>
                   <th>Functional Currency</th>
                   <th>Pinned Reporting Package</th>
                   <th>Status</th>
@@ -259,6 +340,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                       <td><b>{clientRecord?.name || c.legalEntityName || c.componentId}</b></td>
                       <td><span className="tag gray">{c.role || 'Component'}</span></td>
                       <td>{c.ownershipPercent ?? c.ownershipPct ?? 100}%</td>
+                      <td>{c.effectiveDate || '—'}</td>
                       <td>{c.functionalCurrency || c.currency}</td>
                       <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b></td>
                       <td><span className={`badge ${c.packageRows ? 'green' : 'red'}`}>{c.packageRows ? 'Pinned snapshot' : 'Missing snapshot'}</span></td>
@@ -268,6 +350,9 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
               </tbody>
             </table>
           </div>
+        </div>
+        <PerimeterEditor key={`${group.id}-rev-${group.perimeterRevision || 1}`} group={group} />
+        {lastPerimeterChange && <p role="status" className="caption">Perimeter revision {group.perimeterRevision} saved — {lastPerimeterChange.reason} by {lastPerimeterChange.changedBy}.</p>}
         </div>
       )}
 
@@ -283,8 +368,11 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                   <b style={{ color: 'var(--teal-dark)' }}>{formatCurrency(e.amount)}</b>
                 </div>
                 <div className="cell-sub mt8">
-                  Debit: {e.debitAccount || e.counterpartyA} · Credit: {e.creditAccount || e.counterpartyB}
+                  Debit: {e.debitAccount || e.counterpartyA} · Credit: {e.creditAccount || e.counterpartyB} · Status: {e.status}
                 </div>
+                {e.status === 'Draft' && (e.reviewHistory || []).length > 0 && <div className="caption mt4" style={{ color: '#92400e' }}>
+                  Re-review required: {e.reviewHistory[e.reviewHistory.length - 1].note} Prior approval and journal lines are preserved in history.
+                </div>}
               </div>
             ))}
           </div>
