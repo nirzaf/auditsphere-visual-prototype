@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 168 / 168 | Fresh run on the current VP-041 disclosure/package worktree; includes disclosure and cash-flow revision staleness checks. |
-| E2E checks passing in this review | 71 / 71 | Fresh full Chrome run on the current VP-041 disclosure/package worktree: 5 static checks + 66 actual Chrome checks, including shared/private note content in generated client output. |
+| Unit checks passing in this review | 168 / 168 | Fresh full run at `3919046094f14be627f282cadfb234d105a78115`; includes journal reflection, disclosure, cash-flow staleness and reporting-rate checks. |
+| E2E checks passing in this review | 71 / 71 | Fresh full run at `5151932d5e286ef8ea19d6588aaa3ae982f3284d`: 5 static checks + 66 actual Chrome checks, including all 16 report exports and recalculation after source changes, plus local work while M365 setup is skipped or services fail. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -1336,7 +1336,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-017-E01 — Verification/evidence pending:** Complete the setup start/back/cancel/review-summary path and every invalid tenant/resource/person selection while proving liveConnected remains false.
 
-- [ ] **VP-017-E02 — Verification/evidence pending:** Verify a skipped setup or failed optional service never blocks unrelated local work.
+- [x] **VP-017-E02 — Verified subcase:** Full Chrome run confirms fixture jobs remain usable before M365 setup and while SharePoint is denied and optional mail is unavailable; `tests/e2e/app.test.ts` AT-15/AT-16, commit `5151932d5e286ef8ea19d6588aaa3ae982f3284d`, 2026-09-24. This does not close VP-017-AC04 or VP-022's remaining cases.
 
 - [ ] **VP-017-R03 — Requirement/scope reconciliation:** Do not turn initial identity mappings into implicit global/client authority; scoped grants remain separate.
 
@@ -1355,11 +1355,11 @@ Steps: start demonstration connection; choose synthetic tenant; select permitted
 | VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | SUBCASE VERIFIED 2026-09-24: Chrome AT-15/AT-16 reaches fixture Jobs & Tasks before setup and after denied SharePoint/unavailable optional mail. Optionality, excluded-provider and OneDrive negative cases remain open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L566).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Exact tested commit: `5151932d5e286ef8ea19d6588aaa3ae982f3284d`; fixture: seeded synthetic tenant, SharePoint success then access denied, optional mail unavailable, local fixture job `JOB-2601`; criterion → test: VP-017-AC04 subcase / AT-15/AT-16; 71/71 E2E checks; 2026-09-24. Remaining criterion cases stay open.
 
 
 <a id="vp-018"></a>
@@ -3881,8 +3881,8 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 | <a id="at-12"></a>**AT-12** | Reassign a task between two same-role people | Assignment really changes; reason/history retained; professional approval privileges do not change. | 014, 019 | Open primary stories: VP-014, VP-019 | [S4], [S6]; exact run link to record |
 | <a id="at-13"></a>**AT-13** | Publish/apply/revise a job template | One fresh job tree per explicit operation; old jobs unchanged and no historical evidence/status copied. | 015 | Open primary stories: VP-015 | [S4], [S6]; exact run link to record |
 | <a id="at-14"></a>**AT-14** | Add internal comment and mention; switch to client | Only authorized recipients see local notices; client cannot see internal text, counts or attached references. | 016, 025 | Open primary stories: VP-016, VP-025 | [S4], [S6]; exact run link to record |
-| <a id="at-15"></a>**AT-15** | Complete M365 setup simulation | Tenant/site/library/root/sender selections persist; all verification labels are explicitly simulated. | 017 | Open primary stories: VP-017 | [S4], [S6]; exact run link to record |
-| <a id="at-16"></a>**AT-16** | Denied site, changed root, failed optional mail and disconnect | Clear failure/recovery state; prior verification becomes stale; optional mail failure does not block SharePoint or local work. | 017, 022 | Open primary stories: VP-017, VP-022 | [S4], [S6]; exact run link to record |
+| <a id="at-15"></a>**AT-15** | Complete M365 setup simulation | Tenant/site/library/root/sender selections persist; all verification labels are explicitly simulated. | 017 | Open primary stories: VP-017 | [S4], [S6]; Chrome pass at `5151932d5e286ef8ea19d6588aaa3ae982f3284d`; skipped-setup local-jobs subcase |
+| <a id="at-16"></a>**AT-16** | Denied site, changed root, failed optional mail and disconnect | Clear failure/recovery state; prior verification becomes stale; optional mail failure does not block SharePoint or local work. | 017, 022 | Open primary stories: VP-017, VP-022 | [S4], [S6]; Chrome pass at `5151932d5e286ef8ea19d6588aaa3ae982f3284d`; service-failure local-jobs subcase |
 | <a id="at-17"></a>**AT-17** | Nominate/import fixture user then grant access | Contact alone has no rights; identity, requested role and scoped grant are separate; no actual account/invitation created. | 018–019 | Open primary stories: VP-019 | [S4], [S6]; exact run link to record |
 | <a id="at-18"></a>**AT-18** | Narrow engagement grant, revoked grant and stale dialog | Sibling data absent from route, modal, counts, search and exports; commands recheck grant after revocation. | 003, 019, 061 | Open primary stories: VP-003, VP-019, VP-061 | [S4], [S6]; exact run link to record |
 | <a id="at-19"></a>**AT-19** | Prepare the same client workspace twice | One canonical local client root; correct engagement folders; no duplicate by retry or rename. | 020 | Open primary stories: VP-020 | [S4], [S6]; exact run link to record |
@@ -3992,7 +3992,7 @@ This queue contains **113 open planning actions** attached to the 48 Partial sto
 | VP-015-E01 | [VP-015](#vp-015) | P2 | Close all four original criteria with title/hierarchy validation, deliberate people/date selection, retire/cancel and conflicting operation-ID reuse cases. | Pending / Unassigned / — |
 | VP-016-E02 | [VP-016](#vp-016) | P2 | Test empty/oversized/unsafe input, subject activity links and client exclusion of text, counts, attachments and mention notices. | Pending / Unassigned / — |
 | VP-017-E01 | [VP-017](#vp-017) | P2 | Complete the setup start/back/cancel/review-summary path and every invalid tenant/resource/person selection while proving liveConnected remains false. | Pending / Unassigned / — |
-| VP-017-E02 | [VP-017](#vp-017) | P2 | Verify a skipped setup or failed optional service never blocks unrelated local work. | Pending / Unassigned / — |
+| VP-017-E02 | [VP-017](#vp-017) | P2 | Verify a skipped setup or failed optional service never blocks unrelated local work. | Verified subcase: AT-15/AT-16 local fixture jobs before setup and during provider failures, commit `5151932d5e286ef8ea19d6588aaa3ae982f3284d`, 2026-09-24; complete criterion remains open |
 | VP-019-E01 | [VP-019](#vp-019) | P1 | Complete professional/management-role approval-evidence combinations, compatible-role changes and narrow group/component scope tests. | Pending / Unassigned / — |
 | VP-019-E02 | [VP-019](#vp-019) | P1 | Recheck commands after revocation/expiry while dialogs remain open, including search, counts, dropdowns and exports. | Pending; cross-tab revocation fail-closed subcase passes / `51de04c98d74302589634f27c69b9d0137c16e83` AT-02/AT-54; expiry-specific variation remains open |
 | VP-020-E01 | [VP-020](#vp-020) | P2 | Prove accepted-client/binding prerequisites, exact configured root validation, idempotent preparation and duplicate/rename behavior for all permitted scopes. | Pending / Unassigned / — |
