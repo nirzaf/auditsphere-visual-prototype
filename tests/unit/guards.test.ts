@@ -2119,6 +2119,9 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     setPersona(state, 'Layla Rahman');
     const engagement = state.engagements[0];
     const original = structuredClone(engagement.rows);
+    state.statementSetRevisions ||= [];
+    state.statementSetRevisions.push({ engagementId: engagement.id, status: 'Reviewed', sourceVersion: engagement.sourceVersion, mappingRevision: 0 } as any);
+    engagement.reconciliations.push({ id: 'REC-VP035', status: 'Approved', sourceVersion: engagement.sourceVersion } as any);
     const replacement = structuredClone(original);
     replacement[0].balance += 125;
     prototypeStore.updateTrialBalanceRows(engagement.id, replacement, {
@@ -2130,6 +2133,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(engagement.sourceHistory[1].predecessorVersion, 1);
     assert.equal(engagement.sourceHistory[1].sha256, 'a'.repeat(64));
     assert.equal(engagement.sourceHistory[1].fileName, 'replacement.csv');
+    assert.equal(state.statementSetRevisions.at(-1).status, 'Stale', 'TB replacement stales reviewed statement output');
+    assert.equal(engagement.reconciliations.at(-1).status, 'Stale', 'TB replacement stales approved reconciliation');
     engagement.rows[0].balance = -999;
     assert.deepEqual(engagement.sourceHistory[1].rows, replacement);
   });
