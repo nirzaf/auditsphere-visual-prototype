@@ -290,7 +290,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('VP-005: scopes dashboard records, metrics, attention and activity to the active grant', async () => {
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,'group-user');role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='group-user'`), true);
-    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.selectedEngagement='ENG-26002';s.events.unshift({type:'message',text:'PRIVATE-SIBLING-ACTIVITY',ref:'ENG-26002',time:s.asOfDate});localStorage.setItem(key,JSON.stringify(s));location.reload();})()`);
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.selectedEngagement='ENG-26002';s.events.unshift({type:'message',text:'PRIVATE-SIBLING-ACTIVITY',ref:'ENG-26002',time:s.asOfDate});s.jobs.push({id:'JOB-PRIVATE-26002',clientId:'CL-002',engagementId:'ENG-26002',title:'PRIVATE-SIBLING-JOB',owner:'Layla Rahman',dueDate:s.asOfDate,status:'In progress',createdAt:s.asOfDate+'T00:00:00.000Z'});s.jobTasks.push({id:'TSK-PRIVATE-26002',jobId:'JOB-PRIVATE-26002',title:'PRIVATE-SIBLING-TASK',assignee:'Layla Rahman',status:'Not started',order:1});localStorage.setItem(key,JSON.stringify(s));location.reload();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true, 'narrow persona opens its permitted dashboard');
     const narrow = await browserTab!.evaluate<any>(`(() => ({rows:[...document.querySelectorAll('.panel table tbody tr')].map(r=>r.innerText),metrics:[...document.querySelectorAll('.metric')].map(x=>x.innerText),body:document.body.innerText}))()`);
     assert.equal(narrow.rows.length, 1, 'portfolio contains only the one granted engagement');
@@ -300,12 +300,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(narrow.metrics[0].includes('Across 1 synthetic clients'), true, 'client count is scoped');
     assert.equal(narrow.body.includes('PRIVATE-SIBLING-ACTIVITY'), false, 'sibling activity is hidden');
     assert.equal(narrow.body.includes('ENG-26002'), false, 'selected sibling is replaced with a permitted engagement');
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('JOBS')`), true, 'scoped jobs route opened');
+    const narrowJobs = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.equal(narrowJobs.includes('PRIVATE-SIBLING-JOB'), false, 'sibling jobs are excluded from the register');
+    assert.equal(narrowJobs.includes('PRIVATE-SIBLING-TASK'), false, 'sibling tasks are excluded from the workspace');
     await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.currentUserId='manager';s.currentPerson='Layla Rahman';s.currentRole='manager';s.selectedEngagement='ENG-26001';localStorage.setItem(key,JSON.stringify(s));location.reload();})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='manager'`), true);
     assert.equal(await waitForBrowser(`document.querySelector('.panel table tbody')?.innerText.includes('ENG-26002')`), true, 'global manager dashboard has loaded');
     const globalRows = await browserTab!.evaluate<string[]>(`[...document.querySelectorAll('.panel table tbody tr')].map(r=>r.innerText)`);
     assert.ok(globalRows.length > 1, 'global manager retains the full portfolio');
     assert.ok(globalRows.some(row => row.includes('ENG-26002')));
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('PRIVATE-SIBLING-JOB')`), true, 'global manager retains the full job register');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

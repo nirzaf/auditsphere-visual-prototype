@@ -13,7 +13,12 @@ interface JobsTasksViewProps {
 
 export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-  const [selectedJobId, setSelectedJobId] = useState<string>(state.jobs[0]?.id || '');
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
+  const scopedClients = state.clients.filter(c => scopedEngagements.some(e => e.client === c.id));
+  const scopedJobs = state.jobs.filter(job => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(job.engagementId));
+  const scopedJobIds = new Set(scopedJobs.map(job => job.id));
+  const [selectedJobId, setSelectedJobId] = useState<string>(() => scopedJobs.find(job => job.engagementId === state.selectedEngagement)?.id || scopedJobs[0]?.id || '');
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [taskToReassign, setTaskToReassign] = useState<JobTaskItem | null>(null);
@@ -33,8 +38,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
 
   // New job form state
   const [newJobTitle, setNewJobTitle] = useState('');
-  const [newJobClientId, setNewJobClientId] = useState(state.clients[0]?.id || '');
-  const [newJobEngId, setNewJobEngId] = useState(state.engagements[0]?.id || '');
+  const [newJobClientId, setNewJobClientId] = useState(scopedClients[0]?.id || '');
+  const [newJobEngId, setNewJobEngId] = useState(scopedEngagements.find(e => e.id === state.selectedEngagement)?.id || scopedEngagements[0]?.id || '');
   const [newJobOwner, setNewJobOwner] = useState(state.currentPerson || 'Adam Khan');
   const [newJobDueDate, setNewJobDueDate] = useState('2026-10-31');
   const [newJobDescription, setNewJobDescription] = useState('');
@@ -44,11 +49,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
     setTimeout(() => setNotice(null), 6000);
   };
 
-  const selectedJob = state.jobs.find(j => j.id === selectedJobId) || state.jobs[0];
-  const client = state.clients.find(c => c.id === selectedJob?.clientId);
+  const selectedJob = scopedJobs.find(j => j.id === selectedJobId) || scopedJobs[0];
+  const client = scopedClients.find(c => c.id === selectedJob?.clientId);
 
   // Filter tasks for selected job
-  const jobTasks = state.jobTasks.filter(t => t.jobId === selectedJob?.id);
+  const jobTasks = state.jobTasks.filter(t => scopedJobIds.has(t.jobId) && t.jobId === selectedJob?.id);
   const parentTasks = jobTasks.filter(t => !t.parentTaskId);
   const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal');
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
@@ -194,7 +199,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {state.jobs.length === 0 ? (
+      {scopedJobs.length === 0 ? (
         <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
           <Icon name="checkboard" size="xl" className="text-muted mb16" />
           <h3>No Jobs Registered</h3>
@@ -216,7 +221,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
           <div className="stack" style={{ gap: 16 }}>
             <div className="panel">
               <div className="panel-head">
-                <h3>Practice Jobs Register ({state.jobs.length})</h3>
+                <h3>Practice Jobs Register ({scopedJobs.length})</h3>
               </div>
               <div className="tablewrap">
                 <table>
@@ -227,7 +232,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {state.jobs.map(job => (
+                    {scopedJobs.map(job => (
                       <tr
                         key={job.id}
                         className={job.id === selectedJob?.id ? 'selected-row' : ''}
@@ -404,11 +409,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                       value={newJobClientId}
                       onChange={e => {
                         setNewJobClientId(e.target.value);
-                        const firstEng = state.engagements.find(en => en.client === e.target.value);
+                        const firstEng = scopedEngagements.find(en => en.client === e.target.value);
                         if (firstEng) setNewJobEngId(firstEng.id);
                       }}
                     >
-                      {state.clients.map(c => (
+                      {scopedClients.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
@@ -420,7 +425,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                       value={newJobEngId}
                       onChange={e => setNewJobEngId(e.target.value)}
                     >
-                      {state.engagements
+                      {scopedEngagements
                         .filter(en => !newJobClientId || en.client === newJobClientId)
                         .map(en => (
                           <option key={en.id} value={en.id}>{en.id} ({en.service})</option>
