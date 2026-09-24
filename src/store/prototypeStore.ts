@@ -5,7 +5,7 @@ import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, Job
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, isClientRole, canOpenRoute, GuardError } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError } from '../services/guards';
 import { calculateReconciliationVariance } from '../services/calculations';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
@@ -2210,10 +2210,37 @@ class PrototypeStore {
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
     const workpaper = eng.workpapers.find(item => item.id === note.wp);
     if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    const assignee = eligibleReviewAssignees(this.state, engId).find(user => user.id === note.assignedUserId)
+      || eligibleReviewAssignees(this.state, engId).find(user => user.name === (note.assignee || note.assigned));
+    if (!assignee) throw new GuardError('FORBIDDEN_SCOPE', 'Assign the review point to an active, engagement-scoped preparer or manager.');
+    note.assignedUserId = assignee.id;
+    note.assigned = assignee.name;
+    note.assignee = assignee.name;
+    note.assignmentHistory ||= [];
+    note.assignmentHistory.push({ assignedUserId: assignee.id, assignedTo: assignee.name, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: 'Initial assignment' });
     note.subjectVersion = workpaper.version;
     eng.reviews.unshift(note);
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Review note ${note.id} raised on ${note.wp}`, note.id);
+    this.notify();
+  }
+
+  public reassignReviewNote(engId: string, noteId: string, assigneeUserId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'reviewer', 'partner'], 'reassign review points');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(item => item.id === engId);
+    const note = eng?.reviews.find(item => item.id === noteId);
+    const assignee = eligibleReviewAssignees(this.state, engId).find(user => user.id === assigneeUserId);
+    if (!eng || !note || note.status === 'Cleared' || !assignee || !reason.trim()) throw new GuardError('INVALID_STATE', 'Reassignment requires an open review point, an active in-scope preparer or manager, and a reason.');
+    if (note.assignedUserId === assignee.id) return;
+    note.assignedUserId = assignee.id;
+    note.assigned = assignee.name;
+    note.assignee = assignee.name;
+    note.assignmentHistory ||= [];
+    note.assignmentHistory.push({ assignedUserId: assignee.id, assignedTo: assignee.name, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
+    note.history.push({ actor: this.state.currentPerson, action: `Reassigned to ${assignee.name}`, time: new Date().toISOString(), text: reason.trim() });
+    this.logEvent(`Review note ${note.id} reassigned to ${assignee.name}: ${reason.trim()}`, note.id);
     this.notify();
   }
 

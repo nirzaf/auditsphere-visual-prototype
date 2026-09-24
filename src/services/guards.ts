@@ -77,6 +77,14 @@ export function visibleEngagementIds(state: PrototypeState, userId = state.curre
   return [...engs];
 }
 
+export function eligibleReviewAssignees(state: PrototypeState, engagementId: string) {
+  return state.users.filter(user => {
+    const visible = visibleEngagementIds(state, user.id);
+    return user.status === 'Active' && ['manager', 'preparer'].includes(user.role)
+      && (visible === 'ALL' || visible.includes(engagementId));
+  });
+}
+
 export function requireClientScope(state: PrototypeState, clientId: string): void {
   const visible = visibleClientIds(state);
   if (visible !== 'ALL' && !visible.includes(clientId)) {

@@ -2627,6 +2627,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('document.body.innerText.includes("AT55-QUEUE")'), true, 'all-permitted queue includes assigned note from another engagement');
       const context = await browserTab!.evaluate<string>(`[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('AT55-QUEUE'))?.innerText || ''`);
       assert.match(context, /ENG-2600[2-9]/, 'cross-engagement row identifies its engagement and workpaper');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('AT55-QUEUE'));row.querySelector('button')?.click();})()`);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Responded from the cross-engagement review queue.');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Submit Response');
+      const response = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {other:s.engagements.find(e=>e.id==='ENG-26002').reviews.find(r=>r.id==='AT55-QUEUE'),selected:s.engagements.find(e=>e.id===s.selectedEngagement).reviews.some(r=>r.id==='AT55-QUEUE')}})()`);
+      assert.equal(response.other.status, 'Responded', 'response action writes to the row engagement');
+      assert.equal(response.other.response, 'Responded from the cross-engagement review queue.');
+      assert.equal(response.selected, false, 'cross-engagement action does not mutate selected-engagement notes');
       await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Review queue scope"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'engagement');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser('!document.body.innerText.includes("AT55-QUEUE")'), true, 'selected-engagement filter excludes other engagements');
       assert.deepEqual(browserTab!.exceptions, []);

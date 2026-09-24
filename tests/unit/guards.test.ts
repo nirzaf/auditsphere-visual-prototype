@@ -555,6 +555,28 @@ describe('separation of duties (AT-24/AT-31/AT-47)', () => {
   });
 });
 
+describe('review-note assignment (VP-055)', () => {
+  it('limits assignees to active scoped preparers/managers and retains reassignment history', () => {
+    (prototypeStore as any).state = createInitialState();
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    const note = {
+      id: 'RN-ASSIGN', wp: 'WP-A1', title: 'Assignment check', body: 'Assignment check', author: 'Layla Rahman',
+      raisedBy: 'Layla Rahman', assigned: 'Adam Khan', due: '2026-10-01', response: '', severity: 'Medium' as const,
+      version: 1, text: 'Assignment check', status: 'Open' as const, history: []
+    };
+    prototypeStore.addReviewNote('ENG-26001', note);
+    assert.equal(note.assignedUserId, 'preparer');
+    assert.equal(note.assignmentHistory?.[0].reason, 'Initial assignment');
+    assert.throws(() => prototypeStore.reassignReviewNote('ENG-26001', note.id, 'preparer-2', ''), /reason/);
+    assert.throws(() => prototypeStore.reassignReviewNote('ENG-26001', note.id, 'billing', 'Capacity change'), /active in-scope preparer or manager/);
+    prototypeStore.reassignReviewNote('ENG-26001', note.id, 'preparer-2', 'Workload balancing');
+    assert.equal(note.assignedUserId, 'preparer-2');
+    assert.deepEqual(note.assignmentHistory?.map(event => [event.assignedUserId, event.actorUserId, event.reason]), [
+      ['preparer', 'manager', 'Initial assignment'], ['preparer-2', 'manager', 'Workload balancing']
+    ]);
+  });
+});
+
 describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
   it('requires a loss reason and retains opportunity stage history', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

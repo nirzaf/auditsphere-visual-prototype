@@ -1163,6 +1163,8 @@ export interface ReviewNoteItem {
   raisedBy: string;
   assigned: string;
   assignee?: string;
+  assignedUserId?: string;
+  assignmentHistory?: Array<{ assignedUserId: string; assignedTo: string; actorUserId: string; at: string; reason: string }>;
   due: string;
   response: string;
   responseEvidence?: string;

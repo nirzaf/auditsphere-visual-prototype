@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { RouteKey, ReviewNoteItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { visibleEngagementIds } from '../../services/guards';
+import { eligibleReviewAssignees, visibleEngagementIds } from '../../services/guards';
 
 interface ReviewDeskViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -29,17 +29,19 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   }
 
   const reviews = selectedEng.reviews;
+  const eligibleAssignees = eligibleReviewAssignees(state, selectedEng.id);
 
   const [selectedNote, setSelectedNote] = useState<ReviewNoteItem | null>(null);
   const [selectedNoteEngagementId, setSelectedNoteEngagementId] = useState(selectedEng.id);
   const [queueFilter, setQueueFilter] = useState<'engagement' | 'assigned' | 'scoped'>('engagement');
+  const [reassignmentTargets, setReassignmentTargets] = useState<Record<string, string>>({});
   const [showRaiseModal, setShowRaiseModal] = useState(false);
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New review point form
   const [targetWp, setTargetWp] = useState('WP-A1');
-  const [assignee, setAssignee] = useState('Adam Khan');
+  const [assignee, setAssignee] = useState(eligibleAssignees[0]?.name || '');
   const [queryText, setQueryText] = useState('');
 
   // Response form
@@ -89,6 +91,13 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     setResponseText('');
   };
 
+  const handleOpenRespond = (engagementId: string, note: ReviewNoteItem) => {
+    setSelectedNote(note);
+    setSelectedNoteEngagementId(engagementId);
+    setEvidenceDoc(state.documents.find(document => document.engagementId === engagementId)?.id || '');
+    setShowRespondModal(true);
+  };
+
   const handleClearNote = (engagementId: string, noteId: string) => {
     try {
       prototypeStore.clearReviewNote(engagementId, noteId);
@@ -100,11 +109,22 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     }
   };
 
+  const handleReassign = (engagementId: string, note: ReviewNoteItem, assigneeUserId: string) => {
+    const reason = window.prompt('Reason for reassigning this review point:');
+    if (reason === null) return;
+    try {
+      prototypeStore.reassignReviewNote(engagementId, note.id, assigneeUserId, reason);
+      setNotice({ type: 'success', text: `Review note ${note.id} reassigned.` });
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+    }
+  };
+
   const allowedEngagementIds = visibleEngagementIds(state);
   const queueRows = state.engagements
     .filter(engagement => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(engagement.id))
     .flatMap(engagement => engagement.reviews.map(note => ({ engagementId: engagement.id, note })))
-    .filter(row => queueFilter === 'scoped' || queueFilter === 'assigned' && (row.note.assignee || row.note.assigned) === state.currentPerson || queueFilter === 'engagement' && row.engagementId === selectedEng.id);
+    .filter(row => queueFilter === 'scoped' || queueFilter === 'assigned' && (row.note.assignedUserId === state.currentUserId || (!row.note.assignedUserId && (row.note.assignee || row.note.assigned) === state.currentPerson)) || queueFilter === 'engagement' && row.engagementId === selectedEng.id);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -159,7 +179,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                   <td><b>{r.id}</b></td>
                   <td><span className="mono">{engagementId} · {r.wp}</span></td>
                   <td>{r.author}</td>
-                  <td><b>{r.assignee}</b></td>
+                  <td><b>{r.assignee || r.assigned}</b>{r.assignmentHistory && r.assignmentHistory.length > 1 && <div className="caption">{r.assignmentHistory.length} assignment events</div>}</td>
                   <td>
                     <b>{r.text}</b>
                     {r.response && (
@@ -179,11 +199,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                       {['Open', 'Reopened'].includes(r.status) && (
                         <button
                           className="btn sm"
-                          onClick={() => {
-                            setSelectedNote(r);
-                            setSelectedNoteEngagementId(engagementId);
-                            setShowRespondModal(true);
-                          }}
+                          onClick={() => handleOpenRespond(engagementId, r)}
                         >
                           Respond
                         </button>
@@ -199,6 +215,12 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                       {r.status === 'Cleared' && (
                         <span className="caption">Cleared</span>
                       )}
+                      {['manager', 'reviewer', 'partner'].includes(state.currentRole) && r.status !== 'Cleared' && eligibleReviewAssignees(state, engagementId).length > 0 && <>
+                        <select aria-label={`Reassign ${engagementId} ${r.id}`} className="input" value={reassignmentTargets[`${engagementId}:${r.id}`] || r.assignedUserId || eligibleReviewAssignees(state, engagementId).find(user => user.name === (r.assignee || r.assigned))?.id || ''} onChange={event => setReassignmentTargets({ ...reassignmentTargets, [`${engagementId}:${r.id}`]: event.target.value })}>
+                          {eligibleReviewAssignees(state, engagementId).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                        </select>
+                        <button className="btn sm ghost" onClick={() => handleReassign(engagementId, r, reassignmentTargets[`${engagementId}:${r.id}`] || r.assignedUserId || eligibleReviewAssignees(state, engagementId).find(user => user.name === (r.assignee || r.assigned))?.id || '')}>Reassign</button>
+                      </>}
                     </div>
                   </td>
                 </tr>
@@ -238,7 +260,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                       value={assignee}
                       onChange={e => setAssignee(e.target.value)}
                     >
-                      {state.users.map(u => (
+                      {eligibleAssignees.map(u => (
                         <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
                       ))}
                     </select>
