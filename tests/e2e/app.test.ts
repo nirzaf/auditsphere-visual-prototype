@@ -424,7 +424,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-18/AT-25/AT-53: switches to a client persona and exposes only the portal', async () => {
     const changed = await browserTab!.evaluate<boolean>(`(() => {
       const select = document.querySelector("#role-select");
-      const option = [...select.options].find(x => x.textContent.includes("Finance contributor"));
+      const option = [...select.options].find(x => x.textContent.includes("Client administrator"));
       if (!option) return false;
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, option.value);
       select.dispatchEvent(new Event("change", { bubbles: true })); return true;
@@ -434,9 +434,32 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const nav = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("nav button")].map(x => x.innerText.trim())');
     assert.deepEqual(nav, ['Client Experience Portal', 'Specifications & PRD']);
     await clickButton('Client Experience Portal');
+    const entityContext = await browserTab!.evaluate<any>(`(() => {const select=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='CL-003'));return select&&{values:[...select.options].map(o=>o.value)};})()`);
+    assert.deepEqual(entityContext.values, ['CL-001', 'CL-003'], 'multi-entity client receives only the two explicitly granted entities');
+    await browserTab!.evaluate(`(() => {const select=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='CL-003'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'CL-003');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('document.querySelector("main#main h2")?.innerText.includes("Cedar Manufacturing")'), true, 'entity switch updates the client heading');
+    await clickButton('Shared Documents');
+    assert.equal(await waitForBrowser('document.querySelector("main#main")?.innerText.includes("No shared documents available for this entity.")'), true, 'shared-document list is re-scoped after entity switch');
+    await clickButton('Fee Invoices');
+    assert.equal(await waitForBrowser('document.querySelector("main#main")?.innerText.includes("No issued invoices for this entity.")'), true, 'invoice list is re-scoped after entity switch');
+    assert.doesNotMatch(await browserTab!.evaluate<string>('document.querySelector("main#main").innerText'), /Pay (?:Now|Online)/);
+    await browserTab!.evaluate(`(() => {const select=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='CL-001')&&[...s.options].some(o=>o.value==='CL-003'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'CL-001');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('document.querySelector("main#main h2")?.innerText.includes("Example Trading Entity")'), true, 'switching back restores only that entity projection');
     await clickButton('Shared Documents');
     assert.equal(await waitForBrowser('document.querySelector("main#main")?.innerText.includes("Bank_Statement_December.pdf")'), true, 'client-visible source documents remain available');
     assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector("main#main")?.innerText.includes("WP-A1_Cash_and_Bank_Audit_Schedule.xlsx")'), true, 'internal evidence and working-paper document names stay out of the client projection');
+    await clickButton('Fee Invoices');
+    assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main").innerText'), /Download Invoice PDF/);
+    await browserTab!.evaluate('(() => {window.__invoiceDownload={fileName:"",type:"",size:0};window.__realCreateObjectURL=URL.createObjectURL;window.__realAnchorClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{window.__invoiceDownload.type=blob.type;window.__invoiceDownload.size=blob.size;return "blob:invoice-fixture"};HTMLAnchorElement.prototype.click=function(){window.__invoiceDownload.fileName=this.download};})()');
+    try {
+      await browserTab!.evaluate('(() => {const button=[...document.querySelectorAll("tbody tr button")].find(b=>b.innerText.includes("Download Invoice PDF"));if(!button)throw new Error("issued invoice download action missing");button.click();})()');
+      const invoiceDownload = await browserTab!.evaluate<any>('window.__invoiceDownload');
+      assert.match(invoiceDownload.fileName, /_Client_Copy\.pdf$/);
+      assert.equal(invoiceDownload.type, 'application/pdf');
+      assert.ok(invoiceDownload.size > 0, 'client invoice download is a genuine PDF artifact');
+    } finally {
+      await browserTab!.evaluate('URL.createObjectURL=window.__realCreateObjectURL;HTMLAnchorElement.prototype.click=window.__realAnchorClick;delete window.__realCreateObjectURL;delete window.__realAnchorClick;delete window.__invoiceDownload');
+    }
     assert.equal(browserTab!.exceptions.length, 0);
   });
 
