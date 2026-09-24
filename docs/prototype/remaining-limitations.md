@@ -280,8 +280,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   IndexedDB transaction; Chrome forces the second write to fail and confirms no
   partial blobs or package revision remain. After amendment, Chrome verifies the
   current package is re-presented and independently acknowledged by management;
-  the previous decision remains in history. DOCX/PDF-specific generator-failure
-  injection and broader sharing/edge combinations remain incomplete.
+  the previous decision remains in history. Chrome injects DOCX/PDF digest-read
+  failures after genuine format generation and a second IndexedDB write failure;
+  it confirms the error is visible, no package revision is saved, and no partial
+  blobs remain. Direct failures inside the DOCX/PDF library generation routines
+  and broader sharing/edge combinations remain unverified.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-

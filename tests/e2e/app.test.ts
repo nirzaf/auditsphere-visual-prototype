@@ -2116,6 +2116,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.evaluate('window.Blob=window.__testBaseBlob;delete window.__testBaseBlob');
     }
     const artifactCountBeforeFailure = await browserTab!.evaluate<number>(`(async()=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onupgradeneeded=()=>r.result.createObjectStore('artifacts',{keyPath:'id'});const db=await new Promise(resolve=>{r.onsuccess=()=>resolve(r.result)});const count=await new Promise(resolve=>{const q=db.transaction('artifacts').objectStore('artifacts').count();q.onsuccess=()=>resolve(q.result)});db.close();return count})()`);
+    for (const [kind, mimeType] of [['DOCX', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], ['PDF', 'application/pdf']]) {
+      const errorText = `fixture ${kind} artifact digest failure`;
+      await browserTab!.evaluate(`(() => {window.__originalBlobArrayBuffer=Blob.prototype.arrayBuffer;Blob.prototype.arrayBuffer=function(){if(this.type===${JSON.stringify(mimeType)})return Promise.reject(new Error(${JSON.stringify(errorText)}));return window.__originalBlobArrayBuffer.call(this)};})()`);
+      try {
+        await clickButton('+ Assemble New Revision (Rev 2)');
+        assert.equal(await waitForBrowser(`document.body.innerText.includes(${JSON.stringify(errorText)})`), true, `${kind} artifact verification failure is reported`);
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.packageRevision===1&&!e.packageHistory.some(p=>p.revision===2);})()`), true, `${kind} failure does not save a package revision`);
+        const count = await browserTab!.evaluate<number>(`(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result)});const count=await new Promise(resolve=>{const q=db.transaction('artifacts').objectStore('artifacts').count();q.onsuccess=()=>resolve(q.result)});db.close();return count})()`);
+        assert.equal(count, artifactCountBeforeFailure, `${kind} failure creates no persisted artifacts`);
+      } finally {
+        await browserTab!.evaluate('Blob.prototype.arrayBuffer=window.__originalBlobArrayBuffer;delete window.__originalBlobArrayBuffer');
+      }
+    }
     await browserTab!.evaluate(`(() => {window.__originalArtifactPut=IDBObjectStore.prototype.put;window.__artifactPutCount=0;IDBObjectStore.prototype.put=function(...args){if(++window.__artifactPutCount===2)throw new Error('fixture artifact transaction failure');return window.__originalArtifactPut.apply(this,args)};})()`);
     try {
       await clickButton('+ Assemble New Revision (Rev 2)');

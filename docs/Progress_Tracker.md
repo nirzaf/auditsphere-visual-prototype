@@ -2678,7 +2678,7 @@ Ordered package sections/notes persist by revision. Real XLSX/DOCX/PDF bytes and
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-042-E01 — Verification/evidence pending:** Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision.
+- [x] **VP-042-E01 — Verification complete:** focused AT-41/42/48 Chrome journey injects DOCX and PDF SHA-256 read failures after genuine generation and a second-write IndexedDB failure after an earlier artifact write. Each error is surfaced, no package revision is announced/saved, and the artifact count remains unchanged; then a genuine three-format revision succeeds. Full run: 168/168 unit and 71/71 E2E, 2026-09-24 (`tests/e2e/app.test.ts`).
 
 - [x] **VP-042-E02 — Verification complete:** AT-41/42/48 reassembles revision 4 after amendment, confirms revision 2 artifact bytes and acknowledgement remain historical, then records a separate management acknowledgement bound to revision 4. Full suite: 159/159 unit and 68/68 E2E, 2026-09-24 (`tests/e2e/app.test.ts`, replacement-package review assertions).
 
