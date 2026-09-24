@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 168 / 168 | Fresh full run at `3919046094f14be627f282cadfb234d105a78115`; includes journal reflection, disclosure, cash-flow staleness and reporting-rate checks. |
-| E2E checks passing in this review | 71 / 71 | Fresh full run at `1981e07a54f41b2d9fa3db78ac491d3227cdf554`: 5 static checks + 66 actual Chrome checks, including all 16 report exports, M365 auth/offline boundary and local work with setup skipped or services failing. |
+| Unit checks passing in this review | 168 / 168 | Fresh full run at `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee`; includes reflected-evidence guards, journal lifecycle, disclosures, cash-flow staleness and reporting-rate checks. |
+| E2E checks passing in this review | 71 / 71 | Fresh full run at `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee`: 5 static checks + 66 actual Chrome checks, including all 16 report exports and adjustment-reflection evidence/reporting gates. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2460,9 +2460,9 @@ General adjustment journals, independent technical review, scoped management dec
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-038-E01 — Verification/evidence pending:** Partial subcase verified: Chrome records a partially reflected decision with source revision and prior-decision history; unit tests block partial, unknown, rejected and stale-source journals from being silently applied. Still verify the complete rejected/reflected source matrix, reasoned journal amendment lifecycle, and evidence/workpaper/finding links.
+- [ ] **VP-038-E01 — Verification/evidence pending:** Browser subcases verify missing reflection evidence is rejected, a supplied evidence reference is retained, partial/unknown decisions are excluded from statements with reasons, decision history persists across reload, and imported TB rows remain unchanged; unit tests cover reflected-with-evidence and partial/unknown/rejected/stale exclusion. Full rejected/reflected source matrix, amendments, and evidence/workpaper/finding linkage remain open. Exact code/test commit `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee`; 2026-09-24.
 
-- [ ] **VP-038-E02 — Verification/evidence pending:** Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements.
+- [ ] **VP-038-E02 — Verification/evidence pending:** Browser confirms reflection history retains status, source version and prior evidence reference after reload; statements show the partial/unknown exclusion reason. Replacement-source correction/re-review and exact reporting impact across revisions remain open. Evidence: AT-38 / `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee`, 2026-09-24.
 
 - [ ] **VP-038-R03 — Requirement/scope reconciliation:** Posting into real client or firm ledgers is excluded; it is not a missing integration requirement.
 
@@ -2479,13 +2479,13 @@ Create journal header/context and arbitrary debit/credit lines; support draft, s
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-038-AC01 | Given a balanced journal, when independently reviewed and management-accepted, then its effect is included once in the selected reporting layer. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC02 | Given a replacement TB already containing that journal, when marked reflected with evidence, then additional effect is zero and no double counting occurs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC03 | Unknown/partial reflection blocks final reporting inclusion until resolved; changed source or journal revision stales the relevant decision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC04 | Unbalanced/mixed-context lines, same-person approval and duplicate inclusion are rejected; amendments preserve prior versions and do not alter source or firm ledgers. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-038-AC02 | Given a replacement TB already containing that journal, when marked reflected with evidence, then additional effect is zero and no double counting occurs. | SUBCASE VERIFIED: reflected decisions now require a non-empty evidence reference; unit calculation covers a reflected current-source journal as zero incremental effect. Browser verifies saved evidence on a journal and that source rows remain unchanged. Replacement-import plus reflected re-review scenario remains open. |
+| VP-038-AC03 | Unknown/partial reflection blocks final reporting inclusion until resolved; changed source or journal revision stales the relevant decision. | SUBCASE VERIFIED: AT-38 Chrome confirms partial/unknown decisions are excluded from statements with reasons and history survives reload; unit check rejects stale source-version reflection. Full replacement-source re-review remains open. |
+| VP-038-AC04 | Unbalanced/mixed-context lines, same-person approval and duplicate inclusion are rejected; amendments preserve prior versions and do not alter source or firm ledgers. | SUBCASE VERIFIED: store guard now requires evidence for reflected status; existing unit checks reject same-person approval and calculator tests prove source immutability. Amendment/version-history lifecycle and remaining invalid-line cases remain open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L929).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Exact tested commit: `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee`; fixture: ENG-26001, adjustment `AJ-26002`, evidence reference `TB-IMPORT-REV-1`; criterion → test: VP-038-AC02/03/04 subcases, AT-38 Chrome and adjustment lifecycle unit test; lint, 168/168 unit, 71/71 E2E; 2026-09-24. Full story acceptance remains open.
 
 
 <a id="vp-039"></a>
@@ -4025,8 +4025,8 @@ This queue contains **113 open planning actions** attached to the 48 Partial sto
 | VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Verified / 2026-09-24 |
 | VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Partial — AT-36 positive import/tie-out; parser negative checks; remaining matrix open |
 | VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Partial — source/TB immutability and stale history unit checks; full package/reconciliation walkthrough open |
-| VP-038-E01 | [VP-038](#vp-038) | P1 | Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions. | Pending / Unassigned / — |
-| VP-038-E02 | [VP-038](#vp-038) | P1 | Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements. | Pending / Unassigned / — |
+| VP-038-E01 | [VP-038](#vp-038) | P1 | Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions. | Partial evidence: AT-38 now verifies evidence-required decision, partial/unknown exclusion, history and source immutability; rejection/reflected replacement, amendments and linkages remain open. `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee` |
+| VP-038-E02 | [VP-038](#vp-038) | P1 | Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements. | Partial evidence: AT-38 persists status/source/evidence history through reload; replacement-source correction and impact matrix remains open. `25f03d48c1ecf8d0b1213cbab071e18d7e3bbcee` |
 | VP-039-E01 | [VP-039](#vp-039) | P1 | Close the original residual, timing-versus-correction, currency/date/scope and independent-review criteria with exact test references. | Pending / Unassigned / — |
 | VP-040-E01 | [VP-040](#vp-040) | P1 | Complete source/current-mapping/prior-period/layout-change and reviewed-output regeneration combinations with traceable expected subtotals. | Pending / Unassigned / — |
 | VP-040-E03 | [VP-040](#vp-040) | P1 | Coordinate cash-flow/equity movement support and disclosures with VP-041; unsupported figures must remain unavailable. | Pending / Unassigned / — |

@@ -236,8 +236,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   statements and current-period equity; Chrome parses the generated package XLSX
   and checks both accepted adjustment lines in the exact account rows. A separate
   Chrome journey covers draft creation, independent technical review and scoped
-  client management acceptance. Reflection/rejection edge matrices, general-ledger
-  and remaining downstream lineage workflows are still incomplete. Chrome also
+  client management acceptance. Reflected decisions now require a saved evidence
+  reference; partial/unknown status is blocked from reporting with an explanation,
+  and history retains prior status, source revision and evidence through reload.
+  Replacement-source correction, rejection and journal amendment/linkage matrices,
+  general-ledger and remaining downstream lineage workflows are still incomplete. Chrome also
   opens all 16 reports and checks CSV structure/client scoping; TB import retains
   predecessor rows and source hashes for balanced CSV and actual XLSX. AT-35
   also exercises UI-level rejection of duplicate codes, formula amounts, CSV
