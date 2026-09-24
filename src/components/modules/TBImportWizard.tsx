@@ -178,6 +178,13 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const runPreview = () => {
     if (!bytes) return;
     const result = parseTBWorkbook(fileName, bytes, mapping, convention);
+    if (result.errors.length === 0) {
+      if (!currentEngagement || !accountingProfile || accountingProfile.reportingBasis === 'Not selected' || !accountingBook || currentEngagement.accountingProfileRevision !== accountingProfile.revision || currentEngagement.accountingChartRevision !== accountingProfile.chartRevision) {
+        result.errors.push('Complete or reload the client accounting setup and select this engagement’s period book before importing.');
+      } else if (result.rows.some(row => !accountingProfile.accounts.some(account => account.code === row.code && account.active && account.posting))) {
+        result.errors.push('Imported accounts must exist as active posting accounts in the selected chart.');
+      }
+    }
     setPreview(result.rows);
     setErrors(result.errors);
     setFormat(result.format);

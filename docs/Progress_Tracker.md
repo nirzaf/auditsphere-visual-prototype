@@ -2304,7 +2304,7 @@ CSV and genuine XLSX TB import, row validation, source hashes and predecessor sn
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-035-E01 — Verification/evidence pending:** Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser.
+- [x] **VP-035-E01 — Browser evidence complete (2026-09-24):** AT-35 Chrome rejects duplicate codes, formula cells, CSV renamed to XLSX, oversized input, 2,001-row input, unmapped chart accounts and stale chart context. Each rejection disables commit and preserves the latest accepted source rows/version.
 
 - [ ] **VP-035-E02 — Verification/evidence pending:** Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions.
 
@@ -4022,7 +4022,7 @@ This queue contains **117 open planning actions** attached to the 50 Partial sto
 | VP-033-E01 | [VP-033](#vp-033) | P2 | Verify every boundary bucket and drill-down against a fixed date, including due-today, reversed allocations, unallocated funds and multiple currencies. | Pending / Unassigned / — |
 | VP-034-E01 | [VP-034](#vp-034) | P1 | Complete client/chart/book/period edits and downstream rework for multiple same-client engagements, including prior mapping and statement/package snapshots. | Pending / Unassigned / — |
 | VP-034-E02 | [VP-034](#vp-034) | P1 | Verify closed books, archived accounts and dimension changes cannot silently alter approved output; migrated unselected reporting basis stays explicit. | Pending / Unassigned / — |
-| VP-035-E01 | [VP-035](#vp-035) | P1 | Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser. | Pending / Unassigned / — |
+| VP-035-E01 | [VP-035](#vp-035) | P1 | Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser. | Verified / 2026-09-24 |
 | VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Pending / Unassigned / — |
 | VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Pending / Unassigned / — |
 | VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Pending / Unassigned / — |

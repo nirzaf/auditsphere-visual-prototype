@@ -2788,7 +2788,40 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(xlsxRevision.predecessorVersion, before.version + 1);
     assert.match(xlsxRevision.sha256, /^[0-9a-f]{64}$/);
     assert.deepEqual(xlsxRevision.rows.map((row: any) => row.balance), [-50, 50]);
+    const acceptedAfterXlsx = { version: before.version + 2, rows: xlsxRevision.rows };
+    const overLimit = `code,name,balance\n${Array.from({ length: 2001 }, (_, index) => `${6000 + index},Account ${index},${index % 2 ? '1' : '-1'}`).join('\n')}`;
+    await browserTab!.evaluate(file('row-limit.csv', overLimit));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: row-limit.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Row limit exceeded: 2001 data rows (limit 2000)")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'row-limit failure cannot be committed');
+    const afterRowLimit = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
+    assert.deepEqual(afterRowLimit, acceptedAfterXlsx, 'row-limit failure preserves the latest accepted revision');
+
+    await browserTab!.evaluate(file('wrong-chart.csv', 'code,name,balance\n9998,Unmapped A,-50\n9999,Unmapped B,50\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: wrong-chart.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Imported accounts must exist as active posting accounts in the selected chart")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'wrong-chart preview cannot be committed');
+    const afterWrongChart = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
+    assert.deepEqual(afterWrongChart, acceptedAfterXlsx, 'wrong-chart failure preserves the latest accepted revision');
+
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));const engagement=state.engagements.find(item=>item.id==='ENG-26002');engagement.accountingChartRevision+=1;localStorage.setItem(key,JSON.stringify(state));})()`);
+    await browserTab!.command('Page.reload');
+    await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    await clickButton('Accounting Workbench');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Trial-Balance Intake")'), true);
+    await browserTab!.evaluate(file('stale-context.csv', 'code,name,balance\n1000,Cash,-50\n2000,Payables,50\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: stale-context.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Complete or reload the client accounting setup and select this engagement’s period book before importing")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'stale context preview cannot be committed');
+    const afterWrongContext = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
+    assert.deepEqual(afterWrongContext, acceptedAfterXlsx, 'wrong-context failure preserves the latest accepted revision');
     assert.deepEqual(browserTab!.exceptions, []);
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    await waitForBrowser('!!document.querySelector("#app-root .brandname")');
   });
 
   it('AT-23/AT-24: creates a PBC request, receives a replacement after clarification, then accepts it independently', async () => {
