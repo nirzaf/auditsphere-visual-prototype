@@ -1015,6 +1015,7 @@ class PrototypeStore {
     this.assertTaskHierarchy(task, task.id);
     const index = this.state.jobTasks.findIndex(t => t.id === task.id);
     if (index >= 0) {
+      const current = this.state.jobTasks[index];
       // Completing a parent with unfinished required children is blocked (VP-014).
       if (task.status === 'Completed' && !task.parentTaskId) {
         const children = this.state.jobTasks.filter(t => t.parentTaskId === task.id && t.status !== 'Cancelled');
@@ -1025,6 +1026,13 @@ class PrototypeStore {
       if (task.status === 'Blocked' && !task.blockedReason) {
         throw new GuardError('INVALID_STATE', 'Blocked status requires a reason.');
       }
+      if (task.status !== current.status) {
+        const reason = task.statusChangeReason?.trim() || '';
+        if ((task.status === 'Cancelled' || current.status === 'Cancelled') && (!reason || reason.length > 1000)) throw new GuardError('INVALID_STATE', 'Cancelling or reopening a task requires a reason of 1,000 characters or fewer.');
+        task.statusHistory = [...(current.statusHistory || []), { from: current.status, to: task.status, reason, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString() }];
+        this.logEvent(`Task ${task.id} status changed: ${current.status} → ${task.status}${reason ? ` — ${reason}` : ''}`, task.id, 'history');
+      } else task.statusHistory = current.statusHistory;
+      delete task.statusChangeReason;
       this.state.jobTasks[index] = task;
       this.notify();
     }
@@ -1047,6 +1055,14 @@ class PrototypeStore {
       if (parent.jobId !== task.jobId) throw new GuardError('INVALID_STATE', 'Cross-job parents are rejected.');
       if (parent.parentTaskId) throw new GuardError('INVALID_STATE', 'Only one level of subtasks is supported (VP-014).');
     }
+    this.assertTaskAssignee(task.assignee, job.engagementId);
+  }
+
+  private assertTaskAssignee(name: string, engagementId: string) {
+    const user = this.state.users.find(item => item.status === 'Active' && item.name === name && !isClientRole(item.role) && canOpenRoute(item.role, 'jobs'));
+    if (!user) throw new GuardError('INVALID_STATE', 'Task assignee must be an active staff user with job access.');
+    const visible = visibleEngagementIds(this.state, user.id);
+    if (visible !== 'ALL' && !visible.includes(engagementId)) throw new GuardError('FORBIDDEN_SCOPE', 'Task assignee must have access to this engagement.');
   }
 
   public reassignTask(taskId: string, newAssignee: string, reason: string) {
@@ -1059,7 +1075,7 @@ class PrototypeStore {
     requireEngagementScope(this.state, job.engagementId);
     if (job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Tasks in a cancelled job are retained and cannot be reassigned.');
     if (!reason.trim()) throw new GuardError('INVALID_STATE', 'Task reassignment requires a reason.');
-    if (!this.state.users.some(u => u.status === 'Active' && u.name === newAssignee)) throw new GuardError('INVALID_STATE', 'Task assignee must be an active persona.');
+    this.assertTaskAssignee(newAssignee, job.engagementId);
     if (task.assignee === newAssignee) throw new GuardError('INVALID_STATE', 'Choose a different assignee.');
     if (!task.reassignmentHistory) task.reassignmentHistory = [];
     task.reassignmentHistory.push({

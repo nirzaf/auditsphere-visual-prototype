@@ -507,6 +507,8 @@ export interface JobTaskItem {
   order: number;
   completedAt?: string;
   reassignmentHistory?: Array<{ from: string; to: string; date: string; reason: string }>;
+  statusHistory?: Array<{ from: JobTaskItem['status']; to: JobTaskItem['status']; reason: string; by: string; byUserId: string; at: string }>;
+  statusChangeReason?: string;
 }
 
 export interface JobRecord {

@@ -90,6 +90,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   const jobCommunications = state.communications.filter(item => item.jobId === selectedJob?.id);
   const jobTimeEntries = state.times.filter(entry => entry.jobId === selectedJob?.id);
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
+  const assigneesFor = (engagementId: string) => state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && (visible === 'ALL' || visible.includes(engagementId)); });
 
   const handleAddInternalNote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,9 +106,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   };
 
   // Compute leaf task progress
-  const leafTasks = jobTasks.filter(t => {
-    return !jobTasks.some(sub => sub.parentTaskId === t.id);
-  });
+  const leafTasks = jobTasks.filter(t => t.status !== 'Cancelled' && !jobTasks.some(sub => sub.parentTaskId === t.id && sub.status !== 'Cancelled'));
   const completedLeafTasks = leafTasks.filter(t => t.status === 'Completed').length;
   const progressPercent = leafTasks.length ? Math.round((completedLeafTasks / leafTasks.length) * 100) : 0;
 
@@ -207,15 +206,20 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
   const handleSetTaskStatus = (task: JobTaskItem, status: JobTaskItem['status']) => {
     let blockedReason = task.blockedReason;
+    let statusChangeReason = '';
     if (status === 'Blocked') {
       blockedReason = window.prompt('Why is this task blocked?')?.trim();
       if (!blockedReason) return;
     } else blockedReason = undefined;
+    if (status === 'Cancelled') statusChangeReason = window.prompt('Why is this task being cancelled?')?.trim() || '';
+    else if (task.status === 'Cancelled') statusChangeReason = window.prompt('Why is this cancelled task being reopened?')?.trim() || '';
+    if ((status === 'Cancelled' || task.status === 'Cancelled') && !statusChangeReason) return;
     try {
       prototypeStore.updateTask({
         ...task,
         status,
-        blockedReason
+        blockedReason,
+        statusChangeReason
       });
     } catch (err: any) {
       triggerNotice('error', err.message);
@@ -385,7 +389,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     <div className="progress mt8" style={{ width: 140 }}>
                       <i style={{ width: `${progressPercent}%` }} />
                     </div>
-                    <span className="caption">{completedLeafTasks} of {leafTasks.length} leaf tasks ({progressPercent}%)</span>
+                    <span className="caption">{leafTasks.length ? `${completedLeafTasks} of ${leafTasks.length} leaf tasks (${progressPercent}%)` : 'No active leaf tasks (0%)'}</span>
                   </div>
                 </div>
 
@@ -424,11 +428,10 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                 <b style={{ textDecoration: parent.status === 'Completed' ? 'line-through' : 'none' }}>
                                   {parent.title}
                                 </b>
-                                <div className="cell-sub">
-                                  Assigned: {parent.assignee} · Status: {parent.status}
-                                </div>
+                                <div className="cell-sub">Assigned: {parent.assignee} · Status: {parent.status}</div>
+                                {parent.statusHistory?.length ? <div className="cell-sub">Status history: {parent.statusHistory.map(event => `${event.from} → ${event.to} by ${event.by}${event.reason ? `: ${event.reason}` : ''}`).join(' · ')}</div> : null}
                                 {parent.status === 'Blocked' && <div className="cell-sub">Blocked: {parent.blockedReason}</div>}
-                                <select className="input sm mt4" aria-label={`Task status ${parent.id}`} value={parent.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(parent, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed'].map(status => <option key={status}>{status}</option>)}</select>
+                                <select className="input sm mt4" aria-label={`Task status ${parent.id}`} value={parent.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(parent, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select>
                               </div>
                             </div>
                             <div className="row" style={{ gap: 6 }}>
@@ -476,7 +479,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                       </span>
                                       <div className="cell-sub">{sub.assignee}</div>
                                       {sub.status === 'Blocked' && <div className="cell-sub">Blocked: {sub.blockedReason}</div>}
-                                      <select className="input sm mt4" aria-label={`Task status ${sub.id}`} value={sub.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(sub, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed'].map(status => <option key={status}>{status}</option>)}</select>
+                                      <select className="input sm mt4" aria-label={`Task status ${sub.id}`} value={sub.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(sub, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select>
                                     </div>
                                   </div>
                                   <div className="row" style={{ gap: 6 }}>
@@ -680,7 +683,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     value={newAssignee}
                     onChange={e => setNewAssignee(e.target.value)}
                   >
-                    {state.users.map(u => (
+                    {assigneesFor(state.jobs.find(job => job.id === taskToReassign.jobId)?.engagementId || '').map(u => (
                       <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
                     ))}
                   </select>
@@ -734,7 +737,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     value={taskAssignee}
                     onChange={e => setTaskAssignee(e.target.value)}
                   >
-                    {state.users.map(u => (
+                    {assigneesFor(selectedJob?.engagementId || '').map(u => (
                       <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
                     ))}
                   </select>

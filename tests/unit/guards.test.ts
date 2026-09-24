@@ -554,6 +554,32 @@ describe('client rules (AT-05)', () => {
 });
 
 describe('task hierarchy (AT-11)', () => {
+  it('rejects task assignment outside the assigned user engagement grant', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    setPersona(current, 'Layla Rahman');
+    current.roleGrants = current.roleGrants.filter(grant => grant.userId !== 'preparer-2');
+    current.roleGrants.push({ userId: 'preparer-2', role: 'preparer', scopeKind: 'Client', scopeId: 'CL-002' });
+    assert.throws(() => prototypeStore.addTask({ id: 'T-CROSS-CLIENT-ASSIGNEE', jobId: 'JOB-2601', title: 'Out of scope task', assignee: 'Nadia Rahman', status: 'Not started', order: 99 }), /access to this engagement/);
+    assert.throws(() => prototypeStore.reassignTask('TSK-103', 'Nadia Rahman', 'Capacity balancing'), /access to this engagement/);
+  });
+
+  it('requires and retains reasons when cancelling or reopening a task', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    setPersona(current, 'Layla Rahman');
+    const task = { id: 'T-STATUS-HISTORY', jobId: 'JOB-2601', title: 'Status history task', assignee: 'Adam Khan', status: 'Not started' as const, order: 99 };
+    prototypeStore.addTask(task);
+    assert.throws(() => prototypeStore.updateTask({ ...task, status: 'Cancelled' }), /requires a reason/);
+    prototypeStore.updateTask({ ...task, status: 'Cancelled', statusChangeReason: 'Duplicate request.' });
+    assert.equal(current.jobTasks.find(item => item.id === task.id)?.statusHistory?.[0].reason, 'Duplicate request.');
+    assert.throws(() => prototypeStore.updateTask({ ...task, status: 'In progress' }), /requires a reason/);
+    prototypeStore.updateTask({ ...task, status: 'In progress', statusChangeReason: 'Work is required again.' });
+    assert.deepEqual(current.jobTasks.find(item => item.id === task.id)?.statusHistory?.map(event => [event.from, event.to, event.reason]), [['Not started', 'Cancelled', 'Duplicate request.'], ['Cancelled', 'In progress', 'Work is required again.']]);
+  });
+
   it('rejects second nesting levels and cross-job parents', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
