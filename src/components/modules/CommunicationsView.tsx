@@ -28,9 +28,12 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const [participants, setParticipants] = useState('Omar Nasser (CFO), Layla Rahman (Manager)');
   const [noteSummary, setNoteSummary] = useState('');
   const [noteBody, setNoteBody] = useState('');
+  const [relatedJobId, setRelatedJobId] = useState('');
 
   const communications = state.communications;
   const client = state.clients[0];
+  const clientJobs = state.jobs.filter(job => job.clientId === client?.id);
+  const relatedJob = clientJobs.find(job => job.id === relatedJobId);
 
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +71,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
     const newComm: CommunicationItem = {
       id: `COMM-${Date.now().toString().slice(-4)}`,
       clientId: client?.id || 'CL-001',
-      engagementId: state.selectedEngagement,
+      engagementId: relatedJob?.engagementId || state.selectedEngagement,
+      jobId: relatedJob?.id,
       direction: 'Inbound',
       channel,
       participants,
@@ -84,6 +88,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
     setShowLogNoteModal(false);
     setNoteSummary('');
     setNoteBody('');
+    setRelatedJobId('');
   };
 
   const handleTemplateSelect = (tplId: string) => {
@@ -149,6 +154,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                 </div>
               )}
               {comm.simulationReference && <div className="cell-sub mt8">Simulation evidence · {comm.simulationReference} · {comm.simulationEvidence}</div>}
+              {comm.jobId && <div className="cell-sub mt8">Linked job · {state.jobs.find(job => job.id === comm.jobId)?.title || comm.jobId}</div>}
               <div className="cell-sub mt8">
                 Recorded by {comm.author} · {new Date(comm.date).toLocaleDateString('en-GB')}
               </div>
@@ -270,6 +276,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                     />
                   </div>
                 </div>
+                <label className="caption">Related job (optional)<select className="input mt4" value={relatedJobId} onChange={e => setRelatedJobId(e.target.value)}><option value="">No job link</option>{clientJobs.map(job => <option key={job.id} value={job.id}>{job.title}</option>)}</select></label>
                 <div>
                   <label className="caption">Summary Header</label>
                   <input

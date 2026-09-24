@@ -864,8 +864,11 @@ describe('simulated mail attempts (AT-26)', () => {
     const initialCount = state.communications.length;
     assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-BAD', 'not-an-email', 'MAIL-SIM-BAD')), /valid recipient email/);
     assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-FOREIGN', 'aisha.saleh@northstar.demo', 'MAIL-SIM-FOREIGN')), /active contact for this client/);
-    const first = makeAttempt('COMM-26-1', 'OMAR.NASSER@EXAMPLE-TRADING.DEMO', 'MAIL-SIM-26-1');
+    assert.throws(() => prototypeStore.addCommunication({ ...makeAttempt('COMM-BAD-JOB', 'omar.nasser@example-trading.demo', 'MAIL-SIM-BAD-JOB'), jobId: 'MISSING-JOB' }), /job must belong/);
+    const job = state.jobs.find(item => item.engagementId === 'ENG-26001')!;
+    const first = { ...makeAttempt('COMM-26-1', 'OMAR.NASSER@EXAMPLE-TRADING.DEMO', 'MAIL-SIM-26-1'), jobId: job.id };
     prototypeStore.addCommunication(first);
+    assert.equal(first.engagementId, job.engagementId);
     assert.equal(first.recipientEmail, 'omar.nasser@example-trading.demo');
     assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', first.simulationReference)), /unique reference/);
     prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', 'MAIL-SIM-26-2'));

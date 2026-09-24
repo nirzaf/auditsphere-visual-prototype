@@ -1418,6 +1418,12 @@ class PrototypeStore {
   public addCommunication(comm: CommunicationItem) {
     requireActiveIdentity(this.state);
     requireClientScope(this.state, comm.clientId);
+    if (comm.jobId) {
+      const job = this.state.jobs.find(item => item.id === comm.jobId);
+      if (!job || job.clientId !== comm.clientId || (comm.engagementId && job.engagementId !== comm.engagementId)) throw new GuardError('INVALID_STATE', 'Communication job must belong to its selected client and engagement.');
+      requireEngagementScope(this.state, job.engagementId);
+      comm.engagementId = job.engagementId;
+    }
     if (comm.engagementId) {
       requireEngagementScope(this.state, comm.engagementId);
       if (this.state.engagements.find(e => e.id === comm.engagementId)?.client !== comm.clientId) throw new GuardError('INVALID_STATE', 'Communication client and engagement must match.');

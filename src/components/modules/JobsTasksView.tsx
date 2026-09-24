@@ -85,6 +85,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
     return Boolean(job && scopedJobIds.has(job.id));
   }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const jobDocuments = state.documents.filter(document => document.linkedJobId === selectedJob?.id);
+  const jobCommunications = state.communications.filter(item => item.jobId === selectedJob?.id);
   const jobTimeEntries = state.times.filter(entry => entry.jobId === selectedJob?.id);
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
 
@@ -514,6 +515,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                 </section>
                 <div className="grid2 mt20">
                   <div className="panel panel-pad"><h4>Job Files ({jobDocuments.length})</h4>{jobDocuments.length ? <div className="stack mt8">{jobDocuments.map(document => <div className="between" key={document.id}><span><b>{document.name}</b><span className="cell-sub">{document.id} · v{document.version}</span></span><span className="tag gray">{document.classification}</span></div>)}</div> : <p className="sub mt8">No files are linked to this job.</p>}<button className="btn sm mt8" onClick={() => onNavigate('documents')}>Open document library</button></div>
+                  <div className="panel panel-pad"><h4>Job Communications ({jobCommunications.length})</h4>{jobCommunications.length ? <div className="stack mt8">{jobCommunications.map(item => <div className="borderbox panel-pad" key={item.id}><b>{item.summary}</b><div className="cell-sub mt4">{item.direction} · {item.channel} · {item.visibility} · {item.author} · {new Date(item.date).toLocaleDateString('en-GB')}</div><p className="sub mt4" style={{whiteSpace:'pre-line'}}>{item.body}</p></div>)}</div> : <p className="sub mt8">No communication records are linked to this job.</p>}<button className="btn sm mt8" onClick={() => onNavigate('communications')}>Open communications register</button></div>
                   <div className="panel panel-pad"><h4>Job Time ({jobTimeEntries.length})</h4>{jobTimeEntries.length ? <div className="tablewrap mt8"><table><thead><tr><th>Date</th><th>Person</th><th>Task</th><th>Minutes</th><th>Status</th></tr></thead><tbody>{jobTimeEntries.map(entry => <tr key={entry.id}><td>{entry.date}</td><td>{entry.person}</td><td>{entry.taskTitle}</td><td>{entry.durationMinutes}</td><td>{entry.status}</td></tr>)}</tbody></table></div> : <p className="sub mt8">No time has been recorded against this job.</p>}<button className="btn sm mt8" onClick={() => onNavigate('my-time')}>Open time tracking</button></div>
                 </div>
               </div>

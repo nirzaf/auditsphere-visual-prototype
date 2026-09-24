@@ -654,6 +654,7 @@ export interface CommunicationItem {
   id: string;
   clientId: string;
   engagementId?: string;
+  jobId?: string;
   direction: 'Outbound' | 'Inbound';
   channel: 'Email' | 'Phone' | 'Meeting' | 'Portal message';
   participants: string;

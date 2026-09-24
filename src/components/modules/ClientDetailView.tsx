@@ -556,7 +556,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                   <span className="tag gray">{c.channel} · {c.direction}</span>
                 </div>
                 <p className="sub mt8" style={{ whiteSpace: 'pre-line' }}>{c.body}</p>
-                <div className="cell-sub mt8">{c.author} · {new Date(c.date).toLocaleDateString('en-GB')}</div>
+                <div className="cell-sub mt8">{c.author} · {new Date(c.date).toLocaleDateString('en-GB')} · {c.visibility}{c.jobId ? ` · Job: ${state.jobs.find(job => job.id === c.jobId)?.title || c.jobId}` : ''}</div>
               </div>
             ))}
           </div>

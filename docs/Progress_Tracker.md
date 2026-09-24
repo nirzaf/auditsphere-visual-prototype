@@ -55,7 +55,7 @@
 | Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 123 | 2 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 122 | 1 stated implementation action; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -1869,12 +1869,12 @@ Composer fields: configured synthetic sender, To, optional CC, subject, body, cl
 **Original journey links:** [AT-27](#at-27); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-A shared communication register includes manually recorded incoming email/call/meeting context, authorship, direction and visibility. Recorded Chrome checks show internal meeting notes do not appear to clients.
+A shared communication register includes manually recorded incoming email/call/meeting context, authorship, direction and visibility. Manually logged calls and meetings can link to a same-client job, and the client timeline and job view project that same record. Recorded Chrome checks show internal meeting notes do not appear to clients.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-027-I01 — Implementation pending:** Complete communication/client/job activity projections identified as incomplete, using the same underlying record.
+- [x] **VP-027-I01 — Implemented and exercised:** Manual communications can link to a validated same-client/same-engagement job; client timeline, global register and linked job view project the same stored record. Evidence: AT-27 Chrome and unit job-scope regression, 155/155 unit + 68/68 E2E checks, 2026-09-24. Remaining date/text/visibility correction checks stay under E02.
 
 - [ ] **VP-027-E02 — Verification/evidence pending:** Validate visibility-change warning/permission, linked-attachment scope, date/text limits and correction history.
 
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **123 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **122 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -3957,7 +3957,7 @@ This queue contains **123 open planning actions** attached to the 51 Partial sto
 
 - [x] **VP-025-I02** (P2; [VP-025](#vp-025)): Implemented required-reason share/withdraw actions with attributable history and current client visibility projection. Evidence: store regression + VP-021 Chrome, 2026-09-24. Broader portal withdrawal/no-access cases remain under E03.
 
-- [ ] **VP-027-I01** (P2; [VP-027](#vp-027)): Complete communication/client/job activity projections identified as incomplete, using the same underlying record. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-027-I01** (P2; [VP-027](#vp-027)): Validated optional job links and shared communication projections in client and job views. Evidence: AT-27 Chrome + unit scope regression; 155/155 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
 
 - [x] **VP-041-I01** (P1; [VP-041](#vp-041)): Revisioned and independently reviewed cash-flow movement schedule implemented and verified; complete the per-note and client-sharing acceptance separately. Evidence: AT-37 + cash-flow store regression, 2026-09-24.
 
