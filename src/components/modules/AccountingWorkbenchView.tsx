@@ -82,6 +82,8 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
   // Adjustment form state
   const [showAddAdjModal, setShowAddAdjModal] = useState(false);
+  const [amendAdjustment, setAmendAdjustment] = useState<AdjustmentJournalItem | null>(null);
+  const [amendmentReason, setAmendmentReason] = useState('');
   const [adjTitle, setAdjTitle] = useState('Accrued audit fees and advisory expenses');
   const [adjDebitAccount, setAdjDebitAccount] = useState('5100');
   const [adjCreditAccount, setAdjCreditAccount] = useState('2100');
@@ -108,23 +110,28 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const handleAddAdjustment = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newAdj: AdjustmentJournalItem = {
-      id: `AJ-2600${state.adjustmentJournals.length + 1}`,
-      engagementId: selectedEng.id,
-      title: adjTitle,
-      status: 'Draft',
-      reflectionStatus: 'Not reflected',
-      lines: [
-        { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
-        { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
-      ],
-      reflectedInClientBooks: false,
-      preparedBy: state.currentPerson,
-      rationale: adjRationale
-    };
-
-    prototypeStore.addAdjustmentJournal(newAdj);
+    const lines: AdjustmentJournalItem['lines'] = [
+      { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
+      { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
+    ];
+    if (amendAdjustment) {
+      prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale }, amendmentReason);
+      setAmendAdjustment(null);
+      setAmendmentReason('');
+      return;
+    }
+    prototypeStore.addAdjustmentJournal({ id: `AJ-2600${state.adjustmentJournals.length + 1}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale });
     setShowAddAdjModal(false);
+  };
+
+  const startAdjustmentAmendment = (journal: AdjustmentJournalItem) => {
+    setAmendAdjustment(journal);
+    setAdjTitle(journal.title);
+    setAdjDebitAccount(journal.lines.find(line => line.type === 'debit')?.accountCode || selectedEng.rows[0]?.code || '');
+    setAdjCreditAccount(journal.lines.find(line => line.type === 'credit')?.accountCode || selectedEng.rows[1]?.code || '');
+    setAdjAmount(journal.lines.find(line => line.type === 'debit')?.amount || 0);
+    setAdjRationale(journal.rationale || '');
+    setAmendmentReason('');
   };
 
   const handleReflectionChange = (adj: AdjustmentJournalItem, reflectionStatus: AdjustmentJournalItem['reflectionStatus']) => {
@@ -709,8 +716,9 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                   </div>
                   <div className="row" style={{ gap: 8 }}>
                     <span className={`badge ${adj.status === 'Management accepted' ? 'green' : adj.status === 'Rejected' ? 'red' : 'amber'}`}>
-                      {adj.status}
+                      {adj.status} · Rev {adj.revision || 1}
                     </span>
+                    {adj.status !== 'Draft' && ['preparer', 'manager', 'partner'].includes(state.currentRole) && <button type="button" className="btn sm ghost" aria-label={`Amend adjustment ${adj.id}`} onClick={() => startAdjustmentAmendment(adj)}>Amend journal</button>}
                     {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => prototypeStore.reviewAdjustmentJournal(adj.id, true)}>Complete Technical Review</button>}
                     {['Management accepted', 'Reporting included'].includes(adj.status) && <div className="stack" style={{ gap: 6 }}><label>Reflection on TB v{selectedEng.sourceVersion}<select aria-label={`Reflection status for ${adj.id}`} value={adj.reflectionSourceVersion === selectedEng.sourceVersion ? adj.reflectionStatus : 'Unknown'} onChange={event => handleReflectionChange(adj, event.target.value as AdjustmentJournalItem['reflectionStatus'])}><option>Not reflected</option><option>Reflected in TB</option><option>Partially reflected</option><option>Unknown</option></select></label><label>Reflection evidence reference<div className="row"><input aria-label={`Reflection evidence reference for ${adj.id}`} value={reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? ''} onChange={event => setReflectionEvidenceDrafts(current => ({ ...current, [adj.id]: event.target.value }))} maxLength={160} /><button type="button" className="btn sm ghost" aria-label={`Save reflection evidence for ${adj.id}`} onClick={() => handleReflectionEvidenceSave(adj, reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? '')}>Save evidence</button></div></label></div>}
                   </div>
@@ -745,6 +753,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     <strong>Rationale:</strong> {adj.rationale}
                   </div>
                 )}
+                {Boolean(adj.amendmentHistory?.length) && <details className="mt8"><summary>Prior journal revisions ({adj.amendmentHistory!.length})</summary>{adj.amendmentHistory!.map(version => <div className="borderbox mt8" key={version.revision}><b>Revision {version.revision} · {version.status}</b><div className="caption">Amended by {state.users.find(user => user.id === version.amendedByUserId)?.name || version.amendedByUserId} on {new Date(version.amendedAt).toLocaleString()} · {version.reason}</div><div>{version.title} · {version.reflectionStatus} on TB v{version.reflectionSourceVersion ?? '—'}{version.reflectionEvidenceRef ? ` · Evidence ${version.reflectionEvidenceRef}` : ''}</div><div className="caption">{version.lines.map(line => `${line.accountCode} ${line.type} ${formatCurrency(line.amount, selectedEng.currency)}`).join(' · ')}{version.rationale ? ` · ${version.rationale}` : ''}</div>{(version.reviewedBy || version.managementAcceptedBy || version.managementDecisionNote) && <div className="caption">Prior decision: reviewer {version.reviewedBy || '—'} · management {version.managementAcceptedBy || '—'}{version.managementDecisionNote ? ` · ${version.managementDecisionNote}` : ''}</div>}</div>)}</details>}
               </div>
             ))}
           </div>
@@ -819,12 +828,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
       )}
 
       {/* Add Adjustment Modal */}
-      {showAddAdjModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddAdjModal(false)}>
+      {(showAddAdjModal || amendAdjustment) && (
+        <div className="modal-backdrop" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Propose Correcting Adjustment Journal</h2>
-              <button className="icon-btn" onClick={() => setShowAddAdjModal(false)}>✕</button>
+              <h2>{amendAdjustment ? 'Amend ' + amendAdjustment.id + ' · Rev ' + ((amendAdjustment.revision || 1) + 1) : 'Propose Correcting Adjustment Journal'}</h2>
+              <button type="button" className="icon-btn" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>✕</button>
             </div>
             <form onSubmit={handleAddAdjustment}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -877,16 +886,18 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 <div>
                   <label className="caption">Audit Rationale</label>
                   <textarea
+                    aria-label="Adjustment journal rationale"
                     className="input"
                     rows={3}
                     value={adjRationale}
                     onChange={e => setAdjRationale(e.target.value)}
                   />
                 </div>
+                {amendAdjustment && <div><label className="caption">Reason for amendment</label><textarea aria-label="Adjustment amendment reason" className="input" rows={2} value={amendmentReason} onChange={e => setAmendmentReason(e.target.value)} required /></div>}
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddAdjModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Propose Journal</button>
+                <button type="button" className="btn ghost sm" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>Cancel</button>
+                <button type="submit" className="btn primary sm">{amendAdjustment ? 'Save amended revision' : 'Propose Journal'}</button>
               </div>
             </form>
           </div>

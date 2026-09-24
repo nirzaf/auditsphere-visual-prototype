@@ -858,6 +858,24 @@ export interface GLTransactionItem {
 export interface AdjustmentJournalItem {
   id: string;
   engagementId: string;
+  revision?: number;
+  amendmentHistory?: Array<{
+    revision: number;
+    title: string;
+    lines: AdjustmentJournalItem['lines'];
+    rationale?: string;
+    status: AdjustmentJournalItem['status'];
+    preparedBy: string;
+    reviewedBy?: string;
+    managementAcceptedBy?: string;
+    managementDecisionNote?: string;
+    reflectionStatus: AdjustmentJournalItem['reflectionStatus'];
+    reflectionSourceVersion?: number;
+    reflectionEvidenceRef?: string;
+    amendedAt: string;
+    amendedByUserId: string;
+    reason: string;
+  }>;
   title: string;
   status: 'Draft' | 'Technical review' | 'Management accepted' | 'Reporting included' | 'Rejected';
   state?: string;

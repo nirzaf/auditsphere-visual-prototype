@@ -2157,8 +2157,60 @@ class PrototypeStore {
     const debits = journal.lines.filter(l => l.type === 'debit').reduce((s, l) => s + l.amount, 0);
     const credits = journal.lines.filter(l => l.type === 'credit').reduce((s, l) => s + l.amount, 0);
     if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Adjustment journal must balance before it can be saved.');
-    this.state.adjustmentJournals.unshift({ ...journal, reflectionSourceVersion: engagement.sourceVersion, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined, managementDecisionNote: undefined });
+    this.state.adjustmentJournals.unshift({ ...journal, revision: journal.revision || 1, reflectionSourceVersion: engagement.sourceVersion, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined, managementDecisionNote: undefined });
     this.logEvent(`Adjustment journal proposed: ${journal.title}`, journal.id);
+    this.notify();
+  }
+
+  public amendAdjustmentJournal(journalId: string, changes: { title: string; lines: AdjustmentJournalItem['lines']; rationale: string }, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['preparer', 'manager', 'partner'], 'amend adjustment journals');
+    const journal = this.state.adjustmentJournals.find(item => item.id === journalId);
+    if (!journal) throw new GuardError('INVALID_STATE', 'Adjustment journal was not found.');
+    requireEngagementScope(this.state, journal.engagementId);
+    if (journal.status === 'Draft') throw new GuardError('INVALID_STATE', 'Only a reviewed or decided adjustment can be amended.');
+    if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An amendment reason is required.');
+    if (!changes.title.trim() || !changes.rationale.trim() || !Array.isArray(changes.lines) || changes.lines.length < 2 || changes.lines.some(line => !line.accountCode.trim() || !line.accountName.trim() || !isValidMoney(line.amount))) throw new GuardError('INVALID_STATE', 'An amended journal needs a title, rationale, and at least two coded lines with finite positive amounts.');
+    const engagement = this.state.engagements.find(item => item.id === journal.engagementId);
+    if (!engagement || changes.lines.some(line => !engagement.rows.some(row => row.code === line.accountCode))) throw new GuardError('INVALID_STATE', 'Every amended account must exist in the engagement trial balance.');
+    const debits = changes.lines.filter(line => line.type === 'debit').reduce((sum, line) => sum + line.amount, 0);
+    const credits = changes.lines.filter(line => line.type === 'credit').reduce((sum, line) => sum + line.amount, 0);
+    if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Amended journal must balance before it can be resubmitted.');
+    if (journal.title === changes.title.trim() && journal.rationale === changes.rationale.trim() && JSON.stringify(journal.lines) === JSON.stringify(changes.lines)) throw new GuardError('INVALID_STATE', 'Amendment must change the journal content.');
+
+    const amendedAt = new Date().toISOString();
+    journal.amendmentHistory = [...(journal.amendmentHistory || []), {
+      revision: journal.revision || 1,
+      title: journal.title,
+      lines: structuredClone(journal.lines),
+      rationale: journal.rationale,
+      status: journal.status,
+      preparedBy: journal.preparedBy,
+      reviewedBy: journal.reviewedBy,
+      managementAcceptedBy: journal.managementAcceptedBy,
+      managementDecisionNote: journal.managementDecisionNote,
+      reflectionStatus: journal.reflectionStatus,
+      reflectionSourceVersion: journal.reflectionSourceVersion,
+      reflectionEvidenceRef: journal.reflectionEvidenceRef,
+      amendedAt,
+      amendedByUserId: this.state.currentUserId,
+      reason: reason.trim()
+    }];
+    journal.revision = (journal.revision || 1) + 1;
+    journal.title = changes.title.trim();
+    journal.lines = structuredClone(changes.lines);
+    journal.rationale = changes.rationale.trim();
+    journal.preparedBy = this.state.currentPerson;
+    journal.status = 'Draft';
+    journal.reviewedBy = undefined;
+    journal.managementAcceptedBy = undefined;
+    journal.managementDecisionNote = undefined;
+    journal.reflectionStatus = 'Unknown';
+    journal.reflectedInClientBooks = false;
+    journal.reflectionSourceVersion = engagement.sourceVersion;
+    journal.reflectionEvidenceRef = undefined;
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Adjustment journal ${journalId} amended to revision ${journal.revision}: ${reason.trim()}`, journalId);
     this.notify();
   }
 

@@ -1059,6 +1059,21 @@ describe('adjustment approval lifecycle (AT-38)', () => {
     assert.equal(reflection.reflectionSourceVersion, 1);
     assert.deepEqual(reflection.reflectionHistory.map((entry: any) => [entry.status, entry.sourceVersion, entry.evidenceRef]), [['Not reflected', 1, undefined], ['Reflected in TB', 1, 'TB-IMPORT-REV-1']]);
     setPersona(storeState, 'Adam Khan');
+    assert.throws(() => prototypeStore.amendAdjustmentJournal('AJ-LIFECYCLE', { title: 'Amended lifecycle fixture', lines: accepted.lines, rationale: 'Corrected support.' }, ''), /amendment reason is required/);
+    assert.throws(() => prototypeStore.amendAdjustmentJournal('AJ-LIFECYCLE', { title: 'Amended lifecycle fixture', lines: [{ ...accepted.lines[0], amount: 200 }, accepted.lines[1]], rationale: 'Corrected support.' }, 'Corrected amount.'), /must balance/);
+    const sourceBeforeAmendment = structuredClone(storeState.engagements.find((e: any) => e.id === 'ENG-26001').rows);
+    prototypeStore.amendAdjustmentJournal('AJ-LIFECYCLE', { title: 'Amended lifecycle fixture', lines: [{ ...accepted.lines[0], amount: 200, debit: 200 }, { ...accepted.lines[1], amount: 200, credit: 200 }], rationale: 'Revised using the corrected asset schedule.' }, 'Corrected amount from the approved schedule.');
+    const amended = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
+    assert.equal(amended.revision, 2);
+    assert.equal(amended.status, 'Draft', 'amendment requires fresh independent review');
+    assert.equal(amended.reviewedBy, undefined);
+    assert.equal(amended.managementAcceptedBy, undefined);
+    assert.equal(amended.reflectionStatus, 'Unknown', 'old reflection decision is stale after content changes');
+    assert.equal(amended.amendmentHistory[0].status, 'Management accepted');
+    assert.equal(amended.amendmentHistory[0].managementAcceptedBy, 'Omar Nasser');
+    assert.equal(amended.amendmentHistory[0].reflectionEvidenceRef, 'TB-IMPORT-REV-1');
+    assert.equal(amended.amendmentHistory[0].reason, 'Corrected amount from the approved schedule.');
+    assert.deepEqual(storeState.engagements.find((e: any) => e.id === 'ENG-26001').rows, sourceBeforeAmendment, 'amendment never changes client trial-balance rows');
     prototypeStore.addAdjustmentJournal({
       id: 'AJ-REJECT', engagementId: 'ENG-26001', title: 'Rejection lifecycle fixture', status: 'Draft',
       preparedBy: 'Adam Khan', reflectionStatus: 'Not reflected', reflectedInClientBooks: false,

@@ -3249,6 +3249,39 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`document.body.innerText.includes(${JSON.stringify(`${journal.id}: Reflection status is Unknown.`)})`), true, 'unknown reflection blocks final reporting inclusion');
     const sourceRowsAfterReview = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
     assert.deepEqual(sourceRowsAfterReview, sourceRowsBeforeReview, 'reflection decisions never mutate imported client TB rows');
+
+    await clickButton('Accounting Workbench');
+    await clickButtonStartingWith('Adjustments');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes(${JSON.stringify(journal.id)}));card?.querySelector('[aria-label="Amend adjustment ${journal.id}"]')?.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.modal-backdrop .modal-head h2')?.innerText.includes('Amend ${journal.id}')`), true, 'journal amendment opens an attributed revision form');
+    await setField('.modal-backdrop input[type="text"]', 'AT38 management review sample amended');
+    await setAccount(0, '5000');
+    await setAccount(1, '1500');
+    await setField('.modal-backdrop input[type="number"]', '1200');
+    await setField('[aria-label="Adjustment journal rationale"]', 'Use corrected depreciation from the approved asset schedule.');
+    await setField('[aria-label="Adjustment amendment reason"]', 'Corrected amount from approved supporting schedule.');
+    await clickButton('Save amended revision');
+    const amendedJournal = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}))()`);
+    assert.equal(amendedJournal.revision, 2);
+    assert.equal(amendedJournal.status, 'Draft', 'amendment clears prior approval and requires fresh review');
+    assert.equal(amendedJournal.reviewedBy, undefined);
+    assert.equal(amendedJournal.managementAcceptedBy, undefined);
+    assert.equal(amendedJournal.reflectionStatus, 'Unknown', 'previous reflection decision is reset for the amended journal');
+    assert.equal(amendedJournal.amendmentHistory.length, 1);
+    assert.equal(amendedJournal.amendmentHistory[0].status, 'Management accepted');
+    assert.equal(amendedJournal.amendmentHistory[0].reflectionEvidenceRef, 'TB-IMPORT-REV-1');
+    assert.equal(amendedJournal.amendmentHistory[0].reason, 'Corrected amount from approved supporting schedule.');
+    assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`), sourceRowsBeforeReview, 'amending a journal leaves source TB rows unchanged');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Prior journal revisions \(1\)/, 'prior decision and journal revision remains visible');
+
+    await switchPersona('Senior reviewer', 'reviewer');
+    const reReview = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample amended'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Complete Technical Review');if(!button)return false;button.click();return true;})()`);
+    assert.equal(reReview, true, 'amended revision requires a fresh independent review');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}).status==='Technical review'`), true);
+    await switchPersona('Management approver', 'client');
+    await clickButton('Management Approvals');
+    await clickButton('Accept adjustment');
+    assert.equal(await waitForBrowser(`(() => {const j=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)});return j.revision===2&&j.status==='Management accepted'&&j.managementAcceptedBy==='Omar Nasser'&&j.amendmentHistory.length===1;})()`), true, 'revised journal has a separate current management decision and retains its predecessor');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
