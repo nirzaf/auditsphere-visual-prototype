@@ -1,20 +1,22 @@
 // Module 02 & 17: Centralized Client 360 Workspace (VP-008)
 // 12 Tabs: Overview, Contacts, Engagements, Jobs, Documents, Requests, Communications, Time/Budgets, Billing, Accounting, Audit, Activity
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RouteKey, ClientContact, PbcRequestItem, CustomFieldDefinition } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ClientDetailViewProps {
   clientId: string;
   searchTargetId?: string;
   onBack: () => void;
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null) => void;
 }
 
-export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate }) => {
+export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const searchContact = state.contacts.find(contact => contact.id === searchTargetId && contact.clientId === clientId);
   const [activeTab, setActiveTab] = useState<
@@ -39,6 +41,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [contactResponsibility, setContactResponsibility] = useState('');
   const [contactEffectiveFrom, setContactEffectiveFrom] = useState('');
   const [contactEffectiveTo, setContactEffectiveTo] = useState('');
+  const contactForm = useRef<HTMLFormElement>(null);
   const [customFieldId, setCustomFieldId] = useState(state.customFields.find(f => f.enabled !== false)?.id || '');
   const [customFieldValue, setCustomFieldValue] = useState('');
   const [clientNotice, setClientNotice] = useState('');
@@ -85,9 +88,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     { key: 'activity', label: 'Audit Log' }
   ];
 
-  const handleAddContact = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactName.trim()) return;
+  const saveContact = useCallback(() => {
+    if (!showAddContact || !contactForm.current?.reportValidity() || !contactName.trim()) return false;
     const newContact: ClientContact = {
       id: `CNT-${crypto.randomUUID()}`,
       clientId: client.id,
@@ -102,7 +104,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
       portalAccessRequested: false
     };
     try { prototypeStore.addContact(newContact); }
-    catch (error) { setClientNotice(error instanceof Error ? error.message : 'Contact could not be saved.'); return; }
+    catch (error) { setClientNotice(error instanceof Error ? error.message : 'Contact could not be saved.'); return false; }
     setShowAddContact(false);
     setContactName('');
     setContactEmail('');
@@ -110,7 +112,23 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     setContactResponsibility('');
     setContactEffectiveFrom('');
     setContactEffectiveTo('');
-  };
+    return true;
+  }, [showAddContact, contactName, contactEmail, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, contacts.length, client.id]);
+  const discardContact = useCallback(() => {
+    setShowAddContact(false);
+    setContactName(''); setContactEmail(''); setContactTitle(''); setContactResponsibility('');
+    setContactEffectiveFrom(''); setContactEffectiveTo('');
+  }, []);
+  useEffect(() => {
+    onRegisterUnsavedForm({
+      label: 'client contact',
+      isDirty: () => showAddContact && Boolean(contactName.trim() || contactEmail.trim() || contactTitle.trim() || contactResponsibility.trim() || contactEffectiveFrom || contactEffectiveTo),
+      save: saveContact,
+      discard: discardContact
+    });
+    return () => onRegisterUnsavedForm(null);
+  }, [onRegisterUnsavedForm, showAddContact, contactName, contactEmail, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, saveContact, discardContact]);
+  const handleAddContact = (e: React.FormEvent) => { e.preventDefault(); saveContact(); };
 
   const handleSaveCustomField = (event: React.FormEvent) => {
     event.preventDefault();
@@ -689,7 +707,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
               <h2>Add Contact to {client.name}</h2>
               <button className="icon-btn" onClick={() => setShowAddContact(false)}>✕</button>
             </div>
-            <form onSubmit={handleAddContact}>
+            <form ref={contactForm} onSubmit={handleAddContact}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div>
                   <label className="caption">Full Name</label>

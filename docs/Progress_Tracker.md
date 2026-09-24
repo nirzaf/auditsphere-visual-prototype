@@ -53,7 +53,7 @@
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
 | Unit checks reported passing | 161 / 161 | Includes task assignment scope, cancellation history, and task hierarchy regressions. |
-| E2E checks reported passing | 69 / 69 | Rerun: 5 static checks + 64 actual Chrome checks. |
+| E2E checks reported passing | 70 / 70 | Rerun: 5 static checks + 65 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Pending action rows in this tracker | 117 | 0 stated implementation actions; 82 evidence/verification actions; 35 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -584,7 +584,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-003-E01 — Verification/evidence pending:** Exercise dialog-specific save/cancel and dismissal paths for every active modal. Shared semantics, focus containment, Escape cancellation, Enter submission, and focus restoration now pass in the client and New Job dialogs.
 
-- [ ] **VP-003-E02 — Verification/evidence pending:** Extend registered dirty-form save/discard/cancel behavior to remaining forms and verify client-selector plus denied/restored direct targets. M365 setup now passes all three choices for route, persona and engagement changes; global-search navigation also verifies Stay leaves context unchanged and Discard applies the selected engagement only after clearing the draft (AT-15/AT-16 Chrome, 2026-09-24).
+- [ ] **VP-003-E02 — Verification/evidence pending:** Extend registered dirty-form save/discard/cancel behavior to remaining forms and verify client-selector plus denied/restored direct targets. M365 setup passes all three choices for route, persona and engagement changes; global-search navigation and the Client 360 Add Contact form now verify Stay, Save and Discard across context changes (AT-15/AT-16 and VP-003-AC02 Chrome, 2026-09-24).
 
 - [ ] **VP-003-R03 — Requirement/scope reconciliation:** Where a dirty-form or unavailable-target path is absent, implement the smallest shared control and then add its test.
 
@@ -601,7 +601,7 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-003-AC01 | Given a direct link or restored selection outside the current scope, when opened, then a safe unavailable view appears and no restricted record fields/counts are rendered. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | SUBCASES VERIFIED 2026-09-24: M365 setup Save persists before route change; Discard leaves stored config unchanged; Stay preserves the draft; route, persona, engagement, disconnect and global-search context changes are guarded. Search Stay preserves context; search Discard switches only after dropping the draft. Other forms, client-selector and denied/restored target cases remain open. |
+| VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | SUBCASES VERIFIED 2026-09-24: M365 setup and Client 360 Add Contact guard route/persona/engagement changes. Save persists before switching, Discard drops the draft, and Stay preserves it. Global-search Stay preserves context and search Discard switches after dropping the draft. Other forms, client-selector and denied/restored target cases remain open. |
 | VP-003-AC03 | Keyboard-only users can open, edit, save and cancel dialogs with focus restored to the initiating control. | SUBCASES VERIFIED 2026-09-24: client/New Job keyboard open, Tab containment, Escape cancel, Enter submit and focus restoration pass in Chrome. Each dialog-specific close path and keyboard editing breadth remain open. |
 | VP-003-AC04 | Every active route has a label, required capability and at least one role fixture; client routes contain no staff economics, internal notes or presenter exports. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 

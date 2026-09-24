@@ -479,6 +479,47 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'discard clears the form before applying another context change');
   });
 
+  it('VP-003-AC02: guards an unsaved client contact across persona changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Client 360 Workspace');
+      await clickButtonStartingWith('Contacts');
+      await clickButton('Add Contact');
+      await browserTab!.evaluate(`(() => {const name=document.querySelector('.modal-backdrop input[type="text"]');const email=document.querySelector('.modal-backdrop input[type="email"]');for(const [el,value] of [[name,'Guarded Contact'],[email,'guarded@example.demo']]){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('.modal-backdrop form').checkValidity()`), true, 'contact draft satisfies native form validation');
+      const changePersona = async (userId: string) => browserTab!.evaluate<boolean>(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(x=>x.value===${JSON.stringify(userId)});if(!option)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+      assert.equal(await changePersona('preparer'), true);
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'persona switch prompts for the dirty client contact');
+      assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId`), 'manager', 'pending persona transition has not changed identity');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('.modal-backdrop input[type="text"]')?.value`), 'Guarded Contact', 'Stay preserves the contact draft');
+      assert.equal(await changePersona('preparer'), true);
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'second persona switch still sees the preserved draft');
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='preparer'`), true, 'Save records the contact before changing persona');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.some(x=>x.name==='Guarded Contact'&&x.email==='guarded@example.demo')`), true);
+
+      assert.equal(await changePersona('manager'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Client 360 Workspace');
+      await clickButtonStartingWith('Contacts');
+      await clickButton('Add Contact');
+      await browserTab!.evaluate(`(() => {const name=document.querySelector('.modal-backdrop input[type="text"]');const email=document.querySelector('.modal-backdrop input[type="email"]');for(const [el,value] of [[name,'Discarded Contact'],[email,'discarded@example.demo']]){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+      assert.equal(await changePersona('preparer'), true);
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='preparer'`), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.some(x=>x.name==='Discarded Contact')`), true, 'Discard changes persona without creating the contact');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-18/AT-25/AT-53: switches to a client persona and exposes only the portal', async () => {
     const changed = await browserTab!.evaluate<boolean>(`(() => {
       const select = document.querySelector("#role-select");

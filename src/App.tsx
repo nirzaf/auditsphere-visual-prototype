@@ -195,6 +195,7 @@ export const App: React.FC = () => {
             searchTargetId={searchTargetId}
             onBack={() => setCurrentRoute('clients')}
             onNavigate={navigate}
+            onRegisterUnsavedForm={registerUnsavedForm}
           />
         );
       case 'acquisition':
