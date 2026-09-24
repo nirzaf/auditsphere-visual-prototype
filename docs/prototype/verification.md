@@ -599,3 +599,16 @@ and `https://prototype.steaudit.com` both returned HTTP 200 and served
 `c006e53c5b958f595219e22b915b89a8c9bd5af2a50f347fc1bb4259664a8dda`), matching
 the local build. Wrangler reports deployment `a5c09022` on branch `production`,
 source `c275f5c`.
+
+R09 consolidation failure handling: Chrome removes the required Associate
+component and verifies the missing role is identified, no consolidated grid or
+balance is shown, source rows remain unchanged, and the browser records no
+exception. `npm run lint` passed, unit tests passed 145/145, and the complete
+build/Chrome acceptance suite passed 64/64 (five static checks and 59 Chrome
+journeys). The existing bundle-size advisory (>500 kB) remains. Commit
+`326edbe` is deployed to the existing production Pages project as
+`cecca9a4-1b98-4ea6-ae38-3ebc7d0fe5d8` ([release](https://cecca9a4.steaudit-prototype.pages.dev)).
+The release URL and `https://prototype.steaudit.com` both returned HTTP 200 and
+served `assets/index-HhJk7oJQ.js` (2,240,350 bytes; SHA-256
+`2221abaa2e7a0b7bba966c11c186905ed1ae652130f6ab85ee67b1efa68e849a`), matching
+the local build. Wrangler reports production source `326edbe`.
