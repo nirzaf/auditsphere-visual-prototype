@@ -1703,6 +1703,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(packageSections.cashDisabled, true, 'unsupported cash-flow output cannot be selected');
     assert.equal(packageSections.cashChecked, false);
     assert.match(packageSections.cashReason, /classified cash movements are not stored/);
+    await browserTab!.evaluate('(() => {const BaseBlob=window.Blob;window.__testBaseBlob=BaseBlob;window.Blob=class extends BaseBlob {constructor(){throw new Error("fixture XLSX generation failure")}};})()');
+    try {
+      await clickButton('+ Assemble New Revision (Rev 2)');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("fixture XLSX generation failure")'), true, 'generator failure is reported to the user');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.packageRevision===1&&!e.packageHistory.some(p=>p.revision===2);})()`), true, 'failed generation does not advance package revision or report a saved artifact');
+    } finally {
+      await browserTab!.evaluate('window.Blob=window.__testBaseBlob;delete window.__testBaseBlob');
+    }
     await clickButton('+ Assemble New Revision (Rev 2)');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 2 saved with exact XLSX, DOCX and PDF files.")'), true, 'package should persist genuine artifacts');
     const persisted = await browserTab!.evaluate<any>(`(async () => {
