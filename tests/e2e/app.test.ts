@@ -1422,6 +1422,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     })()`);
     await clickButton('Save Recommendation');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Partner decision is pending")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('select option')].some(o=>o.textContent.includes('Prohibited — Mandatory Mandate Rejection'))`), true, 'the prohibited mandate outcome is visible in the acceptance risk selector');
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
       const option = [...role.options].find(o => o.textContent.includes('Engagement partner'));
@@ -1462,7 +1463,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const jobs = state.jobs.filter(j => j.engagementId === draft?.id);
       const jobIds = new Set(jobs.map(j => j.id));
       const documentIds = new Set(state.documents.filter(d => d.engagementId === draft?.id).map(d => d.id));
-      return { priorRows: prior?.rows?.length, evidenceRefs: Object.keys(priorCase?.screeningEvidence || {}).length, continuedTo: priorCase?.continuedToEngagementId, draftId: draft?.id, acceptance: draft?.acceptance, terms: draft?.terms, rows: draft?.rows?.length, sourceHistory: draft?.sourceHistory?.length, jobs: jobs.length, tasks: state.jobTasks.filter(t => jobIds.has(t.jobId)).length, documents: documentIds.size, linkedEvidence: state.evidenceCatalogue.filter(e => documentIds.has(e.documentId)).length, findings: state.findings.filter(f => f.engagementId === draft?.id).length, workpapers: draft?.workpapers?.length, reviews: draft?.reviews?.length, packages: draft?.packageHistory?.length, releases: draft?.releases?.length, approvals: Object.values(draft?.approvals || {}).filter(Boolean).length, approvalHistory: draft?.approvalHistory?.length, reconciliations: draft?.reconciliations?.length, pbc: draft?.pbc?.length, events: draft?.events?.length };
+      return { priorRows: prior?.rows?.length, evidenceRefs: Object.keys(priorCase?.screeningEvidence || {}).length, continuedTo: priorCase?.continuedToEngagementId, draftId: draft?.id, acceptance: draft?.acceptance, terms: draft?.terms, rows: draft?.rows?.length, sourceHistory: draft?.sourceHistory?.length, jobs: jobs.length, tasks: state.jobTasks.filter(t => jobIds.has(t.jobId)).length, documents: documentIds.size, linkedEvidence: state.evidenceCatalogue.filter(e => documentIds.has(e.documentId)).length, samplePopulations: state.samplePopulations.filter(p => p.engagementId === draft?.id).length, auditPrograms: state.auditPrograms.filter(p => p.engagementId === draft?.id).length, timeEntries: state.times.filter(t => t.engagementId === draft?.id).length, budgets: state.budgets.filter(b => b.engagementId === draft?.id).length, findings: state.findings.filter(f => f.engagementId === draft?.id).length, workpapers: draft?.workpapers?.length, reviews: draft?.reviews?.length, packages: draft?.packageHistory?.length, releases: draft?.releases?.length, approvals: Object.values(draft?.approvals || {}).filter(Boolean).length, approvalHistory: draft?.approvalHistory?.length, reconciliations: draft?.reconciliations?.length, pbc: draft?.pbc?.length, events: draft?.events?.length };
     })()`);
     assert.ok(persisted.priorRows > 0, 'prior period source rows remain intact');
     assert.equal(persisted.continuedTo, 'ENG-CONT-CL-001-2027');
@@ -1470,7 +1471,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(persisted.draftId, 'ENG-CONT-CL-001-2027');
     assert.equal(persisted.acceptance, false);
     assert.equal(persisted.terms, false);
-    for (const field of ['rows', 'sourceHistory', 'jobs', 'tasks', 'documents', 'linkedEvidence', 'findings', 'workpapers', 'reviews', 'packages', 'releases', 'approvals', 'approvalHistory', 'reconciliations', 'pbc']) assert.equal(persisted[field], 0, `${field} must start empty`);
+    for (const field of ['rows', 'sourceHistory', 'jobs', 'tasks', 'documents', 'linkedEvidence', 'samplePopulations', 'auditPrograms', 'timeEntries', 'budgets', 'findings', 'workpapers', 'reviews', 'packages', 'releases', 'approvals', 'approvalHistory', 'reconciliations', 'pbc']) assert.equal(persisted[field], 0, `${field} must start empty`);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

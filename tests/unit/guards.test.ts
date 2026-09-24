@@ -1433,9 +1433,18 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(prototypeStore.getSnapshot().acceptanceCases?.[0].decisionStatus, 'Pending');
     assert.equal(prototypeStore.getSnapshot().acceptanceCases?.[0].history?.[0].screeningEvidence?.amlKyc, 'KYC-101');
     setPersona(current, 'Daniel James');
+    const prohibitedCase = { ...prototypeStore.getSnapshot().acceptanceCases![0], riskRating: 'Prohibited' as const };
+    setPersona(current, 'Hana Ali');
+    prototypeStore.saveAcceptanceCase(prohibitedCase);
+    setPersona(current, 'Daniel James');
+    assert.throws(() => prototypeStore.decideAcceptanceCase(`ACC-${eng.client}-${eng.year}`, 'Accepted', 'Prohibited mandate.'), /mandate is not prohibited/);
+    assert.equal(prototypeStore.getSnapshot().acceptanceCases?.[0].decisionStatus, 'Pending');
+    setPersona(current, 'Hana Ali');
+    prototypeStore.saveAcceptanceCase({ ...prohibitedCase, riskRating: 'Low' });
+    setPersona(current, 'Daniel James');
     prototypeStore.decideAcceptanceCase(`ACC-${eng.client}-${eng.year}`, 'Accepted', 'Accepted after independent review.');
     assert.equal(eng.acceptance, true);
-    assert.deepEqual(prototypeStore.getSnapshot().acceptanceCases?.[0].history?.map(item => item.action), ['recommendation', 'decision']);
+    assert.deepEqual(prototypeStore.getSnapshot().acceptanceCases?.[0].history?.map(item => item.action), ['recommendation', 'recommendation', 'recommendation', 'decision']);
   });
 
   it('allocates one receipt across invoices and reverses only the selected allocation', async () => {
