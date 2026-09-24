@@ -975,6 +975,8 @@ class PrototypeStore {
       } else if (job.status !== current.status) {
         this.logEvent(`Job ${job.id} status changed: ${current.status} → ${job.status}${job.status === 'Blocked' ? ` — ${job.blockedReason!.trim()}` : ''}`, job.id, 'history');
       }
+      const changedDetails = (['title', 'description', 'owner', 'dueDate'] as const).filter(key => current[key] !== job[key]);
+      if (changedDetails.length) this.logEvent(`Job ${job.id} details updated: ${changedDetails.join(', ')}`, job.id, 'history');
       this.state.jobs[index] = job;
       this.notify();
     }

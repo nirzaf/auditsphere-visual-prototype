@@ -97,10 +97,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   attributable cancellation event. Unit guards require a reason and prevent
   reopening a cancelled job. Chrome also verifies that open subtasks block parent
   completion and that reassignment changes the real assignee with a retained
-  reason and no authority grant. Chrome now edits task title/description/due date,
-  changes status with blocked-reason enforcement and reorders siblings while
-  preserving assignment history. Full job field editing, task comments/attachments,
-  and job detail tabs for files/time remain incomplete.
+  reason and no authority grant. Chrome now edits job and task details with
+  history, changes task status with blocked-reason enforcement, reorders siblings,
+  and displays linked job files and time entries while preserving assignment
+  history. Task-level comments/attachments and the broader job/task return/reopen
+  matrix remain incomplete.
 - **AT-13 — job templates:** Chrome authors and publishes a Draft, applies it
   to a fresh job/tree, then creates and publishes a separate edited revision.
   The existing job and prior published template remain unchanged, and jobs pin

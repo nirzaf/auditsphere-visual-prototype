@@ -1000,6 +1000,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setJobFilter('Jobs status filter', 'ALL');
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-CANCEL'));row.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.eyebrow')?.innerText.includes('JOB-AT11-CANCEL')`), true, 'selected job workspace follows the clicked register row');
+    await clickButton('Edit Job Details');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const title=document.querySelector('[aria-label="Edited job title"]');set.call(title,'AT-11 Cancellation Fixture');title.dispatchEvent(new Event('input',{bubbles:true}));const desc=document.querySelector('[aria-label="Edited job description"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(desc,'Retained scope details after client cancellation.');desc.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Job Details');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const j=s.jobs.find(x=>x.id==='JOB-AT11-CANCEL');return j.title==='AT-11 Cancellation Fixture'&&j.description.includes('Retained scope details')&&s.events.some(e=>e.ref===j.id&&e.text.includes('details updated: title, description'));})()`), true, 'manager edits job title and scope details with a history event');
     await browserTab!.evaluate(`(() => {window.prompt=()=> 'Awaiting client approval.';const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Blocked');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id==='JOB-AT11-CANCEL').blockedReason==='Awaiting client approval.'`), true, 'blocked status persists its required reason');
     await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'In progress');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -1018,6 +1022,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setJobFilter('Jobs status filter', 'Cancelled');
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-CANCEL'));if(!row)throw Error('Cancelled job is missing from its status-filtered register');row.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.eyebrow')?.innerText.includes('JOB-AT11-CANCEL')`), true);
+    const jobDetails = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.match(jobDetails, /Job Files \(1\)/);
+    assert.match(jobDetails, /Retained job document\.pdf/);
+    assert.match(jobDetails, /Job Time \(1\)/);
+    assert.match(jobDetails, /Retained task/);
     const cancelledControls = await browserTab!.evaluate<boolean>(`(() => document.querySelector('[aria-label="Selected job status"]')?.disabled&&[...document.querySelectorAll('.borderbox input[type=checkbox]')].every(e=>e.disabled)&&[...document.querySelectorAll('.borderbox button')].every(e=>e.disabled))()`);
     assert.equal(cancelledControls, true, 'cancelled work remains visible and read-only');
     assert.deepEqual(browserTab!.exceptions, []);

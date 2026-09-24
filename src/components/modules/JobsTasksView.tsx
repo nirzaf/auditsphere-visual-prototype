@@ -25,6 +25,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>(() => scopedJobs.find(job => job.engagementId === state.selectedEngagement)?.id || scopedJobs[0]?.id || '');
   const [showAddJobModal, setShowAddJobModal] = useState(false);
+  const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [taskToReassign, setTaskToReassign] = useState<JobTaskItem | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<JobTaskItem | null>(null);
@@ -72,6 +73,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const jobTasks = state.jobTasks.filter(t => scopedJobIds.has(t.jobId) && t.jobId === selectedJob?.id);
   const parentTasks = jobTasks.filter(t => !t.parentTaskId).sort((a, b) => a.order - b.order);
   const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal');
+  const jobDocuments = state.documents.filter(document => document.linkedJobId === selectedJob?.id);
+  const jobTimeEntries = state.times.filter(entry => entry.jobId === selectedJob?.id);
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
 
   const handleAddInternalNote = (e: React.FormEvent) => {
@@ -167,6 +170,18 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
       setNewJobTitle('');
       setNewJobDescription('');
       triggerNotice('success', `Job "${newJob.title}" scheduled (${newJob.id}).`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const saveJobDetails = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingJob) return;
+    try {
+      prototypeStore.updateJob(editingJob);
+      setEditingJob(null);
+      triggerNotice('success', 'Job details updated.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -344,6 +359,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     <span className="eyebrow">JOB WORKSPACE · {selectedJob.id}</span>
                     <h2>{selectedJob.title}</h2>
                     <p className="sub">{client?.name || selectedJob.clientId} · Due: {selectedJob.dueDate} · Owner: {selectedJob.owner}</p>
+                    {['manager', 'partner'].includes(state.currentRole) && selectedJob.status !== 'Cancelled' && <button className="btn sm ghost mt8" onClick={() => setEditingJob(structuredClone(selectedJob))}>Edit Job Details</button>}
                     <label className="caption block mt8">Manual job status<select aria-label="Selected job status" value={selectedJob.status} disabled={!['manager', 'partner'].includes(state.currentRole) || selectedJob.status === 'Cancelled'} onChange={e => handleUpdateJobStatus(selectedJob, e.target.value as JobRecord['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
                     {selectedJob.status === 'Blocked' && <p className="caption mt4">Blocked: {selectedJob.blockedReason}</p>}
                     {selectedJob.status === 'Cancelled' && <p className="caption mt4" role="status">Cancelled by {selectedJob.cancelledByUserId || 'recorded user'} on {selectedJob.cancelledAt || 'date unavailable'} · {selectedJob.cancellationReason || 'No reason recorded'}. Tasks and linked records are retained.</p>}
@@ -465,9 +481,27 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                 <div className="divider mt20" />
                 <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => setShowNoteModal(true)}>Add Internal Note</button></div>
                 {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p>{comment.author === state.currentPerson && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => { setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}</div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
+                <div className="grid2 mt20">
+                  <div className="panel panel-pad"><h4>Job Files ({jobDocuments.length})</h4>{jobDocuments.length ? <div className="stack mt8">{jobDocuments.map(document => <div className="between" key={document.id}><span><b>{document.name}</b><span className="cell-sub">{document.id} · v{document.version}</span></span><span className="tag gray">{document.classification}</span></div>)}</div> : <p className="sub mt8">No files are linked to this job.</p>}<button className="btn sm mt8" onClick={() => onNavigate('documents')}>Open document library</button></div>
+                  <div className="panel panel-pad"><h4>Job Time ({jobTimeEntries.length})</h4>{jobTimeEntries.length ? <div className="tablewrap mt8"><table><thead><tr><th>Date</th><th>Person</th><th>Task</th><th>Minutes</th><th>Status</th></tr></thead><tbody>{jobTimeEntries.map(entry => <tr key={entry.id}><td>{entry.date}</td><td>{entry.person}</td><td>{entry.taskTitle}</td><td>{entry.durationMinutes}</td><td>{entry.status}</td></tr>)}</tbody></table></div> : <p className="sub mt8">No time has been recorded against this job.</p>}<button className="btn sm mt8" onClick={() => onNavigate('my-time')}>Open time tracking</button></div>
+                </div>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* New Job Modal */}
+      {editingJob && (
+        <div className="modal-backdrop" onClick={() => setEditingJob(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Edit job details" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head"><h2>Edit Job Details</h2><button className="icon-btn" onClick={() => setEditingJob(null)}>✕</button></div>
+            <form onSubmit={saveJobDetails}><div className="modal-body stack" style={{ gap: 12 }}>
+              <label className="caption">Job title<input className="input mt4" aria-label="Edited job title" required value={editingJob.title} onChange={e => setEditingJob({ ...editingJob, title: e.target.value })} /></label>
+              <label className="caption">Description<textarea className="input mt4" aria-label="Edited job description" value={editingJob.description || ''} onChange={e => setEditingJob({ ...editingJob, description: e.target.value })} /></label>
+              <div className="grid2"><label className="caption">Owner<select className="input mt4" aria-label="Edited job owner" value={editingJob.owner} onChange={e => setEditingJob({ ...editingJob, owner: e.target.value })}>{state.users.filter(user => user.status === 'Active').map(user => <option key={user.id} value={user.name}>{user.name}</option>)}</select></label><label className="caption">Due date<input className="input mt4" aria-label="Edited job due date" type="date" required value={editingJob.dueDate} onChange={e => setEditingJob({ ...editingJob, dueDate: e.target.value })} /></label></div>
+            </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setEditingJob(null)}>Cancel</button><button className="btn primary sm" type="submit">Save Job Details</button></div></form>
+          </div>
         </div>
       )}
 
