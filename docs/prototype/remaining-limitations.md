@@ -2,8 +2,8 @@
 
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-018, VP-037,
-VP-051 and VP-052 are Verified. VP-053 gained reasoned unlink history and adequacy-driven
-invalidation, but its full projection/provenance matrix remains open; 36 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
+VP-051, VP-052 and VP-053 are Verified; 35 of 39 modules remain Partial. Automated
+sources explicitly trace AT-01 through AT-54. See
 `verification.md` for exact executed checks.
 
 ## Known acceptance gaps
@@ -98,17 +98,6 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   self-clearance, and retains independent manager clearance after reload. The
   PRC-04 exception remains visible. Procedure template administration, detailed
   edit history, and the full exception rework matrix remain incomplete.
-
-- **VP-053 — shared evidence:** evidence links now preserve link/unlink actor,
-  time and reason; new links require an adequate current source revision. A
-  reasoned unlink stales its linked procedure; an adequacy change stales linked
-  cleared/submitted procedures and workpapers, moves prior clearance to history
-  and requires a fresh submission. The separate workpaper document pin remains
-  intact when only a procedure relation is removed.
-  Unit checks cover stale-link rejection and dependent invalidation; Chrome covers
-  the unlink flow and then confirms the client Shared Documents view still includes
-  a shared bank statement while hiding the internal workpaper and evidence-link
-  identifiers. Issued-package provenance after unlink still needs a full journey.
 
 - **VP-054 — findings:** the findings register now writes through guarded store
   commands, validates scoped source references, preserves promoted sample

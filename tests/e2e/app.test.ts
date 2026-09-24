@@ -1455,6 +1455,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-41/AT-42/AT-48: saves exact generated package artifacts and verifies them after reload', async () => {
+    await browserTab!.evaluate(`(() => {
+      const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key)||${JSON.stringify(JSON.stringify(createInitialState()))});
+      state.auditPrograms.push({id:'PRG-AT53',engagementId:'ENG-26002',area:'Evidence provenance',objective:'Keep released package identities stable after a later evidence unlink.',procedures:[{id:'PRC-AT53',engagementId:'ENG-26002',linkedRiskIds:[],ref:'P-NS-1',title:'Evidence provenance fixture',instructions:'Verify the synthetic Northstar evidence reference.',assignee:'Adam Khan',requiredEvidence:'Reviewed source',status:'Cleared',workPerformed:'Verified current source revision.',conclusion:'Satisfactory'}]});
+      state.documents.push({id:'DOC-AT53',clientId:'CL-002',engagementId:'ENG-26002',name:'Northstar_Internal_Evidence.pdf',folderPath:'/Engagements/2026/Audit/Workpapers/',version:1,size:1234,classification:'Working paper',visibility:'Internal',source:'SharePoint',uploadedBy:'Adam Khan',uploadedAt:'2026-09-22T10:00:00Z'});
+      state.evidenceCatalogue.push({id:'EVD-AT53',title:'Northstar Evidence Provenance Fixture',documentId:'DOC-AT53',version:1,adequacyStatus:'Adequate',receivedDate:'2026-09-22',owner:'Adam Khan',linkedProcedures:['PRC-AT53']});
+      localStorage.setItem(key,JSON.stringify(state));
+    })()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'scoped evidence provenance fixture reloads');
     const selected = await browserTab!.evaluate<boolean>(`(() => {
       const role = document.querySelector('#role-select');
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(role, 'manager');
@@ -1561,12 +1570,23 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(frozenRelease.release.manifest.map((x: any) => x.artifactId).sort(), frozenRelease.artifacts.map((x: any) => x.id).sort());
     for (const artifact of frozenRelease.artifacts) assert.ok(frozenRelease.release.manifest.some((x: any) => x.artifactId === artifact.id && x.sha === artifact.sha256));
 
+    await setRole('manager');
+    await clickButton('Evidence Catalogue');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'The evidence link was removed after report release.';const b=document.querySelector('button[aria-label="Unlink PRC-AT53 from EVD-AT53"]');if(!b)throw Error('Released engagement evidence unlink control is missing');b.click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26002');const ev=s.evidenceCatalogue.find(x=>x.id==='EVD-AT53');const p=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-AT53');return !ev.linkedProcedures.includes('PRC-AT53')&&p.evidenceReassessmentRequired&&e.releases[0].manifest.length===${frozenRelease.release.manifest.length};})()`), true, 'unlink stales current procedure state while retaining the issued release record');
+    const releaseAfterEvidenceUnlink = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').releases[0].manifest`);
+    assert.deepEqual(releaseAfterEvidenceUnlink, frozenRelease.release.manifest, 'later evidence unlink cannot rewrite issued artifact provenance');
+    const issuedBytesAfterUnlink = await browserTab!.evaluate<any[]>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const m=s.engagements.find(e=>e.id==='ENG-26002').releases[0].manifest;const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const out=await Promise.all(m.map(async x=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(x.artifactId);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error);});const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');return {id:x.artifactId,size:blob.size,sha,expected:x.sha};}));db.close();return out;})()`);
+    assert.deepEqual(issuedBytesAfterUnlink.map((x: any) => [x.id, x.sha]), frozenRelease.release.manifest.map((x: any) => [x.artifactId, x.sha]));
+    assert.ok(issuedBytesAfterUnlink.every((x: any) => x.size > 0), 'every previously issued artifact remains available after evidence unlink');
+    await clickButton('Release & Completion');
+
     await clickButton('Re-open for Amendment');
     await browserTab!.evaluate('document.querySelector(".modal textarea").focus()');
     await browserTab!.command('Input.insertText', { text: 'Correct subsequent-event disclosure before final issue.' });
     await clickButton('Confirm Amendment');
     const reopened = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {generation:e.generation,packageRevision:e.packageRevision,candidate:e.candidate,approvals:e.approvals,release:e.releases[0]};})()`);
-    assert.equal(reopened.generation, persisted.generation + 1);
+    assert.equal(reopened.generation, persisted.generation + 2, 'evidence unlink and amendment each invalidate the current generation');
     assert.equal(reopened.packageRevision, 3);
     assert.equal(reopened.candidate, null);
     assert.equal(reopened.approvals.partner, null, 'amendment requires new generation-bound partner review');
