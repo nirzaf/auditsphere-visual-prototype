@@ -247,13 +247,13 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,218.15 kB,
-  617.44 kB gzip in the latest deployed build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,224.76 kB,
+  619.55 kB gzip in the current build).
 
 ## Verification snapshot
 
-Latest recorded run: 144/144 unit checks and 62/62 E2E checks passed. E2E
-includes five static checks and 57 Chrome journeys. The Chrome suite blocks
+Latest recorded run: 144/144 unit checks and 63/63 E2E checks passed. E2E
+includes five static checks and 58 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,

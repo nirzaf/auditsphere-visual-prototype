@@ -452,3 +452,17 @@ VP-055 filter regression follow-up: `npm run lint` and `npm run test:e2e` passed
 that status filtering retains Responded notes, High severity excludes a Low
 note, and clearing the severity filter restores it. Application code and the
 deployed `fffc74d` asset did not change.
+
+VP-005 dashboard follow-up: dashboard metrics now open filtered working lists;
+client, engagement, fiscal-period and assignee filters apply to the scoped
+records; overdue work uses the shared fixed as-of date and excludes completed
+or cancelled jobs/tasks and accepted/cancelled/draft PBC requests. The Chrome
+journey seeds one overdue job, task and client request and verifies the count
+and drill-down reconcile to three, then filters by assignee and verifies two.
+Ready-to-release excludes engagements with no workpapers. Billing and
+receivables summaries remain role-gated and currency-separated. `npm run lint`
+passed, unit tests passed 144/144, and build/Chrome E2E passed 63/63 (five
+static checks and 58 Chrome journeys). The existing >500 kB bundle warning
+remains. VP-005 stays Partial pending a selectable as-of override and direct
+evidence across the full staff/finance visibility matrix. Deployment details
+follow after this change is published.
