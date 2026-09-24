@@ -347,7 +347,7 @@ The current module-status column follows [S3], not a recalculated guess. Detaile
 | <a id="mod-18"></a>MOD-18 | **Microsoft 365 Integration** | Light | PARTIAL | [VP-017](#vp-017), [VP-020](#vp-020), [VP-021](#vp-021), [VP-022](#vp-022), [VP-026](#vp-026) | 0/5 |
 | <a id="mod-19"></a>MOD-19 | **Identity & Access Management** | Partial | PARTIAL | [VP-018](#vp-018), [VP-019](#vp-019) | 1/2 |
 | <a id="mod-20"></a>MOD-20 | **Accounting** | Light | PARTIAL | [VP-034](#vp-034), [VP-037](#vp-037) | 1/2 |
-| <a id="mod-21"></a>MOD-21 | **Trial Balance & GL** | Partial | PARTIAL | [VP-035](#vp-035), [VP-036](#vp-036) | 0/2 |
+| <a id="mod-21"></a>MOD-21 | **Trial Balance & GL** | Partial | PARTIAL | [VP-035](#vp-035), [VP-036](#vp-036) | 1/2 |
 | <a id="mod-22"></a>MOD-22 | **Adjustments & Journals** | Partial | PARTIAL | [VP-038](#vp-038) | 0/1 |
 | <a id="mod-23"></a>MOD-23 | **Reconciliations** | Light | PARTIAL | [VP-039](#vp-039) | 0/1 |
 | <a id="mod-24"></a>MOD-24 | **Financial Statements** | Partial | PARTIAL | [VP-040](#vp-040), [VP-041](#vp-041) | 0/2 |
@@ -411,7 +411,7 @@ Use this register for planning and the detailed records below for implementation
 | [VP-032](#vp-032) | Implement offline receipt records, allocation and correction | M5 | PARTIAL | E | P1 | Unassigned / not linked |
 | [VP-033](#vp-033) | Add receivables aging and client account statements | M5 | PARTIAL | E/R | P2 | Unassigned / not linked |
 | [VP-034](#vp-034) | Add accounting profiles, periods, books, charts and dimensions | M6 | PARTIAL | E | P1 | Unassigned / not linked |
-| [VP-035](#vp-035) | Complete bounded CSV and genuine XLSX trial-balance intake | M6 | PARTIAL | E | P1 | Unassigned / not linked |
+| [VP-035](#vp-035) | Complete bounded CSV and genuine XLSX trial-balance intake | M6 | VERIFIED (reported) | E | P1 | Unassigned / not linked |
 | [VP-036](#vp-036) | Add GL intake, transaction browsing and TB completeness | M6 | PARTIAL | E/R | P1 | Unassigned / not linked |
 | [VP-037](#vp-037) | Extend account mappings and reporting validation | M6 | VERIFIED (reported) | Regression only | Regression | Unassigned / not linked |
 | [VP-038](#vp-038) | Generalize adjustment journals and source-reflection decisions | M6 | PARTIAL | E/R | P1 | Unassigned / not linked |
@@ -452,7 +452,7 @@ Each record includes the exact original user story, required scope, four accepta
 <a id="vp-001"></a>
 ### VP-001 — Freeze scope and remove excluded product surfaces
 
-**Current status:** PARTIAL  
+**Current status:** PARTIAL
 **Milestone:** M0  
 **Tracker priority:** P2  
 **Owner:** Unassigned  
@@ -2280,15 +2280,15 @@ Create client accounting profile, legal entity, reporting periods/books, basis a
 <a id="vp-035"></a>
 ### VP-035 — Complete bounded CSV and genuine XLSX trial-balance intake
 
-**Current status:** PARTIAL  
+**Current status:** VERIFIED
 **Milestone:** M6  
 **Tracker priority:** P1  
 **Owner:** Unassigned  
 **Issue / PR:** Not linked in this tracker  
 **Target date:** Not set  
-**Status snapshot:** 2026-09-24, `eaaa7cf`
+**Status snapshot:** 2026-09-24, `88950b67e3097a43f0c9f6359f40f50bae94cd0c`
 
-- [ ] **Story acceptance recorded as complete in the repository.**
+- [x] **Story acceptance recorded as complete in the repository.**
 
 **Current evidence and status basis:** [Current coverage](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/module-coverage.md#L30) · [Verification record](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/verification.md) · [Limitations](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/remaining-limitations.md)
 
@@ -2301,12 +2301,11 @@ Create client accounting profile, legal entity, reporting periods/books, basis a
 #### Demonstrated / already implemented
 CSV and genuine XLSX TB import, row validation, source hashes and predecessor snapshots are represented. Recorded browser journeys retain prior source when unbalanced input fails.
 
-#### Pending actions
-The distinction between implementation, evidence and scope reconciliation is intentional.
+#### Verification completed
 
 - [x] **VP-035-E01 — Browser evidence complete (2026-09-24):** AT-35 Chrome rejects duplicate codes, formula cells, CSV renamed to XLSX, oversized input, 2,001-row input, unmapped chart accounts and stale chart context. Each rejection disables commit and preserves the latest accepted source rows/version.
 
-- [ ] **VP-035-E02 — Verification/evidence pending:** Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions.
+- [x] **VP-035-E02 — Browser and store evidence complete (2026-09-24):** AT-35 imports signed-net CSV with configured dimensions and debit/credit CSV with reordered/manual column choices; rejects missing headers and unknown dimension values; preserves exact mapping, normalized balances, accounting profile/chart/book context, SHA-256 and predecessor history across CSV/XLSX and successive replacements. Invalid dimensions are rejected by the store before source-version or row mutation.
 
 #### Original user story and dependencies
 **Target modules:** 21  
@@ -2320,14 +2319,14 @@ Extend CSV intake with genuine XLSX parsing using a small reviewed browser-compa
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-035-AC01 | Given valid balanced CSV/XLSX data, when committed, then source rows, normalized totals, file metadata/hash and reporting context are retained as one revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-035-AC02 | Unbalanced totals, duplicate ambiguous accounts, missing headers, unknown dimensions, formula-dependent numeric cells and exceeded limits produce a non-committed error preview. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-035-AC03 | A rejected import leaves the previous accepted source untouched; a successful replacement preserves it and stales dependent calculations/approvals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-035-AC04 | XLSX means an actual workbook format, not CSV renamed to .xlsx; source bytes remain in-session only and exported/imported formats are verified. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-035-AC01 | Given valid balanced CSV/XLSX data, when committed, then source rows, normalized totals, file metadata/hash and reporting context are retained as one revision. | VERIFIED — AT-35: CSV signed-net and debit/credit produce expected normalized rows; both CSV and genuine XLSX revisions retain hash, mapping, predecessor and accounting context. |
+| VP-035-AC02 | Unbalanced totals, duplicate ambiguous accounts, missing headers, unknown dimensions, formula-dependent numeric cells and exceeded limits produce a non-committed error preview. | VERIFIED — AT-35 Chrome covers unbalanced, duplicate, missing-header, unknown-dimension, formula, 2,001-row, oversize, unmapped account and stale context rejection without commit. |
+| VP-035-AC03 | A rejected import leaves the previous accepted source untouched; a successful replacement preserves it and stales dependent calculations/approvals. | VERIFIED — AT-35 and store guards confirm rejected inputs preserve accepted rows/version; consecutive CSV/XLSX imports retain immutable predecessor rows and lineage. Source replacement continues through existing dependent-output invalidation. |
+| VP-035-AC04 | XLSX means an actual workbook format, not CSV renamed to .xlsx; source bytes remain in-session only and exported/imported formats are verified. | VERIFIED — AT-35 rejects CSV bytes renamed `.xlsx`, parses and commits a genuine generated workbook, and retains parsed rows/hash while source bytes remain session-only. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L878).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Verification record:** full-suite commit `fcae15765bf809f946147653ee448ca19ab19d93`; `npm run lint && npm run test:unit && npm run test:e2e`; fixture: deterministic `createInitialState()` plus in-memory CSV and generated XLSX; 161/161 unit and 70/70 E2E checks passed on 2026-09-24. Final copy-only registry update `88950b67e3097a43f0c9f6359f40f50bae94cd0c` passed lint and production build.
 
 
 <a id="vp-036"></a>
@@ -3902,7 +3901,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 | <a id="at-32"></a>**AT-32** | One receipt across invoices and reversal | Receipt amount = net allocations + unallocated; over/cross-client/currency allocations rejected; correction history retained. | 032 | Open primary stories: VP-032 | [S4], [S6]; exact run link to record |
 | <a id="at-33"></a>**AT-33** | As-of AR and aging boundary cases | QAR 600 example and boundary buckets match; future receipts ignored; exports equal displayed totals. | 033 | Open primary stories: VP-033 | [S4], [S6]; exact run link to record |
 | <a id="at-34"></a>**AT-34** | Configure chart/period/book/dimensions | Invalid dates/hierarchies/cross-client references rejected; source context visible throughout accounting. | 034 | Open primary stories: VP-034 | [S4], [S6]; exact run link to record |
-| <a id="at-35"></a>**AT-35** | Valid and invalid CSV/XLSX TB import | Genuine XLSX accepted within limits; error preview leaves old source unchanged; valid replacement preserves lineage. | 035 | Open primary stories: VP-035 | [S4], [S6]; exact run link to record |
+| <a id="at-35"></a>**AT-35** | Valid and invalid CSV/XLSX TB import | Genuine XLSX accepted within limits; error preview leaves old source unchanged; valid replacement preserves lineage. | 035 | Verified primary story: VP-035 | [S4], [S6]; see verification record |
 | <a id="at-36"></a>**AT-36** | GL import and opening + movement tie-out | Residuals/counts match; missing opening/partial journals do not become complete by default. | 036 | Open primary stories: VP-036 | [S4], [S6]; exact run link to record |
 | <a id="at-37"></a>**AT-37** | Revise mapping and inspect statement line source | Unmapped queue persists; split allocations conserve totals; changed approved mapping stales output. | 037 | Linked primary stories repository-verified; retain end-to-end regression | [S4], [S6]; exact run link to record |
 | <a id="at-38"></a>**AT-38** | Generic adjustment and reflected replacement source | QAR 500 depreciation applied once; unknown/partial reflection blocks; original source never posted/mutated. | 038 | Open primary stories: VP-038 | [S4], [S6]; exact run link to record |
@@ -3936,7 +3935,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **117 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **116 open planning actions** attached to the 49 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4023,7 +4022,7 @@ This queue contains **117 open planning actions** attached to the 50 Partial sto
 | VP-034-E01 | [VP-034](#vp-034) | P1 | Complete client/chart/book/period edits and downstream rework for multiple same-client engagements, including prior mapping and statement/package snapshots. | Pending / Unassigned / — |
 | VP-034-E02 | [VP-034](#vp-034) | P1 | Verify closed books, archived accounts and dimension changes cannot silently alter approved output; migrated unselected reporting basis stays explicit. | Pending / Unassigned / — |
 | VP-035-E01 | [VP-035](#vp-035) | P1 | Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser. | Verified / 2026-09-24 |
-| VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Pending / Unassigned / — |
+| VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Verified / 2026-09-24 |
 | VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Pending / Unassigned / — |
 | VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Pending / Unassigned / — |
 | VP-038-E01 | [VP-038](#vp-038) | P1 | Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions. | Pending / Unassigned / — |
