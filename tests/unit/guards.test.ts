@@ -287,6 +287,12 @@ describe('document reference lifecycle (VP-021)', () => {
     setPersona(state, 'Layla Rahman');
     const document = state.documents.find(item => item.id === 'DOC-002')!;
     const originalEvidence = state.evidenceCatalogue.find(item => item.documentId === document.id)!;
+    assert.throws(() => prototypeStore.setDocumentClientSharing(document.id, false, '  '), /reason is required/);
+    prototypeStore.setDocumentClientSharing(document.id, false, 'Client asked to hold this evidence pending review.');
+    assert.equal(document.visibility, 'Internal');
+    prototypeStore.setDocumentClientSharing(document.id, true, 'Client approved the refreshed evidence.');
+    assert.equal(document.visibility, 'Client shared');
+    assert.deepEqual(document.sharingHistory?.map(item => [item.from, item.to]), [['Client shared', 'Internal'], ['Internal', 'Client shared']]);
     prototypeStore.updateDocumentReference(document.id, 'Renamed bank statement.pdf', '/Engagements/2026/Accounting/');
     assert.equal(document.id, 'DOC-002');
     assert.equal(document.folderPath, '/Engagements/2026/Accounting/');

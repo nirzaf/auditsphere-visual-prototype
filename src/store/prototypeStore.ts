@@ -1243,6 +1243,27 @@ class PrototypeStore {
     this.notify();
   }
 
+  public setDocumentClientSharing(documentId: string, shared: boolean, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'change client document sharing');
+    const document = this.state.documents.find(item => item.id === documentId);
+    if (!document) throw new GuardError('INVALID_STATE', 'Document was not found.');
+    requireClientScope(this.state, document.clientId);
+    if (document.engagementId) requireEngagementScope(this.state, document.engagementId, 'records');
+    if (typeof reason !== 'string' || !reason.trim()) throw new GuardError('INVALID_STATE', 'A reason is required to change client document sharing.');
+    const next = shared ? 'Client shared' : 'Internal';
+    if (document.visibility === next) throw new GuardError('INVALID_STATE', `Document is already ${shared ? 'shared with the client' : 'internal'}.`);
+    document.sharingHistory ||= [];
+    document.sharingHistory.push({ from: document.visibility, to: next, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
+    document.visibility = next;
+    if (document.engagementId) {
+      const engagement = this.state.engagements.find(item => item.id === document.engagementId)!;
+      this.invalidateReleaseBasis(engagement);
+    }
+    this.logEvent(`Client sharing ${shared ? 'enabled' : 'withdrawn'} for ${document.name}: ${reason.trim()}`, document.id);
+    this.notify();
+  }
+
   public replaceDocumentRevision(documentId: string, file: { name: string; size: number; sha256: string }): DocumentItem {
     requireActiveIdentity(this.state);
     const previous = this.state.documents.find(doc => doc.id === documentId);

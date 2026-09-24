@@ -637,6 +637,7 @@ export interface DocumentItem {
   uploadedBy: string;
   uploadedAt: string;
   brokenLink?: boolean;
+  sharingHistory?: Array<{ from: 'Internal' | 'Client shared'; to: 'Internal' | 'Client shared'; by: string; byUserId: string; at: string; reason: string }>;
 }
 
 // Module 11: Communications

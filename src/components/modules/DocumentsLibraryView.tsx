@@ -183,6 +183,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                     <th>Document Name</th>
                     <th>Version</th>
                     <th>Classification</th>
+                    <th>Client visibility</th>
                     <th>Source</th>
                     <th>Uploaded By</th>
                     <th>Actions</th>
@@ -203,6 +204,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                       </td>
                       <td><span className="mono">v{doc.version}</span></td>
                       <td><span className="tag gray">{doc.classification}</span></td>
+                      <td><span className={`tag ${doc.visibility === 'Client shared' ? 'green' : 'gray'}`}>{doc.visibility === 'Client shared' ? 'Shared' : 'Internal'}</span></td>
                       <td>
                         <span className={`tag ${doc.source === 'SharePoint' ? 'blue' : 'purple'}`}>
                           {doc.source}
@@ -212,6 +214,13 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                       <td>
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                           <button className="btn sm" disabled={doc.brokenLink} onClick={() => setPreviewDoc(doc)}>{doc.brokenLink ? 'Unavailable' : 'Open in M365'}</button>
+                          {['relationship', 'manager', 'partner', 'admin'].includes(state.currentRole) && <button className="btn sm ghost" aria-label={`${doc.visibility === 'Client shared' ? 'Withdraw sharing' : 'Share with client'} ${doc.name}`} onClick={() => {
+                            const shared = doc.visibility !== 'Client shared';
+                            const reason = window.prompt(`Why ${shared ? 'share this document with the client' : 'withdraw client sharing'}?`) || '';
+                            if (!reason.trim()) return;
+                            try { prototypeStore.setDocumentClientSharing(doc.id, shared, reason); setNotice(`Client sharing ${shared ? 'enabled' : 'withdrawn'} for ${doc.name}.`); }
+                            catch (err) { setNotice(err instanceof Error ? err.message : 'Client sharing could not be updated.'); }
+                          }}>{doc.visibility === 'Client shared' ? 'Withdraw sharing' : 'Share with client'}</button>}
                           <button className="btn sm ghost" onClick={() => {
                             const name = window.prompt('Document name', doc.name);
                             if (name === null) return;
@@ -263,7 +272,9 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                   <div><label>SHA-256</label><span className="mono" style={{ fontSize: 10 }}>{previewDoc.sha ? `${previewDoc.sha.slice(0, 24)}…` : 'Not available for sample metadata'}</span></div>
                   <div><label>Uploaded By</label><span>{previewDoc.uploadedBy}</span></div>
                   <div><label>Uploaded Date</label><span>{new Date(previewDoc.uploadedAt).toLocaleDateString('en-GB')}</span></div>
+                  <div><label>Client Visibility</label><span>{previewDoc.visibility}</span></div>
                 </div>
+                {(previewDoc.sharingHistory || []).length > 0 && <details className="mt12"><summary>Sharing history ({previewDoc.sharingHistory!.length})</summary><ul>{previewDoc.sharingHistory!.map((event, index) => <li key={`${event.at}-${index}`}>{event.from} → {event.to} · {event.by} · {new Date(event.at).toLocaleString('en-GB')} · {event.reason}</li>)}</ul></details>}
               </div>
 
               <div className="borderbox" style={{ padding: 16, minHeight: 120 }}>

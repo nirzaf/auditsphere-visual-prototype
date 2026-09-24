@@ -55,7 +55,7 @@
 | Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 125 | 4 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 124 | 3 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -1766,7 +1766,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-025-E01 — Verification/evidence pending:** Verify every portal list, badge, search result, action and nomination/acknowledgement role boundary across multiple entities/engagements.
 
-- [ ] **VP-025-I02 — Implementation pending:** Complete explicit sharing-withdrawal history/state where absent; the latest verification entry still lists it as open.
+- [x] **VP-025-I02 — Implemented and exercised:** Client document sharing can be explicitly enabled or withdrawn with a required reason; each transition persists actor, identity, timestamp, from/to state and reason, and the client portal projection reads the current visibility. Verified by store regression and VP-021 Chrome history journey on 2026-09-24. Multi-entity withdrawn-sharing acceptance remains open under E03.
 
 - [ ] **VP-025-E03 — Verification/evidence pending:** Validate no-access, pending-review and withdrawn-sharing views and separation of package acknowledgement from management account approval.
 
@@ -3955,7 +3955,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 - [ ] **VP-016-I01** (P2; [VP-016](#vp-016)): Complete recipient-specific local notice browsing and bounded moderator behavior where the original comment-permission contract requires it. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-025-I02** (P2; [VP-025](#vp-025)): Complete explicit sharing-withdrawal history/state where absent; the latest verification entry still lists it as open. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-025-I02** (P2; [VP-025](#vp-025)): Implemented required-reason share/withdraw actions with attributable history and current client visibility projection. Evidence: store regression + VP-021 Chrome, 2026-09-24. Broader portal withdrawal/no-access cases remain under E03.
 
 - [ ] **VP-027-I01** (P2; [VP-027](#vp-027)): Complete communication/client/job activity projections identified as incomplete, using the same underlying record. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
