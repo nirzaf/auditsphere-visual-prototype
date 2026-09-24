@@ -1277,7 +1277,7 @@ Authored internal job notes, eligible mentions, editing attribution and manual i
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-016-I01 — Implementation pending:** Complete recipient-specific local notice browsing and bounded moderator behavior where the original comment-permission contract requires it.
+- [x] **VP-016-I01 — Implemented and exercised:** Recipient-specific local notices are browsable only to the intended active identity within currently accessible jobs; opening the job and marking a notice read are available. Manager/partner moderation requires a reason, blocks self-moderation and duplicate transitions, and retains hide/restore history. Evidence: AT-14 Chrome and internal-collaboration store regression, 161/161 unit + 69/69 E2E checks, 2026-09-24. Oversized/unsafe input, activity links and complete client exclusion remain open under E02.
 
 - [ ] **VP-016-E02 — Verification/evidence pending:** Test empty/oversized/unsafe input, subject activity links and client exclusion of text, counts, attachments and mention notices.
 
