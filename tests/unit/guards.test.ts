@@ -305,6 +305,9 @@ describe('archive metadata lineage (VP-059)', () => {
     assert.equal(successor.predecessorArchiveId, firstArchive.id);
     assert.equal(successor.history?.[0].action, 'Successor release archived');
     assert.equal(state.archives!.length, 2, 'predecessor archives remain available');
+    prototypeStore.recordArchiveHandover(engagement.id, 'Successor Audit Firm', 'Inspect the newest released package.');
+    assert.equal(successor.handoverRequested, true, 'handover request attaches to the latest archive');
+    assert.equal(firstArchive.handoverRequested, undefined, 'handover request leaves predecessor archive unchanged');
   });
 });
 

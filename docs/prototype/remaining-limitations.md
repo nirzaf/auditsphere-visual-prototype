@@ -234,9 +234,10 @@ sources explicitly trace AT-01 through AT-54. See
   application hold blocks handover without recording a request, then permits a
   local successor-auditor request after the hold is lifted. A retention-date
   correction preserves before/after metadata in attributed history; v21 migration
-  retains a baseline for existing archives, and the store links a successor archive
-  to its predecessor. Successor-release artifact copying still needs a browser
-  journey.
+  retains a baseline for existing archives. Chrome now indexes a successor
+  release, verifies its copied artifact digests and predecessor link, and exercises
+  hold/handover against the latest archive record. Server-side immutability remains
+  outside this browser-local prototype.
 - **Cross-cutting:** The shipped Content Security Policy limits runtime connections and default
   resources to the same origin; Chrome also blocks non-local HTTP(S) requests
   during all exercised journeys. Top-level external navigation after a user

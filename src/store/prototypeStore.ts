@@ -3580,7 +3580,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner', 'records'], 'record an archive handover request');
     requireEngagementScope(this.state, engId, 'records');
-    const archive = this.state.archives?.find(a => a.engagementId === engId);
+    const archive = [...(this.state.archives || [])].reverse().find(a => a.engagementId === engId);
     if (!archive) throw new GuardError('INVALID_STATE', 'The engagement must have a local archive index first.');
     if (archive.onHold) throw new GuardError('INVALID_STATE', 'An active application hold blocks the handover request.');
     if (!requester.trim() || !reason.trim()) throw new GuardError('INVALID_STATE', 'Handover requester and reason are required.');
