@@ -497,5 +497,12 @@ days. AT-32 Chrome verifies the 31–60 day invoice rows include the contributin
 INV-2026-002 and sum exactly to the bucket total before continuing the receipt
 allocation/reversal journey. `npm run lint` passed, unit tests passed 144/144,
 and build/Chrome E2E passed 63/63. The existing bundle-size advisory remains;
-OS print/PDF output is not captured, and receivables stays offline-only. The
-updated deployment evidence will be added after publication.
+OS print/PDF output is not captured, and receivables stays offline-only. Commit
+`e00421d` was pushed to `main` and deployed to the existing
+`steaudit-prototype` production Pages project as deployment
+`0db60b70-f1eb-400e-99c6-b6d3ae324308`
+([release](https://0db60b70.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-BDgkQtGG.js` (2,226,535 bytes; SHA-256
+`5b1f75fe5926f76cf362c5a396d4e88976c64281e7b5b139ff306f93f2427e57`), matching
+the local build. Wrangler reports production source `e00421d`.
