@@ -2462,6 +2462,44 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         }
       }
 
+      const changedSources = await browserTab!.evaluate<any>(`(() => {
+        const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));
+        const time=state.times.find(item=>item.status==='Approved');time.durationMinutes+=60;
+        const invoice=state.invoices.find(item=>['Issued','Paid'].includes(item.status));invoice.amount+=1;if(invoice.lines?.length)invoice.lines[0].amount+=1;
+        const receipt=state.receipts[0];receipt.amount+=1;
+        const task=state.jobTasks.find(item=>!['Completed','Cancelled'].includes(item.status));task.status='Completed';
+        localStorage.setItem(key,JSON.stringify(state));
+        return {timeId:time.id,timeEngagementId:time.engagementId,timeMinutes:String(time.durationMinutes),invoiceNumber:invoice.invoiceNumber,invoiceAmount:String(invoice.amount),receiptNumber:receipt.receiptNumber,receiptAmount:String(receipt.amount),taskId:task.id,taskStatus:task.status};
+      })()`);
+      assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(item=>item.id===${JSON.stringify(changedSources.timeId)}).durationMinutes`), Number(changedSources.timeMinutes), 'source change is saved before report reload');
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('document.readyState === "complete" && performance.getEntriesByType("navigation")[0]?.type === "reload"'), true, 'browser completes a real reload before reports are rechecked');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'changed report sources reload from saved records');
+      await clickButton('Report Centre');
+      await browserTab!.evaluate(`(() => {URL.createObjectURL=blob=>{window.__reportCsv=blob;return 'blob:report-test'};})()`);
+      const changedReports: Array<[string, string, string]> = [
+        ['time', changedSources.timeEngagementId, changedSources.timeMinutes],
+        ['invoices', changedSources.invoiceNumber, changedSources.invoiceAmount],
+        ['receipts', changedSources.receiptNumber, changedSources.receiptAmount],
+        ['tasks', changedSources.taskId, changedSources.taskStatus]
+      ];
+      for (const [key, id, value] of changedReports) {
+        await browserTab!.evaluate(`(() => {const select=document.querySelector('#practice-report');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(key)});select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+        const reflected = await waitForBrowser(`(() => [...document.querySelectorAll('tbody tr')].some(row=>row.innerText.includes(${JSON.stringify(id)})&&row.innerText.includes(${JSON.stringify(value)})))()`);
+        assert.equal(reflected, true, `${key} report failed to show ${id} / ${value}; stored=${await browserTab!.evaluate<string>(`JSON.stringify(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).${key==='time'?'times':key==='invoices'?'invoices':key==='receipts'?'receipts':'jobTasks'})`)}; view=${await browserTab!.evaluate<string>('document.querySelector("#practice-report")?.value+" "+[...document.querySelectorAll("tbody tr")].map(row=>row.innerText).join(" | ")')}`);
+      }
+
+      await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));state.engagements.find(item=>item.id==='ENG-26002').currency='USD';localStorage.setItem(key,JSON.stringify(state));})()`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('document.readyState === "complete" && performance.getEntriesByType("navigation")[0]?.type === "reload"'), true, 'currency source change reload completes');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Report Centre');
+      await browserTab!.evaluate(`(() => {URL.createObjectURL=blob=>{window.__reportCsv=blob;return 'blob:report-test'};})()`);
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('#practice-report');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'wip');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const mixedWip = await browserTab!.evaluate<any>('({rows:[...document.querySelectorAll("tbody tr")].map(row=>row.innerText),metrics:[...document.querySelectorAll(".metric-val")].map(item=>item.innerText)})');
+      assert.ok(mixedWip.rows.some((row: string) => row.includes('QAR')) && mixedWip.rows.some((row: string) => row.includes('USD')), 'WIP rows retain separate source currencies');
+      assert.ok(mixedWip.metrics.every((value: string) => value === 'Unknown'), 'mixed-currency aggregate metrics are unknown instead of adding unlike amounts');
+
       await browserTab!.evaluate(`(() => {
         const client = document.querySelector('#report-client-filter');
         Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(client, 'CL-002');
