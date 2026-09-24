@@ -24,8 +24,9 @@ Automated sources explicitly trace AT-01 through AT-55. See
   draft → submit → independent approve/return; submitted content is locked,
   returned content can be amended into a new draft revision, and approval still
   binds to current perimeter/package/rate pins. AT-45 covers the full lifecycle.
-  Unmatched-item display, duplicate/mixed-source and replacement edge matrices
-  remain open.
+  A Chrome/unit example verifies a 100 receivable remains visible after only a
+  900 matched pair is eliminated. A separate linked unmatched-item record,
+  duplicate/mixed-source and component-replacement edge matrices remain open.
 
 ## Known acceptance gaps
 

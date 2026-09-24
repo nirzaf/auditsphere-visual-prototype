@@ -2849,7 +2849,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-045-R01 — Requirement/scope reconciliation:** Manual draft, explicit submit, independent return/approval, amendment-after-return, counterparty and evidence-reference controls are implemented. 2026-09-24 Chrome/unit verification now confirms only submitted entries can be reviewed and submitted content cannot be amended; reconcile unmatched-item handling and complete counterparty/evidence semantics.
 
-- [ ] **VP-045-E02 — Verification/evidence pending:** Extend evidence to unmatched amount visibility, duplicate source inclusion, unsupported counterparty and mixed-context rejection; verify component-package replacement staleness and preserved journal revisions. Perimeter and FX-rate invalidation, unbalanced lines, unsupported accounts and self-review denial have targeted coverage.
+- [ ] **VP-045-E02 — Verification/evidence pending:** Unit and Chrome now prove a $100 receivable remains visible after eliminating only the confirmed $900 pair. Duplicate source inclusion, unsupported counterparty and mixed-context rejection, component-package replacement staleness and preserved journal revisions remain to verify. Perimeter and FX-rate invalidation, unbalanced lines, unsupported accounts and self-review denial have targeted coverage.
 
 #### Original user story and dependencies
 **Target modules:** 26  
@@ -2865,7 +2865,7 @@ Add elimination register with component counterparties, account/line references,
 |---|---|---|
 | VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | Verified subcase: AT-45 creates, submits, returns, amends, resubmits and independently approves the $125 journal, includes it once in group output and confirms source books unchanged; full criterion remains open pending replacement/mixed-source edge coverage |
 | VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | Verified subcases: unit checks reject unbalanced lines, unknown accounts and self-review; unsupported counterparty, mixed-context and duplicate-inclusion matrix remains open |
-| VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | Verified subcase: unit + Chrome show the 100 receivable remaining after the matching 900 is eliminated; broader manual resolution and linked unmatched-item evidence remain open |
 | VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | Verified subcases: perimeter revisions and FX-rate changes invalidate approval and preserve return history; component replacement and explicit immutable journal-revision evidence remain open |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
@@ -4040,7 +4040,7 @@ This queue contains **110 open planning actions** attached to the 48 Partial sto
 | VP-043-E02 | [VP-043](#vp-043) | P1 | Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access. | Complete / full acceptance run `fded7b5`, 2026-09-24 |
 | VP-044-E01 | [VP-044](#vp-044) | P1 | Complete incompatible basis/period and unreviewed-component gates, old/new package selection, stale-pin warnings and rounded translation reconciliation. | Pending / Unassigned / — |
 | VP-044-E02 | [VP-044](#vp-044) | P1 | Prove each selected rate and translation difference is traceable under the documented supported rule. | Pending / Unassigned / — |
-| VP-045-E02 | [VP-045](#vp-045) | P1 | Exercise unmatched amounts, duplicate inclusion, unbalanced/mixed-context entries and component/rate/perimeter changes that stale prior elimination approval. | Pending / Unassigned / — |
+| VP-045-E02 | [VP-045](#vp-045) | P1 | Exercise unmatched amounts, duplicate inclusion, unbalanced/mixed-context entries and component/rate/perimeter changes that stale prior elimination approval. | Partial — $100 residual remains visible after matched $900 elimination (unit + Chrome, 2026-09-24); remaining matrix open |
 | VP-046-E02 | [VP-046](#vp-046) | P1 | Run full same-currency and documented FX scenarios with group totals, drill-downs and exported source/perimeter/rate/elimination lineage. | Complete / AT-42/43/45 Chrome + group-output digest/lineage verification, 2026-09-24 |
 | VP-048-E01 | [VP-048](#vp-048) | P1 | Complete the original plan scope, source/benchmark, separately entered performance/trivial thresholds, valid assignments and rationale criteria. | Pending / Unassigned / — |
 | VP-048-E03 | [VP-048](#vp-048) | P1 | Verify all approved-plan/materiality changes identify affected fieldwork and conclusions without granting authority or releasing reports. | Pending / Unassigned / — |
