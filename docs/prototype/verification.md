@@ -570,6 +570,14 @@ matching the local build. Wrangler reports deployment
 `4cfb292a-36c1-4025-bc4e-de0673ffc4bd` as Production on branch `production`,
 source `9816b7b`.
 
+VP-013/014 task controls from `84bdd15` are live on the existing Pages
+Production branch. `https://0c30260a.steaudit-prototype.pages.dev` and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-Belj7q5M.js` (2,235,991 bytes; SHA-256
+`6e2fc784ec0a12b5fa323af1122715b250d02ebdcdb368cb56720098c3ab4f33`), matching
+the local build. Wrangler reports deployment `0c30260a-b255-4609-92cb-5113ae78f0e1`
+as Production on branch `production`, source `84bdd15`.
+
 VP-049 risk-plan rework follow-up: the focused real-Chrome journey passed (1/1).
 It returns the risk-driven plan with a retained reviewer rationale, saves manager
 rework as a new revision without erasing the return, then independently approves
