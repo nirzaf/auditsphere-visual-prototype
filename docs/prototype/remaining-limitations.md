@@ -225,10 +225,12 @@ Automated sources explicitly trace AT-01 through AT-55. See
   source rows remain unchanged. The calculation profile is now explicitly limited
   to one Parent and one 100%-owned Subsidiary; store guards reject Associates and
   minority ownership, and Chrome verifies these unsupported profiles show no
-  figures. Schema v22 corrects only the known seeded label from Associate to
-  Subsidiary. Chrome also removes the Subsidiary and verifies no output or source
-  mutation. Perimeter editing/recovery controls and broader elimination cases
-  remain incomplete.
+  figures. Group updates now preserve existing immutable package pins or require
+  a new pin to match the engagement's exact current revision and rows; altered
+  balances cannot be submitted as a package snapshot. Schema v22 corrects only
+  the known seeded label from Associate to Subsidiary. Chrome also removes the
+  Subsidiary and verifies no output or source mutation. Perimeter editing/recovery
+  controls and broader elimination cases remain incomplete.
 - **R10 — migration/recovery:** migrations from schema versions 0–18 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.

@@ -2004,14 +2004,19 @@ class PrototypeStore {
     if (!group.name.trim() || group.components.length !== 2 || new Set(group.components.map(c => c.componentId)).size !== 2) throw new GuardError('INVALID_STATE', 'This prototype supports named consolidation groups with exactly two distinct explicitly selected components.');
     if (new Set(group.components.map(component => component.role)).size !== 2 || !group.components.some(component => component.role === 'Parent') || !group.components.some(component => component.role === 'Subsidiary') || group.components.some(component => component.ownershipPercent !== 100)) throw new GuardError('INVALID_STATE', 'This prototype supports one Parent and one 100% owned Subsidiary; other ownership methods cannot be calculated.');
     if (!/FY\s+\d{4}/.test(group.period) || !/^[A-Z]{3}$/.test(group.presentationCurrency || group.currency)) throw new GuardError('INVALID_STATE', 'Enter a reporting period and ISO currency code.');
+    const index = this.state.consolidationGroups.findIndex(item => item.id === group.id);
+    const existingGroup = this.state.consolidationGroups[index];
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
       requireEngagementScope(this.state, engagement.id);
       if (!Number.isInteger(component.packageRevisionPinned) || component.packageRevisionPinned! < 1 || !component.packageRows) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an explicit pinned package snapshot.`);
+      const priorPin = existingGroup?.components.find(item => item.componentId === component.componentId);
+      const keepsPriorSnapshot = Boolean(priorPin && priorPin.packageRevisionPinned === component.packageRevisionPinned && JSON.stringify(priorPin.packageRows) === JSON.stringify(component.packageRows));
+      const pinsCurrentSnapshot = component.packageRevisionPinned === engagement.packageRevision && JSON.stringify(component.packageRows) === JSON.stringify(engagement.rows);
+      if (!keepsPriorSnapshot && !pinsCurrentSnapshot) throw new GuardError('STALE_REVISION', `Component ${component.componentId} must retain its pinned snapshot or pin the exact current engagement package revision.`);
       if (!/^[A-Z]{3}$/.test(component.currency)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an ISO currency code.`);
     }
-    const index = this.state.consolidationGroups.findIndex(g => g.id === group.id);
     if (index >= 0) {
       this.state.consolidationGroups[index] = group;
     } else {

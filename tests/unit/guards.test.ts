@@ -1247,6 +1247,14 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
       ...structuredClone(group),
       components: group.components.map((component: any, index: number) => index === 1 ? { ...component, role: 'Associate' } : component)
     }), /one Parent and one 100% owned Subsidiary/);
+    const mismatchedSnapshot = structuredClone(group);
+    mismatchedSnapshot.components[1].packageRows[0].balance += 1;
+    assert.throws(() => prototypeStore.updateConsolidationGroup(mismatchedSnapshot), /retain its pinned snapshot or pin the exact current/);
+    const newGroup = structuredClone(group);
+    newGroup.id = 'GRP-02';
+    newGroup.name = 'Second supported group';
+    prototypeStore.updateConsolidationGroup(newGroup);
+    assert.equal(state.consolidationGroups.find((item: any) => item.id === 'GRP-02')?.components[1].packageRevisionPinned, state.engagements.find((item: any) => item.id === 'ENG-26002')?.packageRevision);
   });
 
   it('version-controls explicit consolidation FX rates and rejects wrong context', async () => {
