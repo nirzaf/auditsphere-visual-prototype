@@ -4395,6 +4395,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Cancel Engagement');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Cancelled'`), true);
       assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).events.filter(e=>e.type==='lifecycle').length===3`), true);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButtonStartingWith('Engagements');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Cancelled'`), true, 'terminal lifecycle state survives reload');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).events.filter(e=>e.type==='lifecycle').length===3`), true, 'suspend, resume and cancel history survives reload');
+      assert.equal(await browserTab!.evaluate<boolean>(`!document.body.innerText.includes('Resume Engagement')&&!document.body.innerText.includes('Cancel Engagement')`), true, 'terminal engagement exposes no further lifecycle transition');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
