@@ -620,3 +620,18 @@ XLSX source-account lineage and amounts. This journey ran against the same app
 code already live from `326edbe`; no application bundle changed. `npm run lint`
 passed, unit tests passed 145/145, and full build/Chrome acceptance passed
 64/64. The bundle-size advisory (>500 kB) remains.
+
+R09 supported-profile correction: the group fixture now correctly identifies
+Northstar as the wholly owned Subsidiary. The shared store guard rejects an
+Associate or non-100% ownership; Chrome verifies both missing-component and 80%
+ownership cases produce no result, while preserving source balances. Schema v22
+migrates only the exact seeded GRP-01/ENG-26002 mislabeled fixture; migration
+tests now cover versions 0–21. `npm run lint` passed, unit tests passed 146/146,
+and the complete build/Chrome acceptance suite passed 65/65. The bundle-size
+advisory (>500 kB) remains. Commit `861737a` is live on the existing Production
+Pages branch as deployment `5ae00ea8-c5aa-4060-92e6-8ebd9e076884`
+([release](https://5ae00ea8.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-D2Zz1xBs.js` (2,241,598 bytes; SHA-256
+`e3261d9051d8aaf412d3f3ade9c451bb4c7eaa28a25c681334289a0b2d2a2285`), matching
+the local build. Wrangler reports source `861737a`.
