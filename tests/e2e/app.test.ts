@@ -2085,6 +2085,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('AT-43: blocks consolidation output and identifies a missing perimeter role', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const sourceBefore = await browserTab!.evaluate<string>(`(() => {
+        const state = ${JSON.stringify(createInitialState())};
+        const group = state.consolidationGroups[0];
+        group.components = group.components.filter(component => component.role !== 'Associate');
+        const rows = state.engagements.find(engagement => engagement.id === 'ENG-26001').rows;
+        localStorage.setItem('ste-auditsphere-role-portals-v2', JSON.stringify(state));
+        return JSON.stringify(rows);
+      })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /group perimeter is incomplete \(missing Associate\)/i);
+      assert.match(text, /Live engagement balances are never substituted/);
+      assert.doesNotMatch(text, /Consolidated Balance Sheet Grid|Equation Satisfied/);
+      assert.equal(await browserTab!.evaluate<string>(`JSON.stringify(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(engagement => engagement.id === 'ENG-26001').rows)`), sourceBefore);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-35: rejects an unbalanced TB import then preserves the accepted source revision on replacement', async () => {
     const before = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,history:e.sourceHistory};})()`);
     await clickButton('Accounting Workbench');

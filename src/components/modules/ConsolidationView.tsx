@@ -56,15 +56,17 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
 
   if (missingPackage || missingRate) {
+    const missingRoles = (['Parent', 'Associate'] as const).filter(role => !group.components.some(component => component.role === role));
     const missingComponent = group.components.find(c => !state.engagements.some(e => e.id === c.componentId) || !c.packageRows?.length)?.componentId;
-    const missingClient = !parentEng ? parentComp?.clientId : subComp?.clientId;
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
         <Icon name="layers" size="xl" className="text-muted mb16" />
         <h3>{missingPackage ? 'Pinned Component Package Required' : 'Currency Rate Required'}</h3>
         <p className="sub max-w-md mx-auto mt8">
           {missingPackage
-            ? `Component ${missingComponent || '(unspecified)'} has no exact engagement and reporting-package snapshot.`
+            ? missingRoles.length
+              ? `The group perimeter is incomplete (missing ${missingRoles.join(' and ')}); add the required component before calculating consolidated balances.`
+              : `Component ${missingComponent || '(unspecified)'} has no exact engagement and reporting-package snapshot.`
             : `No valid rate is configured to translate each component into ${groupCurrency}.`}
           {' '}Live engagement balances are never substituted for missing pinned data.
         </p>

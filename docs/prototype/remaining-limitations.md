@@ -220,8 +220,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
   currency closing rate, rejects zero, saves a dated rate revision and verifies
-  source rows remain unchanged. Perimeter edits and missing-component recovery
-  remain unverified.
+  source rows remain unchanged. Chrome also removes the Associate from the
+  perimeter and verifies that the screen names the missing role, emits no
+  consolidated output, leaves source balances unchanged and produces no browser
+  exception. Perimeter editing/recovery controls remain unimplemented and the
+  broader elimination and ownership cases remain incomplete.
 - **R10 — migration/recovery:** migrations from schema versions 0–18 pass unit
   integrity checks, and Chrome checks preserve a concurrent save and report quota
   failures. Other recovery and corrupted-storage paths remain unverified.
