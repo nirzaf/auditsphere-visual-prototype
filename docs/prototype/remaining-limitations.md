@@ -396,7 +396,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 170/170 unit checks and 73/73 E2E checks passed.
+Latest recorded full run: 171/171 unit checks and 74/74 E2E checks passed at
+test HEAD `a4b3a5f` / application source `188ee3b`.
 E2E includes five static checks and 68 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin

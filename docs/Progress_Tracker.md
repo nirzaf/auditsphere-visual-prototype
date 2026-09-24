@@ -52,10 +52,10 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 170 / 170 | Fresh full run on 2026-09-24 at app source `8d30a82` and test HEAD `06ac059`; includes group-output package identity, independent approval, stale-input and tamper guards. |
-| E2E checks passing in this review | 73 / 73 | Fresh full run at `8d30a82`: 5 static checks + 68 actual Chrome checks, including same-currency and FX group-output preparation, independent approval, persisted digest and scoped export. |
+| Unit checks passing in this review | 171 / 171 | Fresh full run on 2026-09-24 at app source `188ee3b` and test HEAD `a4b3a5f`; includes group-output package identity, independent approval, stale-input/tamper guards and an unmatched consolidation residual. |
+| E2E checks passing in this review | 74 / 74 | Fresh full run at test HEAD `a4b3a5f`: 5 static checks + 69 actual Chrome checks, including elimination submit/review and an unmatched amount remaining visible. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Open acceptance actions in Section 9.3 | 110 | 78 evidence/verification actions and 32 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Open acceptance actions in Section 9.3 | 109 | 77 evidence/verification actions and 32 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, independently reviewed cash-flow and per-note disclosure records, and VP-043 perimeter acceptance. The current story totals are 16 verified / 48 partial; module totals remain 10 verified / 29 partial because other stories in the consolidation module are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported completion estimate is used.
 
@@ -2870,7 +2870,7 @@ Add elimination register with component counterparties, account/line references,
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
 
-**Next evidence update:** Tested source commit `8c942ff1a460e3e8128d74e14b8e8fec870b8858`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC04 verified subcases map to `tests/e2e/app.test.ts` AT-45 and consolidation-elimination store unit checks. Full suite: lint, 169/169 unit and 73/73 E2E; production deployment `5872b8b7-ca09-4818-b1e5-3b42395e7a8e`, source `8c942ff`, 2026-09-24. Full story acceptance remains open.
+**Next evidence update:** Test HEAD `a4b3a5f76277b403338017f8ba673d0f8cc87275`; app source `188ee3bd5c2ded7a241552fe2c5370e1008fcf98`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC03/AC04 verified subcases map to `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts` and `tests/e2e/app.test.ts` AT-45/VP-045-AC03. Full suite: lint, 171/171 unit and 74/74 E2E; production deployment `f3a56591-1b3a-4990-befd-eb3d6bf25204`, source `188ee3b`, 2026-09-24. Full story acceptance remains open.
 
 
 <a id="vp-046"></a>
@@ -3939,7 +3939,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **110 open planning actions** attached to the 48 Partial stories. Open actions remain unchecked; completed actions are checked or marked complete in the evidence ledger. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **109 open planning actions** attached to the 48 Partial stories. Open actions remain unchecked; completed actions are checked or marked complete in the evidence ledger. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4035,7 +4035,7 @@ This queue contains **110 open planning actions** attached to the 48 Partial sto
 | VP-040-E01 | [VP-040](#vp-040) | P1 | Complete source/current-mapping/prior-period/layout-change and reviewed-output regeneration combinations with traceable expected subtotals. | Pending / Unassigned / — |
 | VP-040-E03 | [VP-040](#vp-040) | P1 | Coordinate cash-flow/equity movement support and disclosures with VP-041; unsupported figures must remain unavailable. | Subcase verified: reviewed opening equity and supported movements flow to statement and exact package artifacts; full statement-layout acceptance remains open |
 | VP-041-E03 | [VP-041](#vp-041) | P1 | Verify reviewed note/support revisions stale packages and expose only explicitly shared client note content. | Verified subcases — `5d6e2c0` / `02997cc`; remaining VP-041 acceptance stays open |
-| VP-042-E01 | [VP-042](#vp-042) | P1 | Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision. | Pending / Unassigned / — |
+| VP-042-E01 | [VP-042](#vp-042) | P1 | Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision. | Complete — AT-41/42/48, 2026-09-24; failed artifacts cleaned up and no package revision announced |
 | VP-042-E02 | [VP-042](#vp-042) | P1 | Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly. | Complete / full AT-41/42/48 E2E, 2026-09-24 |
 | VP-043-E02 | [VP-043](#vp-043) | P1 | Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access. | Complete / full acceptance run `fded7b5`, 2026-09-24 |
 | VP-044-E01 | [VP-044](#vp-044) | P1 | Complete incompatible basis/period and unreviewed-component gates, old/new package selection, stale-pin warnings and rounded translation reconciliation. | Pending / Unassigned / — |
