@@ -1440,7 +1440,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-019-E01 — Verification/evidence pending:** Complete professional/management-role approval-evidence combinations, compatible-role changes and narrow group/component scope tests.
 
-- [ ] **VP-019-E02 — Verification/evidence pending:** Chrome now covers the cross-tab revocation subcase: an open form, navigation and workspace projections disappear; no stale record is saved, and newer grant history is preserved before explicit resolution. See ledger run on `51de04c98d74302589634f27c69b9d0137c16e83`. Expiry-specific variations remain untested.
+- [ ] **VP-019-E02 — Verification/evidence pending:** Chrome now covers the cross-tab revocation subcase: an open form, navigation and workspace projections disappear; no stale record is saved, and newer grant history is preserved before explicit resolution. See ledger run on `51de04c98d74302589634f27c69b9d0137c16e83`. The expiry subcase now passes too: a second-tab expiry while the client form is open hides stale workspace projections; after reload, expired-grant client rows and the create action are absent, and the shared create command rejects missing Global scope. See the 2026-09-24 verification entry and criterion ledger. Other command/projection combinations remain untested.
 
 - [ ] **VP-019-R03 — Requirement/scope reconciliation:** Related-client groups must not silently widen permissions; administrator identity alone does not confer professional approval rights.
 
@@ -1457,7 +1457,7 @@ Add user detail tabs for role grants, client/engagement/group assignments and ac
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-019-AC01 | Given an engagement-only grant, when navigating/searching/exporting, then only that engagement is visible and sibling engagements remain excluded. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | OPEN FOR SIGN-OFF; cross-tab revocation subcase is recorded at `51de04c98d74302589634f27c69b9d0137c16e83`; expiry-specific variations remain untested |
+| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | OPEN FOR SIGN-OFF; cross-tab revocation and expiry subcases are recorded in the 2026-09-24 verification ledger; other command/projection combinations remain untested |
 | VP-019-AC03 | Technical administrators cannot self-promote into professional approval through their own access request or use admin status to inspect client financial data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-019-AC04 | The privilege matrix reflects grants and conditions accurately; grants/expiry/revocation preserve an attributable local change history. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
@@ -4127,7 +4127,7 @@ This blank row is a template, not a newly discovered defect. Known current pendi
 
 | Story / criterion | Test path + test name | Tested SHA | Fixture + scenario date | Expected result | Actual result | Run/log/artifact link | Reviewer/date |
 |---|---|---|---|---|---|---|---|
-| VP-019-AC02 subcase | `tests/e2e/app.test.ts` — `AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite`; `tests/unit/reproduction_register.test.ts` — stale browser-state guard | `51de04c98d74302589634f27c69b9d0137c16e83` | Local Chrome; relationship identity; unsaved client form; second tab revokes a stored grant and updates as-of date; 2026-09-24 | Stale tab must not save; remove stale dialog and projections; preserve newer grant history before explicit local-state replacement | PASS — no stale client persisted; dialog/navigation/workspace hidden; revocation is backed up before user resolution | `npm run test:e2e` 71/71 (5 static + 66 Chrome); `npm run test:unit` 162/162; `npm run lint` PASS | 2026-09-24 |
+| VP-019-AC02 subcases | `tests/e2e/app.test.ts` — `AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite`; `tests/unit/guards.test.ts` — expired grant cannot list/create clients | `fdc70a6ebdd1d161af6b4557c2fd17cee7f8f4b6`; revocation path tested at `51de04c98d74302589634f27c69b9d0137c16e83` | Local Chrome; relationship identity; unsaved client form; second tab revokes then separately expires the Global grant; 2026-09-24 | Stale workspace removed; no stale save; preserve newer history; after reload, no expired-scope client rows or create action | PASS — revocation history backed up; expiry removes scope and UI action; store command rejects missing Global scope | `npm run test:e2e` 71/71 (5 static + 66 Chrome); `npm run test:unit` 163/163; `npm run lint` PASS | 2026-09-24 |
 | VP-000-AC00 (template) | — | — | — | Exact criterion assertion | Not run | — | — |
 
 Existing repository Verified statuses are preserved here without inventing missing per-criterion log links. Populate this ledger to make acceptance independently replayable. An updated test count alone is not an evidence ledger.
@@ -4163,7 +4163,7 @@ None of these overall-product gates is prechecked merely because a subset of sto
 | Date | Tracker version | Source snapshot | Change |
 |---|---|---|---|
 | 2026-09-24 | 1.0 | `eaaa7cfd0ea9379a19e147c98752466ea75aab8d` | Initial complete status tracker: original 64 stories/256 criteria and 54 journeys retained; 13 stories and 10 modules repository-verified; pending work separated into implementation, evidence and scope reconciliation. |
-| 2026-09-24 | 1.0 | `51de04c98d74302589634f27c69b9d0137c16e83` | Added browser evidence for the VP-019-E02 cross-tab revocation subcase. A storage conflict now replaces the stale workspace with a resolution gate, removing unsaved dialogs and stale search/count/export surfaces. E02 remains open for expiry-specific variations; story/module status remains Partial. |
+| 2026-09-24 | 1.0 | `fdc70a6ebdd1d161af6b4557c2fd17cee7f8f4b6` | Added expiry-scope browser evidence and client-list/create grant enforcement. VP-019 remains Partial with additional role, group, and projection combinations open. |
 
 ### 10.5 Original verification and handoff obligations — preserved
 
