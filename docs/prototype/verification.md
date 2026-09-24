@@ -464,5 +464,12 @@ receivables summaries remain role-gated and currency-separated. `npm run lint`
 passed, unit tests passed 144/144, and build/Chrome E2E passed 63/63 (five
 static checks and 58 Chrome journeys). The existing >500 kB bundle warning
 remains. VP-005 stays Partial pending a selectable as-of override and direct
-evidence across the full staff/finance visibility matrix. Deployment details
-follow after this change is published.
+evidence across the full staff/finance visibility matrix. Commit `4bcbf23` was
+pushed to `main` and deployed to the existing `steaudit-prototype` Pages project
+on production branch `production` as deployment
+`36432d1f-634e-409e-9fcf-95ca0b0cd248`
+([release](https://36432d1f.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-CwKgUQxY.js` (2,224,767 bytes; SHA-256
+`8b72e350b3b033ae35d94450881c0bd52a9978b2919b707c2f398e1263387989`), matching
+the local build. Wrangler reports production source `4bcbf23`.
