@@ -90,11 +90,15 @@ const EliminationEditor: React.FC<{ group: ConsolidationGroup; state: ReturnType
       <button className="btn primary sm mt8" type="submit">{draft.id ? 'Save elimination revision' : 'Save elimination draft'}</button>
       {notice && <p role="status" className="caption mt8">{notice}</p>}
     </form>
-    {group.eliminations.filter(entry => entry.status === 'Draft' || entry.status === 'Returned').map(entry => <div className="borderbox panel-pad mt8" key={`review-${entry.id}`}>
-      <div className="between"><b>{entry.id} · revision {entry.revision || 1}</b><button className="btn sm" type="button" onClick={() => edit(entry)}>Edit draft</button></div>
+    {group.eliminations.map(entry => <div className="borderbox panel-pad mt8" key={`review-${entry.id}`}>
+      <div className="between"><b>{entry.id} · revision {entry.revision || 1} · {entry.status}</b>{(entry.status === 'Draft' || entry.status === 'Returned') && <button className="btn sm" type="button" onClick={() => edit(entry)}>Edit draft</button>}</div>
+      {entry.status === 'Draft' && <button className="btn primary sm mt8" type="button" onClick={() => { try { prototypeStore.submitConsolidationElimination(group.id, entry.id); setNotice(`${entry.id} submitted for independent review.`); } catch (error: any) { setNotice(error.message); } }}>Submit elimination for review</button>}
+      {entry.status === 'Submitted' && <p className="caption mt8">Submitted by {entry.submittedByUserId} · {entry.submittedAt ? new Date(entry.submittedAt).toLocaleString() : 'time unavailable'}</p>}
+      {entry.status === 'Submitted' && <>
       <label className="caption mt8">Review rationale<input className="input mt4" aria-label={`Elimination review rationale ${entry.id}`} value={reviewNote} onChange={event => setReviewNote(event.target.value)} /></label>
       <label className="caption mt8">Review evidence reference<input className="input mt4" aria-label={`Elimination review evidence ${entry.id}`} value={reviewEvidence} onChange={event => setReviewEvidence(event.target.value)} /></label>
       <div className="row mt8"><button className="btn primary sm" type="button" onClick={() => { try { prototypeStore.reviewConsolidationElimination(group.id, entry.id, 'Approved', reviewNote, reviewEvidence); setNotice(`${entry.id} approved for perimeter revision ${group.perimeterRevision || 1}.`); setReviewNote(''); setReviewEvidence(''); } catch (error: any) { setNotice(error.message); } }}>Approve elimination</button><button className="btn sm" type="button" onClick={() => { try { prototypeStore.reviewConsolidationElimination(group.id, entry.id, 'Returned', reviewNote, reviewEvidence); setNotice(`${entry.id} returned with its review history retained.`); setReviewNote(''); setReviewEvidence(''); } catch (error: any) { setNotice(error.message); } }}>Return for rework</button></div>
+      </>}
       {entry.reviewHistory?.map((review, index) => <div className="caption mt4" key={`${entry.id}-review-${index}`}>{review.status} by {review.changedBy}: {review.note} · {review.evidenceRef}</div>)}
     </div>)}
   </div>;

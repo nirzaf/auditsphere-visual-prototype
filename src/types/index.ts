@@ -1005,12 +1005,14 @@ export interface ConsolidationGroupRecord {
     counterpartyB: string;
     amount: number;
     currency: string;
-    status: 'Draft' | 'Approved' | 'Returned';
+    status: 'Draft' | 'Submitted' | 'Approved' | 'Returned';
     explanation: string;
     description?: string;
     debitAccount?: string;
     creditAccount?: string;
     preparedByUserId?: string;
+    submittedByUserId?: string;
+    submittedAt?: string;
     evidenceRef?: string;
     revision?: number;
     approvedPerimeterRevision?: number;

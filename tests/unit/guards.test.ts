@@ -1567,6 +1567,12 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const saved = group.eliminations.find((item: any) => item.id === id);
     assert.equal(saved.status, 'Draft');
     assert.equal(saved.revision, 1);
+    assert.throws(() => prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', 'Looks good', 'IC-REVIEW-01'), /submitted/);
+    prototypeStore.submitConsolidationElimination(group.id, id);
+    assert.equal(saved.status, 'Submitted');
+    assert.equal(saved.submittedByUserId, state.currentUserId);
+    assert.ok(saved.submittedAt);
+    assert.throws(() => prototypeStore.saveConsolidationElimination(group.id, { ...draft, id, title: 'Changed after submit' } as any, 'Amend submitted journal'), /locked until an independent reviewer returns/);
     assert.throws(() => prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', 'Looks good', 'IC-REVIEW-01'), /cannot review their own/);
     prototypeStore.setPersona('reviewer');
     assert.throws(() => prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', '', 'IC-REVIEW-01'), /rationale and evidence/);

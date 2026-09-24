@@ -2949,6 +2949,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(created.amount, 125);
       assert.equal(created.lines.reduce((sum,line)=>sum+(line.type==='debit'?line.amount:-line.amount),0), 0);
       assert.equal(created.evidenceRef, 'AT45-IC-REC-01');
+      await clickButton('Submit elimination for review');
+      const submitted = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
+      assert.equal(submitted.status, 'Submitted');
+      assert.ok(submitted.submittedAt);
       const setRole = async (role: string) => browserTab!.evaluate(`(() => {const e=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(role)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       const setReviewFields = (note: string, evidence: string) => browserTab!.evaluate(`(() => {const set=(label,value)=>{const e=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));};set('Elimination review rationale ${created.id}',${JSON.stringify(note)});set('Elimination review evidence ${created.id}',${JSON.stringify(evidence)});})()`);
       await setReviewFields('Amounts need a second-party reconciliation.','AT45-IC-RETURN-01');
@@ -2967,6 +2971,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(reworked.status, 'Draft');
       assert.equal(reworked.revision, 2);
       assert.equal(reworked.reviewHistory.length, 1);
+      await clickButton('Submit elimination for review');
+      const resubmitted = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
+      assert.equal(resubmitted.status, 'Submitted');
       await setRole('partner');
       await setReviewFields('Reciprocal balances and account references agree.','AT45-IC-REVIEW-02');
       await clickButton('Approve elimination');

@@ -2374,6 +2374,7 @@ class PrototypeStore {
     const index = group.eliminations.findIndex(item => item.id === input.id);
     const current = group.eliminations[index];
     if (current?.status === 'Approved') throw new GuardError('INVALID_STATE', 'Approved elimination content is immutable; create a new revision after a reasoned return.');
+    if (current?.status === 'Submitted') throw new GuardError('INVALID_STATE', 'Submitted elimination content is locked until an independent reviewer returns it.');
     if (current && current.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can amend this elimination draft.');
     const revision = (current?.revision || 0) + 1;
     if (current && current.status === 'Returned') {
@@ -2383,6 +2384,8 @@ class PrototypeStore {
       ...structuredClone(input),
       id: current?.id || `ELIM-${group.id}-${String(group.eliminations.length + 1).padStart(3, '0')}`,
       status: 'Draft' as const,
+      submittedByUserId: undefined,
+      submittedAt: undefined,
       currency,
       revision,
       preparedByUserId: current?.preparedByUserId || this.state.currentUserId,
@@ -2402,12 +2405,26 @@ class PrototypeStore {
     return saved.id;
   }
 
+  public submitConsolidationElimination(groupId: string, eliminationId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'submit group elimination journals');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    const elimination = group?.eliminations.find(item => item.id === eliminationId);
+    if (!group || !elimination || elimination.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a saved draft group elimination can be submitted.');
+    if (elimination.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can submit this group elimination.');
+    elimination.status = 'Submitted';
+    elimination.submittedByUserId = this.state.currentUserId;
+    elimination.submittedAt = new Date().toISOString();
+    this.logEvent(`Group elimination ${elimination.id} revision ${elimination.revision || 1} submitted by ${this.state.currentPerson}`, group.id, 'history');
+    this.notify();
+  }
+
   public reviewConsolidationElimination(groupId: string, eliminationId: string, decision: 'Approved' | 'Returned', note: string, evidenceRef: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner', 'reviewer'], 'review group elimination journals');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     const elimination = group?.eliminations.find(item => item.id === eliminationId);
-    if (!group || !elimination || elimination.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a saved draft group elimination can be reviewed.');
+    if (!group || !elimination || elimination.status !== 'Submitted') throw new GuardError('INVALID_STATE', 'Only a submitted group elimination can be reviewed.');
     for (const component of group.components) requireEngagementScope(this.state, component.componentId);
     if (!note.trim() || !evidenceRef.trim() || evidenceRef.trim().length > 160) throw new GuardError('INVALID_STATE', 'Record the review rationale and evidence reference (160 characters or fewer).');
     if (!elimination.preparedByUserId) throw new GuardError('INVALID_STATE', 'The elimination draft has no recorded preparer.');
@@ -2425,6 +2442,8 @@ class PrototypeStore {
     elimination.reviewHistory.push({ status: decision, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: group.perimeterRevision || 1, note: note.trim(), evidenceRef: evidenceRef.trim() });
     if (decision === 'Returned') {
       elimination.status = 'Returned';
+      delete elimination.submittedByUserId;
+      delete elimination.submittedAt;
       delete elimination.approvedPerimeterRevision;
       delete elimination.approvedComponentPins;
       delete elimination.approvedFxRates;
