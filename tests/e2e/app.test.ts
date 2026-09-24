@@ -2935,7 +2935,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
-  it('AT-03/VP-063: blocks external HTTP requests across the Chrome acceptance journeys', () => {
+  it('AT-03/VP-063: blocks external HTTP requests across the Chrome acceptance journeys', async () => {
+    const cspBlocksExternalFetch = await browserTab!.evaluate<boolean>(`fetch('https://example.invalid/egress-probe').then(()=>false,()=>true)`);
+    assert.equal(cspBlocksExternalFetch, true, 'the shipped CSP must reject external fetch at runtime');
     assert.deepEqual(browserTab!.blockedExternalRequests, [], 'the active app must not attempt requests to external providers');
     const remoteRequests = browserTab!.requests.filter(url => /^https?:/i.test(url) && new URL(url).origin !== baseUrl);
     assert.deepEqual(remoteRequests, [], 'no external HTTP request should reach the browser network layer');
