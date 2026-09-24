@@ -1,0 +1,88 @@
+---
+id: "DEMO-004"
+title: "Complete the client-demo preflight, rehearsal and handoff"
+status: "NOT_STARTED"
+work_kind: "DEMO_ACCEPTANCE"
+priority: "P1"
+source_status: "PROPOSED_PRESENTATION_WORK"
+source_stories: ["VP-004", "VP-063", "VP-064"]
+modules: ["MOD-01", "MOD-02", "MOD-03", "MOD-04", "MOD-05", "MOD-06", "MOD-07", "MOD-08", "MOD-09", "MOD-10", "MOD-11", "MOD-12", "MOD-13", "MOD-14", "MOD-15", "MOD-16", "MOD-17", "MOD-18", "MOD-19", "MOD-20", "MOD-21", "MOD-22", "MOD-23", "MOD-24", "MOD-25", "MOD-26", "MOD-27", "MOD-28", "MOD-29", "MOD-30", "MOD-31", "MOD-32", "MOD-33", "MOD-34", "MOD-35", "MOD-36", "MOD-37", "MOD-38", "MOD-39"]
+depends_on: ["DEMO-001", "DEMO-002", "DEMO-003"]
+owner: ""
+reviewer: ""
+evidence: ""
+blocked_reason: ""
+updated_at: ""
+---
+
+# DEMO-004 — Complete the client-demo preflight, rehearsal and handoff
+
+[Master progress](../../00_MASTER_INDEX.md) · [Chunk index](00_INDEX.md) · [Execution rules](../../03_EXECUTION_RULES.md)
+
+**Work kind:** `DEMO_ACCEPTANCE` · **Priority:** P1 · **Baseline:** `b24359c`
+
+**Status interpretation:** NOT_STARTED means this closure/rehearsal task has not been executed under this pack. It does not mean the feature or module is absent.
+
+**Proposed presentation work:** this is a recommended UX/rehearsal deliverable for the requested client demonstration, not an additional original product module or a claim that an existing feature failed. Parent VP criteria remain authoritative.
+
+## Preserve and reuse
+
+Existing application output formats, recorded tests, deployment evidence and all functioning verified baseline modules.
+
+## Bounded implementation / verification steps
+
+1. Run the chosen end-to-end client agenda against one exact current build with fixed synthetic data; use the per-module rehearsal sheets and preserve a failure/rework example.
+2. Prepare genuine supported sample outputs and an availability matrix distinguishing library metadata, PBC bytes, workpaper uploads, generated artifacts and local archive copies. Do not replace missing originals with mislabeled samples.
+3. Record the demonstrated modules, limitations, actual browser/viewport, artifact/build identity and remaining deferred work. Update the canonical presenter/role guide rather than leaving two contradictory guides.
+
+## Source traceability and candidate code
+
+Original acceptance criteria are linked, not rewritten or redefined by the new checklist.
+
+- [VP-004, original criteria AC01–AC04](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/Progress_Tracker.md#vp-004)
+- [VP-063, original criteria AC01–AC04](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/Progress_Tracker.md#vp-063)
+- [VP-064, original criteria AC01–AC04](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/Progress_Tracker.md#vp-064)
+
+Candidate touchpoints (inspect current ownership before editing):
+
+- [`docs/prototype/demo-scenarios.md`](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/prototype/demo-scenarios.md)
+- [`docs/prototype/verification.md`](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/prototype/verification.md)
+- [`ROLE_GUIDE.md`](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/ROLE_GUIDE.md)
+- [`package.json`](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/package.json)
+
+[S02: Current requirements/progress tracker](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/Progress_Tracker.md) · [S03: 39-module route and command coverage](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/prototype/module-coverage.md) · [S05: Executed verification record](https://github.com/nirzaf/auditsphere-visual-prototype/blob/b24359cd1832d6e026b4226cef8d9b2248903ee9/docs/prototype/verification.md)
+
+## Client-demo procedure
+
+Apply the [cross-module playbook](../../02_CLIENT_DEMO_PLAYBOOK.md) and [39-module guide register](../../01_MODULE_INDEX.md).
+
+## Task acceptance checklist
+
+<!-- TASK_ACCEPTANCE -->
+- [ ] Every module has a module-demo outcome: demonstrated, blocked, deliberately omitted with reason, or not run.
+- [ ] The selected live agenda contains no unannounced broken or unsupported action; deferred paths are explicitly excluded from that agenda.
+- [ ] A presenter can explain how to use each included module and correctly distinguish every role handoff and simulated provider outcome.
+- [ ] Client-demo readiness is separate from complete VP acceptance, live deployment authorization and production/professional readiness.
+<!-- END_TASK_ACCEPTANCE -->
+
+## Verification and evidence
+
+Use the current package scripts and existing tests. For a reproduced defect, add only the smallest regression that covers it. Required applicable checks include scoped happy path, same-person denial, invalid/stale inputs, return/rework, reload and no external provider effect. Do not turn unexecuted cases into successful skips.
+
+| Evidence field | Record actual result |
+|---|---|
+| Inspected / tested full commit | Not recorded |
+| Browser / viewport / build | Not recorded |
+| Persona and client/engagement / fixture | Not recorded |
+| Exact original criterion and assertion | Not recorded |
+| Command / test / observed result | Not run |
+| Output or screenshot / hash | Not recorded |
+| Reviewer / date / limitations | Not recorded |
+
+For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
+
+## Boundaries and handoff
+
+Keep synthetic browser-local scope. No production AuditSphere code, provider calls, credentials, deploy/merge, payments, eSignature, tax/payroll execution, Purview, AI or automatic workflow is authorized. Preserve source/history and existing guard behavior.
+
+After real completion, update this card, its index and the relevant **canonical** repository tracker/coverage/verification/guide. Do not maintain contradictory status copies. Task completion alone does not confer full VP acceptance.

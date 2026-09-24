@@ -1,0 +1,112 @@
+
+> auditsphere-visual-prototype@2.0.0 test:e2e
+> npm run build && tsx --test tests/e2e/*.test.ts
+
+
+> auditsphere-visual-prototype@2.0.0 build
+> tsc --noEmit && vite build
+
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 271 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                          1.09 kB │ gzip:   0.51 kB
+dist/assets/index-W5oEz7Fx.css          43.70 kB │ gzip:   9.80 kB
+dist/assets/purify.es-7fJ1DZ6H.js       26.97 kB │ gzip:  10.73 kB │ map:   162.96 kB
+dist/assets/index.es-BoTA93TJ.js       151.41 kB │ gzip:  48.92 kB │ map:   594.05 kB
+dist/assets/html2canvas-BLO9jV0A.js    199.53 kB │ gzip:  46.81 kB │ map:   598.01 kB
+dist/assets/index-DHmytYOp.js        2,364.80 kB │ gzip: 652.36 kB │ map: 7,596.96 kB
+
+[32m✓ built in 2.65s[39m
+[33m[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+▶ vite build serves locally
+  ✔ AT-01: entrypoint boots the React shell with empty-state-safe markup (22.9061ms)
+  ✔ AT-04: served bundle advertises no excluded product surface (72.2111ms)
+  ✔ AT-03: no external Microsoft/mail/payment/AI egress is baked into markup (9.284ms)
+  ✔ AT-15/AT-25: static shell references the simulated M365 + portal surfaces (64.0652ms)
+  ✔ VP-064: prototype docs ship alongside the build evidence (1.3279ms)
+✔ vite build serves locally (2321.0668ms)
+▶ actual Chrome browser acceptance
+  ✔ AT-01/AT-03/AT-04: renders the app, keeps controls local, and presents scope disclosures (21.1892ms)
+  ✔ VP-005: scopes dashboard records, metrics, attention and activity to the active grant (6486.2851ms)
+  ✔ AT-15/AT-16: saves a per-capability M365 simulation and retains it on reload (6290.5828ms)
+  ✔ VP-003-AC02: guards an unsaved client contact across persona changes (3207.7374ms)
+  ✔ AT-18/AT-25/AT-53: switches to a client persona and exposes only the portal (900.3989ms)
+  ✔ AT-17/AT-18: keeps identity mapping separate from a reviewed scoped access grant (1100.281ms)
+  ✔ AT-53: opens every staff navigation route in Chrome without a render exception (7285.5626ms)
+  ✔ VP-051: reconciles scoped CSV/XLSX populations before testing and preserves replacement history (1338.427ms)
+  ✔ VP-052: creates a clean workpaper from a published template with a genuine sample workbook (1963.7055ms)
+  ✔ VP-050: persists procedure fieldwork and requires independent reviewer clearance (1176.1242ms)
+  ✔ VP-049: edits the persisted risk register and keeps procedure links reciprocal (3390.1529ms)
+  ✔ AT-05/AT-06: creates a client, primary contact, typed value and non-authorizing relationship group (3684.1479ms)
+  ✔ AT-07/AT-08: registers an opportunity, drafts a proposal and presents only after independent review (4865.6282ms)
+  ✔ AT-09: client records a presented proposal response with evidence without auto-creating an engagement (627.5282ms)
+  ✔ AT-10: creates a draft once from accepted proposal terms then requires partner activation evidence (853.1036ms)
+  ✔ AT-11/AT-12: blocks parent completion until subtasks finish and records an actual task reassignment (1790.5929ms)
+  ✔ AT-13: explicitly applies a published template with fresh tasks and no copied work state (2039.6287ms)
+  ✔ AT-14: keeps job notes internal and records only scope-authorized local mentions (1332.9771ms)
+  ✔ AT-27: logs a received meeting note manually and keeps the internal record out of the client portal (567.1991ms)
+  ✔ AT-26: resolves a mail template and records accepted, failed, and unknown outcomes locally (1582.8152ms)
+  ✔ AT-21: keeps OneDrive optional until enabled and preserves SharePoint as canonical storage (760.8613ms)
+  ✔ AT-20: registers a replacement file without silently changing its pinned evidence reference (2782.1335ms)
+  ✔ VP-021: keeps stable document identity through rename, move and unavailable-reference recovery (256.0512ms)
+  ✔ VP-053: records reasoned evidence unlink history and keeps the linked procedure stale (385.8023ms)
+  ✔ AT-22: persists selected-file metadata across reload and explains that original bytes are unavailable (636.5744ms)
+  ✔ AT-30/VP-030: drafts an invoice from approved time and reserves the source once (1047.5905ms)
+  ✔ AT-31/VP-031: requires independent invoice and credit review before issue (680.0484ms)
+  ✔ AT-50/VP-061: client search excludes internal activity and finds shared documents (2398.1074ms)
+  ✔ AT-32/AT-33 VP-032/033: filters aging and statements, splits one offline receipt across invoices and reverses one allocation (1673.8572ms)
+  ✔ AT-29/VP-029: versions a budget without rewriting approved time rates (362.0127ms)
+  ✔ AT-44/VP-047: records independent acceptance and creates a clean next-period draft (770.2769ms)
+  ✔ AT-41/AT-42/AT-48: saves exact generated package artifacts and verifies them after reload (9888.0343ms)
+  ✔ AT-49/AT-60: validates every practice report, client scoping, and exported CSV rows (8226.1771ms)
+  ✔ AT-43/AT-44/AT-45: reviews pinned consolidation snapshots and approved eliminations without changing source TBs (2395.8838ms)
+  ✔ AT-44: warns on a changed component source and requires an explicit re-pin (1495.8883ms)
+  ✔ AT-43: blocks missing FX and accepts a dated component-currency closing rate (2865.3189ms)
+  ✔ AT-44: isolates a translation-rounding residual from balanced component sources (942.245ms)
+  ✔ AT-43: blocks consolidation output and identifies a missing perimeter role (712.3908ms)
+  ✔ AT-43: labels minority ownership unsupported and produces no consolidated figures (737.3494ms)
+  ✔ AT-43: edits the group perimeter with validation, history, elimination re-review and revert (2150.5527ms)
+  ✔ AT-45: creates, returns and independently approves a balanced group elimination (2630.7431ms)
+  ✔ VP-045-AC03: leaves the explained unmatched intercompany amount visible in group detail (1007.442ms)
+  ✔ AT-43: projects only granted consolidation components under a narrow group grant (2360.8677ms)
+  ✔ AT-35: rejects an unbalanced TB import then preserves the accepted source revision on replacement (5830.5963ms)
+  ✔ AT-23/AT-24: creates a PBC request, receives a replacement after clarification, then accepts it independently (3190.1375ms)
+  ✔ AT-28: records, returns, resubmits and corrects approved time as retained revisions (1023.0827ms)
+  ✔ AT-38/AT-40: includes an accepted unreflected adjustment in the financial statements (1752.2184ms)
+  ✔ AT-38: routes a new adjustment through independent technical review and client acceptance (3099.1661ms)
+  ✔ AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite (2028.111ms)
+  ✔ AT-02: preserves malformed saved state and offers a recoverable demo session (764.8636ms)
+  ✔ VP-004: preserves a future-schema payload and restores a validated import (872.285ms)
+  ✔ VP-047/v13: legacy accepted case remains historical and requires evidence review (475.6917ms)
+  ✔ AT-37: independently approves account mappings and traces statement rows to their source accounts (6178.2947ms)
+  ✔ AT-17/VP-018: adds a local identity without access, disables it, and inspects invitation history (2515.2263ms)
+  ✔ VP-049: publishes and applies a reusable program template with fresh execution state (1517.0107ms)
+  ✔ AT-19: prepares the same client workspace twice idempotently (1166.1886ms)
+  ✔ AT-34: configures and persists the selected accounting context (1415.7228ms)
+  ✔ AT-36: imports a period-bound GL source, reconciles opening plus movement to TB, and retains replacement history (2337.7226ms)
+  ✔ AT-39: renders reconciliation timing and variance totals (3163.2296ms)
+  ✔ AT-46: opens workpaper, evidence and finding views (959.654ms)
+  ✔ VP-054: records a sourced qualitative finding and durable reasoned disposition (2185.4235ms)
+  ✔ VP-055: requires an independent response review and reopens after workpaper revision (1994.885ms)
+  ✔ AT-55: shows a scope-filtered cross-engagement review queue (3134.4878ms)
+  ✔ VP-055: raises a revision-pinned review note on a finding (1434.5363ms)
+  ✔ AT-47: opens the sign-offs and EQR workspace (486.1961ms)
+  ✔ AT-51: saves a new rate version without rewriting issued invoices (851.2811ms)
+  ✔ AT-52: carries manually entered client data through engagement, job, mapped statements and a persisted package (5748.106ms)
+  ✔ VP-012: suspends and resumes an engagement with reasoned persisted history (1959.8825ms)
+  ✔ AT-03/VP-063: blocks external HTTP requests across the Chrome acceptance journeys (9.2423ms)
+✔ actual Chrome browser acceptance (153772.8705ms)
+ℹ tests 74
+ℹ suites 2
+ℹ pass 74
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 157692.0389
