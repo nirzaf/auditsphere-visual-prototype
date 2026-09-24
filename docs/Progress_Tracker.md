@@ -47,17 +47,17 @@
 | Repository-verified modules | 10 | Source module status, not a new independent audit. |
 | Partial modules | 29 | Contain residual implementation and/or acceptance work. |
 | Original user stories | 64 | Original VP-001–VP-064 identifiers and titles retained. |
-| Repository-verified stories | 13 | Source story status, retained without upgrading other stories. |
-| Partial stories | 51 | All have current progress and a closure plan below. |
+| Repository-verified stories | 14 | Includes VP-014, whose four criteria now pass the expanded AT-11 Chrome/unit evidence. |
+| Partial stories | 50 | All have current progress and a closure plan below. |
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks reported passing | 158 / 158 | Rerun after per-note disclosure review and package-lineage implementation. |
+| Unit checks reported passing | 159 / 159 | Includes task assignment scope, cancellation history, and task hierarchy regressions. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 121 | 0 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 119 | 0 stated implementation actions; 83 evidence/verification actions; 36 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
-Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
+Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. The current story totals are 14 verified / 50 partial; module totals remain 10 verified / 29 partial because other stories in the same modules are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
 ### 1.2 Status and pending-work legend
 
@@ -1139,13 +1139,13 @@ Required: title, client, engagement and owner. Optional: description, start/due 
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L496).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Acceptance evidence:** Implementation commit `83f060a`; acceptance checks run 2026-09-24: `npm run test:unit` (159/159) and `npm run test:e2e` (68/68), including AT-11 and AT-14. Automated acceptance only; no separate reviewer sign-off recorded.
 
 
 <a id="vp-014"></a>
 ### VP-014 — Implement tasks and exactly one level of subtasks
 
-**Current status:** PARTIAL  
+**Current status:** VERIFIED (automated acceptance)
 **Milestone:** M2  
 **Tracker priority:** P2  
 **Owner:** Unassigned  
@@ -1153,7 +1153,7 @@ Required: title, client, engagement and owner. Optional: description, start/due 
 **Target date:** Not set  
 **Status snapshot:** 2026-09-24, `eaaa7cf`
 
-- [ ] **Story acceptance recorded as complete in the repository.**
+- [x] **Story acceptance recorded as complete in the repository.** Automated acceptance passed across all four criteria on 2026-09-24.
 
 **Current evidence and status basis:** [Current coverage](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/module-coverage.md#L14) · [Verification record](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/verification.md) · [Limitations](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/remaining-limitations.md)
 
@@ -1169,11 +1169,11 @@ Tasks support one-level subtasks, hierarchy/cycle/cross-job guards, scoped assig
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [x] **VP-014-I01 — Implemented and exercised:** Staff-only notes and registered same-engagement document references are linked to individual tasks; task file unlinking requires a reason and preserves actor/time history. Evidence: AT-14 Chrome and task-file unit regression, 158/158 unit + 68/68 E2E checks, 2026-09-24. Broader criterion sign-off remains open under E02.
+- [x] **VP-014-I01 — Implemented and exercised:** Staff-only notes and registered same-engagement document references are linked to individual tasks; task file unlinking requires a reason and preserves actor/time history. Evidence: AT-14 Chrome and task-file unit regression, 159/159 unit + 68/68 E2E checks, 2026-09-24. All VP-014 criteria are now verified; see E02 evidence below.
 
-- [ ] **VP-014-E02 — Verification/evidence pending:** Chrome/unit evidence now covers cancelled-leaf exclusion, scoped assignees, reasoned cancel/reopen, and ownership/order changes. Still verify empty-work rendering and ownership/order persistence after reload.
+- [x] **VP-014-E02 — Verification complete:** AT-11 Chrome and unit regressions cover non-cancelled leaf progress, cross-client assignee rejection, empty-work rendering, reasoned cancel/reopen, and ownership/order/status persistence after reload. Evidence: 159/159 unit + 68/68 E2E, 2026-09-24.
 
-- [ ] **VP-014-R03 — Requirement/scope reconciliation:** Keep one-level nesting and manual state changes; no dependency, recurrence or automation engine.
+- [x] **VP-014-R03 — Reconciled:** The contract defines one-level subtasks and manual statuses; no dependency, recurrence or automation engine is needed.
 
 #### Original user story and dependencies
 **Target modules:** 05  
@@ -1187,14 +1187,14 @@ Task fields: title, job ID, optional description/assignee/due date, manual statu
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-014-AC01 | Given a task, when a subtask is added, then a second nesting level, cycle, cross-job parent or cross-client assignee is rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-014-AC02 | Completing a parent with unfinished required children is blocked; completing a child does not automatically complete its parent/job. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-014-AC03 | Reassignment records old/new person and reason; assigning a preparer to a general task never grants reviewer authority. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-014-AC04 | Progress counts non-cancelled leaf tasks once; empty work is shown as not started/no tasks, and reload preserves order, ownership and statuses. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-014-AC01 | Given a task, when a subtask is added, then a second nesting level, cycle, cross-job parent or cross-client assignee is rejected. | VERIFIED: unit/Chrome checks reject second-level nesting, self/cross-job cycles, and out-of-scope assignees. |
+| VP-014-AC02 | Completing a parent with unfinished required children is blocked; completing a child does not automatically complete its parent/job. | VERIFIED: parent completion is blocked until children finish; child completion leaves parent/job status unchanged. |
+| VP-014-AC03 | Reassignment records old/new person and reason; assigning a preparer to a general task never grants reviewer authority. | VERIFIED: reassignment retains old/new person and reason; assignment does not grant approval authority. |
+| VP-014-AC04 | Progress counts non-cancelled leaf tasks once; empty work is shown as not started/no tasks, and reload preserves order, ownership and statuses. | VERIFIED: progress counts active leaf work, empty work is explicit, and ownership/order/status survive reload. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L513).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Acceptance evidence:** Implementation commit `83f060a` plus acceptance-test updates in the current change; `npm run test:unit` (159/159) and `npm run test:e2e` (68/68), run 2026-09-24. Automated acceptance only; no separate reviewer sign-off recorded.
 
 
 <a id="vp-015"></a>
@@ -1874,7 +1874,7 @@ A shared communication register includes manually recorded incoming email/call/m
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [x] **VP-027-I01 — Implemented and exercised:** Manual communications can link to a validated same-client/same-engagement job; client timeline, global register and linked job view project the same stored record. Evidence: AT-27 Chrome and unit job-scope regression, 158/158 unit + 68/68 E2E checks, 2026-09-24. Remaining date/text/visibility correction checks stay under E02.
+- [x] **VP-027-I01 — Implemented and exercised:** Manual communications can link to a validated same-client/same-engagement job; client timeline, global register and linked job view project the same stored record. Evidence: AT-27 Chrome and unit job-scope regression, 159/159 unit + 68/68 E2E checks, 2026-09-24. Remaining date/text/visibility correction checks stay under E02.
 
 - [ ] **VP-027-E02 — Verification/evidence pending:** Validate visibility-change warning/permission, linked-attachment scope, date/text limits and correction history.
 
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **121 open planning actions** attached to the 51 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **119 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -3951,13 +3951,13 @@ This queue contains **121 open planning actions** attached to the 51 Partial sto
 
 - [x] **VP-007-I01** (P2; [VP-007](#vp-007)): Implemented responsibility and effective-period fields with date-range guards. Evidence: AT-05/AT-06 Chrome + unit regression, 2026-09-24. Owner: `—`; issue/PR: `—`; target: `—`.
 
-- [x] **VP-014-I01** (P2; [VP-014](#vp-014)): Staff-only task notes and registered-document links implemented; unlink requires a reason and retains actor/time history. Evidence: AT-14 Chrome + task-file unit regression; 158/158 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
+- [x] **VP-014-I01** (P2; [VP-014](#vp-014)): Staff-only task notes and registered-document links implemented; unlink requires a reason and retains actor/time history. Evidence: AT-14 Chrome + task-file unit regression; 159/159 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off is complete; see the verified criteria above.
 
-- [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 158/158 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
+- [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 159/159 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
 
 - [x] **VP-025-I02** (P2; [VP-025](#vp-025)): Implemented required-reason share/withdraw actions with attributable history and current client visibility projection. Evidence: store regression + VP-021 Chrome, 2026-09-24. Broader portal withdrawal/no-access cases remain under E03.
 
-- [x] **VP-027-I01** (P2; [VP-027](#vp-027)): Validated optional job links and shared communication projections in client and job views. Evidence: AT-27 Chrome + unit scope regression; 158/158 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
+- [x] **VP-027-I01** (P2; [VP-027](#vp-027)): Validated optional job links and shared communication projections in client and job views. Evidence: AT-27 Chrome + unit scope regression; 159/159 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off is complete; see the verified criteria above.
 
 - [x] **VP-041-I01** (P1; [VP-041](#vp-041)): Revisioned and independently reviewed cash-flow movement schedule implemented and verified; complete the per-note and client-sharing acceptance separately. Evidence: AT-37 + cash-flow store regression, 2026-09-24.
 
@@ -3987,7 +3987,7 @@ This queue contains **121 open planning actions** attached to the 51 Partial sto
 | VP-012-E01 | [VP-012](#vp-012) | P1 | Finish the affected-review matrix after team, service, period, fee and scope changes across plans, procedures, statements, evidence, approvals and packages. | Pending / Unassigned / — |
 | VP-012-E02 | [VP-012](#vp-012) | P1 | Verify terminal-state handling, cross-view lineage and historical outputs for every lifecycle transition. | Pending / Unassigned / — |
 | VP-013-E01 | [VP-013](#vp-013) | P2 | Complete job completion with required tasks, cancellation/read-only behavior, empty jobs and edit/reopen/return combinations at command and UI levels. | Pending / Unassigned / — |
-| VP-014-E02 | [VP-014](#vp-014) | P2 | Verify empty-work rendering and ownership/order persistence after reload; cancelled-leaf progress, scoped assignees and reasoned task cancel/reopen are now covered. | Pending / Unassigned / — |
+| VP-014-E02 | [VP-014](#vp-014) | P2 | Verify empty-work rendering, scoped assignees, reasoned task cancel/reopen, and ownership/order/status persistence after reload. | Verified / 2026-09-24 |
 | VP-015-E01 | [VP-015](#vp-015) | P2 | Close all four original criteria with title/hierarchy validation, deliberate people/date selection, retire/cancel and conflicting operation-ID reuse cases. | Pending / Unassigned / — |
 | VP-016-E02 | [VP-016](#vp-016) | P2 | Test empty/oversized/unsafe input, subject activity links and client exclusion of text, counts, attachments and mention notices. | Pending / Unassigned / — |
 | VP-017-E01 | [VP-017](#vp-017) | P2 | Complete the setup start/back/cancel/review-summary path and every invalid tenant/resource/person selection while proving liveConnected remains false. | Pending / Unassigned / — |
@@ -4069,7 +4069,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-010-R03 | [VP-010](#vp-010) | Reconcile service-catalogue and reusable-content-template editor coverage before adding any additional proposal feature. | Open / — |
 | VP-012-R03 | [VP-012](#vp-012) | Do not introduce workflow automation or future-period task generation as a lifecycle shortcut. | Open / — |
 | VP-013-R02 | [VP-013](#vp-013) | The original story does not require reopening a cancelled job. Keep terminal cancellation; test reopening only for applicable non-terminal work states. | Open / — |
-| VP-014-R03 | [VP-014](#vp-014) | Keep one-level nesting and manual state changes; no dependency, recurrence or automation engine. | Open / — |
+| VP-014-R03 | [VP-014](#vp-014) | Keep one-level nesting and manual state changes; no dependency, recurrence or automation engine. | Reconciled / 2026-09-24 |
 | VP-015-R02 | [VP-015](#vp-015) | Role suggestions may remain suggestions rather than automatic allocation. Determine whether any remaining editor/cancellation item is a criterion gap or merely an illustrative limitation. | Open / — |
 | VP-016-R03 | [VP-016](#vp-016) | No email notifications, full chat application or external collaboration integration is required. | Open / — |
 | VP-017-R03 | [VP-017](#vp-017) | Do not turn initial identity mappings into implicit global/client authority; scoped grants remain separate. | Open / — |

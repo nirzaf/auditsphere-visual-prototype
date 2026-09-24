@@ -592,6 +592,10 @@ describe('task hierarchy (AT-11)', () => {
       () => prototypeStore.addTask({ id: 'T-XJOB', jobId: 'JOB-2602', parentTaskId: 'TSK-101', title: 'Cross job', assignee: 'Adam Khan', status: 'Not started', order: 9 }),
       /Cross-job/
     );
+    assert.throws(
+      () => prototypeStore.addTask({ id: 'T-CYCLE', jobId: 'JOB-2601', parentTaskId: 'T-CYCLE', title: 'Self parent', assignee: 'Adam Khan', status: 'Not started', order: 10 }),
+      /own parent/
+    );
   });
 
   it('blocks completing a parent with unfinished children', async () => {
@@ -603,6 +607,20 @@ describe('task hierarchy (AT-11)', () => {
       () => prototypeStore.updateTask({ ...parent, status: 'Completed' }),
       /unfinished/
     );
+  });
+
+  it('does not complete the parent or job when a child completes', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    setPersona(current, 'Layla Rahman');
+    const child = current.jobTasks.find(item => item.parentTaskId === 'TSK-103')!;
+    const parentStatus = current.jobTasks.find(item => item.id === 'TSK-103')!.status;
+    const job = current.jobs.find(item => item.id === child.jobId)!;
+    const jobStatus = job.status;
+    prototypeStore.updateTask({ ...child, status: 'Completed' });
+    assert.equal(current.jobTasks.find(item => item.id === 'TSK-103')?.status, parentStatus);
+    assert.equal(job.status, jobStatus);
   });
 });
 
