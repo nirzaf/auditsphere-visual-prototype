@@ -2943,6 +2943,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const futureState = createInitialState() as any;
     futureState.schema = 23;
     const futurePayload = JSON.stringify(futureState);
+    const downloadDir = mkdtempSync(join(tmpdir(), 'auditsphere-preserved-export-'));
     try {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
@@ -2950,6 +2951,16 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v23, newer than supported v22/);
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
       assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
+      await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
+      await clickButton('Export preserved payload');
+      let downloaded: string[] = [];
+      for (let attempt = 0; attempt < 50; attempt++) {
+        downloaded = readdirSync(downloadDir).filter(name => !name.endsWith('.crdownload'));
+        if (downloaded.length) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.equal(downloaded.length, 1, 'preserved state export creates one completed download');
+      assert.equal(readFileSync(join(downloadDir, downloaded[0]), 'utf8'), futurePayload, 'downloaded export bytes equal the exact preserved future-schema payload');
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File(['{"schema":22}'],'ambiguous-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser(`document.body.innerText.includes('Imported state is ambiguous: missing engagements')`), true, 'ambiguous imports report why they were rejected');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'rejected import does not overwrite the unsupported prior payload');
@@ -2963,6 +2974,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
+      await browserTab!.command('Page.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
+      rmSync(downloadDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       await browserTab!.evaluate(`(() => {const key=${JSON.stringify(key)},backupKey=${JSON.stringify(backupKey)};if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});})()`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
