@@ -36,6 +36,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactTitle, setContactTitle] = useState('');
+  const [contactResponsibility, setContactResponsibility] = useState('');
+  const [contactEffectiveFrom, setContactEffectiveFrom] = useState('');
+  const [contactEffectiveTo, setContactEffectiveTo] = useState('');
   const [customFieldId, setCustomFieldId] = useState(state.customFields.find(f => f.enabled !== false)?.id || '');
   const [customFieldValue, setCustomFieldValue] = useState('');
   const [clientNotice, setClientNotice] = useState('');
@@ -91,6 +94,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
       name: contactName,
       email: contactEmail,
       title: contactTitle,
+      responsibility: contactResponsibility,
+      effectiveFrom: contactEffectiveFrom || undefined,
+      effectiveTo: contactEffectiveTo || undefined,
       isPrimary: contacts.length === 0,
       active: true,
       portalAccessRequested: false
@@ -101,6 +107,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     setContactName('');
     setContactEmail('');
     setContactTitle('');
+    setContactResponsibility('');
+    setContactEffectiveFrom('');
+    setContactEffectiveTo('');
   };
 
   const handleSaveCustomField = (event: React.FormEvent) => {
@@ -327,6 +336,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                   <th>Email</th>
                   <th>Phone</th>
                   <th>Role</th>
+                  <th>Responsibility period</th>
                   <th>Portal Access</th>
                 </tr>
               </thead>
@@ -337,7 +347,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                     <td>{c.title || 'Finance'}</td>
                     <td>{c.email}</td>
                     <td>{c.phone || '—'}</td>
-                    <td>Management Contact</td>
+                    <td>{c.responsibility || 'Management Contact'}</td>
+                    <td>{c.effectiveFrom || 'No start'} – {c.effectiveTo || 'Open ended'}</td>
                     <td>
                       <span className={`badge ${c.portalAccessRequested ? 'amber' : 'gray'}`}>
                         {c.portalAccessRequested ? 'Request pending' : 'No portal access'}
@@ -711,6 +722,14 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                     onChange={e => setContactEmail(e.target.value)}
                     required
                   />
+                </div>
+                <div>
+                  <label className="caption">Responsibility</label>
+                  <input type="text" className="input" aria-label="Contact responsibility" placeholder="e.g. Financial reporting" value={contactResponsibility} onChange={e => setContactResponsibility(e.target.value)} />
+                </div>
+                <div className="grid2">
+                  <label className="caption">Effective From<input type="date" className="input" aria-label="Contact effective from" value={contactEffectiveFrom} onChange={e => setContactEffectiveFrom(e.target.value)} /></label>
+                  <label className="caption">Effective To<input type="date" className="input" aria-label="Contact effective to" value={contactEffectiveTo} onChange={e => setContactEffectiveTo(e.target.value)} /></label>
                 </div>
               </div>
               <div className="modal-foot">

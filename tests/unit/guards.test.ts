@@ -524,9 +524,11 @@ describe('client rules (AT-05)', () => {
     assert.equal(state.clients.find(c => c.id === 'CL-001')?.customFields?.[fieldId], 'High', 'disabling a used definition preserves historical values');
     assert.throws(() => prototypeStore.setClientCustomField('CL-001', fieldId, 'Low'), /active custom field/);
 
-    const newContact = { id: 'CNT-AT05', clientId: 'CL-001', name: 'Nora Test', email: 'nora@example.demo', isPrimary: true, active: true, portalAccessRequested: true };
+    const newContact = { id: 'CNT-AT05', clientId: 'CL-001', name: 'Nora Test', email: 'nora@example.demo', responsibility: 'Financial reporting', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', isPrimary: true, active: true, portalAccessRequested: true };
+    assert.throws(() => prototypeStore.addContact({ ...newContact, id: 'CNT-AT05-BAD', effectiveTo: '2025-12-31' }), /end date cannot precede/);
     prototypeStore.addContact(newContact);
     assert.equal(newContact.portalAccessRequested, false);
+    assert.equal(state.contacts.find(c => c.id === newContact.id)?.responsibility, 'Financial reporting');
     assert.equal(state.contacts.find(c => c.id === 'CNT-01')?.isPrimary, false);
     prototypeStore.setPrimaryContact('CL-001', 'CNT-02');
     assert.equal(state.contacts.find(c => c.id === 'CNT-02')?.isPrimary, true);

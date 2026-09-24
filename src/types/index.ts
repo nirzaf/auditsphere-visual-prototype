@@ -113,6 +113,9 @@ export interface ClientContact {
   email: string;
   phone?: string;
   title?: string;
+  responsibility?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
   isPrimary: boolean;
   active: boolean;
   portalAccessRequested?: boolean;

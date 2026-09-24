@@ -316,6 +316,8 @@ class PrototypeStore {
     }
     if (!this.state.clients.some(c => c.id === contact.clientId) || !contact.email.trim() || this.state.contacts.some(c => c.id === contact.id)) throw new GuardError('INVALID_STATE', 'Contact must have a unique ID, existing client and email address.');
     if (contact.isPrimary && !contact.active) throw new GuardError('INVALID_STATE', 'An inactive contact cannot be primary.');
+    const validDate = (value?: string) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!validDate(contact.effectiveFrom) || !validDate(contact.effectiveTo) || contact.effectiveFrom && contact.effectiveTo && contact.effectiveTo < contact.effectiveFrom) throw new GuardError('INVALID_STATE', 'Contact responsibility dates must be real calendar dates and the end date cannot precede the start date.');
     if (contact.isPrimary) this.state.contacts.forEach(c => { if (c.clientId === contact.clientId) c.isPrimary = false; });
     contact.portalAccessRequested = false;
     this.state.contacts.push(contact);

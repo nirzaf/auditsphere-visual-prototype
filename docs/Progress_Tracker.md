@@ -55,7 +55,7 @@
 | Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 126 | 5 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 125 | 4 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -793,12 +793,12 @@ Required: client code, legal name, client type, status and owner. Optional: trad
 **Original journey links:** [AT-05](#at-05); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Multiple contacts, primary-contact selection, bounded custom values and non-authorizing relationship groups are demonstrated. Inactive-primary and invalid choice/date checks, preserved disabled-field values and unchanged grants are recorded.
+Multiple contacts, primary-contact selection, responsibility/effective dates, bounded custom values and non-authorizing relationship groups are demonstrated. Contact date ranges reject invalid calendar dates and end-before-start. Inactive-primary and invalid choice/date checks, preserved disabled-field values and unchanged grants are recorded.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-007-I01 — Implementation pending:** Complete contact responsibility/effective-date support identified as incomplete in the coverage record.
+- [x] **VP-007-I01 — Implemented and exercised:** Client contacts store responsibility plus optional effective-from/to dates; the store rejects invalid calendar dates and reversed ranges. AT-05/AT-06 Chrome journey and store regression pass on 2026-09-24. Editing/inactivation and historical reference evidence remains open under E02.
 
 - [ ] **VP-007-E02 — Verification/evidence pending:** Verify group membership never grants access, contact creation never creates identity authority, and editing/inactivation preserves historical references.
 
@@ -3949,7 +3949,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 ### 9.2 Stated implementation actions
 
-- [ ] **VP-007-I01** (P2; [VP-007](#vp-007)): Complete contact responsibility/effective-date support identified as incomplete in the coverage record. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-007-I01** (P2; [VP-007](#vp-007)): Implemented responsibility and effective-period fields with date-range guards. Evidence: AT-05/AT-06 Chrome + unit regression, 2026-09-24. Owner: `—`; issue/PR: `—`; target: `—`.
 
 - [ ] **VP-014-I01** (P2; [VP-014](#vp-014)): Complete task-level comment/attachment surfaces recorded as missing where needed for the shared collaboration/linked-file contract. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 

@@ -791,9 +791,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setLabeledField('Full Name', 'Nora Secondary');
     await setLabeledField('Job Title', 'Controller');
     await setLabeledField('Email Address', 'nora.secondary@journey.demo');
+    await setLabeledField('Responsibility', 'Monthly financial reporting');
+    await browserTab!.evaluate(`(() => {const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;for(const [label,value] of [['Contact effective from','2026-01-01'],['Contact effective to','2026-12-31']]){const input=document.querySelector('[aria-label="'+label+'"]');setter.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
     await clickButton('Save Contact');
     const contact = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.find(c=>c.name==='Nora Secondary')`);
     assert.equal(contact.clientId, clientId);
+    assert.equal(contact.responsibility, 'Monthly financial reporting');
+    assert.equal(contact.effectiveFrom, '2026-01-01');
+    assert.equal(contact.effectiveTo, '2026-12-31');
     assert.equal(contact.portalAccessRequested, false, 'a contact is not an account or access grant');
 
     await clickButton('Back to Portfolio');
