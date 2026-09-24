@@ -3,7 +3,7 @@
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-047, VP-051,
 VP-052, VP-053, VP-055, VP-056, VP-057, VP-058, VP-059 and VP-060 are Verified;
-29 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
+29 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-55. See
 `verification.md` for exact executed checks.
 
 ## Known acceptance gaps

@@ -2,6 +2,7 @@
 import React from 'react';
 import { PrototypeState, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface DashboardViewProps {
@@ -10,23 +11,26 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
-
-  const totalEngagements = state.engagements.length;
-  const activeEngagements = state.engagements.filter(e => !e.archive).length;
-  const totalOpenReviews = state.engagements.reduce(
+  const visibleIds = visibleEngagementIds(state);
+  const engagements = visibleIds === 'ALL' ? state.engagements : state.engagements.filter(e => visibleIds.includes(e.id));
+  const clientIds = new Set(engagements.map(e => e.client));
+  const clients = state.clients.filter(c => clientIds.has(c.id));
+  const activeEngagements = engagements.filter(e => !e.archive).length;
+  const totalOpenReviews = engagements.reduce(
     (sum, e) => sum + e.reviews.filter(r => r.status !== 'Cleared').length,
     0
   );
-  const totalOpenPBC = state.engagements.reduce(
+  const totalOpenPBC = engagements.reduce(
     (sum, e) => sum + e.pbc.filter(p => p.status !== 'Accepted').length,
     0
   );
-  const readyToRelease = state.engagements.filter(e => {
+  const readyToRelease = engagements.filter(e => {
     return e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared');
   }).length;
 
-  const currentEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const client = state.clients.find(c => c.id === currentEng?.client);
+  const currentEng = engagements.find(e => e.id === state.selectedEngagement) || engagements[0];
+  const client = clients.find(c => c.id === currentEng?.client);
+  const events = visibleIds === 'ALL' ? state.events.slice(0, 4) : state.events.filter(ev => visibleIds.some(id => ev.ref === id || ev.ref.startsWith(`${id} ·`))).slice(0, 4);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -39,7 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         <div className="row" style={{ gap: 10 }}>
           <span className="btn sm">
             <Icon name="calendar" />
-            23 Sep 2026 · Sample Day
+            {new Date(`${state.asOfDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} · As of date
           </span>
           <button className="btn primary sm" onClick={() => onNavigate('engagements')}>
             <Icon name="plus" />
@@ -56,7 +60,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <Icon name="brief" />
           </div>
           <div className="metric-val">{activeEngagements}</div>
-          <span className="metric-sub">Across {state.clients.length} synthetic clients</span>
+          <span className="metric-sub">Across {clients.length} synthetic clients</span>
         </div>
 
         <div className="metric purple" onClick={() => onNavigate('reviews')} style={{ cursor: 'pointer' }}>
@@ -112,8 +116,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.engagements.map(eng => {
-                    const c = state.clients.find(x => x.id === eng.client);
+                  {engagements.map(eng => {
+                    const c = clients.find(x => x.id === eng.client);
                     return (
                       <tr key={eng.id}>
                         <td>
@@ -208,22 +212,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <p className="sub" style={{ marginBottom: 12 }}>Engagement stage distribution</p>
             <div className="stage-bars">
               <div className="stage-col">
-                <b>{state.engagements.filter(e => e.stage === 'Planning').length}</b>
+              <b>{engagements.filter(e => e.stage === 'Planning').length}</b>
                 <i style={{ height: 35 }} />
                 <span>Planning</span>
               </div>
               <div className="stage-col">
-                <b>{state.engagements.filter(e => e.stage === 'Fieldwork').length}</b>
+              <b>{engagements.filter(e => e.stage === 'Fieldwork').length}</b>
                 <i style={{ height: 45 }} />
                 <span>Fieldwork</span>
               </div>
               <div className="stage-col">
-                <b>{state.engagements.filter(e => e.stage === 'Review').length}</b>
+              <b>{engagements.filter(e => e.stage === 'Review').length}</b>
                 <i style={{ height: 60 }} />
                 <span>Review</span>
               </div>
               <div className="stage-col">
-                <b>{state.engagements.filter(e => e.stage === 'Accounting').length}</b>
+              <b>{engagements.filter(e => e.stage === 'Accounting').length}</b>
                 <i style={{ height: 30 }} />
                 <span>Accounting</span>
               </div>
@@ -237,7 +241,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               <span className="caption">In-memory log</span>
             </div>
             <div className="stack" style={{ gap: 10 }}>
-              {state.events.slice(0, 4).map((ev, i) => (
+              {events.map((ev, i) => (
                 <div key={i} className="activity">
                   <div className="activity-dot">
                     <Icon name={ev.type} size="sm" />
