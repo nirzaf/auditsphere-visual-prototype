@@ -53,7 +53,7 @@
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
 | Unit checks passing in this review | 168 / 168 | Fresh full run at `3919046094f14be627f282cadfb234d105a78115`; includes journal reflection, disclosure, cash-flow staleness and reporting-rate checks. |
-| E2E checks passing in this review | 71 / 71 | Fresh full run at `5151932d5e286ef8ea19d6588aaa3ae982f3284d`: 5 static checks + 66 actual Chrome checks, including all 16 report exports and recalculation after source changes, plus local work while M365 setup is skipped or services fail. |
+| E2E checks passing in this review | 71 / 71 | Fresh full run at `1981e07a54f41b2d9fa3db78ac491d3227cdf554`: 5 static checks + 66 actual Chrome checks, including all 16 report exports, M365 auth/offline boundary and local work with setup skipped or services failing. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -1353,13 +1353,13 @@ Steps: start demonstration connection; choose synthetic tenant; select permitted
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | SUBCASE VERIFIED 2026-09-24: AT-15/AT-16 Chrome journey finds no password fields or Microsoft sign-in links, confirms `liveConnected: false`, and observes no external HTTP requests. Provisioning and full criterion review remain open. |
 | VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | SUBCASE VERIFIED 2026-09-24: Chrome AT-15/AT-16 reaches fixture Jobs & Tasks before setup and after denied SharePoint/unavailable optional mail. Optionality, excluded-provider and OneDrive negative cases remain open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L566).
 
-**Next evidence update:** Exact tested commit: `5151932d5e286ef8ea19d6588aaa3ae982f3284d`; fixture: seeded synthetic tenant, SharePoint success then access denied, optional mail unavailable, local fixture job `JOB-2601`; criterion → test: VP-017-AC04 subcase / AT-15/AT-16; 71/71 E2E checks; 2026-09-24. Remaining criterion cases stay open.
+**Next evidence update:** Exact tested commit: `1981e07a54f41b2d9fa3db78ac491d3227cdf554`; fixture: seeded synthetic tenant, SharePoint success then access denied, optional mail unavailable, local fixture job `JOB-2601`; criteria → tests: VP-017-AC02 offline/auth subcase and AC04 local-work subcase / AT-15/AT-16; 71/71 E2E checks; 2026-09-24. Remaining criterion cases stay open.
 
 
 <a id="vp-018"></a>
