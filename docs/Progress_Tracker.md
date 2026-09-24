@@ -55,7 +55,7 @@
 | Unit checks reported passing | 159 / 159 | Includes task assignment scope, cancellation history, and task hierarchy regressions. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 119 | 0 stated implementation actions; 83 evidence/verification actions; 36 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 117 | 0 stated implementation actions; 82 evidence/verification actions; 35 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. The current story totals are 14 verified / 50 partial; module totals remain 10 verified / 29 partial because other stories in the same modules are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
