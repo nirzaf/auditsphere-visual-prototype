@@ -1334,11 +1334,11 @@ M365 setup saves synthetic tenant/site/library/root selections and permitted-per
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-017-E01 — Verification/evidence pending:** Complete the setup start/back/cancel/review-summary path and every invalid tenant/resource/person selection while proving liveConnected remains false.
+- [ ] **VP-017-E01 — Verification/evidence pending:** AT-15 now proves an invalid HTTP SharePoint URL is rejected with a recoverable message and the saved config is preserved; RR35 rejects blank tenant IDs, invalid roots/mailboxes and unknown permitted personas atomically. Wizard start/back/cancel/review-summary, wrong-tenant and outage-recovery combinations remain open.
 
 - [x] **VP-017-E02 — Verified subcase:** Full Chrome run confirms fixture jobs remain usable before M365 setup and while SharePoint is denied and optional mail is unavailable; `tests/e2e/app.test.ts` AT-15/AT-16, commit `5151932d5e286ef8ea19d6588aaa3ae982f3284d`, 2026-09-24. This does not close VP-017-AC04 or VP-022's remaining cases.
 
-- [ ] **VP-017-R03 — Requirement/scope reconciliation:** Do not turn initial identity mappings into implicit global/client authority; scoped grants remain separate.
+- [x] **VP-017-R03 — Requirement/scope reconciliation:** Initial M365 person/role mappings remain local identity configuration; AT-15 reads back that saving one does not create or change any authorization grant.
 
 #### Original user story and dependencies
 **Target modules:** 18  
@@ -1352,9 +1352,9 @@ Steps: start demonstration connection; choose synthetic tenant; select permitted
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | SUBCASE VERIFIED: AT-15 saves identity/resource selections and reloads the simulated identity result with `liveConnected=false`; complete start/review/save journey remains open |
 | VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | SUBCASE VERIFIED 2026-09-24: AT-15/AT-16 Chrome journey finds no password fields or Microsoft sign-in links, confirms `liveConnected: false`, and observes no external HTTP requests. Provisioning and full criterion review remain open. |
-| VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | SUBCASE VERIFIED: invalid non-HTTPS site is rejected without replacing saved state, then a valid saved site recovers; wrong-tenant and unavailable-resource recovery plus cancel/back remain open |
 | VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | SUBCASE VERIFIED 2026-09-24: Chrome AT-15/AT-16 reaches fixture Jobs & Tasks before setup and after denied SharePoint/unavailable optional mail. Optionality, excluded-provider and OneDrive negative cases remain open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L566).

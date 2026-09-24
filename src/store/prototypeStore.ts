@@ -4168,6 +4168,10 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['admin', 'manager', 'partner'], 'change simulated Microsoft configuration');
     const prev = this.state.m365Config;
+    if (!config || !config.tenantId?.trim() || config.tenantId.length > 128 || !config.tenantName?.trim() || config.tenantName.length > 253 || !config.sharePointLibrary?.trim() || config.sharePointLibrary.length > 128 || !config.folderRoot?.startsWith('/') || config.folderRoot.length > 512 || config.folderRoot.split('/').some(part => part === '.' || part === '..') || config.folderRoot.includes('\\') || config.mailSenderAccount && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.mailSenderAccount)) throw new GuardError('INVALID_STATE', 'Tenant, SharePoint library and an absolute in-scope folder root are required; optional mail must be a valid synthetic mailbox.');
+    let site: URL;
+    try { site = new URL(config.sharePointSite); } catch { throw new GuardError('INVALID_STATE', 'SharePoint site must be a valid HTTPS site URL.'); }
+    if (site.protocol !== 'https:' || site.username || site.password || site.search || site.hash || site.pathname === '/') throw new GuardError('INVALID_STATE', 'SharePoint site must be a valid HTTPS site URL without credentials, query or fragment.');
     if (!Array.isArray(config.permittedUsers) || new Set(config.permittedUsers.map(u => u.userId)).size !== config.permittedUsers.length || config.permittedUsers.some(u => !this.state.users.some(person => person.id === u.userId && person.status === 'Active') || !this.state.users.some(person => person.role === u.role && person.status === 'Active'))) throw new GuardError('INVALID_STATE', 'Permitted-person mappings must use unique active personas and active AuditSphere roles.');
     const changed = prev.tenantId !== config.tenantId ||
       prev.tenantName !== config.tenantName ||

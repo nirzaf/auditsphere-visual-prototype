@@ -485,6 +485,17 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
     const grantsBefore = JSON.stringify((prototypeStore as any).state.roleGrants);
+    const originalConfig = structuredClone((prototypeStore as any).state.m365Config);
+    for (const invalid of [
+      { ...originalConfig, tenantId: ' ' },
+      { ...originalConfig, sharePointSite: 'http://contoso.sharepoint.com/sites/audit' },
+      { ...originalConfig, folderRoot: '/../outside' },
+      { ...originalConfig, mailSenderAccount: 'invalid-mailbox' },
+      { ...originalConfig, permittedUsers: [{ userId: 'missing-user', role: 'manager' }] }
+    ]) {
+      assert.throws(() => prototypeStore.updateM365Config(invalid), /Tenant|SharePoint|folder root|mailbox|Permitted-person/);
+      assert.deepEqual(prototypeStore.getSnapshot().m365Config, originalConfig, 'invalid selections do not partially replace the saved setup');
+    }
     prototypeStore.updateM365Config({
       tenantName: 'Contoso Demo', tenantId: 'tenant-123', permittedUserGroups: ['Auditors'], permittedUsers: [{ userId: 'manager', role: 'manager' }],
       sharePointSite: 'https://contoso.sharepoint.com/sites/audit', sharePointLibrary: 'AuditDocs',

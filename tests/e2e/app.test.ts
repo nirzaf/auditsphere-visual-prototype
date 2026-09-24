@@ -521,6 +521,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /liveConnected: false/);
     assert.deepEqual(browserTab!.requests.filter(url => /^https?:/i.test(url) && !url.startsWith(baseUrl)), [], 'M365 setup interactions make no external HTTP requests');
 
+    const savedSite = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.sharePointSite`);
+    await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='SharePoint site (synthetic)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'http://invalid.example/sites/audit');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save simulated configuration');
+    assert.equal(await waitForBrowser(`document.querySelector('[role=status]')?.innerText.includes('SharePoint site must be a valid HTTPS site URL')`), true, 'invalid SharePoint selection reports a recoverable error');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.sharePointSite`), savedSite, 'invalid URL does not replace the last saved configuration');
+    await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='SharePoint site (synthetic)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(savedSite)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save simulated configuration');
+
     await clickPanelButton('sharepoint — simulated test', 'Simulate: Success (simulated)');
     const beforeConfig = await browserTab!.evaluate<any>(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {revision:s.m365Config.configRevision, grants:s.roleGrants.length, identity:s.m365Config.verificationResults.identity.configRevision, sharepoint:s.m365Config.verificationResults.sharepoint.configRevision}; })()`);
     await browserTab!.evaluate(`(() => {
