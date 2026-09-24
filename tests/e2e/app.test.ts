@@ -1300,6 +1300,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const set=(label,value)=>{const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(label));const f=l?.parentElement?.querySelector('input');if(!f)throw Error('Missing receipt field '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));};set('Receipt Number','RCP-AT32');set('Amount (QAR)','50000');set('Bank Reference / Cheque No.','AT32-BANK-REF');})()`);
     await clickButton('Record Receipt');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).receipts.some(r=>r.receiptNumber==='RCP-AT32'&&r.allocatedAmount===0)`), true);
+    await browserTab!.evaluate(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const receipt=s.receipts.find(r=>r.receiptNumber==='RCP-AT32');const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,receipt.date);date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const openAllocation = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('RCP-AT32')&&[...x.querySelectorAll('button')].some(b=>b.innerText.trim()==='Allocate to Invoice'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Allocate to Invoice');if(!b)return false;b.click();return true;})()`);
     assert.equal(openAllocation,true);
     const invoiceBefore = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const select=document.querySelector('.modal-backdrop select');const invoice=s.invoices.find(i=>i.id===select.value);const allocated=s.receipts.flatMap(r=>r.allocations).filter(a=>a.invoiceId===invoice.id&&!a.reversed).reduce((sum,a)=>sum+a.amount,0);return {id:invoice.id, paid:Math.max(invoice.paid||0,allocated)};})()`);
@@ -1334,7 +1335,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(reversed.otherInvoice.paid,twoAllocations.allocations[1].paid);
     assert.equal(reversed.receipt.allocatedAmount,30000);
     await browserTab!.evaluate(`(() => {const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-23');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;return [ ['Document No','Date','Type','Currency','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&i.currency==='QAR'&&(i.status==='Issued'||i.status==='Paid')&&(i.issueDate||i.due)<='2026-09-23').map(i=>[i.invoiceNumber,i.issueDate||i.due,'Invoice',i.currency,String(i.amount),String(i.paid),String(i.amount-i.paid)]), ...s.creditNotes.filter(c=>c.clientId===clientId&&c.status==='Issued'&&c.issueDate<='2026-09-23').map(c=>[c.creditNumber,c.issueDate,'Credit note',c.currency||'QAR',String(-c.amount),'0',String(-c.amount)]), ...s.receipts.filter(r=>r.clientId===clientId&&r.currency==='QAR'&&r.date<='2026-09-23').map(r=>[r.receiptNumber,r.date,'Receipt',r.currency,String(-r.amount),String(r.allocatedAmount),String(r.amount-r.allocatedAmount)]) ];})()`);
+    const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;const asOf='2026-09-23';const allocatedAsOf=(allocations,receiptDate)=>allocations.filter(a=>(a.date||a.allocatedAt||receiptDate).slice(0,10)<=asOf&&(!a.reversed||!a.reversalDate||a.reversalDate>asOf)).reduce((sum,a)=>sum+a.amount,0);const paidAsOf=i=>{const ledger=s.receipts.flatMap(r=>r.allocations.map(a=>({...a,receiptDate:r.date}))).filter(a=>a.invoiceId===i.id);return ledger.length?ledger.filter(a=>(a.date||a.allocatedAt||a.receiptDate).slice(0,10)<=asOf&&(!a.reversed||!a.reversalDate||a.reversalDate>asOf)).reduce((sum,a)=>sum+a.amount,0):i.paid;};return [ ['Document No','Date','Type','Currency','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&i.currency==='QAR'&&(i.status==='Issued'||i.status==='Paid')&&(i.issueDate||i.due)<=asOf).map(i=>{const paid=paidAsOf(i);return [i.invoiceNumber,i.issueDate||i.due,'Invoice',i.currency,String(i.amount),String(paid),String(i.amount-paid)];}), ...s.creditNotes.filter(c=>c.clientId===clientId&&c.status==='Issued'&&c.issueDate<=asOf).map(c=>[c.creditNumber,c.issueDate,'Credit note',c.currency||'QAR',String(-c.amount),'0',String(-c.amount)]), ...s.receipts.filter(r=>r.clientId===clientId&&r.currency==='QAR'&&r.date<=asOf).map(r=>{const allocated=allocatedAsOf(r.allocations,r.date);return [r.receiptNumber,r.date,'Receipt',r.currency,String(-r.amount),String(allocated),String(r.amount-allocated)];}) ];})()`);
     const visibleStatement = await browserTab!.evaluate<string[][]>(`[...document.querySelectorAll('.receivables-statement tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.innerText))`);
     assert.deepEqual(visibleStatement,statementSource.slice(1),'printable statement table must match its exported rows');
     await browserTab!.evaluate(`(() => {window.__printCalled=false;window.print=()=>{window.__printCalled=true;};const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Print Statement');if(!b)throw Error('Print Statement button missing');b.click();})()`);
@@ -1585,6 +1586,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.ok(copy.size > 0);
       assert.equal(copy.sha, copy.expected, 'archived copy must retain exact released bytes');
     }
+    await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('label')].find(x=>x.textContent.includes('Correct optional retention-until date'));const input=label.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2030-12-31');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save Archive Metadata');
+    assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return a.retentionUntil==='2030-12-31'&&a.history.at(-1).action==='Metadata corrected'&&a.history.at(-1).before.retentionUntil===undefined;})()`), true, 'retention correction preserves the prior metadata and its actor/time history');
     await clickButton('Place Application Legal Hold');
     assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return a?.onApplicationHold&&a.holdReason?.includes('tax authority');})()`), true, 'application hold requires and retains its reason');
     await clickButton('Process Successor Handover');
@@ -1596,7 +1600,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Process Successor Handover');
     await clickButton('Authorize Handover Record');
     assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.find(x=>x.engagementId==='ENG-26002');return a.handoverRequested&&a.handoverRequester==='KPMG Qatar (Successor Audit Firm)'&&a.handoverNotes.includes('ISA 510');})()`), true, 'after hold release, an authorized handover request is recorded locally');
-    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Not specified/);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /2030-12-31/);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1872,7 +1876,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === ${JSON.stringify(role)}`), true);
       assert.equal(await waitForBrowser(role === 'client' ? 'document.body.innerText.includes("Client Experience Portal")' : 'document.body.innerText.includes("Client Portfolio")'), true);
       if (role === 'client') {
-        await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(x=>[...x.options].some(o=>o.value==='CL-002'));if(!s)throw Error('Client entity selector missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'CL-002');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+        await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(x=>[...x.options].some(o=>o.value==='CL-002'));if(s){Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'CL-002');s.dispatchEvent(new Event('change',{bubbles:true}));}else if(!document.body.innerText.includes('Northstar Services'))throw Error('Single-grant client did not resolve to its permitted Northstar entity');})()`);
         assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services")'), true);
       }
     };
@@ -1899,13 +1903,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await switchPersona('Engagement manager', 'manager');
     await openNorthstarWorkspace();
     await clickButton('New PBC Request');
-    const formReady = await browserTab!.evaluate<boolean>(`(() => {const f=[...document.querySelectorAll('form')].find(x=>x.innerText.includes('Client recipient'));if(!f)return false;const inputs=f.querySelectorAll('input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(inputs[0],'Updated fixed-asset register');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));inputs[0].dispatchEvent(new Event('change',{bubbles:true}));setter.call(inputs[3],'Omar Nasser');inputs[3].dispatchEvent(new Event('input',{bubbles:true}));inputs[3].dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    const formReady = await browserTab!.evaluate<boolean>(`(() => {const f=[...document.querySelectorAll('form')].find(x=>x.innerText.includes('Client recipient'));if(!f)return false;const inputs=f.querySelectorAll('input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(inputs[0],'Updated fixed-asset register');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));inputs[0].dispatchEvent(new Event('change',{bubbles:true}));setter.call(inputs[3],'Aisha Saleh');inputs[3].dispatchEvent(new Event('input',{bubbles:true}));inputs[3].dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
     assert.equal(formReady, true);
     await clickButton('Save Draft Request');
     const created = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.pbc.find(x=>x.title==='Updated fixed-asset register');})()`);
     assert.ok(created?.id);
     assert.equal(created.status, 'Draft');
-    await switchPersona('Management approver', 'client');
+    await switchPersona('Northstar management approver', 'client');
     await openPortalRequests();
     assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /Updated fixed-asset register/,'draft PBC must remain hidden from the client');
 
@@ -1915,7 +1919,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(present, true);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Requested'`), true);
 
-    await switchPersona('Management approver', 'client');
+    await switchPersona('Northstar management approver', 'client');
     await openPortalRequests();
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Updated fixed-asset register/);
     await uploadResponse(created.id, 'fixed-assets-v1.txt');
@@ -1930,7 +1934,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Send clarification');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Needs clarification'`), true);
 
-    await switchPersona('Management approver', 'client');
+    await switchPersona('Northstar management approver', 'client');
     await openPortalRequests();
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Please include the original purchase dates and depreciation method/);
     await uploadResponse(created.id, 'fixed-assets-v2.txt');

@@ -1,6 +1,6 @@
 # AuditSphere Visual Prototype — Remaining Limitations
 
-Updated 2026-09-23. Selected R01–R14 defects received code and regression
+Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-018, VP-037,
 VP-051 and VP-052 are Verified. VP-053 gained reasoned unlink history and adequacy-driven
 invalidation, but its full projection/provenance matrix remains open; 36 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
@@ -243,8 +243,11 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   are excluded. Retention dates are optional firm-selected metadata and do not
   assert legal requirements or schedule deletion. Chrome now verifies an active
   application hold blocks handover without recording a request, then permits a
-  local successor-auditor request after the hold is lifted. Successor-release
-  re-archive and archive metadata correction history still need direct journeys.
+  local successor-auditor request after the hold is lifted. A retention-date
+  correction preserves before/after metadata in attributed history; v21 migration
+  retains a baseline for existing archives, and the store links a successor archive
+  to its predecessor. Successor-release artifact copying still needs a browser
+  journey.
 - **Cross-cutting:** Chrome network observation covers the exercised journeys only;
   no formal all-state egress policy is established. This is a browser-local,
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
@@ -255,7 +258,7 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
 
 ## Verification snapshot
 
-Latest recorded run: 139/139 unit checks and 58/58 E2E checks passed. E2E
+Latest recorded run: 141/141 unit checks and 58/58 E2E checks passed. E2E
 includes five static checks and 53 Chrome journeys. VP-009, VP-018, VP-037,
 VP-051 and VP-052 are Verified; 59 of 64 stories and 36 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See

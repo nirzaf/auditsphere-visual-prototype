@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -3381,11 +3381,22 @@ class PrototypeStore {
     if (onHold && !holdReason?.trim()) throw new GuardError('INVALID_STATE', 'An application hold requires a reason.');
     if (!this.state.archives) this.state.archives = [];
     const existing = this.state.archives.find(a => a.engagementId === eng.id && a.releaseId === releaseId);
+    const previousArchive = existing ? undefined : [...this.state.archives].reverse().find(a => a.engagementId === eng.id);
     const archiveArtifacts = existing?.artifacts || artifactCopies;
     if (!archiveArtifacts || archiveArtifacts.length !== release.manifest.length || release.manifest.some(m => !archiveArtifacts.some(a => a.sourceArtifactId === m.artifactId && a.sha256 === m.sha))) {
       throw new GuardError('INVALID_STATE', 'Cannot archive until exact release artifact bytes are copied and verified.');
     }
     const archiveManifest = release.manifest.map(m => `${m.id} · ${m.name} · SHA-256 ${m.sha}`);
+    const before = existing ? { releaseId: existing.releaseId, retentionUntil: existing.retentionUntil, onHold: Boolean(existing.onApplicationHold ?? existing.onHold), holdReason: existing.holdReason } : undefined;
+    const after = { releaseId, retentionUntil: normalizedRetentionUntil, onHold, holdReason: onHold ? holdReason?.trim() : undefined };
+    const changed = !before || before.retentionUntil !== after.retentionUntil || before.onHold !== after.onHold || before.holdReason !== after.holdReason;
+    const action: ArchiveHistoryEntry['action'] | undefined = !before
+      ? previousArchive ? 'Successor release archived' : 'Archived'
+      : before.onHold !== after.onHold ? after.onHold ? 'Application hold placed' : 'Application hold lifted'
+        : changed ? 'Metadata corrected' : undefined;
+    const history: ArchiveHistoryEntry[] = [...(existing?.history || (existing ? [{ action: 'Existing archive state' as const, actorId: existing.archivedBy, at: existing.archivedAt, after: before! }] : []))];
+    if (action) history.push({ action, actorId: this.state.currentUserId, at: new Date().toISOString(), before, after });
+    const predecessorArchiveId = existing?.predecessorArchiveId || previousArchive?.id;
     const archiveData = {
       archivedAt: existing?.archivedAt || new Date().toISOString(),
       archivedBy: existing?.archivedBy || this.state.currentPerson,
@@ -3394,7 +3405,9 @@ class PrototypeStore {
       artifacts: archiveArtifacts,
       retentionUntil: normalizedRetentionUntil,
       onApplicationHold: onHold,
-      holdReason
+      holdReason: after.holdReason,
+      predecessorArchiveId,
+      history
     };
     eng.archive = archiveData;
 
@@ -3414,7 +3427,9 @@ class PrototypeStore {
       retentionUntil: archiveData.retentionUntil,
       onHold,
       onApplicationHold: onHold,
-      holdReason
+      holdReason: after.holdReason,
+      predecessorArchiveId,
+      history
     };
     if (existing) Object.assign(existing, archiveRecord, { handoverRequested: existing.handoverRequested, handoverRequester: existing.handoverRequester, handoverNotes: existing.handoverNotes });
     else this.state.archives.push(archiveRecord);

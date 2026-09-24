@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 20;
+export const CURRENT_SCHEMA = 21;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -269,6 +269,26 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }
     }
     warnings.push('Added client accounting profiles and period/book context from existing engagement metadata; legacy source imports remain unpinned to that context until re-imported (v20).');
+  }
+  if (from < 21) {
+    const legacyActorId = (name: string) => state.users.find(user => user.name === name)?.id || name;
+    const baseline = (archive: NonNullable<PrototypeState['engagements'][number]['archive']>) => archive.history ||= [{
+      action: 'Existing archive state' as const,
+      actorId: legacyActorId(archive.archivedBy),
+      at: archive.archivedAt,
+      after: { releaseId: archive.releaseId, retentionUntil: archive.retentionUntil, onHold: Boolean(archive.onApplicationHold), holdReason: archive.holdReason }
+    }];
+    for (const engagement of state.engagements) if (engagement.archive) baseline(engagement.archive);
+    state.archives ||= [];
+    for (const archive of state.archives) {
+      archive.history ||= [{
+        action: 'Existing archive state',
+        actorId: legacyActorId(archive.archivedBy),
+        at: archive.archivedAt,
+        after: { releaseId: archive.releaseId, retentionUntil: archive.retentionUntil, onHold: Boolean(archive.onApplicationHold ?? archive.onHold), holdReason: archive.holdReason }
+      }];
+    }
+    warnings.push('Initialized attributable archive metadata histories while preserving existing archive manifests (v21).');
   }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];

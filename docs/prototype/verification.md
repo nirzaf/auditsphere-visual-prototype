@@ -1,10 +1,11 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
-Updated 2026-09-23. This record distinguishes executed checks from planned
+Updated 2026-09-24. This record distinguishes executed checks from planned
 acceptance assertions. The latest source and Pages release are recorded below;
 the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
-| 2026-09-23 | AT-53 dialog keyboard behavior | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 139/139 unit, 58/58 E2E | Chrome verifies route rendering and no horizontal overflow at 320px, 390px and 768px; the client dialog has an accessible name, initial focus, Tab wrap, Escape cancel, and trigger focus restoration. Client portal projection also confirms shared documents appear while an internal workpaper stays hidden. Build passed with the existing large-bundle warning. VP-003 remains Partial; this does not cover every dialog or unsaved-change flow. |
+| 2026-09-24 | VP-059 archive metadata lineage | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 141/141 unit, 58/58 E2E | Schema v21 migrates legacy archives with an attributable baseline; store tests verify corrections and successor links. Chrome verifies a retention correction, held-handover rejection without a record, and local handover after lift. The full run also rechecks AT-32's date-sensitive allocations and AT-23's named contributor using the permitted client identity. Vite retains the existing large-bundle advisory. Successor-release artifact copying remains unverified in Chrome. |
+| 2026-09-23 | AT-53 dialog keyboard behavior | `npm run lint`, `npm run test:unit`, `npm run test:e2e` | PASS — 139/139 unit, 58/58 E2E | Chrome verifies route rendering and no horizontal overflow at 320px, 390px and 768px; the client dialog has an accessible name, initial focus, Tab wrap, Escape cancel, and trigger focus restoration. Client portal projection also confirms shared documents appear while an internal workpaper stays hidden. VP-003 remains Partial; this does not cover every dialog or unsaved-change flow. |
 
 ## Commands
 
@@ -18,6 +19,7 @@ the existing `steaudit-prototype` project serves `prototype.steaudit.com`.
 
 | Date (UTC) | Revision | Command | Result | Evidence and limits |
 |---|---|---|---|---|
+| 2026-09-24 | working tree before archive lineage commit | `npm run lint` + `npm run test:unit` + `npm run test:e2e` | PASS — 141/141 unit, 58/58 E2E | Migration v21 preserves archive manifests and adds baseline history; archive updates retain actor/time and before/after metadata, successor archive records reference their predecessor. Chrome covers metadata correction and the hold/handover branch. Full Pages deploy follows the source commit. |
 | 2026-09-23 | working tree after `8b0caba` | `npm run test:e2e` | PASS — 58/58 | AT-41/42/48 now exercises VP-059 hold and handover: an active hold rejects the request without creating state; after lift, the requester and reason persist as local metadata. This does not send or authorize an external records transfer. No app code changed; the verified production release remains `aa201f0c`. |
 | 2026-09-23 | working tree after `3de0366` | `npm run test:e2e` | PASS — 58/58 | Five static checks and 53 Chrome journeys. AT-18/AT-25 now opens Shared Documents and confirms the client-shared bank statement is visible while the engagement's internal working-paper document is not. No app code changed; the verified production release remains `aa201f0c`. |
 | 2026-09-23 | `dfded0f` | Wrangler Pages production deploy + live HTTP/hash check | PASS | Existing `steaudit-prototype` project; release `aa201f0c` (`https://aa201f0c.steaudit-prototype.pages.dev`). Release URL and `https://prototype.steaudit.com` returned HTTP 200 and served `assets/index-Cb1eqTbH.js` (2,197,471 bytes, SHA-256 `c97ef51b76ae68eb183be5865c7ea32636ca678108456ad8e538d51297f9d106`), matching the local production bundle. |

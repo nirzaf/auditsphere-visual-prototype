@@ -410,6 +410,8 @@ export interface EngagementRecord {
     retentionUntil?: string;
     onApplicationHold?: boolean;
     holdReason?: string;
+    predecessorArchiveId?: string;
+    history?: ArchiveHistoryEntry[];
   };
   approvals: {
     manager: null | { by: string; byUserId?: string; at: string; generation: number; notes?: string };
@@ -1278,6 +1280,16 @@ export interface ArchiveRecord {
   manifestCount: number;
   manifest?: string[];
   artifacts?: ArchivedArtifactRecord[];
+  predecessorArchiveId?: string;
+  history?: ArchiveHistoryEntry[];
+}
+
+export interface ArchiveHistoryEntry {
+  action: 'Existing archive state' | 'Archived' | 'Successor release archived' | 'Application hold placed' | 'Application hold lifted' | 'Metadata corrected';
+  actorId: string;
+  at: string;
+  before?: { releaseId: string; retentionUntil?: string; onHold: boolean; holdReason?: string };
+  after: { releaseId: string; retentionUntil?: string; onHold: boolean; holdReason?: string };
 }
 
 // Whole Prototype State

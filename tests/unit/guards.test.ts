@@ -163,7 +163,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 20);
+    assert.equal(migrated.schema, 21);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -182,9 +182,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v20 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v21 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 19; version++) {
+    for (let version = 0; version <= 20; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 6) delete legacy.m365Config.permittedUsers;
@@ -207,8 +207,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
         legacy.clients.forEach((client: any) => delete client.accountingProfile);
         legacy.engagements.forEach((engagement: any) => { delete engagement.accountingPeriodBookId; delete engagement.accountingProfileRevision; delete engagement.accountingChartRevision; engagement.sourceHistory?.forEach((item: any) => { delete item.accountingProfileRevision; delete item.accountingChartRevision; delete item.periodBookId; }); });
       }
+      if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 20, `schema ${version} should reach v20`);
+      assert.equal(migrated.schema, 21, `schema ${version} should reach v21`);
       assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
@@ -234,6 +235,20 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       }
     }
   });
+  it('adds a baseline archive-history event to legacy records without changing their manifest', () => {
+    const legacy = createInitialState() as any;
+    legacy.schema = 20;
+    const engagement = legacy.engagements[0];
+    const archivedAt = '2026-09-20T12:00:00.000Z';
+    const manifest = ['M-1 · report.pdf · SHA-256 abc'];
+    legacy.archives = [{ id: 'ARC-LEGACY', engagementId: engagement.id, releaseId: 'REL-1', clientName: 'Synthetic', service: 'Audit', year: 2026, archivedAt, archivedBy: 'Layla Rahman', manifest, manifestCount: 1, onHold: false }];
+    engagement.archive = { archivedAt, archivedBy: 'Layla Rahman', releaseId: 'REL-1', manifest: [...manifest], onApplicationHold: false };
+    const { state: migrated } = migratePersistedState(legacy, createInitialState());
+    assert.deepEqual(migrated.archives?.[0].manifest, manifest);
+    assert.equal(migrated.archives?.[0].history?.[0].action, 'Existing archive state');
+    assert.equal(migrated.archives?.[0].history?.[0].actorId, 'manager');
+    assert.equal(migrated.engagements[0].archive?.history?.[0].at, archivedAt);
+  });
 });
 
 describe('document reference lifecycle (VP-021)', () => {
@@ -255,6 +270,41 @@ describe('document reference lifecycle (VP-021)', () => {
     prototypeStore.setDocumentAvailability(document.id, false);
     prototypeStore.setEvidenceAdequacy(originalEvidence.id, 'Adequate');
     assert.equal(document.brokenLink, false);
+  });
+});
+
+describe('archive metadata lineage (VP-059)', () => {
+  it('retains corrections and links a successor release to its predecessor archive', () => {
+    const engagement = state.engagements[0];
+    const makeRelease = (id: string, artifactId: string, digest: string) => ({
+      id, version: Number(id.slice(-1)), generation: engagement.generation,
+      releasedAt: '2026-09-23T12:00:00.000Z', releasedBy: 'Layla Rahman', delivered: false,
+      manifest: [{ id: `M-${artifactId}`, artifactId, name: `${artifactId}.pdf`, type: 'PDF', mimeType: 'application/pdf', size: 128, sha: digest }]
+    });
+    const copyFor = (artifactId: string, digest: string) => [{
+      id: `archive:${engagement.id}:${artifactId}`, name: `${artifactId}.pdf`, kind: 'PDF' as const,
+      mimeType: 'application/pdf', size: 128, sha256: digest, sourceArtifactId: artifactId
+    }];
+    const firstDigest = 'a'.repeat(64);
+    engagement.releases = [makeRelease('REL-1', 'ART-1', firstDigest)] as any;
+    state.archives = [];
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+
+    prototypeStore.archiveEngagement(engagement.id, 'REL-1', undefined, false, undefined, copyFor('ART-1', firstDigest));
+    prototypeStore.archiveEngagement(engagement.id, 'REL-1', '2030-12-31', false);
+    const firstArchive = state.archives![0];
+    assert.equal(firstArchive.history?.map(item => item.action).join(','), 'Archived,Metadata corrected');
+    assert.equal(firstArchive.history?.[1].before?.retentionUntil, undefined);
+    assert.equal(firstArchive.history?.[1].after.retentionUntil, '2030-12-31');
+
+    const nextDigest = 'b'.repeat(64);
+    engagement.releases.push(makeRelease('REL-2', 'ART-2', nextDigest) as any);
+    prototypeStore.archiveEngagement(engagement.id, 'REL-2', '2030-12-31', false, undefined, copyFor('ART-2', nextDigest));
+    const successor = state.archives![1];
+    assert.equal(successor.predecessorArchiveId, firstArchive.id);
+    assert.equal(successor.history?.[0].action, 'Successor release archived');
+    assert.equal(state.archives!.length, 2, 'predecessor archives remain available');
   });
 });
 

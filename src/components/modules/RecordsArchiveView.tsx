@@ -2,7 +2,7 @@
 // Cross-engagement archive register, optional retention dates,
 // handover request workflows, and application legal holds without Purview claims.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RouteKey, ArchiveRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
@@ -28,6 +28,9 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
   const [handoverReason, setHandoverReason] = useState('Successor auditor inspection requested under ISA 510.');
   const [handoverRequester, setHandoverRequester] = useState('KPMG Qatar (Successor Audit Firm)');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const archive = selectedEng?.archive;
+
+  useEffect(() => setRetentionYear(archive?.retentionUntil || ''), [selectedEng?.id, archive?.retentionUntil]);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -49,8 +52,6 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
     );
   }
 
-  const archive = selectedEng.archive;
-
   const handleArchiveEngagement = async (engId = selectedEng.id) => {
     const targetEng = state.engagements.find(e => e.id === engId);
     if (!targetEng) return;
@@ -71,6 +72,16 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
         artifactCopies
       );
       triggerNotice('success', `Archived ${artifactCopies.length} verified artifact copies for ${targetEng.id} in this browser.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const handleSaveArchiveMetadata = () => {
+    if (!archive) return;
+    try {
+      prototypeStore.archiveEngagement(selectedEng.id, archive.releaseId, retentionYear, Boolean(archive.onApplicationHold), archive.holdReason);
+      triggerNotice('success', 'Archive metadata correction saved to its history.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -149,7 +160,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
       <div className="panel panel-pad" style={{ background: '#f8fafc' }}>
         <b>Logical Practice Repository Architecture Notice (VP-059):</b>
         <p className="sub mt4">
-          Released artifacts are copied under separate browser-local IDs and checked against their SHA-256 identities. No remote archive, retention enforcement, or Purview lock is provided.
+          Released artifacts are copied under separate browser-local IDs and checked against their SHA-256 identities. This application hold does not prevent direct SharePoint modification or deletion. No remote archive, retention enforcement, or Purview lock is provided.
         </p>
       </div>
 
@@ -195,6 +206,24 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                   </span>
                 </div>
               </div>
+
+              <div className="grid2 mt16">
+                <label className="caption">Correct optional retention-until date
+                  <input type="date" className="input" value={retentionYear} onChange={event => setRetentionYear(event.target.value)} />
+                </label>
+                <div className="between" style={{ alignItems: 'end' }}>
+                  {archive.predecessorArchiveId && <span className="caption">Successor to archive {archive.predecessorArchiveId}</span>}
+                  <button className="btn sm" onClick={handleSaveArchiveMetadata}>Save Archive Metadata</button>
+                </div>
+              </div>
+
+              {!!archive.history?.length && <details className="mt12"><summary>Archive Metadata History ({archive.history.length})</summary>
+                {archive.history.map((event, index) => <p className="caption mt8" key={`${event.at}-${index}`}>
+                  {event.action} · {event.at} · {state.users.find(user => user.id === event.actorId)?.name || event.actorId}
+                  {event.after.retentionUntil ? ` · Retain until ${event.after.retentionUntil}` : ' · No retention date'}
+                  {event.after.onHold ? ' · Application hold active' : ''}
+                </p>)}
+              </details>}
 
               {archive.onApplicationHold && (
                 <div className="borderbox" style={{ background: '#fef2f2', borderColor: '#fca5a5', padding: 12 }}>
