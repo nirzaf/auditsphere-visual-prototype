@@ -16,7 +16,7 @@ const DEFAULT_SECTIONS = [
   { id: 'bs', title: 'Statement of Financial Position', desc: 'Comparative balance sheet verified to underlying trial balance.', enabled: true },
   { id: 'pnl', title: 'Statement of Comprehensive Income', desc: 'Operating results, gross margin, and tax provisions.', enabled: true },
   { id: 'eq', title: 'Statement of Changes in Equity', desc: 'Share capital, statutory reserves, and retained earnings.', enabled: true },
-  { id: 'cf', title: 'Statement of Cash Flows', desc: 'Operating, investing, and financing cash reconciliation.', enabled: true },
+  { id: 'cf', title: 'Statement of Cash Flows', desc: 'Unavailable: classified cash movements are not stored. This section is excluded from generated packages.', enabled: false },
   { id: 'notes', title: 'Statutory Notes & Disclosures', desc: 'Summary of significant IFRS accounting policies and risk disclosures.', enabled: true }
 ];
 
@@ -33,7 +33,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || '');
   const [noteApplicability, setNoteApplicability] = useState<NonNullable<FinancialPackageRevision['noteApplicability']>>(savedPackage?.noteApplicability || 'Not assessed');
-  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc, enabled })) || DEFAULT_SECTIONS);
+  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: id === 'cf' ? DEFAULT_SECTIONS.find(section => section.id === 'cf')!.desc : desc, enabled: id === 'cf' ? false : enabled })) || DEFAULT_SECTIONS);
   const [assembling, setAssembling] = useState(false);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -340,9 +340,11 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
               {sections.map((sec, idx) => (
                 <tr key={sec.id} style={{ opacity: sec.enabled ? 1 : 0.5 }}>
                   <td>
-                    <input
+                      <input
                       type="checkbox"
                       checked={sec.enabled}
+                      disabled={sec.id === 'cf'}
+                      aria-label={`Include ${sec.title}`}
                       onChange={() => handleToggleSection(idx)}
                     />
                   </td>

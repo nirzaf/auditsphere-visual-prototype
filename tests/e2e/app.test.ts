@@ -1674,6 +1674,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Financial Reporting Packages")'), true);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /assess disclosure applicability and enter the prepared note/);
     await browserTab!.evaluate(`(() => {const applicability=document.querySelector('[aria-label="Disclosure note applicability"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(applicability,'Applicable');applicability.dispatchEvent(new Event('change',{bubbles:true}));const notes=document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(notes,'E2E fixture: applicable disclosure note reviewed.');notes.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.innerText.includes('Statement of Comprehensive Income'));row.querySelector('button').click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const rows=[...document.querySelectorAll('tbody tr')];return rows.findIndex(row=>row.innerText.includes('Statement of Comprehensive Income'))<rows.findIndex(row=>row.innerText.includes('Statement of Financial Position'));})()`), true, 'React applies the selected section reordering');
+    const packageSections = await browserTab!.evaluate<any>(`(() => {
+      const ordered=[...document.querySelectorAll('tbody tr')];
+      const cash=ordered.find(row=>row.innerText.includes('Statement of Cash Flows'));
+      return {titles:ordered.map(row=>row.querySelector('td:nth-child(3)')?.innerText.trim()),cashDisabled:cash.querySelector('input').disabled,cashChecked:cash.querySelector('input').checked,cashReason:cash.innerText};
+    })()`);
+    assert.ok(packageSections.titles.indexOf('Statement of Comprehensive Income') < packageSections.titles.indexOf('Statement of Financial Position'), `the changed section order is shown before assembly: ${JSON.stringify(packageSections)}`);
+    assert.equal(packageSections.cashDisabled, true, 'unsupported cash-flow output cannot be selected');
+    assert.equal(packageSections.cashChecked, false);
+    assert.match(packageSections.cashReason, /classified cash movements are not stored/);
     await clickButton('+ Assemble New Revision (Rev 2)');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 2 saved with exact XLSX, DOCX and PDF files.")'), true, 'package should persist genuine artifacts');
     const persisted = await browserTab!.evaluate<any>(`(async () => {
@@ -1687,13 +1698,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256 };
       }));
       db.close();
-      return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, noteApplicability: pack.noteApplicability, notes: pack.notes, files };
+      return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, noteApplicability: pack.noteApplicability, notes: pack.notes, sections:pack.sections.map(({id,enabled,order})=>({id,enabled,order})), files };
     })()`);
     assert.equal(persisted.revision, 2);
     assert.equal(persisted.mappingRevision, 1, 'mapping revision remains independent of source version 1');
     assert.equal(persisted.validation, true);
     assert.equal(persisted.noteApplicability, 'Applicable');
     assert.match(persisted.notes, /E2E fixture: applicable disclosure note reviewed/);
+    assert.ok(persisted.sections.find((section:any)=>section.id==='pnl').order < persisted.sections.find((section:any)=>section.id==='bs').order);
+    assert.equal(persisted.sections.find((section:any)=>section.id==='cf').enabled, false, 'unsupported cash-flow content is excluded from the artifact revision');
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);
     for (const file of persisted.files) {
       assert.ok(file.size > 0);
@@ -1703,6 +1716,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await clickButton('Financial Packages');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Saved Revision 2 · Validated/);
+    const reloadedPackageSections = await browserTab!.evaluate<any>(`(() => {const rows=[...document.querySelectorAll('tbody tr')];const cash=rows.find(row=>row.innerText.includes('Statement of Cash Flows'));return {titles:rows.map(row=>row.querySelector('td:nth-child(3)')?.innerText.trim()),cashDisabled:cash.querySelector('input').disabled,cashChecked:cash.querySelector('input').checked};})()`);
+    assert.ok(reloadedPackageSections.titles.indexOf('Statement of Comprehensive Income') < reloadedPackageSections.titles.indexOf('Statement of Financial Position'), 'section order survives reload');
+    assert.equal(reloadedPackageSections.cashDisabled, true);
+    assert.equal(reloadedPackageSections.cashChecked, false);
 
     await setRole('manager-2');
     await clickButton('Sign-offs & EQR');
@@ -1837,6 +1854,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Authorize Handover Record');
     assert.equal(await waitForBrowser(`(() => {const a=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).archives.filter(x=>x.engagementId==='ENG-26002').at(-1);return a.handoverRequested&&a.handoverRequester==='KPMG Qatar (Successor Audit Firm)'&&a.handoverNotes.includes('ISA 510');})()`), true, 'after hold release, an authorized handover request is recorded locally on the latest archive');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /2030-12-31/);
+    await clickButton('Financial Packages');
+    await browserTab!.evaluate(`(() => {const applicability=document.querySelector('[aria-label="Disclosure note applicability"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(applicability,'Not applicable');applicability.dispatchEvent(new Event('change',{bubbles:true}));const notes=document.querySelector('[aria-label="Prepared disclosure note or not-applicable rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(notes,'E2E fixture: revision after amendment.');notes.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('+ Assemble New Revision (Rev 4)');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 4 saved with exact XLSX, DOCX and PDF files")'), true, 'amended package content creates a new artifact revision');
+    const lineage = await browserTab!.evaluate<any>(`(async()=>{const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');const prior=e.packageHistory.find(x=>x.revision===2),next=e.packageHistory.find(x=>x.revision===4);const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const bytes=await Promise.all(prior.artifacts.map(async a=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');return {id:a.id,sha,expected:a.sha256,size:blob.size}}));db.close();return {priorIds:prior.artifacts.map(a=>a.id),nextIds:next.artifacts.map(a=>a.id),bytes};})()`);
+    assert.ok(lineage.priorIds.every((id:string)=>!lineage.nextIds.includes(id)), 'new artifact identities are distinct');
+    assert.ok(lineage.bytes.every((file:any)=>file.size>0&&file.sha===file.expected), 'the historical package artifacts remain byte-exact after reassembly');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

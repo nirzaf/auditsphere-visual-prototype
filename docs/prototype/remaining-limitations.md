@@ -218,6 +218,12 @@ Automated sources explicitly trace AT-01 through AT-55. See
   an applicability decision and prepared note or not-applicable rationale;
   this package-level check does not replace a per-note accounting-standard
   checklist.
+- **VP-042 — financial packages:** package sections and their order persist
+  across reload and revisions; Chrome verifies changed section ordering, blocks
+  selection of the unsupported cash-flow output, and confirms older artifact IDs
+  and bytes remain intact after reassembly. Cash-flow source data is still
+  unavailable. Generation-failure cases and independent review of a replacement
+  package revision remain incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
