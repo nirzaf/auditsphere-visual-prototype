@@ -1432,6 +1432,15 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.throws(() => prototypeStore.updateConsolidationGroup(altered, { reason: 'tamper with approval' }), /guarded prepare and independent-review actions/);
     group.fxRates.USD = 3.65;
     assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale revision', 'GROUP-REVIEW-02'), /exact group-output revision/);
+    group.fxRates.USD = 3.64;
+    group.perimeterRevision = 2;
+    assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale perimeter', 'GROUP-REVIEW-03'), /exact group-output revision/);
+    group.perimeterRevision = 1;
+    group.components[0].packageRows![0].balance += 1;
+    assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale component snapshot', 'GROUP-REVIEW-04'), /exact group-output revision/);
+    group.components[0].packageRows![0].balance -= 1;
+    group.eliminations[0].lines[0].amount += 1;
+    assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale elimination', 'GROUP-REVIEW-05'), /exact group-output revision/);
   });
 
   it('rejects consolidation ownership outside the supported wholly owned parent/subsidiary profile', async () => {
