@@ -186,7 +186,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
         e.workpapers.filter(w => matches(w.title, w.id))
           .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit', objectId: w.id, clientId: e.client, engagementId: e.id }));
         e.pbc.filter(p => matches(p.title, p.id))
-          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'portal', objectId: p.id, clientId: e.client, engagementId: e.id }));
+          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'client-detail', objectId: p.id, clientId: e.client, engagementId: e.id }));
       });
     } else {
       // Client projection: only explicitly shared documents/packages surface.

@@ -1497,6 +1497,21 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Workpaper · ' + workpaperId)}));if(!result)throw Error('Workpaper result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('AUDIT')`), true, 'workpaper result opens Audit');
     assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr.selected-row')].some(row=>row.innerText.includes(${JSON.stringify(workpaperId)}))`), true, 'workpaper result selects the matching workpaper');
+    const contactId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts[0].id`);
+    await search(contactId);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Contact · ')}));if(!result)throw Error('Contact result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'contact result opens its client detail');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(document.querySelector('[data-search-target="true"]')?.querySelector('td')?.innerText)`), true, 'contact result opens the Contacts tab and selects the matching contact');
+    const pbcId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.flatMap(engagement=>engagement.pbc).find(Boolean).id`);
+    await search(pbcId);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('PBC · ' + pbcId)}));if(!result)throw Error('PBC result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'PBC result opens its client detail');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(${JSON.stringify(pbcId)})`), true, 'PBC result opens Requests and selects the matching request');
+    const findingId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings[0].id`);
+    await search(findingId);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Finding · ' + findingId)}));if(!result)throw Error('Finding result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('FINDINGS')`), true, 'finding result opens Findings');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(${JSON.stringify(findingId)})`), true, 'finding result selects the matching finding');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

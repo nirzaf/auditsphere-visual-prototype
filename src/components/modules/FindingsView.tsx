@@ -7,9 +7,10 @@ import { formatCurrency } from '../../services/calculations';
 
 interface FindingsViewProps {
   onNavigate: (route: RouteKey) => void;
+  searchTargetId?: string;
 }
 
-export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
+export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTargetId }) => {
   const state = prototypeStore.getSnapshot();
   const findings = state.findings.filter(item => item.engagementId === state.selectedEngagement);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -119,7 +120,7 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate }) => {
 
       <div className="stack" style={{ gap: 16 }}>
         {findings.map(f => (
-          <div key={f.id} className="panel panel-pad">
+          <div key={f.id} data-search-target={f.id === searchTargetId ? 'true' : undefined} className="panel panel-pad" style={f.id === searchTargetId ? { outline: '2px solid #0f766e' } : undefined}>
             <div className="between">
               <div className="row" style={{ gap: 10 }}>
                 <span className={`badge ${f.severity === 'Material' ? 'red' : f.severity === 'Significant' ? 'amber' : 'blue'}`}>

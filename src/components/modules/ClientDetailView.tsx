@@ -9,12 +9,14 @@ import { formatCurrency, formatMinutesToHours } from '../../services/calculation
 
 interface ClientDetailViewProps {
   clientId: string;
+  searchTargetId?: string;
   onBack: () => void;
   onNavigate: (route: RouteKey) => void;
 }
 
-export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, onBack, onNavigate }) => {
+export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const searchContact = state.contacts.find(contact => contact.id === searchTargetId && contact.clientId === clientId);
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'contacts'
@@ -28,7 +30,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
     | 'accounting'
     | 'audit'
     | 'activity'
-  >('overview');
+  >(searchContact ? 'contacts' : searchTargetId && state.engagements.some(engagement => engagement.client === clientId && engagement.pbc.some(request => request.id === searchTargetId)) ? 'requests' : 'overview');
 
   const [showAddContact, setShowAddContact] = useState(false);
   const [contactName, setContactName] = useState('');
@@ -330,7 +332,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
               </thead>
               <tbody>
                 {contacts.map(c => (
-                  <tr key={c.id}>
+                  <tr key={c.id} data-search-target={c.id === searchTargetId ? 'true' : undefined} className={c.id === searchTargetId ? 'selected-row' : undefined}>
                     <td><b>{c.name}</b> {c.isPrimary && <span className="tag blue">Primary</span>}</td>
                     <td>{c.title || 'Finance'}</td>
                     <td>{c.email}</td>
@@ -505,7 +507,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, on
               </thead>
               <tbody>
                 {pbcRequests.map(p => (
-                  <tr key={p.id}>
+                  <tr key={p.id} data-search-target={p.id === searchTargetId ? 'true' : undefined} className={p.id === searchTargetId ? 'selected-row' : undefined}>
                     <td><b>{p.title}</b><div className="cell-sub">{p.id}</div>{p.clarificationNote && <div className="cell-sub">Clarification: {p.clarificationNote}</div>}</td>
                     <td>{p.category}</td>
                     <td>{p.due}</td>

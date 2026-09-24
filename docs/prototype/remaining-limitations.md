@@ -47,9 +47,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   their engagement context. Search now filters by record type and permitted
   client/engagement context; Chrome confirms these filters narrow results and
   client filter choices omit ungranted engagements. Task results select and
-  highlight their task, and workpaper results select the matching workpaper.
-  Contact, finding and PBC direct-target journeys and unavailable/archived
-  target behavior remain uncovered.
+  highlight their task; workpaper and finding results select matching records;
+  contact results open Contacts at the matching row; PBC results open Requests
+  at the matching row. Unavailable/archived target behavior and broader
+  person/grant combinations remain uncovered.
 - **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.

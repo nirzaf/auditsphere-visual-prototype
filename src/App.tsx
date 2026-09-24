@@ -100,7 +100,9 @@ export const App: React.FC = () => {
       case 'client-detail':
         return (
           <ClientDetailView
+            key={`${selectedClientId}:${searchTargetId || ''}`}
             clientId={selectedClientId}
+            searchTargetId={searchTargetId}
             onBack={() => setCurrentRoute('clients')}
             onNavigate={navigate}
           />
@@ -166,7 +168,7 @@ export const App: React.FC = () => {
       case 'evidence':
         return <EvidenceCatalogueView onNavigate={navigate} />;
       case 'findings':
-        return <FindingsView onNavigate={navigate} />;
+        return <FindingsView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
       case 'reviews':
         return <ReviewDeskView onNavigate={navigate} />;
       case 'approvals':
