@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 168 / 168 | Fresh full run on 2026-09-24; includes reflected-evidence guards, amendment history, disclosures, cash-flow staleness and reporting-rate checks. |
-| E2E checks passing in this review | 72 / 72 | Fresh full run at `0e34c58`: 5 static checks + 67 actual Chrome checks, including a balanced-source VP-044 FX translation-rounding case, all 16 report exports, adjustment-reflection/amendment gates and VP-039 timing/residual/rework subcases. |
+| Unit checks passing in this review | 169 / 169 | Fresh full run on 2026-09-24 at `8c942ff`; includes independent consolidation-elimination review and staleness guards. |
+| E2E checks passing in this review | 73 / 73 | Fresh full run at `8c942ff`: 5 static checks + 68 actual Chrome checks, including AT-45 independent elimination draft/return/amend/approve review. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2842,14 +2842,14 @@ Create component intake grid with readiness, period, basis, currency, package re
 **Original journey links:** [AT-42](#at-42), [AT-43](#at-43); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-A supported approved intercompany elimination is represented with balanced output and unchanged component sources.
+Manual elimination journals now support saving and amending a draft with named in-perimeter counterparties, explanation, evidence reference and balanced debit/credit lines. Independent partner review can approve or return a saved draft with rationale and evidence; approval binds to the exact group perimeter, component package snapshots and closing-rate revisions. The AT-45 Chrome journey verifies self-review denial, a return with evidence, a subsequent amendment and independent approval; the approved $125 journal affects group output once while component books remain unchanged. Perimeter and FX-rate changes invalidate approval and retain the prior decision history.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-045-R01 — Requirement/scope reconciliation:** Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria.
+- [ ] **VP-045-R01 — Requirement/scope reconciliation:** Manual draft, amendment, independent return/approval, counterparty and evidence-reference controls are implemented. Reconcile remaining original-contract details for submission state, unmatched-item handling and complete counterparty/evidence semantics.
 
-- [ ] **VP-045-E02 — Verification/evidence pending:** Exercise unmatched amounts, duplicate inclusion, unbalanced/mixed-context entries and component/rate/perimeter changes that stale prior elimination approval.
+- [ ] **VP-045-E02 — Verification/evidence pending:** Extend evidence to unmatched amount visibility, duplicate source inclusion, unsupported counterparty and mixed-context rejection; verify component-package replacement staleness and preserved journal revisions. Perimeter and FX-rate invalidation, unbalanced lines, unsupported accounts and self-review denial have targeted coverage.
 
 #### Original user story and dependencies
 **Target modules:** 26  
@@ -2863,14 +2863,14 @@ Add elimination register with component counterparties, account/line references,
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | Verified subcase: AT-45 independently approves the $125 journal, includes it once in group output and confirms source books unchanged; full criterion remains open pending replacement/mixed-source edge coverage |
+| VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | Verified subcases: unit checks reject unbalanced lines, unknown accounts and self-review; unsupported counterparty, mixed-context and duplicate-inclusion matrix remains open |
 | VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | Verified subcases: perimeter revisions and FX-rate changes invalidate approval and preserve return history; component replacement and explicit immutable journal-revision evidence remain open |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Tested source commit `8c942ff1a460e3e8128d74e14b8e8fec870b8858`; fixture `GRP-01` / `ENG-26002`; criteria AC01/AC02/AC04 verified subcases map to `tests/e2e/app.test.ts` AT-45 and consolidation-elimination store unit checks. Full suite: lint, 169/169 unit and 73/73 E2E; production deployment `5872b8b7-ca09-4818-b1e5-3b42395e7a8e`, source `8c942ff`, 2026-09-24. Full story acceptance remains open.
 
 
 <a id="vp-046"></a>
