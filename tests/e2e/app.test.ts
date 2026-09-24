@@ -3456,6 +3456,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(packageRows.find(row => row[0] === '1500')?.[3], 750000, 'XLSX package contains approved depreciation credit');
     const sourceAfter = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
     assert.equal(sourceAfter.find((row: any) => row.code === '5000').balance, 300000, 'package adjustment must not rewrite imported source rows');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(item=>item.textContent.includes('Management approver'));if(!option)throw Error('Management approver persona is unavailable');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButtonStartingWith('Client Experience Portal');
+    const clientPackageView = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.doesNotMatch(clientPackageView, /INTERNAL-ONLY-AT42-SECRET-DO-NOT-EXPORT|Internal-only audit matter/, 'client portal excludes the independently reviewed but unshared disclosure');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
