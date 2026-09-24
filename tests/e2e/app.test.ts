@@ -1512,6 +1512,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Finding · ' + findingId)}));if(!result)throw Error('Finding result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('FINDINGS')`), true, 'finding result opens Findings');
     assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(${JSON.stringify(findingId)})`), true, 'finding result selects the matching finding');
+    const doc = await browserTab!.evaluate<any>(`(() => {const d=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(document=>document.clientId==='CL-001');return {id:d.id,name:d.name};})()`);
+    await search(doc.name);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Document · v')}));if(!result)throw Error('Document result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('DOCUMENTS')`), true, 'document result opens Documents');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(${JSON.stringify(doc.name)})`), true, 'document result selects the exact document');
+    const markUnavailable = browserTab!.evaluate<boolean>(`(() => {const row=document.querySelector('[data-search-target="true"]');const button=[...(row?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Simulate unavailable');if(!button)return false;button.click();return true;})()`);
+    await new Promise(resolve=>setTimeout(resolve,50));
+    await browserTab!.command('Page.handleJavaScriptDialog',{accept:true,promptText:'AT50 unavailable source fixture'});
+    assert.equal(await markUnavailable,true);
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"] button')?.disabled`), true, 'unavailable documents cannot be opened');
+    await search(doc.id);
+    assert.match(await browserTab!.evaluate<string>(`[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify(doc.name)}))?.innerText||''`), /Unavailable/);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify(doc.name)}));if(!result)throw Error('Unavailable document result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes('Reference unavailable')`), true, 'unavailable search target opens its record with its state visible');
+    await browserTab!.evaluate(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));s.clients.find(client=>client.id==='CL-001').status='Archived';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await search('CL-001');
+    assert.match(await browserTab!.evaluate<string>(`[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('CL-001'))?.innerText||''`), /Archived/);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('CL-001'));if(!result)throw Error('Archived client result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'archived client result still opens its historical client record');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

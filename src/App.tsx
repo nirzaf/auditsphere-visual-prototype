@@ -124,7 +124,7 @@ export const App: React.FC = () => {
       case 'job-templates':
         return <JobTemplatesView onNavigate={navigate} />;
       case 'documents':
-        return <DocumentsLibraryView onNavigate={navigate} />;
+        return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
       case 'communications':
         return <CommunicationsView onNavigate={navigate} />;
 

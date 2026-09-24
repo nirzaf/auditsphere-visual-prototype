@@ -160,7 +160,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     const clientRole = isClientRole(state.currentRole);
     const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string }> = [];
     state.clients.filter(c => clientAllowed(c.id) && matches(c.name, c.id))
-      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
+      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}${c.status === 'Archived' ? ' · Archived' : ''}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
     state.contacts.filter(c => clientAllowed(c.clientId) && matches(c.name, c.id))
       .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
     state.engagements.filter(e => engAllowed(e.id) && matches(e.service, e.id))
@@ -169,7 +169,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs', objectId: j.id, clientId: j.clientId, engagementId: j.engagementId }));
     if (!clientRole) {
       state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && matches(d.name, d.id))
-        .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
+        .forEach(d => out.push({ title: d.name, sub: `Document · ${d.brokenLink ? 'Unavailable · ' : ''}v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
       state.jobTasks.filter(t => {
         const job = state.jobs.find(j => j.id === t.jobId);
         return job && engAllowed(job.engagementId) && matches(t.title, t.id);

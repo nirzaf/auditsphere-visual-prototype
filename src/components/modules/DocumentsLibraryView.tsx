@@ -7,11 +7,12 @@ import { sha256OfFile } from '../../services/fileMetadata';
 
 interface DocumentsLibraryViewProps {
   onNavigate: (route: RouteKey) => void;
+  searchTargetId?: string;
 }
 
-export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate }) => {
+export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate, searchTargetId }) => {
   const state = prototypeStore.getSnapshot();
-  const [selectedFolder, setSelectedFolder] = useState<string>('/Engagements/2026/');
+  const [selectedFolder, setSelectedFolder] = useState<string>(() => state.documents.find(document => document.id === searchTargetId)?.folderPath || '/Engagements/2026/');
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showOneDriveModal, setShowOneDriveModal] = useState(false);
@@ -189,7 +190,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                 </thead>
                 <tbody>
                   {filteredDocs.map(doc => (
-                    <tr key={doc.id}>
+                    <tr key={doc.id} data-search-target={doc.id === searchTargetId ? 'true' : undefined} className={doc.id === searchTargetId ? 'selected-row' : undefined}>
                       <td>
                         <div className="row" style={{ gap: 8 }}>
                           <Icon name="file" />

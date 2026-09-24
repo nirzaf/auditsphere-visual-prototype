@@ -49,7 +49,9 @@ Automated sources explicitly trace AT-01 through AT-55. See
   client filter choices omit ungranted engagements. Task results select and
   highlight their task; workpaper and finding results select matching records;
   contact results open Contacts at the matching row; PBC results open Requests
-  at the matching row. Unavailable/archived target behavior and broader
+  at the matching row. Unavailable documents remain searchable with an
+  Unavailable status and open as selected, non-openable records; archived client
+  results are labeled and still open their historical client record. Broader
   person/grant combinations remain uncovered.
 - **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
