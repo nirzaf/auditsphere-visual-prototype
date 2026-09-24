@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 162 / 162 | Fresh run on `51de04c98d74302589634f27c69b9d0137c16e83`; includes the consolidation perimeter guard matrix and stale-state command guard. |
-| E2E checks passing in this review | 71 / 71 | Fresh run on `51de04c98d74302589634f27c69b9d0137c16e83`: 5 static checks + 66 actual Chrome checks, including the cross-tab stale-dialog case. |
+| Unit checks passing in this review | 167 / 167 | Fresh run on the current VP-036 GL-intake worktree; includes import parsing, source-revision and migration-integrity checks. |
+| E2E checks passing in this review | 71 / 71 | Fresh full Chrome run on the current VP-036 GL-intake worktree: 5 static checks + 66 actual Chrome checks, including GL file import, tie-out and reload persistence. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2356,11 +2356,11 @@ A GL completeness calculation and transaction/comparison surface are present; pr
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-036-R01 — Requirement/scope reconciliation:** Confirm the full bounded GL import/mapping/preview, source history, opening-source selection, journal drill-down and scoped export against the original specification; fill any actual missing controls.
+- [ ] **VP-036-R01 — Requirement/scope reconciliation:** CSV/XLSX preview, source history, opening-only rows, journal IDs, scoped filtering and CSV export now exist. A user-configurable column-mapping editor and final comparison against all original controls remain open.
 
-- [ ] **VP-036-E02 — Verification/evidence pending:** Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios.
+- [ ] **VP-036-E02 — Verification/evidence pending:** AT-36 now imports a balanced source with explicit openings and proves the account-level tie-out after reload. Parser/unit checks reject unbalanced journals, duplicate keys, invalid dates, wrong periods and currencies; missing-opening and unmatched-account calculations remain covered separately. Partial-batch and broader negative UI cases remain open.
 
-- [ ] **VP-036-E03 — Verification/evidence pending:** Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows.
+- [ ] **VP-036-E03 — Verification/evidence pending:** Store checks prove a GL source revision preserves TB rows and prior GL revisions while staling reconciliations and invalidating the engagement release generation. Broader package/reconciliation review cycles remain open.
 
 #### Original user story and dependencies
 **Target modules:** 21  
@@ -2374,9 +2374,9 @@ Provide bounded GL file mapping/preview for journal ID, line ID, account, date, 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-036-AC01 | Given coherent opening balances, GL movements and closing TB, when completeness is calculated, then per-account residuals and source references reconcile. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-036-AC01 | Given coherent opening balances, GL movements and closing TB, when completeness is calculated, then per-account residuals and source references reconcile. | SUBCASE VERIFIED — AT-36 imports the engagement source, shows account-level opening/movement/closing/residual/source-journal rows, and reloads as complete; broader examples remain open |
 | VP-036-AC02 | Missing opening data, partial journal batches, duplicate line keys, unmatched accounts, unbalanced journals and wrong periods/currencies are exposed rather than marked complete. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-036-AC03 | Importing/replacing GL creates a new source revision and invalidates affected reconciliations/packages without changing the original source rows. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-036-AC03 | Importing/replacing GL creates a new source revision and invalidates affected reconciliations/packages without changing the original source rows. | SUBCASE VERIFIED — store regression retains revision 1 and TB rows, appends revision 2, stales reconciliations and invalidates release generation; full dependent-output review remains open |
 | VP-036-AC04 | Filters, source counts, drill-down and CSV export agree; the module never posts to client or firm books and handles the documented fixture size without freezing navigation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L895).
@@ -4023,8 +4023,8 @@ This queue contains **113 open planning actions** attached to the 48 Partial sto
 | VP-034-E02 | [VP-034](#vp-034) | P1 | Verify closed books, archived accounts and dimension changes cannot silently alter approved output; migrated unselected reporting basis stays explicit. | Pending / Unassigned / — |
 | VP-035-E01 | [VP-035](#vp-035) | P1 | Execute duplicate/formula/renamed-XLSX/oversize/row-limit and wrong-chart/context failures in the browser, not only the parser. | Verified / 2026-09-24 |
 | VP-035-E02 | [VP-035](#vp-035) | P1 | Verify signed-net versus debit/credit mapping, header choices, dimensions, multi-file replacement and atomic preservation of prior revisions. | Verified / 2026-09-24 |
-| VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Pending / Unassigned / — |
-| VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Pending / Unassigned / — |
+| VP-036-E02 | [VP-036](#vp-036) | P1 | Run complete opening + movement = closing examples, missing openings, partial batches, duplicates, unmatched accounts and wrong-period/currency scenarios. | Partial — AT-36 positive import/tie-out; parser negative checks; remaining matrix open |
+| VP-036-E03 | [VP-036](#vp-036) | P1 | Prove GL replacement stales affected reconciliation/package outputs without mutating historical source rows. | Partial — source/TB immutability and stale history unit checks; full package/reconciliation walkthrough open |
 | VP-038-E01 | [VP-038](#vp-038) | P1 | Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions. | Pending / Unassigned / — |
 | VP-038-E02 | [VP-038](#vp-038) | P1 | Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements. | Pending / Unassigned / — |
 | VP-039-E01 | [VP-039](#vp-039) | P1 | Close the original residual, timing-versus-correction, currency/date/scope and independent-review criteria with exact test references. | Pending / Unassigned / — |
@@ -4085,7 +4085,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-029-R03 | [VP-029](#vp-029) | No scheduling/capacity automation is required. | Open / — |
 | VP-030-R02 | [VP-030](#vp-030) | Coverage notes a proposal-level fixed-fee cap and no per-service milestone allocation. Reconcile that against original supported source/line requirements before treating milestone scheduling as mandatory new scope. | Open / — |
 | VP-033-R02 | [VP-033](#vp-033) | Confirm browser print layout/output content required by the story. Printer-driver-specific certification is outside scope and should not by itself block completion. | Open / — |
-| VP-036-R01 | [VP-036](#vp-036) | Confirm the full bounded GL import/mapping/preview, source history, opening-source selection, journal drill-down and scoped export against the original specification; fill any actual missing controls. | Open / — |
+| VP-036-R01 | [VP-036](#vp-036) | Confirm full bounded GL import/mapping/preview, opening-source selection, journal drill-down and scoped export against the original specification. | Partial — import, history, opening balances, drill-down and scoped export implemented; configurable column mapping/reconciliation pending |
 | VP-038-R03 | [VP-038](#vp-038) | Posting into real client or firm ledgers is excluded; it is not a missing integration requirement. | Open / — |
 | VP-039-R02 | [VP-039](#vp-039) | The record still labels this Partial, but its named external statement/bank-system limits are excluded. Identify the remaining in-scope criterion before assigning new implementation work. | Open / — |
 | VP-040-R02 | [VP-040](#vp-040) | Reconcile the versioned layout, grouping/order/subtotal editor requirements and fill actual missing supported-fixture operations. | Open / — |
@@ -4126,6 +4126,7 @@ This blank row is a template, not a newly discovered defect. Known current pendi
 ### 10.2 Criterion evidence ledger — repeat one row per executed assertion
 
 | Story / criterion | Test path + test name | Tested SHA | Fixture + scenario date | Expected result | Actual result | Run/log/artifact link | Reviewer/date |
+| VP-036-AC01/AC03 subcases | `tests/e2e/app.test.ts` — `AT-36: imports a period-bound GL source, reconciles opening plus movement to TB, and retains replacement history`; `tests/unit/gl-import.test.ts` — `VP-036 GL source intake` | a8463c5 | ENG-26001; current chart/book; CSV with all account opening balances and balanced in-period journal; 2026-09-24 | Per-account opening + movement = TB close; invalid rows do not commit; source revisions remain immutable and invalidate dependent review basis | PASS for tested subcases — account completeness survives reload; unit checks cover XLSX, duplicate keys, unbalanced journal, wrong period/currency/date, replacement history, reconciliation staleness and unchanged TB rows | `npm run lint`; `npm run test:unit` 167/167; `npm run test:e2e` 71/71 (5 static + 66 Chrome) | 2026-09-24 |
 |---|---|---|---|---|---|---|---|
 | VP-019-AC02 subcases | `tests/e2e/app.test.ts` — `AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite`; `tests/unit/guards.test.ts` — expired grant cannot list/create clients | `fdc70a6ebdd1d161af6b4557c2fd17cee7f8f4b6`; revocation path tested at `51de04c98d74302589634f27c69b9d0137c16e83` | Local Chrome; relationship identity; unsaved client form; second tab revokes then separately expires the Global grant; 2026-09-24 | Stale workspace removed; no stale save; preserve newer history; after reload, no expired-scope client rows or create action | PASS — revocation history backed up; expiry removes scope and UI action; store command rejects missing Global scope | `npm run test:e2e` 71/71 (5 static + 66 Chrome); `npm run test:unit` 163/163; `npm run lint` PASS | 2026-09-24 |
 | VP-000-AC00 (template) | — | — | — | Exact criterion assertion | Not run | — | — |
