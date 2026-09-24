@@ -1475,7 +1475,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     })()`);
     assert.equal(selected, true);
     const setRole = async (role: string) => browserTab!.evaluate(`(() => { const s=document.querySelector('#role-select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(role)}); s.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-    await setRole('preparer');
+    await setRole('manager');
     await clickButton('Accounting Workbench');
     await clickButton('Statement Mappings');
     await browserTab!.evaluate(`(() => {
@@ -1523,8 +1523,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Financial Packages');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Saved Revision 2 · Validated/);
 
+    await setRole('manager-2');
     await clickButton('Sign-offs & EQR');
     await clickButton('Sign Off as Manager (Layla Rahman)');
+    await clickButton('Present Current Package');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').managementPresentation?.packageRevision === ${persisted.revision}`), true, 'management presentation pins the current package revision');
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
       const option = [...role.options].find(o => o.textContent.includes('Aisha Saleh'));
@@ -1534,6 +1537,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "client"'), true);
     assert.equal(await waitForBrowser('document.body.innerText.includes("Northstar Services") && JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).selectedEngagement === "ENG-26002"'), true, 'explicitly granted client identity opens its own portal and engagement');
     await clickButton('Management Approvals');
+    await browserTab!.evaluate(`(() => {const reason=document.querySelector('[aria-label="Management package rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Reviewed the exact package revision and agree with the presented statements.');reason.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Management package evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'Northstar board minutes 2026-09-23');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Acknowledge Package');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').managementPackageDecision?.evidenceRef === 'Northstar board minutes 2026-09-23'`), true, 'management acknowledgement retains rationale and evidence for the presented revision');
     await clickButton('Record Representation Receipt');
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').approvals.client?.generation === ${persisted.generation}`), true);
     await browserTab!.evaluate(`(() => {

@@ -377,6 +377,11 @@ export interface EngagementRecord {
   }>;
   packageHistory?: FinancialPackageRevision[];
   eqrRequired: boolean;
+  eqrReviewerUserId?: string;
+  eqrAssignmentHistory?: Array<{ userId: string; assignedByUserId: string; at: string; reason: string }>;
+  managementPresentation?: { generation: number; sourceVersion: number; packageRevision: number; presentedAt: string; presentedBy: string; presentedByUserId: string; preparedByUserId: string; artifacts: GeneratedArtifactRecord[] };
+  managementPackageDecision?: { decision: 'Acknowledged' | 'Rejected'; by: string; byUserId: string; at: string; generation: number; sourceVersion: number; packageRevision: number; rationale: string; evidenceRef: string };
+  managementPackageDecisionHistory?: NonNullable<EngagementRecord['managementPackageDecision']>[];
   opinion: string;
   candidate?: null | {
     generation: number;

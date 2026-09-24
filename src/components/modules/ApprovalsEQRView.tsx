@@ -14,6 +14,8 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const [newConcern, setNewConcern] = useState('');
+  const [eqrUserId, setEqrUserId] = useState(selectedEng.eqrReviewerUserId || state.users.find(user => user.role === 'eqr' && user.status === 'Active')?.id || '');
+  const [eqrReason, setEqrReason] = useState('');
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -44,6 +46,25 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
     try {
       prototypeStore.recordApproval(selectedEng.id, roleKey, 'Independent stage sign-off recorded in prototype.');
       triggerNotice('success', `Stage sign-off for ${roleKey.toUpperCase()} successfully recorded.`);
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const handleAssignEqr = () => {
+    try {
+      prototypeStore.assignEqrReviewer(selectedEng.id, eqrUserId, eqrReason);
+      setEqrReason('');
+      triggerNotice('success', 'EQR assignment recorded; prior EQR concurrence was cleared.');
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const handlePresentPackage = () => {
+    try {
+      prototypeStore.presentManagementPackage(selectedEng.id);
+      triggerNotice('success', 'Current validated package revision presented to client management.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -207,6 +228,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             <p className="sub mt8">
               Objective evaluation of significant judgments and conclusions made by the engagement team (ISQM 2).
             </p>
+            <p className="cell-sub mt8">Assigned reviewer: {state.users.find(user => user.id === (selectedEng.eqrReviewerUserId || 'eqr'))?.name || 'Unassigned'}</p>
             {approvals.eqr ? (
               <div className="cell-sub mt12" style={{ color: 'var(--teal-dark)' }}>
                 Concurred by {approvals.eqr.by} on {new Date(approvals.eqr.at).toLocaleString('en-GB')} (Gen {approvals.eqr.generation})
@@ -216,12 +238,25 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                 className="btn primary sm mt12"
                 onClick={() => handleRecordSignOff('eqr')}
               >
-                Sign Off as EQR (Dr. Tariq Al-Sayed)
+                Sign Off as Assigned EQR
               </button>
             )}
+            {['manager', 'partner'].includes(state.currentRole) && <div className="row mt12">
+              <select className="input" aria-label="Assigned EQR" value={eqrUserId} onChange={event => setEqrUserId(event.target.value)}>
+                {state.users.filter(user => user.role === 'eqr' && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+              <input className="input" aria-label="EQR assignment reason" placeholder="Assignment or substitution reason" value={eqrReason} onChange={event => setEqrReason(event.target.value)} />
+              <button className="btn sm" disabled={!eqrReason.trim() || eqrUserId === (selectedEng.eqrReviewerUserId || 'eqr')} onClick={handleAssignEqr}>Assign EQR</button>
+            </div>}
           </div>
         </div>
       </div>
+
+      {['manager', 'partner'].includes(state.currentRole) && <div className="panel panel-pad">
+        <div className="between"><div><h3>Management Package Presentation</h3><p className="sub mt4">Present the validated current package revision for an independent management decision.</p></div>
+          <button className="btn primary sm" onClick={handlePresentPackage}>Present Current Package</button></div>
+        {selectedEng.managementPresentation && <p className="cell-sub mt8">Presented by {selectedEng.managementPresentation.presentedBy} · Package v{selectedEng.managementPresentation.packageRevision} · Source v{selectedEng.managementPresentation.sourceVersion} · Gen {selectedEng.managementPresentation.generation}{selectedEng.managementPackageDecision ? ` · Management ${selectedEng.managementPackageDecision.decision}` : ' · Awaiting management decision'}</p>}
+      </div>}
 
       {/* EQR Concerns Register */}
       <div className="panel panel-pad">

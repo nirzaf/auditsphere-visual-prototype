@@ -27,6 +27,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const [proposalContact, setProposalContact] = useState('');
   const [proposalEvidenceRef, setProposalEvidenceRef] = useState('');
   const [proposalResponseNotes, setProposalResponseNotes] = useState('');
+  const [packageRationale, setPackageRationale] = useState('');
+  const [packageEvidence, setPackageEvidence] = useState('');
 
   // Client resolution supporting multi-entity grants (VP-025)
   const allowedClientIds = visibleClientIds(state);
@@ -134,6 +136,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
       triggerNotice('Management representation receipt recorded locally. No signature was captured.');
     } catch (err) {
       triggerNotice(err instanceof Error ? err.message : 'Management acknowledgement could not be recorded.');
+    }
+  };
+
+  const handleManagementPackageDecision = (decision: 'Acknowledged' | 'Rejected') => {
+    if (!eng) return;
+    try {
+      prototypeStore.recordManagementPackageDecision(eng.id, decision, packageRationale, packageEvidence);
+      setPackageRationale(''); setPackageEvidence('');
+      triggerNotice(`Package ${decision.toLowerCase()} recorded with rationale and evidence.`);
+    } catch (err) {
+      triggerNotice(err instanceof Error ? err.message : 'Management package decision could not be recorded.');
     }
   };
 
@@ -539,6 +552,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
 
       {activeSub === 'approvals' && state.currentRole === 'client' && (
         <div className="panel panel-pad">
+          <h3>Presented Financial Package</h3>
+          {!eng?.managementPresentation ? <p className="sub mt8">No package has been deliberately presented for management review.</p> : <div className="borderbox mt12" key={`${eng.id}-${eng.managementPresentation.packageRevision}`}>
+            <div className="between"><b>Package v{eng.managementPresentation.packageRevision} · Source v{eng.managementPresentation.sourceVersion} · Gen {eng.managementPresentation.generation}</b><span className="badge blue">Presented</span></div>
+            <p className="cell-sub mt4">Presented by {eng.managementPresentation.presentedBy} on {new Date(eng.managementPresentation.presentedAt).toLocaleString('en-GB')}</p>
+            <div className="stack mt12">{eng.managementPresentation.artifacts.map(artifact => <div className="cell-sub" key={artifact.id}>{artifact.kind} · {artifact.name} · {artifact.size} bytes · SHA-256 {artifact.sha256}</div>)}</div>
+            {eng.managementPackageDecision && eng.managementPackageDecision.generation === eng.generation ? <div className="banner green mt12">{eng.managementPackageDecision.decision} by {eng.managementPackageDecision.by} · {eng.managementPackageDecision.rationale} · Evidence {eng.managementPackageDecision.evidenceRef}</div> : <div className="stack mt12">
+              <label className="caption">Management rationale<textarea aria-label="Management package rationale" className="input" rows={2} value={packageRationale} onChange={event => setPackageRationale(event.target.value)} /></label>
+              <label className="caption">Evidence reference<input aria-label="Management package evidence" className="input" value={packageEvidence} onChange={event => setPackageEvidence(event.target.value)} /></label>
+              <div className="row"><button className="btn primary sm" disabled={!packageRationale.trim() || !packageEvidence.trim()} onClick={() => handleManagementPackageDecision('Acknowledged')}>Acknowledge Package</button><button className="btn sm ghost" disabled={!packageRationale.trim() || !packageEvidence.trim()} onClick={() => handleManagementPackageDecision('Rejected')}>Reject Package</button></div>
+            </div>}
+          </div>}
           <h3>Management Representation Receipt</h3>
           {!eng ? <p className="sub mt8">Select an engagement within your granted client scope.</p> : <>
             <p className="sub mt8">Engagement {eng.id} · Generation {eng.generation}. This records a local receipt of management representation; it is not an electronic signature or external certification.</p>

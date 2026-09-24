@@ -2345,6 +2345,14 @@ class PrototypeStore {
     if (roleKey === 'eqr' && role !== 'eqr') {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an Engagement Quality Reviewer can record EQR concurrence.');
     }
+    if (roleKey === 'eqr') {
+      const assignedEqrId = eng.eqrReviewerUserId || this.state.users.find(u => u.role === 'eqr' && u.status === 'Active')?.id;
+      if (assignedEqrId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the currently assigned EQR can record concurrence.');
+    }
+    if (roleKey !== 'client') {
+      const pkg = eng.packageHistory?.find(item => item.revision === eng.packageRevision && item.generation === eng.generation);
+      if (pkg?.createdByUserId) requireIndependentActor(pkg.createdByUserId, this.state.currentUserId, 'approve a package they prepared', this.state);
+    }
     if (roleKey === 'manager' && !['manager', 'partner'].includes(role)) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an engagement manager or partner can record manager clearance.');
     }
@@ -2379,6 +2387,59 @@ class PrototypeStore {
     eng.approvalHistory ||= [];
     eng.approvalHistory.push({ role: roleKey, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: eng.approvals[roleKey]!.at, generation: eng.generation, notes });
     this.logEvent(`Stage approval recorded: ${roleKey.toUpperCase()} by ${this.state.currentPerson}`, eng.id);
+    this.notify();
+  }
+
+  public assignEqrReviewer(engId: string, userId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'assign an EQR');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    const reviewer = this.state.users.find(u => u.id === userId && u.role === 'eqr' && u.status === 'Active');
+    const actor = this.state.users.find(u => u.id === this.state.currentUserId);
+    if (!eng || !reviewer || !actor || !reason.trim()) throw new GuardError('INVALID_STATE', 'Select an active EQR and provide an assignment or substitution reason.');
+    const granted = this.state.roleGrants.some(g => g.userId === reviewer.id && g.role === 'eqr' && (g.scopeKind === 'Global' || (g.scopeKind === 'Engagement' && g.scopeId === engId)));
+    if (!granted) throw new GuardError('FORBIDDEN_SCOPE', 'The selected EQR is not authorized for this engagement.');
+    const reviewerPerson = reviewer.personId || reviewer.id;
+    const partner = this.state.users.find(u => u.name === eng.partner && u.role === 'partner');
+    const manager = this.state.users.find(u => u.name === eng.manager && u.role === 'manager');
+    if ((partner && reviewerPerson === (partner.personId || partner.id)) || (manager && reviewerPerson === (manager.personId || manager.id)) || eng.team.includes(reviewer.name)) throw new GuardError('FORBIDDEN_SCOPE', 'The EQR must be independent of the engagement partner, manager and engagement team.');
+    if (eng.eqrReviewerUserId === reviewer.id) throw new GuardError('INVALID_STATE', 'This EQR is already assigned.');
+    eng.eqrReviewerUserId = reviewer.id;
+    eng.eqrAssignmentHistory ||= [];
+    eng.eqrAssignmentHistory.push({ userId: reviewer.id, assignedByUserId: actor.id, at: new Date().toISOString(), reason: reason.trim() });
+    eng.approvals.eqr = null;
+    this.logEvent(`EQR assigned to ${reviewer.name}: ${reason.trim()}`, eng.id);
+    this.notify();
+  }
+
+  public presentManagementPackage(engId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'present a management package');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    const pkg = eng?.packageHistory?.find(p => p.revision === eng.packageRevision);
+    if (!eng || !pkg || pkg.generation !== eng.generation || pkg.sourceVersion !== eng.sourceVersion || !pkg.validation.passed || pkg.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Only the complete, validated current package revision can be presented to management.');
+    if (eng.managementPackageDecision) (eng.managementPackageDecisionHistory ||= []).push(eng.managementPackageDecision);
+    eng.managementPresentation = { generation: eng.generation, sourceVersion: eng.sourceVersion, packageRevision: eng.packageRevision, presentedAt: new Date().toISOString(), presentedBy: this.state.currentPerson, presentedByUserId: this.state.currentUserId, preparedByUserId: pkg.createdByUserId, artifacts: structuredClone(pkg.artifacts) };
+    eng.managementPackageDecision = undefined;
+    this.logEvent(`Package revision ${pkg.revision} presented to management`, eng.id);
+    this.notify();
+  }
+
+  public recordManagementPackageDecision(engId: string, decision: 'Acknowledged' | 'Rejected', rationale: string, evidenceRef: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['client'], 'record a management package decision');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    const presentation = eng?.managementPresentation;
+    if (!eng || !presentation || presentation.generation !== eng.generation || presentation.sourceVersion !== eng.sourceVersion || presentation.packageRevision !== eng.packageRevision) throw new GuardError('STALE_REVISION', 'There is no current package deliberately presented to management.');
+    if (!rationale.trim() || !evidenceRef.trim()) throw new GuardError('INVALID_STATE', 'A management rationale and evidence reference are required.');
+    requireIndependentActor(presentation.presentedByUserId, this.state.currentUserId, 'decide on a package they presented', this.state);
+    requireIndependentActor(presentation.preparedByUserId, this.state.currentUserId, 'decide on a package they prepared', this.state);
+    if (eng.managementPackageDecision) (eng.managementPackageDecisionHistory ||= []).push(eng.managementPackageDecision);
+    eng.managementPackageDecision = { decision, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString(), generation: presentation.generation, sourceVersion: presentation.sourceVersion, packageRevision: presentation.packageRevision, rationale: rationale.trim(), evidenceRef: evidenceRef.trim() };
+    this.logEvent(`Management ${decision.toLowerCase()} package revision ${presentation.packageRevision}`, eng.id);
     this.notify();
   }
 
@@ -3259,6 +3320,9 @@ class PrototypeStore {
     if (!eng.approvals.client || eng.approvals.client.generation !== gen || (eng.approvals.client.byUserId && this.state.users.find(u => u.id === eng.approvals.client!.byUserId)?.role !== 'client')) {
       return { ready: false, reason: `Client management representation missing or invalid for generation ${gen}` };
     }
+    const presentation = eng.managementPresentation;
+    const decision = eng.managementPackageDecision;
+    if (!presentation || presentation.generation !== gen || presentation.sourceVersion !== eng.sourceVersion || presentation.packageRevision !== eng.packageRevision || !decision || decision.decision !== 'Acknowledged' || decision.generation !== gen || decision.sourceVersion !== eng.sourceVersion || decision.packageRevision !== eng.packageRevision) return { ready: false, reason: `Current management package acknowledgement missing for generation ${gen}` };
     if (!eng.approvals.partner || eng.approvals.partner.generation !== gen || (eng.approvals.partner.byUserId && this.state.users.find(u => u.id === eng.approvals.partner!.byUserId)?.role !== 'partner')) {
       return { ready: false, reason: `Partner sign-off missing or invalid for generation ${gen}` };
     }

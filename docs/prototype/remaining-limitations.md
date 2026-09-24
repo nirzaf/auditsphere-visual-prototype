@@ -2,7 +2,7 @@
 
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-018, VP-037,
-VP-051, VP-052, VP-053 and VP-055 are Verified; 34 of 39 modules remain Partial. Automated
+VP-051, VP-052, VP-053, VP-055 and VP-056 are Verified; 33 of 39 modules remain Partial. Automated
 sources explicitly trace AT-01 through AT-54. See
 `verification.md` for exact executed checks.
 
@@ -247,8 +247,8 @@ sources explicitly trace AT-01 through AT-54. See
 
 ## Verification snapshot
 
-Latest recorded run: 143/143 unit checks and 61/61 E2E checks passed. E2E
+Latest recorded run: 144/144 unit checks and 61/61 E2E checks passed. E2E
 includes five static checks and 56 Chrome journeys. VP-009, VP-018, VP-037,
-VP-051, VP-052, VP-053 and VP-055 are Verified; 58 of 64 stories and 34 of 39 modules remain Partial because full
+VP-051, VP-052, VP-053, VP-055 and VP-056 are Verified; 57 of 64 stories and 33 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

@@ -6,10 +6,12 @@ import { CURRENT_SCHEMA } from '../services/migrations';
 
 export const ALL_PERSONAS: UserPersona[] = [
   { id: 'manager', role: 'manager', name: 'Layla Rahman', initials: 'LR', label: 'Engagement manager', group: 'Professional', email: 'layla.rahman@ste-audit.demo', status: 'Active' },
+  { id: 'manager-2', role: 'manager', name: 'Mariam Saeed', initials: 'MS', label: 'Engagement manager (second)', group: 'Professional', email: 'mariam.saeed@ste-audit.demo', status: 'Active' },
   { id: 'partner', role: 'partner', name: 'Daniel James', initials: 'DJ', label: 'Engagement partner', group: 'Professional', email: 'daniel.james@ste-audit.demo', status: 'Active' },
   { id: 'preparer', personId: 'person-adam-khan', role: 'preparer', name: 'Adam Khan', initials: 'AK', label: 'Audit preparer', group: 'Professional', email: 'adam.khan@ste-audit.demo', status: 'Active' },
   { id: 'reviewer', role: 'reviewer', name: 'Sara Malik', initials: 'SM', label: 'Senior reviewer', group: 'Professional', email: 'sara.malik@ste-audit.demo', status: 'Active' },
   { id: 'eqr', role: 'eqr', name: 'Dr. Tariq Al-Sayed', initials: 'TS', label: 'Engagement quality reviewer', group: 'Professional', email: 'tariq.alsayed@ste-audit.demo', status: 'Active' },
+  { id: 'eqr-2', role: 'eqr', name: 'Dr. Samira Noor', initials: 'SN', label: 'Engagement quality reviewer (second)', group: 'Professional', email: 'samira.noor@ste-audit.demo', status: 'Active' },
   { id: 'relationship', personId: 'person-amira-qasim', role: 'relationship', name: 'Amira Qasim', initials: 'AQ', label: 'Relationship owner', group: 'Commercial', email: 'amira.qasim@ste-audit.demo', status: 'Active' },
   { id: 'onboarding', role: 'onboarding', name: 'Hana Ali', initials: 'HA', label: 'Onboarding coordinator', group: 'Commercial', email: 'hana.ali@ste-audit.demo', status: 'Active' },
   { id: 'compliance', role: 'compliance', name: 'Yusuf Ahmed', initials: 'YA', label: 'Compliance reviewer', group: 'Commercial', email: 'yusuf.ahmed@ste-audit.demo', status: 'Active' },
@@ -43,12 +45,14 @@ export function createInitialState(): PrototypeState {
     users: ALL_PERSONAS,
     roleGrants: [
       { userId: 'manager', role: 'manager', scopeKind: 'Global' },
+      { userId: 'manager-2', role: 'manager', scopeKind: 'Global' },
       { userId: 'partner', role: 'partner', scopeKind: 'Global' },
       { userId: 'preparer', role: 'preparer', scopeKind: 'Global' },
       { userId: 'preparer-2', role: 'preparer', scopeKind: 'Global' },
       { userId: 'reviewer', role: 'reviewer', scopeKind: 'Global' },
       { userId: 'reviewer-2', role: 'reviewer', scopeKind: 'Global' },
       { userId: 'eqr', role: 'eqr', scopeKind: 'Global' },
+      { userId: 'eqr-2', role: 'eqr', scopeKind: 'Global' },
       { userId: 'relationship', role: 'relationship', scopeKind: 'Global' },
       { userId: 'onboarding', role: 'onboarding', scopeKind: 'Global' },
       { userId: 'compliance', role: 'compliance', scopeKind: 'Global' },

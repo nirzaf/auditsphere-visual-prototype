@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { calculateReceivablesAging, verifyGLCompleteness } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds, requireActiveIdentity, GuardError } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
-import { seedPackageDefinition } from './packageFixture.js';
+import { seedManagementAcknowledgement, seedPackageDefinition } from './packageFixture.js';
 
 function setPersona(state: any, name: string) {
   const matches = state.users.filter((u: any) => u.name === name);
@@ -312,6 +312,7 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
     };
     eng.eqrRequired = false;
     seedPackageDefinition(eng);
+    seedManagementAcknowledgement(eng);
     const c1 = prototypeStore.prepareReleaseCandidate(eng.id);
     const c2 = prototypeStore.prepareReleaseCandidate(eng.id);
     assert.strictEqual(c1, c2);

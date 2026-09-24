@@ -8,7 +8,7 @@ import { prototypeStore } from '../../src/store/prototypeStore.js';
 import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
-import { seedPackageDefinition } from './packageFixture.js';
+import { seedPackageDefinition, seedManagementAcknowledgement } from './packageFixture.js';
 
 let state: PrototypeState;
 beforeEach(() => { state = createInitialState(); });
@@ -1370,6 +1370,40 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(eng.approvals.eqr);
   });
 
+  it('VP-056 binds EQR assignment and management acknowledgement to one engagement revision', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    const first = current.engagements.find(item => item.id === 'ENG-26001')!;
+    const second = current.engagements.find(item => item.id === 'ENG-26002')!;
+    first.approvals.eqr = { by: 'Dr. Tariq Al-Sayed', byUserId: 'eqr', at: '2026-09-23T00:00:00Z', generation: first.generation };
+    first.approvalHistory = [{ role: 'eqr', by: 'Dr. Tariq Al-Sayed', byUserId: 'eqr', at: '2026-09-23T00:00:00Z', generation: first.generation }];
+    const secondBefore = structuredClone({ generation: second.generation, approvals: second.approvals, concerns: second.eqrConcerns });
+    setPersona(current, 'Layla Rahman');
+    prototypeStore.assignEqrReviewer(first.id, 'eqr-2', 'Original reviewer unavailable');
+    assert.equal(first.approvals.eqr, null);
+    assert.equal(first.approvalHistory?.length, 1);
+    assert.equal(first.eqrAssignmentHistory?.[0].reason, 'Original reviewer unavailable');
+    assert.deepEqual({ generation: second.generation, approvals: second.approvals, concerns: second.eqrConcerns }, secondBefore);
+    setPersona(current, 'Dr. Tariq Al-Sayed');
+    assert.throws(() => prototypeStore.recordApproval(first.id, 'eqr', 'Old reviewer'), /currently assigned EQR/);
+    setPersona(current, 'Dr. Samira Noor');
+    prototypeStore.recordApproval(first.id, 'eqr', 'Independent review complete');
+    assert.equal(first.approvals.eqr?.byUserId, 'eqr-2');
+
+    seedPackageDefinition(first);
+    setPersona(current, 'Layla Rahman');
+    prototypeStore.presentManagementPackage(first.id);
+    setPersona(current, 'Omar Nasser');
+    prototypeStore.recordManagementPackageDecision(first.id, 'Acknowledged', 'Reviewed the presented package', 'MIN-123');
+    assert.equal(first.managementPackageDecision?.decision, 'Acknowledged');
+    assert.equal(first.managementPackageDecision?.packageRevision, first.packageRevision);
+    const priorDecision = structuredClone(first.managementPackageDecision);
+    first.generation++;
+    assert.throws(() => prototypeStore.recordManagementPackageDecision(first.id, 'Acknowledged', 'Reconfirm', 'MIN-124'), /no current package deliberately presented/);
+    assert.deepEqual(first.managementPackageDecision, priorDecision, 'a source generation change stales but never relabels the prior decision');
+  });
+
   it('acceptance recommendation stays pending until the assigned independent partner decides', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const current = createInitialState();
@@ -1594,6 +1628,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
 
     // Issue initial release
     seedPackageDefinition(eng);
+    seedManagementAcknowledgement(eng);
     prototypeStore.prepareReleaseCandidate(eng.id);
     prototypeStore.issueRelease(eng.id, 'First local release record', ['board@example.demo', ' BOARD@example.demo ']);
     assert.deepEqual(eng.releases[0].recipients, ['board@example.demo'], 'distribution recipients are trimmed and deduplicated without regard to case');
@@ -1625,6 +1660,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
 
     // Freeze and issue second release
     seedPackageDefinition(eng);
+    seedManagementAcknowledgement(eng);
     prototypeStore.prepareReleaseCandidate(eng.id);
     prototypeStore.issueRelease(eng.id, 'Second local release record', ['board@example.demo']);
     assert.strictEqual(eng.releases.length, 2);
