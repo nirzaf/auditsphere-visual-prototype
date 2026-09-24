@@ -585,6 +585,22 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
     assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape cancels the module dialog');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.textContent?.trim().endsWith('New Job'))()`), true, 'closing restores focus to the opener');
+    const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const trigger=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().endsWith('New Job'));trigger?.focus();trigger?.click();})()`);
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog]")'), true);
+      await browserTab!.evaluate(`(() => {const dialog=document.querySelector('[role=dialog]');const title=dialog.querySelector('input[type=text]');const due=dialog.querySelector('input[type=date]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(title,'AT53 keyboard submitted job');title.dispatchEvent(new Event('input',{bubbles:true}));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(due,'2026-10-31');due.dispatchEvent(new Event('input',{bubbles:true}));dialog.querySelector('button[type=submit]').focus();})()`);
+      await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', unmodifiedText: '\r', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      const keyboardSubmitted = await waitForBrowser('!document.querySelector("[role=dialog]")&&document.body.innerText.includes("AT53 keyboard submitted job")');
+      const submitState = await browserTab!.evaluate<any>(`(() => {const d=document.querySelector('[role=dialog]');return {open:!!d,title:d?.querySelector('input[type=text]')?.value,due:d?.querySelector('input[type=date]')?.value,valid:d?.querySelector('form')?.checkValidity(),active:document.activeElement?.outerHTML?.slice(0,180),notice:document.querySelector('[role=status]')?.innerText};})()`);
+      assert.equal(keyboardSubmitted, true, `Enter submits the valid form from the keyboard: ${JSON.stringify(submitState)}`);
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.textContent?.trim().endsWith('New Job'))()`), true, 'keyboard save restores focus to its opener');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(priorState)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
