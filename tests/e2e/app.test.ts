@@ -328,6 +328,18 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const globalRows = await browserTab!.evaluate<string[]>(`[...document.querySelectorAll('.panel table tbody tr')].map(r=>r.innerText)`);
     assert.ok(globalRows.length > 1, 'global manager retains the full portfolio');
     assert.ok(globalRows.some(row => row.includes('ENG-26002')));
+    const setDashboardFilter = (label: string, value: string) => browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="${label}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(value)});select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setDashboardFilter('Dashboard period filter','2025');
+    assert.equal(await waitForBrowser(`document.querySelector('[aria-label^="Active Engagements"]')?.getAttribute('aria-label').includes('Active Engagements: 1.')`), true, 'period filter narrows the engagement metric');
+    assert.equal(await browserTab!.evaluate<string>(`document.querySelector('.panel table tbody')?.innerText.includes('ENG-26003')`), true, 'period filter shows its matching engagement');
+    await setDashboardFilter('Dashboard period filter','ALL');
+    await setDashboardFilter('Dashboard client filter','CL-001');
+    assert.equal(await waitForBrowser(`document.querySelector('.panel table tbody')?.innerText.includes('ENG-26001')&&document.querySelector('.panel table tbody')?.innerText.includes('ENG-26003')`), true, 'client filter shows only that client engagements');
+    await setDashboardFilter('Dashboard client filter','ALL');
+    await setDashboardFilter('Dashboard engagement filter','ENG-26002');
+    assert.equal(await waitForBrowser(`document.querySelector('[aria-label^="Active Engagements"]')?.getAttribute('aria-label').includes('Active Engagements: 1.')`), true, 'engagement filter recalculates the dashboard metric');
+    assert.equal(await browserTab!.evaluate<string>(`document.querySelector('.panel table tbody')?.innerText.includes('ENG-26002')`), true, 'engagement filter shows its selected record');
+    await setDashboardFilter('Dashboard engagement filter','ALL');
     assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Billing & Receivables')`), true, 'manager sees financial dashboard summaries');
     await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'preparer');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='preparer'`), true);
