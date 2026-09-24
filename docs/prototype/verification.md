@@ -537,3 +537,10 @@ project as deployment `aa5a2fab-1a3f-4231-b186-5797caa6b405`
 `assets/index-BuBX9Ebz.js` (2,226,463 bytes; SHA-256
 `fa03ca426d17275eabd011f0a01b8cbc158602b27a501e9be6a6d4635b007336`), matching
 the local build. Wrangler reports production source `eac4cac`.
+
+VP-005 finance-visibility follow-up: the browser journey now verifies the
+Billing & Receivables summary is present for a manager and absent for a
+preparer, in addition to the existing manager-wide and narrow-grant checks.
+`npm run lint` passed and `npm run test:e2e` passed 63/63 (five static checks
+and 58 Chrome journeys). No application code changed, so production remains
+the verified `eac4cac` build.
