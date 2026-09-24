@@ -408,6 +408,46 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+    const terminalState = createInitialState() as any;
+    terminalState.roleGrants = terminalState.roleGrants.filter((grant: any) => grant.userId !== 'manager');
+    terminalState.roleGrants.push({ userId: 'manager', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' });
+    terminalState.currentUserId = 'manager';
+    terminalState.currentRole = 'manager';
+    terminalState.currentPerson = 'Layla Rahman';
+    terminalState.asOfDate = '2026-09-23';
+    terminalState.selectedEngagement = 'ENG-26001';
+    const terminalJob = terminalState.jobs.find((job: any) => job.id === 'JOB-2601');
+    terminalJob.status = 'Blocked';
+    terminalJob.blockedReason = 'Waiting for client evidence';
+    terminalJob.dueDate = '2026-09-22';
+    for (const [id, status] of [['TSK-101', 'Completed'], ['TSK-102', 'Cancelled'], ['TSK-103', 'Blocked']]) {
+      const task = terminalState.jobTasks.find((item: any) => item.id === id);
+      task.status = status;
+      task.assignee = 'Layla Rahman';
+      task.dueDate = '2026-09-22';
+      if (status === 'Blocked') task.blockedReason = 'Waiting for client evidence';
+    }
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(terminalState))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      const terminalMetrics = await browserTab!.evaluate<any>(`(() => Object.fromEntries([...document.querySelectorAll('.metric')].map(x=>[x.querySelector('.metric-top')?.innerText,Number(x.querySelector('.metric-value')?.innerText)])))()`);
+      assert.equal(terminalMetrics['My Open Tasks'], 1, `completed/cancelled tasks are excluded while blocked work remains open: ${JSON.stringify(terminalMetrics)}`);
+      assert.equal(terminalMetrics['Overdue Work'], 2, `only blocked past-due job and task contribute to overdue count: ${JSON.stringify(terminalMetrics)}`);
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="My Open Tasks"]')?.click()`);
+      const openTaskList = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(panel=>panel.innerText.includes('Filtered work list'))?.innerText||''`);
+      assert.match(openTaskList, /TSK-103/);
+      assert.doesNotMatch(openTaskList, /TSK-101|TSK-102/);
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="My Open Tasks"]')?.click();document.querySelector('[aria-label^="Overdue Work"]')?.click()`);
+      const overdueList = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(panel=>panel.innerText.includes('Filtered work list'))?.innerText||''`);
+      assert.match(overdueList, /JOB-2601/);
+      assert.match(overdueList, /TSK-103/);
+      assert.doesNotMatch(overdueList, /TSK-101|TSK-102/);
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(roleViewState)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
