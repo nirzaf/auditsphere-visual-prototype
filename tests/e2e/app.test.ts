@@ -577,6 +577,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('VP-051: reconciles scoped CSV/XLSX populations before testing and preserves replacement history', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'sampling journey starts from a clean manager state');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Audit preparer'));if(!o)throw Error('Preparer persona missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === 'preparer'`), true);
     await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Sampling & Populations');if(!r)throw Error('Sampling route missing');r.click();})()`);
@@ -2168,24 +2171,35 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-43/AT-44/AT-45: reviews pinned consolidation snapshots and approved eliminations without changing source TBs', async () => {
-    const sourceBefore = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
-    await clickButton('Group Consolidation');
-    assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
-    await clickButton('Group Perimeter & Pinned Packages (2)');
-    const perimeter = await browserTab!.evaluate<string>('document.body.innerText');
-    assert.match(perimeter, /Example Trading Entity/);
-    assert.match(perimeter, /Northstar Services/);
-    assert.match(perimeter, /Pinned snapshot/);
-    await clickButton('Intercompany Eliminations (1)');
-    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Elimination of Intercompany Management Fee/);
-    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /50,000/);
-    await clickButton('Consolidated Balance Sheet Grid');
-    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Equation Satisfied \(Net Zero\)/);
-    await clickButton('Currency Translation (FX)');
-    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /supported synthetic profile translates every balance-sheet line/);
-    const sourceAfter = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
-    assert.equal(sourceAfter, sourceBefore, 'consolidation review must not mutate component trial balances');
-    assert.deepEqual(browserTab!.exceptions, []);
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      const sourceBefore = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
+      await clickButton('Group Consolidation');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
+      await clickButton('Group Perimeter & Pinned Packages (2)');
+      const perimeter = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(perimeter, /Example Trading Entity/);
+      assert.match(perimeter, /Northstar Services/);
+      assert.match(perimeter, /Pinned snapshot/);
+      await clickButton('Intercompany Eliminations (1)');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Elimination of Intercompany Management Fee/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /50,000/);
+      await clickButton('Consolidated Balance Sheet Grid');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Equation Satisfied \(Net Zero\)/);
+      await clickButton('Currency Translation (FX)');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /supported synthetic profile translates every balance-sheet line/);
+      const sourceAfter = await browserTab!.evaluate<string>(`JSON.stringify(['ENG-26001','ENG-26002'].map(id => { const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===id); return {id, rows:e.rows, sourceVersion:e.sourceVersion}; }))`);
+      assert.equal(sourceAfter, sourceBefore, 'consolidation review must not mutate component trial balances');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
   });
 
   it('AT-43: blocks missing FX and accepts a dated component-currency closing rate', async () => {
