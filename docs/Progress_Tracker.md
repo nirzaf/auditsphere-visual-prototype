@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 161 / 161 | Fresh run on `fded7b5`; includes the consolidation perimeter guard matrix. |
-| E2E checks passing in this review | 70 / 70 | Fresh run on `fded7b5`: 5 static checks + 65 actual Chrome checks. |
+| Unit checks passing in this review | 161 / 161 | Fresh run on `5ee4128`; includes the consolidation perimeter guard matrix. |
+| E2E checks passing in this review | 71 / 71 | Fresh run on `5ee4128`: 5 static checks + 66 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2788,9 +2788,9 @@ Pinned component snapshots, period/currency context and dated foreign closing-ra
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-044-E01 — Verification/evidence pending:** Complete incompatible basis/period and unreviewed-component gates, old/new package selection, stale-pin warnings and rounded translation reconciliation.
+- [ ] **VP-044-E01 — Verification/evidence pending:** Stale-pin warning, immutable old snapshot, and explicit current-source re-pin now pass AT-44 on `5ee4128`. Still verify incompatible reporting basis/period and unreviewed-package gates before closing the criterion.
 
-- [ ] **VP-044-E02 — Verification/evidence pending:** Prove each selected rate and translation difference is traceable under the documented supported rule.
+- [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 now shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. A complete published fixture and balancing translation-difference reconciliation remain open.
 
 - [ ] **VP-044-R03 — Requirement/scope reconciliation:** Do not add live exchange-rate feeds or unsupported complex translation methods.
 
@@ -2806,9 +2806,9 @@ Create component intake grid with readiness, period, basis, currency, package re
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-044-AC01 | Given eligible component packages, when selected, then exact revisions are pinned and a subsequent replacement produces a stale-component warning rather than silent refresh. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-044-AC01 | Given eligible component packages, when selected, then exact revisions are pinned and a subsequent replacement produces a stale-component warning rather than silent refresh. | SUBCASES VERIFIED 2026-09-24 — AT-44 retains the old snapshot, warns on source replacement, then re-pins the exact current source only after an attributable user action; full package eligibility remains open. |
 | VP-044-AC02 | Missing rates, incompatible basis/period or unreviewed component packages block group output; missing amounts never default to zero. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | SUBCASES VERIFIED 2026-09-24 — FX trace lists source, rate revision/date, translated cents and per-line rounding; deterministic `100.01 × 3.64 = 364.04` example yields `0.0036`. Full balancing-difference fixture remains open. |
 | VP-044-AC04 | An unapproved/unsupported translation rule shows a limitation and no fabricated consolidation result; component client packages remain unchanged. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1033).

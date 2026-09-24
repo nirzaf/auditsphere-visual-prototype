@@ -8,6 +8,13 @@ Partial.
 Automated sources explicitly trace AT-01 through AT-55. See
 `verification.md` for exact executed checks.
 
+- **VP-044 — consolidation packages and translation (Partial):** AT-44 now
+  warns when the component source moves past its pinned revision, preserves the
+  old rows, and requires an attributable explicit re-pin. FX detail exposes each
+  account's original amount, selected closing-rate revision/date, translated
+  amount and rounding difference. Reporting-basis and package-review gates and
+  the complete balancing translation-difference fixture remain open.
+
 ## Known acceptance gaps
 
 - **VP-035 — trial-balance import (Verified):** AT-35 covers signed-net and
@@ -328,8 +335,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 161/161 unit checks and 70/70 E2E checks passed.
-E2E includes five static checks and 65 Chrome journeys. The Chrome suite blocks
+Latest recorded full run: 161/161 unit checks and 71/71 E2E checks passed.
+E2E includes five static checks and 66 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-014, VP-018,
