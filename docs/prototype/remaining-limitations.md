@@ -225,8 +225,9 @@ Automated sources explicitly trace AT-01 through AT-55. See
   across reload and revisions; Chrome verifies changed section ordering, blocks
   selection of the unsupported cash-flow output, and confirms older artifact IDs
   and bytes remain intact after reassembly. Cash-flow source data is still
-  unavailable. Generation-failure cases and independent review of a replacement
-  package revision remain incomplete.
+  unavailable. A forced XLSX-generation failure reports the exception and leaves
+  the current revision unchanged. Format-specific/persistence failure cases and
+  independent review of a replacement package revision remain incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
