@@ -280,7 +280,7 @@ export const App: React.FC = () => {
       case 'services':
         return <AdministrationView onNavigate={navigate} />;
       case 'm365-setup':
-        return <M365SetupView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
+        return <M365SetupView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} onBeforeContextChange={requestContextChange} />;
       case 'requirements':
       case 'role-guide':
         return <RequirementsView onNavigate={navigate} />;

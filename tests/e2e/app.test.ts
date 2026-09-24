@@ -421,6 +421,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(foldersAfterRetry, foldersAfter, 'retry remains idempotent');
 
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Discarded tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    const beforeDisconnect = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config`);
+    await clickButton('Simulate disconnect');
+    assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'disconnect is also guarded');
+    assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config`), beforeDisconnect, 'disconnect does not mutate saved configuration before a decision');
+    await clickButton('Stay');
     await clickButtonStartingWith('Jobs & Tasks');
     assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'route changes ask how to handle a dirty setup form');
     await clickButton('Stay');

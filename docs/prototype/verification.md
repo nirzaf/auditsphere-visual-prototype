@@ -1,6 +1,6 @@
 # AuditSphere Visual Prototype — Verification Record (VP-063/VP-064)
 
-| 2026-09-24 | VP-003 dirty-form context protection | `npm run build`, `npm run test:unit`, `npm run test:e2e` | PASS — 161/161 unit, 69/69 E2E (5 static + 64 Chrome) | M365 setup route/persona/engagement changes show Save, Discard and Stay; Chrome confirms each choice preserves or changes storage/context as specified. Other forms and client/direct-target cases remain open. |
+| 2026-09-24 | VP-003 dirty-form context protection | `npm run build`, `npm run test:unit`, `npm run test:e2e` | PASS — 161/161 unit, 69/69 E2E (5 static + 64 Chrome) | M365 setup route/persona/engagement/disconnect changes show Save, Discard and Stay; Chrome confirms each choice preserves or changes storage/context as specified and disconnect does not mutate persisted state before the choice. Other forms and client/direct-target cases remain open. |
 
 | 2026-09-24 | VP-003 shared dialog keyboard behavior | `npm run build`, `npm run test:unit`, `npm run test:e2e` | PASS — 161/161 unit, 69/69 E2E (5 static + 64 Chrome) | Modal dialogs receive accessible names/semantics, initial and contained keyboard focus, Escape cancellation and focus restoration. AT-53 checks client dialog behavior at 320/390/768 px and keyboard open/Tab/Escape/Enter-submit behavior in an unannotated New Job dialog. Every dialog’s individual save and dismissal paths remain open. |
 

@@ -13,6 +13,7 @@ import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 interface M365SetupViewProps {
   onNavigate: (route: RouteKey) => void;
   onRegisterUnsavedForm: (guard: UnsavedFormGuard | null) => void;
+  onBeforeContextChange: (change: () => void) => void;
 }
 
 type CardKey = 'identity' | 'sharepoint' | 'mail' | 'onedrive';
@@ -28,7 +29,7 @@ const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
 ];
 const ASSIGNABLE_ROLES: RoleKey[] = ['relationship', 'onboarding', 'compliance', 'partner', 'manager', 'preparer', 'reviewer', 'eqr', 'client_admin', 'client_finance', 'client', 'billing', 'records', 'admin'];
 
-export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
+export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegisterUnsavedForm, onBeforeContextChange }) => {
   const state = prototypeStore.getSnapshot();
   const config = state.m365Config;
 
@@ -96,8 +97,10 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
   };
 
   const handleDisconnect = () => {
-    prototypeStore.simulateM365Disconnect();
-    onNavigate('overview');
+    onBeforeContextChange(() => {
+      prototypeStore.simulateM365Disconnect();
+      onNavigate('overview');
+    });
   };
 
   const cardStatus = (card: CardKey): string => {
