@@ -2677,6 +2677,8 @@ Add notes/disclosure list with reference, applicability, text/data table, eviden
 #### Demonstrated / already implemented
 Ordered package sections/notes persist by revision. Real XLSX/DOCX/PDF bytes and SHA-256 identities persist; reassembly retains older artifacts. A forced XLSX Blob failure is recorded without revision advancement.
 
+- [x] **VP-042-I04 — Implemented and exercised:** Reload restores the exact enabled state and ordering from the current saved package whenever its referenced cash-flow/equity support remains current. AT-37 assembles a package with both reviewed statements, verifies the saved section revision, reloads, and confirms both remain selected. Full Chrome suite: 71/71, 2026-09-24.
+
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 

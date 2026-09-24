@@ -3654,6 +3654,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       if (!packageEquity.checked) await browserTab!.evaluate(`document.querySelector('[aria-label="Include Statement of Changes in Equity"]').click()`);
       assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Include Statement of Changes in Equity"]')?.checked`), true);
       assert.match(packageEquity.desc, /reviewed opening equity and evidence-backed movements in schedule v1/i);
+      await browserTab!.evaluate(`document.querySelector('[aria-label="Include Statutory Notes & Disclosures"]')?.click()`);
+      const priorPackageRevision = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').packageRevision`);
+      await clickButtonStartingWith('+ Assemble New Revision');
+      const packageSaved = await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').packageRevision===${priorPackageRevision + 1}`);
+      const packageNotice = await browserTab!.evaluate<string>(`[...document.querySelectorAll('[role="alert"], [role="status"]')].map(node=>node.innerText).join(' | ')`);
+      assert.equal(packageSaved, true, `assembled package persists its exact section definition${packageNotice ? `; ${packageNotice}` : ''}`);
+      const savedSections = await browserTab!.evaluate<any[]>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').packageHistory.at(-1).sections.map(({id,enabled,order})=>({id,enabled,order}))`);
+      assert.equal(savedSections.find(section => section.id === 'cf')?.enabled, true);
+      assert.equal(savedSections.find(section => section.id === 'eq')?.enabled, true);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Financial Packages');
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Include Statement of Cash Flows"]')?.checked && document.querySelector('[aria-label="Include Statement of Changes in Equity"]')?.checked`), true, 'reviewed cash-flow and equity sections survive package reload');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
