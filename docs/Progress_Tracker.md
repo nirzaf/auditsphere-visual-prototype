@@ -696,7 +696,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-005-E02 — Verification/evidence pending:** Reconcile each counter, filtered row and click-through under empty, completed, blocked, archived and no-access conditions.
 
-  Chrome covers a manager scoped to client CL-003 with no engagements: all six headline metrics are zero, stale selected ENG-26001 is hidden, task/job/activity empty messages are explicit, and the active-engagement drill-down reports zero matching records. A synthetic overdue fixture also confirms completed and cancelled tasks are excluded, while a blocked job/task remain in open-task and overdue counts and matching drill-downs. Archived and fully denied cases remain open.
+  Chrome covers a manager scoped to client CL-003 with no engagements and a manager with no grants: both show six zero metrics, hide stale selected ENG-26001, and show task/job/activity empty messages; the granted empty-scope active-engagement drill-down reports zero matches. A synthetic overdue fixture confirms completed and cancelled tasks are excluded, while a blocked job/task remain in open-task and overdue counts and matching drill-downs. Archived conditions remain open.
 
 #### Original user story and dependencies
 **Target modules:** 01  

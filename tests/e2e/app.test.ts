@@ -408,6 +408,25 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+    const deniedState = createInitialState() as any;
+    deniedState.roleGrants = deniedState.roleGrants.filter((grant: any) => grant.userId !== 'manager');
+    deniedState.selectedEngagement = 'ENG-26001';
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(deniedState))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      const deniedDashboard = await browserTab!.evaluate<any>(`(() => ({body:document.querySelector('main#main')?.innerText||'',metrics:[...document.querySelectorAll('.metric')].map(x=>({value:x.querySelector('.metric-value')?.innerText,aria:x.getAttribute('aria-label')}))}))()`);
+      assert.equal(deniedDashboard.metrics.length, 6);
+      assert.ok(deniedDashboard.metrics.every((item: any) => item.value === '0'), `ungranted manager receives zero metrics: ${JSON.stringify(deniedDashboard.metrics)}`);
+      assert.equal(deniedDashboard.body.includes('ENG-26001'), false, 'ungranted manager cannot see stale engagement data');
+      assert.match(deniedDashboard.body, /No open tasks assigned to you in this scope/);
+      assert.match(deniedDashboard.body, /No jobs in this scope/);
+      assert.match(deniedDashboard.body, /No recent client activity in this scope/);
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(roleViewState)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     const terminalState = createInitialState() as any;
     terminalState.roleGrants = terminalState.roleGrants.filter((grant: any) => grant.userId !== 'manager');
     terminalState.roleGrants.push({ userId: 'manager', role: 'manager', scopeKind: 'Engagement', scopeId: 'ENG-26001' });
