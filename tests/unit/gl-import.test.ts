@@ -22,6 +22,17 @@ describe('VP-036 GL source intake', () => {
     assert.equal(result.hasOpeningBalances, true);
   });
 
+  it('supports an explicit source-column map for nonstandard headers', () => {
+    const custom = `Entry Reference,Line No,Posting Date,GL Code,GL Name,Dr,Cr,ISO Currency,Memo,Prior Close\nJ1,L1,2026-01-15,1000,Cash,10,0,QAR,Receipt,100\nJ1,L2,2026-01-15,2000,Payable,0,10,QAR,Receipt,-100`;
+    const automatic = parseGLWorkbook('custom.csv', bytes(custom), 'QAR', '2026-01-01', '2026-12-31');
+    assert.ok(automatic.errors.some(error => error.includes('Missing required column: journal ID')));
+    const mapped = parseGLWorkbook('custom.csv', bytes(custom), 'QAR', '2026-01-01', '2026-12-31', { journal: 0, line: 1, date: 2, account: 3, name: 4, debit: 5, credit: 6, currency: 7, description: 8, opening: 9 });
+    assert.deepEqual(mapped.errors, []);
+    assert.equal(mapped.transactions[0].journalId, 'J1');
+    assert.equal(mapped.openingBalances['1000'], 100);
+    assert.ok(parseGLWorkbook('custom.csv', bytes(custom), 'QAR', '2026-01-01', '2026-12-31', { journal: 0, line: 0, date: 2, account: 3, name: 4, debit: 5, credit: 6, currency: 7, description: 8 }).errors.some(error => error.includes('different source column')));
+  });
+
   it('accepts an explicit opening-only row and a genuine XLSX workbook', () => {
     const withOpeningOnly = `${headers}\nJ1,L1,2026-01-15,1000,Cash,10,0,QAR,Receipt,100\nJ1,L2,2026-01-15,2000,Payable,0,10,QAR,Receipt,-100\n,,,3000,Capital,,,,,500`;
     const openingResult = parseGLWorkbook('gl.csv', bytes(withOpeningOnly), 'QAR', '2026-01-01', '2026-12-31');
@@ -55,11 +66,12 @@ describe('VP-036 GL source intake', () => {
     const parsed = parseGLWorkbook('gl.csv', bytes(valid), 'QAR', '2026-01-01', '2026-12-31');
     assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'bad.csv', format: 'CSV', sha256: 'a'.repeat(64), openingBalances: parsed.openingBalances, transactions: [{ ...parsed.transactions[0], debit: 101 }, ...parsed.transactions.slice(1)] }), /not balanced/);
     assert.equal(prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.glSourceHistory?.length || 0, 0, 'rejected source does not partially mutate history');
-    const revision = prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'gl.csv', format: 'CSV', sha256: 'a'.repeat(64), openingBalances: parsed.openingBalances, transactions: parsed.transactions });
+    const revision = prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'gl.csv', format: 'CSV', sha256: 'a'.repeat(64), openingBalances: parsed.openingBalances, transactions: parsed.transactions, columnMapping: { journal: '1: Journal ID' } });
     assert.equal(revision, 1);
     const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)!;
     assert.equal(saved.glSourceHistory?.[0].transactions[0].engagementId, engagement.id);
     assert.equal(saved.glSourceHistory?.[0].sha256, 'a'.repeat(64));
+    assert.deepEqual(saved.glSourceHistory?.[0].columnMapping, { journal: '1: Journal ID' });
     assert.equal(saved.approvals.manager, null);
     assert.equal(saved.generation, priorGeneration + 1);
     assert.deepEqual(saved.rows, priorRows, 'GL import never rewrites the accepted trial balance');

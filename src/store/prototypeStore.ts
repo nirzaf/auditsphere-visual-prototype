@@ -1909,7 +1909,7 @@ class PrototypeStore {
     this.notify();
   }
 
-  public importGeneralLedgerSource(engagementId: string, input: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; openingBalances: Record<string, number>; transactions: GLSourceRevision['transactions'] }) {
+  public importGeneralLedgerSource(engagementId: string, input: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; openingBalances: Record<string, number>; transactions: GLSourceRevision['transactions']; columnMapping?: Record<string, string> }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'import a general ledger source');
     requireEngagementScope(this.state, engagementId);
@@ -1919,6 +1919,7 @@ class PrototypeStore {
     const profile = client?.accountingProfile;
     const book = profile?.periodBooks.find(item => item.id === engagement?.accountingPeriodBookId && item.ownerEngagementId === engagementId);
     if (!engagement || !book || !profile || profile.reportingBasis === 'Not selected' || engagement.accountingProfileRevision !== profile.revision || engagement.accountingChartRevision !== profile.chartRevision) throw new GuardError('INVALID_STATE', 'Select this engagement’s current accounting period book before importing its general ledger.');
+    if (input.columnMapping && (Object.keys(input.columnMapping).length > 10 || Object.entries(input.columnMapping).some(([key, value]) => !/^(journal|line|date|account|name|debit|credit|currency|description|opening)$/.test(key) || typeof value !== 'string' || value.length > 256))) throw new GuardError('INVALID_STATE', 'GL column mapping must contain only bounded, known source fields.');
     const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
     const cents = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
     const journalTotals = new Map<string, { debit: number; credit: number; date: string; currency: string }>();
@@ -1933,7 +1934,7 @@ class PrototypeStore {
     }
     for (const [journal, totals] of journalTotals) if (Math.abs(totals.debit - totals.credit) > 0.005) throw new GuardError('INVALID_STATE', `Journal ${journal} is not balanced.`);
     const history = engagement.glSourceHistory ||= [];
-    const revision: GLSourceRevision = { revision: (history.at(-1)?.revision || 0) + 1, predecessorRevision: history.at(-1)?.revision, fileName: input.fileName.trim(), format: input.format, sha256: input.sha256.toLowerCase(), periodBookId: book.id, importedAt: new Date().toISOString(), importedByUserId: this.state.currentUserId, openingBalances: structuredClone(input.openingBalances), transactions: input.transactions.map(line => ({ ...structuredClone(line), engagementId })) };
+    const revision: GLSourceRevision = { revision: (history.at(-1)?.revision || 0) + 1, predecessorRevision: history.at(-1)?.revision, fileName: input.fileName.trim(), format: input.format, sha256: input.sha256.toLowerCase(), columnMapping: input.columnMapping ? structuredClone(input.columnMapping) : undefined, periodBookId: book.id, importedAt: new Date().toISOString(), importedByUserId: this.state.currentUserId, openingBalances: structuredClone(input.openingBalances), transactions: input.transactions.map(line => ({ ...structuredClone(line), engagementId })) };
     history.push(revision);
     for (const reconciliation of engagement.reconciliations || []) this.staleReconciliation(reconciliation);
     this.invalidateReleaseBasis(engagement);

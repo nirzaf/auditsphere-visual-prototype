@@ -3,6 +3,14 @@ import { GLTransactionItem } from '../types';
 
 export const GL_ROW_LIMIT = 5000;
 export const GL_FILE_BYTES_LIMIT = 5 * 1024 * 1024;
+export type GLImportColumn = 'journal' | 'line' | 'date' | 'account' | 'name' | 'debit' | 'credit' | 'currency' | 'description' | 'opening';
+export const GL_IMPORT_COLUMNS: Array<{ key: GLImportColumn; label: string; required: boolean }> = [
+  { key: 'journal', label: 'Journal ID', required: true }, { key: 'line', label: 'Line ID', required: true },
+  { key: 'date', label: 'Date', required: true }, { key: 'account', label: 'Account Code', required: true },
+  { key: 'name', label: 'Account Name', required: true }, { key: 'debit', label: 'Debit', required: true },
+  { key: 'credit', label: 'Credit', required: true }, { key: 'currency', label: 'Currency', required: true },
+  { key: 'description', label: 'Description', required: true }, { key: 'opening', label: 'Opening Balance', required: false }
+];
 
 export interface ParsedGLSource {
   transactions: GLTransactionItem[];
@@ -10,6 +18,8 @@ export interface ParsedGLSource {
   hasOpeningBalances: boolean;
   errors: string[];
   format: 'CSV' | 'XLSX';
+  headers?: string[];
+  columnIndexes?: Partial<Record<GLImportColumn, number>>;
 }
 
 const isXlsx = (bytes: ArrayBuffer) => new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength)).join(',') === '80,75,3,4';
@@ -30,7 +40,7 @@ const amount = (value: unknown): number | null => {
   return Number.isFinite(parsed) && Math.abs(parsed * 100 - Math.round(parsed * 100)) < 1e-7 ? parsed : null;
 };
 
-export function parseGLWorkbook(fileName: string, bytes: ArrayBuffer, expectedCurrency: string, startDate: string, endDate: string): ParsedGLSource {
+export function parseGLWorkbook(fileName: string, bytes: ArrayBuffer, expectedCurrency: string, startDate: string, endDate: string, overrides: Partial<Record<GLImportColumn, number>> = {}): ParsedGLSource {
   const errors: string[] = [];
   const extension = fileName.toLowerCase().split('.').at(-1);
   const format = extension === 'xlsx' ? 'XLSX' : 'CSV';
@@ -52,12 +62,14 @@ export function parseGLWorkbook(fileName: string, bytes: ArrayBuffer, expectedCu
 
   if (grid.length < 2) return { transactions: [], openingBalances: {}, hasOpeningBalances: false, errors: ['Include a header row and at least one transaction.'], format };
   if (grid.length - 1 > GL_ROW_LIMIT) return { transactions: [], openingBalances: {}, hasOpeningBalances: false, errors: [`Row limit exceeded (${GL_ROW_LIMIT}).`], format };
-  const headers = grid[0].map(value => String(value ?? '').trim().toLowerCase().replace(/[ _-]+/g, ''));
-  const column = (...names: string[]) => headers.findIndex(header => names.includes(header));
-  const cols = { journal: column('journalid', 'journal'), line: column('lineid', 'line'), date: column('date', 'transactiondate'), account: column('accountcode', 'account'), name: column('accountname', 'accountdescription'), debit: column('debit'), credit: column('credit'), currency: column('currency'), description: column('description', 'narration'), opening: column('openingbalance', 'opening') };
+  const rawHeaders = grid[0].map(value => String(value ?? '').trim());
+  const headers = rawHeaders.map(value => value.toLowerCase().replace(/[ _-]+/g, ''));
+  const column = (field: GLImportColumn, ...names: string[]) => Object.hasOwn(overrides, field) ? overrides[field]! : headers.findIndex(header => names.includes(header));
+  const cols = { journal: column('journal', 'journalid', 'journal'), line: column('line', 'lineid', 'line'), date: column('date', 'date', 'transactiondate'), account: column('account', 'accountcode', 'account'), name: column('name', 'accountname', 'accountdescription'), debit: column('debit', 'debit'), credit: column('credit', 'credit'), currency: column('currency', 'currency'), description: column('description', 'description', 'narration'), opening: column('opening', 'openingbalance', 'opening') };
+  const columnIndexes = { ...cols };
   const required: Array<[keyof typeof cols, string]> = [['journal','journal ID'],['line','line ID'],['date','date'],['account','account code'],['name','account name'],['debit','debit'],['credit','credit'],['currency','currency'],['description','description']];
   for (const [field, label] of required) if (cols[field] < 0) errors.push(`Missing required column: ${label}.`);
-  if (errors.length) return { transactions: [], openingBalances: {}, hasOpeningBalances: cols.opening >= 0, errors, format };
+  if (errors.length) return { transactions: [], openingBalances: {}, hasOpeningBalances: cols.opening >= 0, errors, format, headers: rawHeaders, columnIndexes };
 
   const transactions: GLTransactionItem[] = [];
   const openings: Record<string, number> = {};
@@ -97,5 +109,7 @@ export function parseGLWorkbook(fileName: string, bytes: ArrayBuffer, expectedCu
   }
   for (const [journalId, totals] of journalLines) if (Math.abs(totals.debit - totals.credit) > 0.005) errors.push(`Journal ${journalId} is unbalanced: debit ${totals.debit.toFixed(2)}, credit ${totals.credit.toFixed(2)}.`);
   if (!transactions.length && !errors.length) errors.push('No transaction rows were found.');
-  return { transactions, openingBalances: openings, hasOpeningBalances: cols.opening >= 0, errors, format };
+  const selectedRequiredColumns = required.map(([field]) => cols[field]);
+  if (new Set(selectedRequiredColumns).size !== selectedRequiredColumns.length) errors.push('Each required field must map to a different source column.');
+  return { transactions, openingBalances: openings, hasOpeningBalances: cols.opening >= 0, errors, format, headers: rawHeaders, columnIndexes };
 }

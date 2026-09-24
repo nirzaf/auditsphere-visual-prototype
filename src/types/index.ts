@@ -371,6 +371,7 @@ export interface GLSourceRevision {
   fileName: string;
   format: 'CSV' | 'XLSX' | 'Legacy';
   sha256?: string;
+  columnMapping?: Record<string, string>;
   periodBookId?: string;
   importedAt: string;
   importedByUserId: string;

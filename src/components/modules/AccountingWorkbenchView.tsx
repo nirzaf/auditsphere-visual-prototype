@@ -7,7 +7,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
 import { TBImportWizard } from './TBImportWizard';
-import { GL_FILE_BYTES_LIMIT, parseGLWorkbook, ParsedGLSource } from '../../services/glImport';
+import { GL_FILE_BYTES_LIMIT, GL_IMPORT_COLUMNS, GLImportColumn, parseGLWorkbook, ParsedGLSource } from '../../services/glImport';
 import { exportService } from '../../services/exportService';
 
 const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profile?: ClientAccountingProfile }> = ({ clientId, engagementId, profile }) => {
@@ -45,6 +45,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [glFileName, setGLFileName] = useState('');
   const [glBytes, setGLBytes] = useState<ArrayBuffer | null>(null);
   const [glPreview, setGLPreview] = useState<ParsedGLSource | null>(null);
+  const [glColumnMap, setGLColumnMap] = useState<Partial<Record<GLImportColumn, number>>>({});
   const [glNotice, setGLNotice] = useState('');
   const [glAccountFilter, setGLAccountFilter] = useState('');
   const [glJournalFilter, setGLJournalFilter] = useState('');
@@ -272,28 +273,30 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
             <p className="caption mt8">Required headers: Journal ID, Line ID, Date, Account Code, Account Name, Debit, Credit, Currency, Description. Optional Opening Balance supplies an explicit prior closing balance per account.</p>
             <div className="row mt12" style={{ gap: 10 }}>
               <input aria-label="General ledger source file" type="file" accept=".csv,.xlsx" onChange={async event => {
-                const file = event.target.files?.[0]; setGLPreview(null); setGLNotice(''); setGLBytes(null); setGLFileName('');
+                const file = event.target.files?.[0]; setGLPreview(null); setGLColumnMap({}); setGLNotice(''); setGLBytes(null); setGLFileName('');
                 if (!file) return;
                 if (file.size > GL_FILE_BYTES_LIMIT) { setGLNotice('File exceeds 5 MB; nothing was imported.'); return; }
                 const bytes = await file.arrayBuffer(); setGLBytes(bytes); setGLFileName(file.name);
                 const profile = state.clients.find(item => item.id === selectedEng.client)?.accountingProfile;
                 const book = profile?.periodBooks.find(item => item.id === selectedEng.accountingPeriodBookId);
                 if (!book) { setGLNotice('Select a current accounting period book before previewing GL files.'); return; }
-                setGLPreview(parseGLWorkbook(file.name, bytes, selectedEng.currency, book.startDate, book.endDate));
+                const parsed = parseGLWorkbook(file.name, bytes, selectedEng.currency, book.startDate, book.endDate);
+                setGLColumnMap(parsed.columnIndexes || {}); setGLPreview(parsed);
               }} />
               <button className="btn sm" disabled={!glBytes || !glPreview || glPreview.errors.length > 0} onClick={async () => {
                 if (!glBytes || !glPreview || !globalThis.crypto?.subtle) { setGLNotice('This browser cannot verify the source SHA-256; nothing was imported.'); return; }
                 const digest = await crypto.subtle.digest('SHA-256', glBytes);
                 const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
                 try {
-                  const revision = prototypeStore.importGeneralLedgerSource(selectedEng.id, { fileName: glFileName, format: glPreview.format, sha256, openingBalances: glPreview.openingBalances, transactions: glPreview.transactions });
-                  setGLNotice(`GL source revision ${revision} saved with ${glPreview.transactions.length} lines. Prior revisions and dependent review history remain retained.`); setGLPreview(null); setGLBytes(null);
+                  const columnMapping = Object.fromEntries(GL_IMPORT_COLUMNS.map(({ key }) => [key, glPreview.columnIndexes?.[key] !== undefined && glPreview.columnIndexes[key] >= 0 ? `${glPreview.columnIndexes[key] + 1}: ${glPreview.headers?.[glPreview.columnIndexes[key]] || ''}` : ''])) as Record<string, string>;
+                  const revision = prototypeStore.importGeneralLedgerSource(selectedEng.id, { fileName: glFileName, format: glPreview.format, sha256, openingBalances: glPreview.openingBalances, transactions: glPreview.transactions, columnMapping });
+                  setGLNotice(`GL source revision ${revision} saved with ${glPreview.transactions.length} lines and its column mapping. Prior revisions and dependent review history remain retained.`); setGLPreview(null); setGLBytes(null);
                 } catch (error) { setGLNotice(error instanceof Error ? error.message : 'GL source was not imported.'); }
               }}>Import new revision</button>
               <button className="btn sm ghost" disabled={!visibleGLTransactions.length} onClick={() => exportService.exportCSV(`GL_${selectedEng.id}_v${glSource?.revision || 0}.csv`, [['Journal ID','Line ID','Date','Account Code','Account Name','Debit','Credit','Currency','Description'], ...visibleGLTransactions.map(line => [line.journalId,line.lineId,safeCSVText(line.date),safeCSVText(line.accountCode),safeCSVText(line.accountName),String(line.debit),String(line.credit),safeCSVText(line.currency),safeCSVText(line.description)])])}>Export filtered CSV</button>
             </div>
             {glNotice && <p role="status" className="mt8">{glNotice}</p>}
-            {glPreview && <div className="borderbox mt12 panel-pad"><b>Preview: {glFileName}</b><p>{glPreview.transactions.length} lines · {Object.keys(glPreview.openingBalances).length} explicit opening balances · {glPreview.errors.length} validation errors</p>{glPreview.errors.map(error => <p className="text-danger" key={error}>{error}</p>)}{!glPreview.errors.length && <p className="caption">Journal balance, date/currency consistency, and period checks passed. Unmatched account codes remain visible in completeness results.</p>}</div>}
+            {glPreview && <div className="borderbox mt12 panel-pad"><b>Preview: {glFileName}</b><p>{glPreview.transactions.length} lines · {Object.keys(glPreview.openingBalances).length} explicit opening balances · {glPreview.errors.length} validation errors</p><div className="grid grid-cols-2 gap12 mt12">{GL_IMPORT_COLUMNS.map(({ key, label, required }) => <label key={key} className="caption">{label}{required ? ' *' : ' (optional)'}<select className="input mt4" aria-label={`GL source column: ${label}`} value={glColumnMap[key] ?? -1} onChange={event => {const next = { ...glColumnMap, [key]: Number(event.target.value) }; setGLColumnMap(next); const profile = state.clients.find(item => item.id === selectedEng.client)?.accountingProfile; const book = profile?.periodBooks.find(item => item.id === selectedEng.accountingPeriodBookId); if (book && glBytes) setGLPreview(parseGLWorkbook(glFileName, glBytes, selectedEng.currency, book.startDate, book.endDate, next));}}><option value={-1}>{required ? 'Select source column' : 'Not included'}</option>{(glPreview.headers || []).map((header, index) => <option key={`${index}:${header}`} value={index}>{index + 1}: {header || '(blank header)'}</option>)}</select></label>)}</div>{glPreview.errors.map(error => <p className="text-danger" key={error}>{error}</p>)}{!glPreview.errors.length && <p className="caption">Journal balance, date/currency consistency, and period checks passed. Unmatched account codes remain visible in completeness results.</p>}</div>}
           </div>
           <div className="panel panel-pad">
             <div className="between">

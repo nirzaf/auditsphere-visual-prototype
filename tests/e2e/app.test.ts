@@ -3671,11 +3671,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Accounting Workbench');
       await clickButtonStartingWith('General Ledger & Completeness');
       assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="General ledger source file"]')`), true, await browserTab!.evaluate<string>('document.body.innerText.slice(-1800)'));
-      const header='Journal ID,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance';
+      const header='Entry Reference,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance';
       const csvCell=(value:unknown)=>`"${String(value).replaceAll('"','""')}"`;
       const lines=fixtureEngagement.rows.flatMap((row,index)=>row.balance===0?[`J1,L${index+1}a,2026-09-23,${row.code},${csvCell(row.name)},1,0,QAR,Zero-balance control,0`,`J1,L${index+1}b,2026-09-23,${row.code},${csvCell(row.name)},0,1,QAR,Zero-balance control,0`]:[`J1,L${index+1},2026-09-23,${row.code},${csvCell(row.name)},${Math.max(row.balance,0)},${Math.max(-row.balance,0)},QAR,GL closing movement,0`]);
       const csv=[header,...lines].join('\n');
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="General ledger source file"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(csv)}],'gl-source.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('!!document.querySelector(\'[aria-label="GL source column: Journal ID"]\')'), true, 'unrecognized headers expose configurable field mapping');
+      await browserTab!.evaluate(`(() => {const control=document.querySelector('[aria-label="GL source column: Journal ID"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(control,'0');control.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser('document.body.innerText.includes("0 validation errors")'), true, await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(p=>p.innerText.includes('Import engagement GL source'))?.innerText||'panel not found'`));
       await clickButton('Import new revision');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true);
@@ -3683,7 +3685,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
       await clickButton('Accounting Workbench'); await clickButtonStartingWith('General Ledger & Completeness');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true, await browserTab!.evaluate<string>(`document.body.innerText.slice(-800)`));
-      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.glSourceHistory?.[0];return r?.revision===1&&r.transactions.length===8&&r.transactions.every(t=>t.engagementId===e.id)&&r.openingBalances['1000']===0&&/^[a-f0-9]{64}$/.test(r.sha256);})()`), true, 'source rows, engagement identity and file digest persist');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.glSourceHistory?.[0];return r?.revision===1&&r.transactions.length===8&&r.transactions.every(t=>t.engagementId===e.id)&&r.openingBalances['1000']===0&&r.columnMapping?.journal==='1: Entry Reference'&&/^[a-f0-9]{64}$/.test(r.sha256);})()`), true, 'source rows, chosen mapping, engagement identity and file digest persist');
       assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""'), /Reconciled/);
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Filter GL account"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'1000');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser('[...document.querySelectorAll(".panel")].find(p=>p.querySelector("h3")?.innerText.includes("GL Detailed Transactions"))?.querySelectorAll("tbody tr").length===1'), true, 'account filter narrows the source-bound drill-down');
