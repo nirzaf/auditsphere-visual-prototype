@@ -612,3 +612,11 @@ The release URL and `https://prototype.steaudit.com` both returned HTTP 200 and
 served `assets/index-HhJk7oJQ.js` (2,240,350 bytes; SHA-256
 `2221abaa2e7a0b7bba966c11c186905ed1ae652130f6ab85ee67b1efa68e849a`), matching
 the local build. Wrangler reports production source `326edbe`.
+
+VP-037 split allocation acceptance follow-up: AT-37 now edits account 1500 into
+60% Property and equipment / 40% Other current assets, records a new mapping
+revision, independently approves it, and verifies both statement lines and the
+XLSX source-account lineage and amounts. This journey ran against the same app
+code already live from `326edbe`; no application bundle changed. `npm run lint`
+passed, unit tests passed 145/145, and full build/Chrome acceptance passed
+64/64. The bundle-size advisory (>500 kB) remains.

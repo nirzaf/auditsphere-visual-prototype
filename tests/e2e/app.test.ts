@@ -2480,14 +2480,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         for(const row of e.rows){const select=document.querySelector('[aria-label="Statement line for account '+row.code+'"]');if(!select)throw Error('Missing mapping control for '+row.code);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,targets[row.type]);select.dispatchEvent(new Event('change',{bubbles:true}));}
       })()`);
       await clickButton('Save New Revision');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.querySelector('td')?.innerText.trim()==='1500');const button=[...(row?.querySelectorAll('button')||[])].find(item=>item.innerText.includes('Define Split'));if(!button)throw Error('Split editor not available for account 1500');button.click();})()`);
+      await browserTab!.evaluate(`(() => {
+        const modal=document.querySelector('.modal-content');
+        const lines=modal.querySelectorAll('select');
+        const setter=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;
+        setter.call(lines[0],'Property and equipment'); lines[0].dispatchEvent(new Event('change',{bubbles:true}));
+        setter.call(lines[1],'Other current assets'); lines[1].dispatchEvent(new Event('change',{bubbles:true}));
+        const inputs=modal.querySelectorAll('input[type="number"]');
+        const inputSetter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+        inputSetter.call(inputs[0],'60'); inputs[0].dispatchEvent(new Event('input',{bubbles:true}));
+        inputSetter.call(inputs[1],'40'); inputs[1].dispatchEvent(new Event('input',{bubbles:true}));
+      })()`);
+      await clickButton('Save Split Allocation');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).accountMappingRevisions.filter(item=>item.engagementId==='ENG-26001').at(-1).mappings.find(item=>item.accountCode==='1500').targets.reduce((sum,target)=>sum+target.percentage,0)===100`), true, 'split allocation conserves the complete account balance');
       await setRole('reviewer');
       const approveVisible = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Approve Revision v'));if(!b)return false;b.click();return true;})()`);
       assert.equal(approveVisible, true, 'reviewer can approve the newly saved draft revision');
       const approved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.accountMappingRevisions.filter(x=>x.engagementId===s.selectedEngagement).at(-1)})()`);
       assert.equal(approved.status, 'Approved');
+      assert.deepEqual(approved.mappings.find((item: any) => item.accountCode === '1500').targets, [
+        { statementLine: 'Property and equipment', percentage: 60 },
+        { statementLine: 'Other current assets', percentage: 40 }
+      ], 'independently approved revision retains split statement allocations');
       assert.equal(approved.mappings.length, (await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(x=>x.id===s.selectedEngagement).rows.length})()`)));
       await clickButton('Financial Statements');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Cash and cash equivalents · Source 1000 · Mapping Cash and cash equivalents/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Property and equipment · Source 1500 · Mapping Property and equipment/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Other current assets · Source 1500 · Mapping Other current assets/);
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Comparative period unavailable; 2025 accounts lack a complete independently approved mapping/);
       await setRole('preparer');
       await clickButton('Accounting Workbench');
@@ -2516,10 +2536,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const statementRows = XLSX.utils.sheet_to_json<any[]>(statementWorkbook.Sheets['Financial Data'], { header: 1, defval: '', range: 5 });
       assert.ok(statementRows[0].includes('Current FY2026 (QAR)') && statementRows[0].includes('Comparative FY2025 (QAR)'), 'statement export includes both reporting columns');
       const cashLine = statementRows.find((row: any[]) => row[0] === 'Cash and cash equivalents');
-      assert.equal(cashLine?.[1], 2250000);
+      assert.equal(cashLine?.[1], 1500000);
       assert.equal(cashLine?.[2], 800000);
-      assert.equal(cashLine?.[3], '1000, 1100, 1500');
+      assert.equal(cashLine?.[3], '1000, 1100');
       assert.equal(cashLine?.[4], '1000, 1100');
+      const otherCurrentAssetsLine = statementRows.find((row: any[]) => row[0] === 'Other current assets');
+      assert.equal(otherCurrentAssetsLine?.[1], 300000, '40% of account 1500 flows to Other current assets');
+      assert.equal(otherCurrentAssetsLine?.[3], '1500');
       await setRole('preparer');
       await clickButton('Save statement revision');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Latest: v1 · Draft/);

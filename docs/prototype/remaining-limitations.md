@@ -194,8 +194,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
 - **VP-037 — account mapping:** every account now requires an explicit mapping in
   a current independently approved revision before statements can be exported or
   a package can validate. Unmapped accounts are listed rather than silently
-  treated as legacy classifications. The AT-37 Chrome journey verifies blocking
-  and an approved mapping path; the remaining chart/period/dimension and
+  treated as legacy classifications. AT-37 now maps all accounts, saves a 60/40
+  split from property/equipment into other current assets, obtains independent
+  approval, traces both output lines to account 1500 in screen and XLSX, and
+  verifies source codes on export. The remaining chart/period/dimension and
   downstream rework matrix remains open.
 - **VP-040 — comparative statements:** the statement workspace now selects an
   earlier engagement for the same client/currency and shows current/prior asset,
