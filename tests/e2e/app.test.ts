@@ -3185,7 +3185,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         localStorage.setItem(key, JSON.stringify(newer)); return true;
       })()`);
       assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
-      assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector(".modal") && !document.querySelector("nav")'), true, 'revocation removes the open dialog and all stale workspace projections');
+      assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector(".modal") && !document.querySelector("nav") && !document.querySelector("main#main") && document.querySelectorAll("#app-root button").length === 2'), true, 'revocation removes the open dialog and all stale workspace projections');
       assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.every(c=>c.name!=='Blocked stale-tab client')`), true, 'stale dialog cannot save a business record');
       await clickButton('Keep this tab and replace newer state');
       const backup = await browserTab!.evaluate<string>('localStorage.getItem("ste-auditsphere-role-portals-v2.backup") || ""');
