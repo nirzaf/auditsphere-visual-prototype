@@ -415,3 +415,17 @@ deployed to the same production Pages project. Wrangler identifies deployment
 served bundles contain the setup editor, guarded import and stale-package
 controls. `npm run lint`, `npm run test:unit` (139/139), `npm run test:e2e`
 (58/58), and `git diff --check` passed before deployment.
+
+VP-055 version-bound review-note follow-up: commit `062ecfb` is on `main` and
+deployed to the existing `steaudit-prototype` production Pages project on
+`production` as deployment `f049502c-fd22-400d-98f7-f95587ead5a0`
+(`https://f049502c.steaudit-prototype.pages.dev`). Wrangler reports source
+`062ecfb`. The release URL and `https://prototype.steaudit.com` both returned
+HTTP 200 and served `assets/index-BE5eoY-k.js` (2,201,943 bytes; SHA-256
+`0a3b2a84e708640e1aba927e436781023e7864518f31266b19a224e6a8b1e26e`). The
+custom hostname initially returned its previous HTML bundle; a no-cache
+request then served the deployment bundle. Verification before deployment:
+`npm run lint`, `npm run test:unit` (141/141), and `npm run test:e2e` (59/59).
+The issued-artifact/version-bound review journey passes; other review queues,
+filters and assignment gaps remain open, so VP-055 and overall acceptance
+remain Partial.
