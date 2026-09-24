@@ -2183,17 +2183,27 @@ class PrototypeStore {
     if (!group.name.trim() || group.components.length !== 2 || new Set(group.components.map(c => c.componentId)).size !== 2) throw new GuardError('INVALID_STATE', 'This prototype supports named consolidation groups with exactly two distinct explicitly selected components.');
     if (new Set(group.components.map(component => component.role)).size !== 2 || !group.components.some(component => component.role === 'Parent') || !group.components.some(component => component.role === 'Subsidiary') || group.components.some(component => component.ownershipPercent !== 100)) throw new GuardError('INVALID_STATE', 'This prototype supports one Parent and one 100% owned Subsidiary; other ownership methods cannot be calculated.');
     if (!/FY\s+\d{4}/.test(group.period) || !/^[A-Z]{3}$/.test(group.presentationCurrency || group.currency)) throw new GuardError('INVALID_STATE', 'Enter a reporting period and ISO currency code.');
+    const parent = group.components.find(component => component.role === 'Parent');
+    const parentEngagement = this.state.engagements.find(engagement => engagement.id === parent?.componentId);
+    const parentProfile = this.state.clients.find(client => client.id === parentEngagement?.client)?.accountingProfile;
+    if (!group.reportingBasis && parentProfile && parentProfile.reportingBasis !== 'Not selected') group.reportingBasis = parentProfile.reportingBasis;
+    if (!group.reportingBasis) throw new GuardError('INVALID_STATE', 'Select a supported group reporting basis.');
     const index = this.state.consolidationGroups.findIndex(item => item.id === group.id);
     const existingGroup = this.state.consolidationGroups[index];
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
       requireEngagementScope(this.state, engagement.id);
+      const client = this.state.clients.find(item => item.id === engagement.client);
+      const profile = client?.accountingProfile;
+      const periodBook = profile?.periodBooks.find(book => book.id === engagement.accountingPeriodBookId && book.ownerEngagementId === engagement.id && book.status === 'Open');
+      if (!profile || profile.reportingBasis !== group.reportingBasis || !periodBook) throw new GuardError('INVALID_STATE', `Component ${component.componentId} has an incompatible or unselected reporting basis/period book.`);
       if (!Number.isInteger(component.packageRevisionPinned) || component.packageRevisionPinned! < 1 || !component.packageRows) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an explicit pinned package snapshot.`);
       const priorPin = existingGroup?.components.find(item => item.componentId === component.componentId);
       const keepsPriorSnapshot = Boolean(priorPin && priorPin.packageRevisionPinned === component.packageRevisionPinned && JSON.stringify(priorPin.packageRows) === JSON.stringify(component.packageRows));
       const pinsCurrentSnapshot = component.packageRevisionPinned === engagement.packageRevision && JSON.stringify(component.packageRows) === JSON.stringify(engagement.rows);
       if (!keepsPriorSnapshot && !pinsCurrentSnapshot) throw new GuardError('STALE_REVISION', `Component ${component.componentId} must retain its pinned snapshot or pin the exact current engagement package revision.`);
+      if (component.status === 'Ready' && (!component.packageReview || component.packageReview.componentId !== component.componentId || component.packageReview.packageRevision !== component.packageRevisionPinned || component.packageReview.sourceVersion !== engagement.sourceVersion || component.packageReview.reportingBasis !== profile.reportingBasis || component.packageReview.period !== group.period || !component.packageReview.evidenceRef.trim() || !this.state.users.some(user => user.id === component.packageReview?.reviewedByUserId && user.status === 'Active'))) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires a current package review for its exact source, basis and period.`);
       if (!/^[A-Z]{3}$/.test(component.currency)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires an ISO currency code.`);
       if (component.effectiveDate !== undefined && component.effectiveDate !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(component.effectiveDate) || Number.isNaN(Date.parse(component.effectiveDate)) || new Date(`${component.effectiveDate}T00:00:00Z`).toISOString().slice(0, 10) !== component.effectiveDate)) throw new GuardError('INVALID_STATE', `Component ${component.componentId} requires a valid effective date (YYYY-MM-DD).`);
     }

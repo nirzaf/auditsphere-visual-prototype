@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 22;
+export const CURRENT_SCHEMA = 23;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -334,6 +334,19 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }
     }
     warnings.push('Corrected the seeded wholly owned consolidation component label; unsupported associate accounting methods remain unchanged (v22).');
+  }
+  if (from < 23) {
+    for (const group of state.consolidationGroups || []) {
+      const parent = group.components.find(component => component.role === 'Parent');
+      const engagement = state.engagements.find(item => item.id === parent?.componentId);
+      const profile = state.clients.find(item => item.id === engagement?.client)?.accountingProfile;
+      if (!group.reportingBasis && profile?.reportingBasis !== 'Not selected') group.reportingBasis = profile?.reportingBasis;
+      for (const component of group.components) {
+        delete component.packageReview;
+        component.status = 'Pending';
+      }
+    }
+    warnings.push('Pinned prior consolidation snapshots for explicit basis, period and package-review revalidation (v23).');
   }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];

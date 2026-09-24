@@ -940,6 +940,7 @@ export function createInitialState(): PrototypeState {
         name: 'Example Group Holdings',
         period: 'FY 2026',
         currency: 'QAR',
+        reportingBasis: 'IFRS',
         manager: 'Layla Rahman',
         status: 'In progress',
         components: [
@@ -1370,7 +1371,20 @@ export function createInitialState(): PrototypeState {
   for (const group of state.consolidationGroups) {
     for (const component of group.components) {
       const engagement = state.engagements.find(e => e.id === component.componentId);
-      if (engagement && component.packageRevisionPinned === engagement.packageRevision) component.packageRows = structuredClone(engagement.rows);
+      if (engagement && component.packageRevisionPinned === engagement.packageRevision) {
+        component.packageRows = structuredClone(engagement.rows);
+        component.status = 'Ready';
+        component.packageReview = {
+          componentId: component.componentId,
+          packageRevision: engagement.packageRevision,
+          sourceVersion: engagement.sourceVersion,
+          reportingBasis: group.reportingBasis || 'IFRS',
+          period: group.period,
+          reviewedByUserId: state.users.find(user => user.name === group.manager)?.id || state.currentUserId,
+          reviewedAt: state.asOfDate,
+          evidenceRef: `SYNTHETIC-REVIEW-${group.id}-${component.componentId}`
+        };
+      }
     }
   }
   const cashWp = state.engagements.find(item => item.id === 'ENG-26001')?.workpapers.find(item => item.id === 'WP-A1');

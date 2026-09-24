@@ -46,6 +46,7 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
   const snapshot = prototypeStore.getSnapshot();
   const periodYear = Number(group.period.match(/\d{4}/)?.[0]);
   const subComp = group.components.find(c => c.role === 'Subsidiary');
+  const [reportingBasis, setReportingBasis] = useState(group.reportingBasis || '');
   const visible = visibleEngagementIds(snapshot);
   const candidates = snapshot.engagements.filter(e =>
     e.year === periodYear &&
@@ -55,19 +56,39 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
   const [dates, setDates] = useState<Record<string, string>>(() => Object.fromEntries(group.components.map(c => [c.componentId, c.effectiveDate || ''])));
   const [subsidiaryId, setSubsidiaryId] = useState(subComp?.componentId || '');
   const [reason, setReason] = useState('');
+  const [reviewEvidence, setReviewEvidence] = useState('');
   const [notice, setNotice] = useState('');
   const repinCurrentPackages = () => {
     try {
       const next = structuredClone(group);
+      next.reportingBasis = reportingBasis as ConsolidationGroup['reportingBasis'];
+      if (next.reportingBasis !== group.reportingBasis) for (const component of next.components) { component.status = 'Pending'; delete component.packageReview; }
       for (const component of next.components) {
         const engagement = snapshot.engagements.find(item => item.id === component.componentId);
         if (!engagement) throw new Error(`Engagement "${component.componentId}" is no longer available.`);
         component.packageRevisionPinned = engagement.packageRevision;
         component.packageRows = structuredClone(engagement.rows);
-        component.status = 'Ready';
+        component.status = 'Pending';
+        delete component.packageReview;
       }
       prototypeStore.updateConsolidationGroup(next, { reason });
       setNotice('Current component package revisions pinned; prior snapshots remain in group history.');
+    } catch (error: any) { setNotice(error.message); }
+  };
+  const reviewCurrentPackages = () => {
+    try {
+      if (!reviewEvidence.trim()) throw new Error('Record the supporting package review evidence reference.');
+      const next = structuredClone(group);
+      for (const component of next.components) {
+        const engagement = snapshot.engagements.find(item => item.id === component.componentId);
+        const client = snapshot.clients.find(item => item.id === engagement?.client);
+        const basis = group.reportingBasis || client?.accountingProfile?.reportingBasis;
+        if (!engagement || !basis || basis === 'Not selected' || component.packageRevisionPinned !== engagement.packageRevision || JSON.stringify(component.packageRows) !== JSON.stringify(engagement.rows)) throw new Error(`Pin the exact current source, basis and period for ${component.componentId} before review.`);
+        component.status = 'Ready';
+        component.packageReview = { componentId: component.componentId, packageRevision: component.packageRevisionPinned!, sourceVersion: engagement.sourceVersion, reportingBasis: basis, period: group.period, reviewedByUserId: snapshot.currentUserId, reviewedAt: new Date().toISOString(), evidenceRef: reviewEvidence.trim() };
+      }
+      prototypeStore.updateConsolidationGroup(next, { reason });
+      setNotice('Pinned component packages reviewed against the selected basis and period.');
     } catch (error: any) { setNotice(error.message); }
   };
   const save = (event: React.FormEvent) => {
@@ -92,7 +113,8 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
         delete target.effectiveDate;
         target.packageRevisionPinned = engagement.packageRevision;
         target.packageRows = structuredClone(engagement.rows);
-        target.status = 'Ready';
+        target.status = 'Pending';
+        delete target.packageReview;
       }
       prototypeStore.updateConsolidationGroup(next, { reason });
       const saved = prototypeStore.getSnapshot().consolidationGroups.find(g => g.id === group.id);
@@ -114,10 +136,12 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
         {group.components.map(component => <label className="caption" key={component.componentId}>Effective date — {component.role} ({component.componentId})<input className="input mt4" aria-label={`Effective date for ${component.role} component`} placeholder="YYYY-MM-DD" value={dates[component.componentId] ?? ''} onChange={event => setDates({ ...dates, [component.componentId]: event.target.value })} /></label>)}
       </div>
       <div className="grid2 mt8">
+        <label className="caption">Group reporting basis<select className="input mt4" aria-label="Group reporting basis" value={reportingBasis} onChange={event => setReportingBasis(event.target.value)}><option value="">Select a basis</option><option>IFRS</option><option>Local GAAP</option><option>Other</option></select></label>
         <label className="caption">Subsidiary component engagement<select className="input mt4" aria-label="Subsidiary component engagement" value={subsidiaryId} onChange={event => setSubsidiaryId(event.target.value)}>{candidates.map(e => <option key={e.id} value={e.id}>{e.id} · {snapshot.clients.find(c => c.id === e.client)?.name || e.client} · FY {e.year}</option>)}</select></label>
         <label className="caption">Reason for perimeter change or revert<input className="input mt4" aria-label="Reason for perimeter change" placeholder="e.g. Correct subsidiary to the in-scope 2026 engagement" value={reason} onChange={event => setReason(event.target.value)} /></label>
       </div>
-      <div className="row mt12"><button className="btn primary sm" type="submit">Save perimeter revision</button><button className="btn sm" type="button" onClick={repinCurrentPackages}>Pin current component packages</button></div>
+      <label className="caption mt8">Package review evidence reference<input className="input mt4" aria-label="Package review evidence reference" value={reviewEvidence} onChange={event => setReviewEvidence(event.target.value)} placeholder="e.g. GROUP-PACKAGE-REVIEW-01" /></label>
+      <div className="row mt12"><button className="btn primary sm" type="submit">Save perimeter revision</button><button className="btn sm" type="button" onClick={repinCurrentPackages}>Pin current component packages</button><button className="btn sm" type="button" onClick={reviewCurrentPackages}>Review pinned component packages</button></div>
       {notice && <p role="status" className="caption mt8">{notice}</p>}
     </form>
     {(group.perimeterHistory || []).length > 0 && <div className="mt16">
@@ -229,19 +253,23 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   }
   const missingPackage = !parentComp?.packageRows?.length || !subComp?.packageRows?.length || !parentEng || !subEng || !parentComp.packageRevisionPinned || !subComp.packageRevisionPinned;
   const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
+  const incompatibleBasis = group.components.filter(component => state.clients.find(client => client.id === state.engagements.find(engagement => engagement.id === component.componentId)?.client)?.accountingProfile?.reportingBasis !== group.reportingBasis);
+  const unreviewedComponents = group.components.filter(component => component.status !== 'Ready' || !component.packageReview || component.packageReview.componentId !== component.componentId || component.packageReview.packageRevision !== component.packageRevisionPinned || component.packageReview.sourceVersion !== state.engagements.find(item => item.id === component.componentId)?.sourceVersion || component.packageReview.reportingBasis !== group.reportingBasis || component.packageReview.period !== group.period);
   const staleComponents = group.components.filter(component => {
     const current = state.engagements.find(engagement => engagement.id === component.componentId);
     return !current || component.packageRevisionPinned !== current.packageRevision || JSON.stringify(component.packageRows) !== JSON.stringify(current.rows);
   });
 
-  if (missingPackage || missingRate) {
+  if (missingPackage || missingRate || !group.reportingBasis || incompatibleBasis.length > 0) {
     const missingComponent = group.components.find(c => !state.engagements.some(e => e.id === c.componentId) || !c.packageRows?.length)?.componentId;
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
         <Icon name="layers" size="xl" className="text-muted mb16" />
-        <h3>{missingPackage ? 'Pinned Component Package Required' : 'Currency Rate Required'}</h3>
+        <h3>{!group.reportingBasis || incompatibleBasis.length ? 'Reporting Basis Review Required' : missingPackage ? 'Pinned Component Package Required' : 'Currency Rate Required'}</h3>
         <p className="sub max-w-md mx-auto mt8">
-          {missingPackage
+          {!group.reportingBasis || incompatibleBasis.length
+            ? `The group uses ${group.reportingBasis || 'no selected reporting basis'}; every component must use the same selected basis. Review ${incompatibleBasis.map(component => component.componentId).join(', ') || 'the group accounting setup'} before calculating.`
+            : missingPackage
             ? missingRoles.length
               ? `The group perimeter is incomplete (missing ${missingRoles.join(' and ')}); add the required component before calculating consolidated balances.`
               : `Component ${missingComponent || '(unspecified)'} has no exact engagement and reporting-package snapshot.`
@@ -249,16 +277,19 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
           {' '}Live engagement balances are never substituted for missing pinned data.
         </p>
         {missingRate && <div className="max-w-md mx-auto mt16"><FxRateEditor group={group} /></div>}
-        {missingPackage && <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>Go to Engagements</button>}
+        {(missingPackage || incompatibleBasis.length > 0) && <button className="btn primary sm mt16" onClick={() => onNavigate(incompatibleBasis.length > 0 ? 'accounting-setup' : 'engagements')}>{incompatibleBasis.length > 0 ? 'Review Accounting Setup' : 'Go to Engagements'}</button>}
       </div>
     );
   }
 
   const translate = (rows: TrialBalanceRow[], rate: number) => rows.map(row => ({ ...row, balance: Math.round(row.balance * rate * 100) / 100 }));
   const approvedEliminations = group.eliminations.filter(e => e.status === 'Approved');
+  const translatedParent = translate(parentComp!.packageRows!, fxRate(parentComp!));
+  const translatedSub = translate(subComp!.packageRows!, fxRate(subComp!));
+  const translationCheck = calculateConsolidatedBalanceSheet(translatedParent, translatedSub, []);
   const consolidated = calculateConsolidatedBalanceSheet(
-    translate(parentComp!.packageRows!, fxRate(parentComp!)),
-    translate(subComp!.packageRows!, fxRate(subComp!)),
+    translatedParent,
+    translatedSub,
     approvedEliminations
   );
   const parentClient = state.clients.find(c => c.id === parentEng!.client);
@@ -281,7 +312,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
           <div>
             <span className="eyebrow">CONSOLIDATION GROUP · {group.id}</span>
             <h2>{group.name}</h2>
-            <p className="sub">Presentation Currency: {groupCurrency} · Components: {group.components.length} · Period: {group.period}</p>
+          <p className="sub">Presentation Currency: {groupCurrency} · Basis: {group.reportingBasis} · Components: {group.components.length} · Period: {group.period}</p>
           </div>
           <span className="badge amber">Local calculation · not independently reviewed</span>
         </div>
@@ -309,6 +340,10 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
             <b>Stale component package pin</b>
             <div className="sub mt4">{staleComponents.map(component => `${component.role || 'Component'} ${component.componentId}`).join(', ')} has a newer source revision. Figures remain based on the exact pinned snapshot; review the perimeter and pin current component packages before relying on this output.</div>
           </div>}
+          {unreviewedComponents.length > 0 ? <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
+            <b>Component Package Review Required</b>
+            <div className="sub mt4">No consolidated figures are available until the current package revisions for {unreviewedComponents.map(component => `${component.role || 'Component'} ${component.componentId}`).join(', ')} are explicitly reviewed with an evidence reference under the selected basis and period.</div>
+          </div> : <>
           {unmatchedEliminationLines.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
             <b>Some approved elimination accounts do not match the pinned packages.</b>
             <div className="sub mt4">These lines were excluded from the calculation: {unmatchedEliminationLines.join('; ')}</div>
@@ -403,6 +438,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
               </table>
             </div>
           </div>
+          </>}
         </div>
       )}
 
@@ -438,8 +474,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                       <td>{c.ownershipPercent ?? c.ownershipPct ?? 100}%</td>
                       <td>{c.effectiveDate || '—'}</td>
                       <td>{c.functionalCurrency || c.currency}</td>
-                      <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b></td>
-                      <td><span className={`badge ${!c.packageRows ? 'red' : stale ? 'amber' : 'green'}`}>{!c.packageRows ? 'Missing snapshot' : stale ? 'Stale package pin' : 'Pinned snapshot'}</span></td>
+                      <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b><div className="cell-sub">{clientRecord?.accountingProfile?.reportingBasis || 'Basis not selected'} · review evidence: {c.packageReview?.evidenceRef || 'none'}</div></td>
+                      <td><span className={`badge ${!c.packageRows ? 'red' : stale ? 'amber' : c.status === 'Ready' ? 'green' : 'amber'}`}>{!c.packageRows ? 'Missing snapshot' : stale ? 'Stale package pin' : c.status === 'Ready' ? 'Reviewed' : 'Review required'}</span></td>
                     </tr>
                   );
                 })}
@@ -479,12 +515,16 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {activeTab === 'fx' && (
         <div className="stack" style={{ gap: 12 }}>
           <FxRateEditor group={group} />
+          <div className="panel panel-pad">
+            <h3>Translation balancing check</h3>
+            <p className="sub">Before group eliminations, translated assets less liabilities and equity: <b>{formatCurrency(Math.abs(translationCheck.totalAssets - (translationCheck.totalLiabilities + translationCheck.totalEquity)), groupCurrency)}</b>. {translationCheck.isBalanced ? 'Translated components reconcile.' : 'The difference remains unallocated; no plug is added.'}</p>
+          </div>
           {group.components.map(component => {
             const rate = fxRate(component);
             const currentRate = (group.fxRateHistory?.[component.currency] || []).at(-1);
             return <div key={component.componentId} className="borderbox panel-pad">
               <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{rate} ×</b></div>
-              <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · {currentRate ? `rate v${currentRate.revision}, ${currentRate.purpose}, effective ${currentRate.effectiveDate}` : 'presentation-currency rate 1'} · closing rate applies to each balance-sheet line</div>
+              <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · basis {group.reportingBasis} · {currentRate ? `rate v${currentRate.revision}, ${currentRate.purpose}, effective ${currentRate.effectiveDate}` : 'presentation-currency rate 1'} · review {component.status === 'Ready' ? `accepted with ${component.packageReview?.evidenceRef}` : 'required'} · closing rate applies to each balance-sheet line</div>
               <div className="tablewrap mt8"><table>
                 <thead><tr><th>Account / source amount ({component.currency})</th><th>Rate</th><th>Translated amount ({groupCurrency})</th><th>Rounding difference</th></tr></thead>
                 <tbody>{(component.packageRows || []).map(row => {

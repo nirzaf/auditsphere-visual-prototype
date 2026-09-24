@@ -921,6 +921,7 @@ export interface ConsolidationGroupRecord {
   name: string;
   period: string;
   currency: string;
+  reportingBasis?: 'IFRS' | 'Local GAAP' | 'Other';
   presentationCurrency?: string;
   manager: string;
   status: 'Draft' | 'In progress' | 'Reviewed' | 'Approved';
@@ -940,6 +941,7 @@ export interface ConsolidationGroupRecord {
     pinnedPackageRev?: number;
     packageRows?: TrialBalanceRow[];
     status: 'Ready' | 'Pending' | 'Stale';
+    packageReview?: { componentId: string; packageRevision: number; sourceVersion: number; reportingBasis: 'IFRS' | 'Local GAAP' | 'Other'; period: string; reviewedByUserId: string; reviewedAt: string; evidenceRef: string };
   }>;
   fxRates: Record<string, number>; // Currency -> Rate to Group currency
   fxRateHistory?: Record<string, Array<{ revision: number; rate: number; purpose: 'Closing'; effectiveDate: string; changedBy: string; changedAt: string }>>;

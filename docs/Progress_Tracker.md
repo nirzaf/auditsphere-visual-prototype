@@ -492,10 +492,10 @@ Inventory the active Vite routes, renderer overrides, actions, service cards, fi
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-001-AC01 | Given the current product navigation, when a user inspects features/settings, then no excluded module is offered as available, optional setup, or a release prerequisite. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-001-AC02 | Given historical requirements that mention excluded products, when opened deliberately, then the historical scope warning is visible and the text does not enable a business action. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-001-AC03 | Existing PBC, workpaper, review and release demonstrations remain reachable; removing signature-provider wording does not remove manual acceptance or internal approval. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-001-AC04 | Tests scan target-facing route/configuration data and exercise relevant screens; an explicit allowlist covers exclusion documentation and historical references only. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-001-AC01 | Given the current product navigation, when a user inspects features/settings, then no excluded module is offered as available, optional setup, or a release prerequisite. | SUBCASES VERIFIED 2026-09-24 — unit basis/owned-period guard and AT-44 pending-review output block; exact source revision, basis, period and evidence are checked before Ready. Full package-artifact lineage remains open. |
+| VP-001-AC02 | Given historical requirements that mention excluded products, when opened deliberately, then the historical scope warning is visible and the text does not enable a business action. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-001-AC03 | Existing PBC, workpaper, review and release demonstrations remain reachable; removing signature-provider wording does not remove manual acceptance or internal approval. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-001-AC04 | Tests scan target-facing route/configuration data and exercise relevant screens; an explicit allowlist covers exclusion documentation and historical references only. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L288).
 
@@ -545,10 +545,10 @@ Create a typed prototype store, command boundary, selectors and explicit legacy 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-002-AC01 | Given an engagement updated in a new React page, when a retained accounting/workpaper view opens, then it reads the same ID and latest revision without a reload/reset. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-002-AC02 | Given a retained legacy action, when it changes shared state, then subscribed new views update once and persist the same revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-002-AC03 | Navigating repeatedly, mounting/unmounting and development hot reload do not duplicate roots, event handlers, dialogs or command execution. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-002-AC04 | Existing hash routes remain compatible or receive an explicit redirect; generated legacy bundles are regenerated from source, not independently patched. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-002-AC01 | Given an engagement updated in a new React page, when a retained accounting/workpaper view opens, then it reads the same ID and latest revision without a reload/reset. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-002-AC02 | Given a retained legacy action, when it changes shared state, then subscribed new views update once and persist the same revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-002-AC03 | Navigating repeatedly, mounting/unmounting and development hot reload do not duplicate roots, event handlers, dialogs or command execution. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-002-AC04 | Existing hash routes remain compatible or receive an explicit redirect; generated legacy bundles are regenerated from source, not independently patched. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L305).
 
@@ -600,10 +600,10 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-003-AC01 | Given a direct link or restored selection outside the current scope, when opened, then a safe unavailable view appears and no restricted record fields/counts are rendered. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-003-AC01 | Given a direct link or restored selection outside the current scope, when opened, then a safe unavailable view appears and no restricted record fields/counts are rendered. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 | VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | SUBCASES VERIFIED 2026-09-24: M365 setup and Client 360 Add Contact guard route/persona/engagement changes. Save persists before switching, Discard drops the draft, and Stay preserves it. Global-search Stay preserves context and search Discard switches after dropping the draft. Other forms, client-selector and denied/restored target cases remain open. |
 | VP-003-AC03 | Keyboard-only users can open, edit, save and cancel dialogs with focus restored to the initiating control. | SUBCASES VERIFIED 2026-09-24: client/New Job keyboard open, Tab containment, Escape cancel, Enter submit and focus restoration pass in Chrome. Each dialog-specific close path and keyboard editing breadth remain open. |
-| VP-003-AC04 | Every active route has a label, required capability and at least one role fixture; client routes contain no staff economics, internal notes or presenter exports. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-003-AC04 | Every active route has a label, required capability and at least one role fixture; client routes contain no staff economics, internal notes or presenter exports. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L322).
 
@@ -632,7 +632,7 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 **Original journey links:** [AT-01](#at-01), [AT-02](#at-02), [AT-22](#at-22), [AT-54](#at-54); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Schema migrations, integrity checks, presenter scenarios, concurrent-save detection, quota/session-only handling and malformed-JSON backup/recovery exist. Migration unit checks exercise each persisted revision 0–21 to current schema 22. The 2026-09-24 recovery journey also verifies exact preservation of a future-schema payload, rejection of ambiguous import without overwriting that payload, and successful validated v22 import. Date and fixture-integrity guards reject impossible dates, reversed periods, broken foreign references, real-person email, and monetary imbalance.
+Schema migrations, integrity checks, presenter scenarios, concurrent-save detection, quota/session-only handling and malformed-JSON backup/recovery exist. Migration unit checks exercise each persisted revision 0–22 to current schema 23. The 2026-09-24 recovery journey also verifies exact preservation of a future-schema payload, rejection of ambiguous import without overwriting that payload, and successful validated v23 import. Date and fixture-integrity guards reject impossible dates, reversed periods, broken foreign references, real-person email, and monetary imbalance.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
@@ -641,7 +641,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata; current unit checks cover the binary-payload guard and Chrome verifies future-schema backup preservation.
 
-- [x] **VP-004-R03 — Requirement/scope reconciliation:** Unit coverage exercises each persisted schema revision 0–21 through pinned current schema 22, including legacy-field shapes and retained IDs/history. Evidence: `npm run test:unit`, 161/161 passing, 2026-09-24.
+- [x] **VP-004-R03 — Requirement/scope reconciliation:** Unit coverage exercises each persisted schema revision 0–22 through pinned current schema 23, including legacy-field shapes and retained IDs/history. Evidence: `npm run test:unit`, 161/161 passing, 2026-09-24.
 
 #### Original user story and dependencies
 **Target modules:** Cross-cutting foundation  
@@ -655,7 +655,7 @@ Add schema-versioned migrations and named synthetic scenarios: full practice lif
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-004-AC01 | Given a valid old storage payload, when upgraded, then existing workpaper/PBC/release history is retained and unambiguous links are migrated deterministically. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-004-AC01 | Given a valid old storage payload, when upgraded, then existing workpaper/PBC/release history is retained and unambiguous links are migrated deterministically. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 | VP-004-AC02 | Given malformed, future-version or ambiguous state, when loaded/imported, then recovery guidance appears without silent deletion or invented scope; the prior payload can be preserved. | SUBCASES VERIFIED 2026-09-24: malformed and parseable-but-incomplete v22 payloads remain preserved byte-for-byte; future-schema export is exact; ambiguous import is rejected without overwrite; validated v22 import clears recovery state while retaining its backup. Full historical-shape coverage remains open. |
 | VP-004-AC03 | Storage denial/quota failure shows session-only mode; a stale second tab cannot silently overwrite a newer revision. | SUBCASES VERIFIED 2026-09-24 by AT-02/AT-54 Chrome conflict and storage-failure journeys; criterion breadth remains open. |
 | VP-004-AC04 | Fixture integrity tests reject broken foreign references, incoherent dates, real personal data, uploaded binary payloads and inconsistent monetary control totals. | SUBCASES VERIFIED 2026-09-24: FK, impossible date, reversed accounting period, real email, binary payload and monetary control checks pass in 161/161 unit tests; full fixture inventory sign-off remains open. |
@@ -710,10 +710,10 @@ Extend rather than discard existing role homepages. Show my tasks, jobs by state
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-005-AC01 | Given a task/date/status or PBC change, when returning to the dashboard, then its counters and drill-down rows agree with the underlying register. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-005-AC01 | Given a task/date/status or PBC change, when returning to the dashboard, then its counters and drill-down rows agree with the underlying register. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 | VP-005-AC02 | Given a narrow engagement grant, when viewing a count or recent-activity card, then sibling engagements and other clients do not contribute. | SUBCASES VERIFIED 2026-09-24: narrow billing grant shows one engagement and omits ENG-26002 and its sibling job; existing group-user journey also omits sibling client/job/activity. Other narrow-grant cards and role combinations remain open. |
 | VP-005-AC03 | Overdue calculations use the fixed demo as-of date; completed/cancelled work is excluded and empty data shows an honest zero/empty state. | SUBCASES VERIFIED 2026-09-24: no-engagement scope renders six zero metrics, hides stale out-of-scope selection, and shows task/job/activity empty states; active-engagement drill-down shows zero matches. Fixed-date checks confirm completed/cancelled exclusion and blocked overdue work remains actionable. Remaining full role/filter combinations remain open. |
-| VP-005-AC04 | All headline metrics open a filtered working list; no placeholder chart or hard-coded success percentage is presented as computed data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-005-AC04 | All headline metrics open a filtered working list; no placeholder chart or hard-coded success percentage is presented as computed data. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L358).
 
@@ -763,10 +763,10 @@ Required: client code, legal name, client type, status and owner. Optional: trad
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-006-AC01 | Given a valid profile, when saved/edited, then lists, selection controls and existing engagement links reflect the same client ID. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-006-AC02 | Duplicate normalized client code is rejected; similar name/registration presents a review warning rather than silently merging distinct legal entities. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-006-AC03 | An inactive/suspended client cannot receive new active professional work without an explicit permitted action; historical records remain viewable within scope. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-006-AC04 | A stale edit, missing legal name, invalid contact value or unauthorized owner assignment returns a field/action error without partially saving. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-006-AC01 | Given a valid profile, when saved/edited, then lists, selection controls and existing engagement links reflect the same client ID. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-006-AC02 | Duplicate normalized client code is rejected; similar name/registration presents a review warning rather than silently merging distinct legal entities. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-006-AC03 | An inactive/suspended client cannot receive new active professional work without an explicit permitted action; historical records remain viewable within scope. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-006-AC04 | A stale edit, missing legal name, invalid contact value or unauthorized owner assignment returns a field/action error without partially saving. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L375).
 
@@ -816,10 +816,10 @@ Contacts need full name and related client; email, phone, job title, primary fla
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-007-AC01 | Given several contacts, when one is made primary, then the previous primary is cleared within that client and an inactive contact cannot be chosen. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-007-AC02 | Linking clients into a relationship group does not grant access to their siblings or create a consolidation group. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-007-AC03 | Creating a contact does not create a portal login, management authority or staff role; a separate access request is required. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-007-AC04 | Custom values validate against type/choices; disabling a used field preserves historical values and no arbitrary script/formula field is supported. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-007-AC01 | Given several contacts, when one is made primary, then the previous primary is cleared within that client and an inactive contact cannot be chosen. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-007-AC02 | Linking clients into a relationship group does not grant access to their siblings or create a consolidation group. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-007-AC03 | Creating a contact does not create a portal login, management authority or staff role; a separate access request is required. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-007-AC04 | Custom values validate against type/choices; disabling a used field preserves historical values and no arbitrary script/formula field is supported. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L392).
 
@@ -869,10 +869,10 @@ Create tabs/panels for Overview, Contacts, Engagements, Jobs, Documents, Request
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-008-AC01 | Given a client, when opening each authorized tab, then all records belong to that client and narrower engagement restrictions are applied. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-008-AC02 | Creating a job, request, note or invoice from a tab preselects valid context; saving makes it visible both here and in its module register. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-008-AC03 | Unauthorized tabs, totals, search snippets and recent items are omitted rather than masked after fetching/rendering a broader projection. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-008-AC04 | Back/forward, deep links and page reload restore context safely; an empty tab explains the next allowed manual action. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-008-AC01 | Given a client, when opening each authorized tab, then all records belong to that client and narrower engagement restrictions are applied. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-008-AC02 | Creating a job, request, note or invoice from a tab preselects valid context; saving makes it visible both here and in its module register. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-008-AC03 | Unauthorized tabs, totals, search snippets and recent items are omitted rather than masked after fetching/rendering a broader projection. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-008-AC04 | Back/forward, deep links and page reload restore context safely; an empty tab explains the next allowed manual action. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L409).
 
@@ -973,10 +973,10 @@ Add service catalogue editing for only supported services and reusable proposal 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-010-AC01 | Given selected services/template, when drafting, then defaults copy once and remain editable without modifying the source template. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-010-AC02 | Line totals and overall fee reconcile; missing scope/deliverables/currency and invalid period or negative quantities block submission. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-010-AC03 | Editing a submitted/approved/presented proposal invalidates applicability of prior commercial review and retains the earlier preview/revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-010-AC04 | The catalogue and previews contain no tax/payroll, AI, recurring-work, payment-gateway or signature-provider options. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-010-AC01 | Given selected services/template, when drafting, then defaults copy once and remain editable without modifying the source template. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-010-AC02 | Line totals and overall fee reconcile; missing scope/deliverables/currency and invalid period or negative quantities block submission. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-010-AC03 | Editing a submitted/approved/presented proposal invalidates applicability of prior commercial review and retains the earlier preview/revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-010-AC04 | The catalogue and previews contain no tax/payroll, AI, recurring-work, payment-gateway or signature-provider options. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L443).
 
@@ -1026,10 +1026,10 @@ Reuse independent commercial review. Reviewer approves or returns with reasons. 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-011-AC01 | Given a submitted proposal, when its preparer attempts commercial approval under another role, then the same-person action is denied. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-011-AC02 | Given an approved presented revision, when a response is recorded, then actor, contact, date, method and exact revision are retained and a required evidence reference can be supplied. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-011-AC03 | Accepted commercial terms do not automatically approve the client, activate an engagement, instantiate jobs or create an invoice. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-011-AC04 | A response to a superseded/unpresented revision is rejected or recorded only as historical correspondence, never as acceptance of the current revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-011-AC01 | Given a submitted proposal, when its preparer attempts commercial approval under another role, then the same-person action is denied. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-011-AC02 | Given an approved presented revision, when a response is recorded, then actor, contact, date, method and exact revision are retained and a required evidence reference can be supplied. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-011-AC03 | Accepted commercial terms do not automatically approve the client, activate an engagement, instantiate jobs or create an invoice. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-011-AC04 | A response to a superseded/unpresented revision is rejected or recorded only as historical correspondence, never as acceptance of the current revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L460).
 
@@ -1081,10 +1081,10 @@ Complete engagement records with client, service, period, partner/manager, team 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-012-AC01 | Creating from an accepted proposal prepopulates a draft once; repeat submission does not create duplicate engagements. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-012-AC02 | Activation requires the current permitted professional decision and required commercial scope, but does not fabricate missing evidence or mark Microsoft connectivity as live. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-012-AC03 | Suspension blocks new professional actions as defined by the demo policy while allowing historical view and permitted billing/records operations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-012-AC04 | Scope/period/team edits validate grants and preserve change history; relevant professional changes show affected review applicability, not silent inherited approvals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-012-AC01 | Creating from an accepted proposal prepopulates a draft once; repeat submission does not create duplicate engagements. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-012-AC02 | Activation requires the current permitted professional decision and required commercial scope, but does not fabricate missing evidence or mark Microsoft connectivity as live. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-012-AC03 | Suspension blocks new professional actions as defined by the demo policy while allowing historical view and permitted billing/records operations. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-012-AC04 | Scope/period/team edits validate grants and preserve change history; relevant professional changes show affected review applicability, not silent inherited approvals. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L477).
 
@@ -1134,10 +1134,10 @@ Required: title, client, engagement and owner. Optional: description, start/due 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-013-AC01 | Given an engagement, when a job is created, then its scope is fixed to that client/engagement and it appears in both job and client/engagement views. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-013-AC02 | Status changes are manual; Blocked requires a reason and changing an assignee does not automatically start or complete work. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-013-AC03 | Completing a job requires all required non-cancelled tasks to be complete; it does not approve audit evidence, issue an invoice or release a package. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-013-AC04 | Cancellation retains tasks/time/document history; referenced jobs cannot be hard-deleted and no recurrence/dependency/automation setting exists. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-013-AC01 | Given an engagement, when a job is created, then its scope is fixed to that client/engagement and it appears in both job and client/engagement views. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-013-AC02 | Status changes are manual; Blocked requires a reason and changing an assignee does not automatically start or complete work. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-013-AC03 | Completing a job requires all required non-cancelled tasks to be complete; it does not approve audit evidence, issue an invoice or release a package. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-013-AC04 | Cancellation retains tasks/time/document history; referenced jobs cannot be hard-deleted and no recurrence/dependency/automation setting exists. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L496).
 
@@ -1242,10 +1242,10 @@ Add template list/editor/preview with name, supported service, description, defa
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-015-AC01 | Given a published template, when applied explicitly, then one new job tree with fresh IDs and source-template revision is created atomically. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-015-AC02 | Changing/retiring the template later does not change existing jobs; draft/retired versions are not offered for new use. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-015-AC03 | Dates and people require deliberate selection; no recurrence interval, relative-date rule engine, automatic allocation or follow-up creation is added. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-015-AC04 | Duplicate click protection prevents accidental duplicate job creation; templates enforce the same one-level hierarchy and required-title rules as jobs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-015-AC01 | Given a published template, when applied explicitly, then one new job tree with fresh IDs and source-template revision is created atomically. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-015-AC02 | Changing/retiring the template later does not change existing jobs; draft/retired versions are not offered for new use. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-015-AC03 | Dates and people require deliberate selection; no recurrence interval, relative-date rule engine, automatic allocation or follow-up creation is added. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-015-AC04 | Duplicate click protection prevents accidental duplicate job creation; templates enforce the same one-level hierarchy and required-title rules as jobs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L530).
 
@@ -1297,10 +1297,10 @@ Add a reusable thread panel with author, time, text, subject reference and expli
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-016-AC01 | Given an internal note, when switching to a client persona, then its text, count, attachments and mention notice are absent. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-016-AC02 | Mention suggestions include only users eligible to view the subject; mentioning someone neither grants access nor sends email. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-016-AC03 | Only permitted authors/moderators can amend ordinary comments and the change is attributable; historical approval/review records cannot be rewritten through the notes panel. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-016-AC04 | Comments survive reload and are linked from the subject activity view; empty/oversized input and unsafe markup are handled without executing content. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-016-AC01 | Given an internal note, when switching to a client persona, then its text, count, attachments and mention notice are absent. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-016-AC02 | Mention suggestions include only users eligible to view the subject; mentioning someone neither grants access nor sends email. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-016-AC03 | Only permitted authors/moderators can amend ordinary comments and the change is attributable; historical approval/review records cannot be rewritten through the notes panel. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-016-AC04 | Comments survive reload and are linked from the subject activity view; empty/oversized input and unsafe markup are handled without executing content. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L547).
 
@@ -1352,10 +1352,10 @@ Steps: start demonstration connection; choose synthetic tenant; select permitted
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-017-AC01 | Given a new installation scenario, when the wizard is completed, then a resumable local configuration is saved as “Simulated configuration”, with `liveConnected=false`. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-017-AC02 | No wizard interaction performs external fetch/XHR, navigates to Microsoft sign-in, requests credentials, or provisions a tenant resource. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-017-AC03 | An unavailable site, wrong-tenant library, denied permission and cancelled setup each have a clear recovery/back path without saving a successful test. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-017-AC04 | Mail and OneDrive are optional; Purview and all excluded providers are absent; business modules remain usable with demo fixture data when setup is skipped. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L566).
 
@@ -1456,10 +1456,10 @@ Add user detail tabs for role grants, client/engagement/group assignments and ac
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-019-AC01 | Given an engagement-only grant, when navigating/searching/exporting, then only that engagement is visible and sibling engagements remain excluded. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-019-AC03 | Technical administrators cannot self-promote into professional approval through their own access request or use admin status to inspect client financial data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-019-AC04 | The privilege matrix reflects grants and conditions accurately; grants/expiry/revocation preserve an attributable local change history. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-019-AC01 | Given an engagement-only grant, when navigating/searching/exporting, then only that engagement is visible and sibling engagements remain excluded. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-019-AC03 | Technical administrators cannot self-promote into professional approval through their own access request or use admin status to inspect client financial data. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-019-AC04 | The privilege matrix reflects grants and conditions accurately; grants/expiry/revocation preserve an attributable local change history. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L600).
 
@@ -1511,10 +1511,10 @@ Add folder/file list, breadcrumbs, search/filter, metadata panel, related-record
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-020-AC01 | Given an accepted client and approved synthetic binding, when preparing its workspace twice, then one client root and one set of required folders exist locally. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-020-AC02 | Client/engagement folder selection is validated against the configured tenant/root; another client cannot be linked merely by changing a URL or display name. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-020-AC03 | A document is viewable through the library independently of a PBC request; its related job/request/workpaper links resolve to the same logical record. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-020-AC04 | Upload/download/open controls state whether they use a built-in fixture, in-session bytes, metadata only or a simulated Office view; they never claim a real SharePoint transfer. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-020-AC01 | Given an accepted client and approved synthetic binding, when preparing its workspace twice, then one client root and one set of required folders exist locally. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-020-AC02 | Client/engagement folder selection is validated against the configured tenant/root; another client cannot be linked merely by changing a URL or display name. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-020-AC03 | A document is viewable through the library independently of a PBC request; its related job/request/workpaper links resolve to the same logical record. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-020-AC04 | Upload/download/open controls state whether they use a built-in fixture, in-session bytes, metadata only or a simulated Office view; they never claim a real SharePoint transfer. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L617).
 
@@ -1566,10 +1566,10 @@ Provide link-existing-SharePoint-file, version history, replacement, classificat
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-021-AC01 | Given a linked evidence version, when a newer file version is added, then the old reference still identifies its original version and dependent review shows an explicit freshness state. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-021-AC02 | Renaming/moving a permitted file keeps stable IDs; a deleted/inaccessible/wrong-root version shows a broken-link state rather than displaying unrelated content. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-021-AC03 | OneDrive remains optional and disabled by default; linking/importing never changes the canonical archive repository away from SharePoint. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-021-AC04 | After reload, original user-selected bytes are unavailable unless reselected; the system cannot substitute a synthetic sample and label it as the original download. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-021-AC01 | Given a linked evidence version, when a newer file version is added, then the old reference still identifies its original version and dependent review shows an explicit freshness state. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-021-AC02 | Renaming/moving a permitted file keeps stable IDs; a deleted/inaccessible/wrong-root version shows a broken-link state rather than displaying unrelated content. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-021-AC03 | OneDrive remains optional and disabled by default; linking/importing never changes the canonical archive repository away from SharePoint. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-021-AC04 | After reload, original user-selected bytes are unavailable unless reselected; the system cannot substitute a synthetic sample and label it as the original download. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L634).
 
@@ -1619,10 +1619,10 @@ Add independent configuration cards for identity, SharePoint, mail and optional 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-022-AC01 | Given a changed site/root/sender, when saved, then the corresponding previous verification cannot remain current for the new configuration revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-022-AC02 | Simulating disconnect preserves metadata/history and marks provider-dependent actions as simulated unavailable; it does not delete clients or archive records. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-022-AC03 | Failure explanations offer an explicit local retry/back action; no background polling, automatic remediation or real provider call occurs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-022-AC04 | No success/error banner describes simulated state as production readiness; Purview is not a hidden blocker or optional configuration requirement. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-022-AC01 | Given a changed site/root/sender, when saved, then the corresponding previous verification cannot remain current for the new configuration revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-022-AC02 | Simulating disconnect preserves metadata/history and marks provider-dependent actions as simulated unavailable; it does not delete clients or archive records. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-022-AC03 | Failure explanations offer an explicit local retry/back action; no background polling, automatic remediation or real provider call occurs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-022-AC04 | No success/error banner describes simulated state as production readiness; Purview is not a hidden blocker or optional configuration requirement. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L651).
 
@@ -1674,10 +1674,10 @@ Extend the existing request workflow with title, description, category, engageme
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-023-AC01 | Given a draft request, when manually presented, then the same request appears in the permitted client portal with description, due date, owner and status. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-023-AC02 | Reassignment or due-date changes are manual and recorded; a recipient from another client/unauthorized engagement is rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-023-AC03 | Cancelling preserves prior submissions and communication history and removes the request from awaiting-response counts without deleting evidence. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-023-AC04 | No reminder schedule, recurring request, automatic task creation or implicit acceptance is added; missing title/recipient/context blocks presentation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-023-AC01 | Given a draft request, when manually presented, then the same request appears in the permitted client portal with description, due date, owner and status. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-023-AC02 | Reassignment or due-date changes are manual and recorded; a recipient from another client/unauthorized engagement is rejected. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-023-AC03 | Cancelling preserves prior submissions and communication history and removes the request from awaiting-response counts without deleting evidence. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-023-AC04 | No reminder schedule, recurring request, automatic task creation or implicit acceptance is added; missing title/recipient/context blocks presentation. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L670).
 
@@ -1729,10 +1729,10 @@ Reuse the existing shared request thread. Add multiple document references, text
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-024-AC01 | Given a permitted contributor, when submitting/replacing evidence, then staff see that exact submission as received, not accepted, and the client sees only client-visible comments. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC02 | An uploader/responder cannot accept their own submission by switching role labels; a different authorized person must review it. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC03 | Replacing previously accepted evidence preserves the old decision and marks current adequacy/dependent review as requiring a new assessment. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC04 | Empty/oversized/disallowed files and storage failure show accurate errors; uploaded metadata is never represented as durable original document storage. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-024-AC01 | Given a permitted contributor, when submitting/replacing evidence, then staff see that exact submission as received, not accepted, and the client sees only client-visible comments. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-024-AC02 | An uploader/responder cannot accept their own submission by switching role labels; a different authorized person must review it. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-024-AC03 | Replacing previously accepted evidence preserves the old decision and marks current adequacy/dependent review as requiring a new assessment. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-024-AC04 | Empty/oversized/disallowed files and storage failure show accurate errors; uploaded metadata is never represented as durable original document storage. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L687).
 
@@ -1784,10 +1784,10 @@ Provide client home, engagement summaries, requests, shared documents, messages,
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-025-AC01 | Given multiple authorized entities, when switching context, then every list, badge, search result and action uses the selected permitted scope. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-025-AC02 | Only explicitly shared documents/packages and client-visible messages appear; draft invoices, internal review points, risk registers and firm costs are absent. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-025-AC03 | Client nomination does not grant staff access or management-approval authority; contributor upload cannot issue or approve a report. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-025-AC04 | Invoices can be viewed/downloaded as demo artifacts without a Pay button or payment gateway; package acknowledgement is labelled separately from account approval and signatures. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-025-AC01 | Given multiple authorized entities, when switching context, then every list, badge, search result and action uses the selected permitted scope. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-025-AC02 | Only explicitly shared documents/packages and client-visible messages appear; draft invoices, internal review points, risk registers and firm costs are absent. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-025-AC03 | Client nomination does not grant staff access or management-approval authority; contributor upload cannot issue or approve a report. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-025-AC04 | Invoices can be viewed/downloaded as demo artifacts without a Pay button or payment gateway; package acknowledgement is labelled separately from account approval and signatures. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L704).
 
@@ -1839,10 +1839,10 @@ Composer fields: configured synthetic sender, To, optional CC, subject, body, cl
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-026-AC01 | Given a valid message, when simulating send, then the outcome is explicitly local; no Graph call, SMTP, Resend, hidden fetch or real mailbox action occurs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-026-AC02 | Invalid recipients, unresolved placeholders, cross-client file links or an unavailable sender block the action with an actionable error. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-026-AC03 | Known failed, simulated accepted and unknown-outcome scenarios are distinct; a repeated click does not create duplicate accepted attempts and an unknown outcome is not silently resent. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-026-AC04 | Templates are editable only by permitted users; no inbox, sync, Triage, auto-reminder, AI-drafting or signature/payment link feature is present. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-026-AC01 | Given a valid message, when simulating send, then the outcome is explicitly local; no Graph call, SMTP, Resend, hidden fetch or real mailbox action occurs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-026-AC02 | Invalid recipients, unresolved placeholders, cross-client file links or an unavailable sender block the action with an actionable error. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-026-AC03 | Known failed, simulated accepted and unknown-outcome scenarios are distinct; a repeated click does not create duplicate accepted attempts and an unknown outcome is not silently resent. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-026-AC04 | Templates are editable only by permitted users; no inbox, sync, Triage, auto-reminder, AI-drafting or signature/payment link feature is present. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L721).
 
@@ -1894,10 +1894,10 @@ Record incoming email, phone call, meeting or other external-conversation note m
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-027-AC01 | Given a manually recorded call/email, when opening the client timeline or register, then both show the same record and source links. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-027-AC02 | Incoming correspondence does not appear by itself; the UI says “Recorded manually” and never suggests mailbox synchronization. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-027-AC03 | Changing visibility requires permission and warns before client publication; restricted internal material cannot be exposed through linked attachments or search snippets. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-027-AC04 | Corrections retain attributable history; record dates and bounded text validate, and no scheduled follow-up or automatic outbound message is created. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-027-AC01 | Given a manually recorded call/email, when opening the client timeline or register, then both show the same record and source links. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-027-AC02 | Incoming correspondence does not appear by itself; the UI says “Recorded manually” and never suggests mailbox synchronization. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-027-AC03 | Changing visibility requires permission and warns before client publication; restricted internal material cannot be exposed through linked attachments or search snippets. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-027-AC04 | Corrections retain attributable history; record dates and bounded text validate, and no scheduled follow-up or automatic outbound message is created. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L738).
 
@@ -1947,10 +1947,10 @@ Extend existing time screens with work date, client/engagement/job/task, duratio
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-028-AC01 | Given valid scope and positive duration, when saving/submitting, then local totals and linked work views update from the same effective entry. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-028-AC02 | A manager cannot approve their own entry under another role; returned entries require correction and resubmission. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-028-AC03 | An approved or consumed/billed entry is not overwritten; a correction retains the previous version and exposes its billing impact for a separate decision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-028-AC04 | Future/out-of-scenario dates, invalid duration, scope mismatch and duplicate submission are handled explicitly; reports distinguish approved from unapproved time. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-028-AC01 | Given valid scope and positive duration, when saving/submitting, then local totals and linked work views update from the same effective entry. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-028-AC02 | A manager cannot approve their own entry under another role; returned entries require correction and resubmission. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-028-AC03 | An approved or consumed/billed entry is not overwritten; a correction retains the previous version and exposes its billing impact for a separate decision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-028-AC04 | Future/out-of-scenario dates, invalid duration, scope mismatch and duplicate submission are handled explicitly; reports distinguish approved from unapproved time. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L757).
 
@@ -2002,10 +2002,10 @@ Add budget editor with scope, currency, planned minutes by role/activity, option
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-029-AC01 | Given budget lines and approved time, when viewing comparison, then §5.5 formulas and line rounding yield reconciled totals and visible over/under variance. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-029-AC02 | Editing a used rate or approved budget creates a new version without changing historical invoice/time valuations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-029-AC03 | Missing cost rates show unavailable cost/margin rather than zero; client/billing-only views cannot infer restricted staff costs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-029-AC04 | Cross-currency totals are separated; job totals are not counted again as independent engagement lines; no capacity optimizer, roster, auto-scheduling or recurring budget is introduced. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-029-AC01 | Given budget lines and approved time, when viewing comparison, then §5.5 formulas and line rounding yield reconciled totals and visible over/under variance. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-029-AC02 | Editing a used rate or approved budget creates a new version without changing historical invoice/time valuations. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-029-AC03 | Missing cost rates show unavailable cost/margin rather than zero; client/billing-only views cannot infer restricted staff costs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-029-AC04 | Cross-currency totals are separated; job totals are not counted again as independent engagement lines; no capacity optimizer, roster, auto-scheduling or recurring budget is introduced. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L774).
 
@@ -2055,10 +2055,10 @@ Add billing-account/contact details, invoice dates/due date/currency/reference, 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-030-AC01 | Given selected approved time/service sources, when a draft is created, then every line retains its source and calculated amount and the invoice total equals its lines. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-030-AC02 | Duplicate source selection/consumption is prevented across active billed allocations; rework does not silently free a previously issued source for double billing. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-030-AC03 | Only permitted same-client/currency sources can be combined; invalid quantities, missing billing context and stale time revisions are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-030-AC04 | Existing historical tax totals are preserved if present; new fixture invoices use the approved no-tax demo profile rather than inventing tax calculations or rewriting prior totals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-030-AC01 | Given selected approved time/service sources, when a draft is created, then every line retains its source and calculated amount and the invoice total equals its lines. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-030-AC02 | Duplicate source selection/consumption is prevented across active billed allocations; rework does not silently free a previously issued source for double billing. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-030-AC03 | Only permitted same-client/currency sources can be combined; invalid quantities, missing billing context and stale time revisions are rejected. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-030-AC04 | Existing historical tax totals are preserved if present; new fixture invoices use the approved no-tax demo profile rather than inventing tax calculations or rewriting prior totals. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L791).
 
@@ -2108,10 +2108,10 @@ Reuse independent review with return reasons and revision-bound approval. Issue 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-031-AC01 | Given a submitted invoice, when reviewed by a different authorized person, then current approval permits one local issue event; later draft edits stale approval. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-031-AC02 | An issued invoice cannot be directly edited/deleted; a correction uses an attributable credit or replacement document with lineage. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-031-AC03 | Credits cannot exceed the remaining creditable amount and do not move money; same-person review and cross-client/currency credits are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-031-AC04 | Issuing an invoice does not send it, alter client TB/GL or approve an audit report; issued and email-simulation statuses are displayed separately. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-031-AC01 | Given a submitted invoice, when reviewed by a different authorized person, then current approval permits one local issue event; later draft edits stale approval. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-031-AC02 | An issued invoice cannot be directly edited/deleted; a correction uses an attributable credit or replacement document with lineage. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-031-AC03 | Credits cannot exceed the remaining creditable amount and do not move money; same-person review and cross-client/currency credits are rejected. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-031-AC04 | Issuing an invoice does not send it, alter client TB/GL or approve an audit report; issued and email-simulation statuses are displayed separately. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L808).
 
@@ -2161,10 +2161,10 @@ Add receipt register/detail with client billing account, amount, currency, recei
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-032-AC01 | Given a receipt, when allocated partially/across invoices, then receipt total = net allocations + unallocated balance and each invoice outstanding reconciles. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-032-AC02 | Negative/zero receipts, over-allocation, cross-client/currency allocation, draft-invoice allocation and stale balances are rejected atomically. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-032-AC03 | Undoing an allocation records a reversal reason and restores both balances without deleting the original allocation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-032-AC04 | No money is initiated, refunded or moved; there are no card details, banking credentials, payment links or gateway statuses. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-032-AC01 | Given a receipt, when allocated partially/across invoices, then receipt total = net allocations + unallocated balance and each invoice outstanding reconciles. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-032-AC02 | Negative/zero receipts, over-allocation, cross-client/currency allocation, draft-invoice allocation and stale balances are rejected atomically. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-032-AC03 | Undoing an allocation records a reversal reason and restores both balances without deleting the original allocation. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-032-AC04 | No money is initiated, refunded or moved; there are no card details, banking credentials, payment links or gateway statuses. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L825).
 
@@ -2214,10 +2214,10 @@ Build invoice aging, client statement and receipt/unallocated registers with dat
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-033-AC01 | Given invoices with different due dates, when an as-of date is selected, then Current/1–30/31–60/61–90/90+ buckets are correct at boundaries and sum to outstanding. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-033-AC02 | Future-effective receipts/credits do not reduce past as-of balances; drafts and pre-issue cancellations are excluded. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-033-AC03 | Unallocated receipts remain visible separately; different currencies are never combined into a misleading single balance. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-033-AC04 | Exported rows/totals reconcile with the filtered on-screen report and contain only the current role scope; no automated debt-chasing email is sent. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-033-AC01 | Given invoices with different due dates, when an as-of date is selected, then Current/1–30/31–60/61–90/90+ buckets are correct at boundaries and sum to outstanding. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-033-AC02 | Future-effective receipts/credits do not reduce past as-of balances; drafts and pre-issue cancellations are excluded. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-033-AC03 | Unallocated receipts remain visible separately; different currencies are never combined into a misleading single balance. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-033-AC04 | Exported rows/totals reconcile with the filtered on-screen report and contain only the current role scope; no automated debt-chasing email is sent. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L842).
 
@@ -2267,10 +2267,10 @@ Create client accounting profile, legal entity, reporting periods/books, basis a
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-034-AC01 | Given a client/engagement, when setting up a period/book, then subsequent imports inherit a visible explicit context and cannot attach to a sibling client by accident. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-034-AC02 | Duplicate account codes, invalid date ranges, hierarchy cycles and posting accounts used as parents are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-034-AC03 | Used/approved charts and period settings are revised rather than destructively overwritten; affected packages show staleness. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-034-AC04 | New screens create neither client operational transactions nor tax/payroll configurations; empty setup provides a clear manual starting action. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-034-AC01 | Given a client/engagement, when setting up a period/book, then subsequent imports inherit a visible explicit context and cannot attach to a sibling client by accident. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-034-AC02 | Duplicate account codes, invalid date ranges, hierarchy cycles and posting accounts used as parents are rejected. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-034-AC03 | Used/approved charts and period settings are revised rather than destructively overwritten; affected packages show staleness. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-034-AC04 | New screens create neither client operational transactions nor tax/payroll configurations; empty setup provides a clear manual starting action. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L861).
 
@@ -2374,10 +2374,10 @@ Provide bounded GL file mapping/preview for journal ID, line ID, account, date, 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-036-AC01 | Given coherent opening balances, GL movements and closing TB, when completeness is calculated, then per-account residuals and source references reconcile. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-036-AC02 | Missing opening data, partial journal batches, duplicate line keys, unmatched accounts, unbalanced journals and wrong periods/currencies are exposed rather than marked complete. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-036-AC03 | Importing/replacing GL creates a new source revision and invalidates affected reconciliations/packages without changing the original source rows. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-036-AC04 | Filters, source counts, drill-down and CSV export agree; the module never posts to client or firm books and handles the documented fixture size without freezing navigation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-036-AC01 | Given coherent opening balances, GL movements and closing TB, when completeness is calculated, then per-account residuals and source references reconcile. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-036-AC02 | Missing opening data, partial journal batches, duplicate line keys, unmatched accounts, unbalanced journals and wrong periods/currencies are exposed rather than marked complete. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-036-AC03 | Importing/replacing GL creates a new source revision and invalidates affected reconciliations/packages without changing the original source rows. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-036-AC04 | Filters, source counts, drill-down and CSV export agree; the module never posts to client or firm books and handles the documented fixture size without freezing navigation. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L895).
 
@@ -2478,10 +2478,10 @@ Create journal header/context and arbitrary debit/credit lines; support draft, s
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-038-AC01 | Given a balanced journal, when independently reviewed and management-accepted, then its effect is included once in the selected reporting layer. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC02 | Given a replacement TB already containing that journal, when marked reflected with evidence, then additional effect is zero and no double counting occurs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC03 | Unknown/partial reflection blocks final reporting inclusion until resolved; changed source or journal revision stales the relevant decision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-038-AC04 | Unbalanced/mixed-context lines, same-person approval and duplicate inclusion are rejected; amendments preserve prior versions and do not alter source or firm ledgers. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-038-AC01 | Given a balanced journal, when independently reviewed and management-accepted, then its effect is included once in the selected reporting layer. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-038-AC02 | Given a replacement TB already containing that journal, when marked reflected with evidence, then additional effect is zero and no double counting occurs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-038-AC03 | Unknown/partial reflection blocks final reporting inclusion until resolved; changed source or journal revision stales the relevant decision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-038-AC04 | Unbalanced/mixed-context lines, same-person approval and duplicate inclusion are rejected; amendments preserve prior versions and do not alter source or firm ledgers. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L929).
 
@@ -2531,10 +2531,10 @@ Add schedule header with account, period/as-of date, source TB/GL balance and st
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-039-AC01 | Given valid schedule items, when recalculated, then opening/source/supporting totals and unexplained residual are reproducible from displayed inputs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC02 | An unexplained nonzero residual or missing required evidence blocks approval; proposed corrections cannot masquerade as already cleared timing items. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC03 | An accepted source/evidence replacement makes current reconciliation review stale; the previous approved snapshot remains viewable. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC04 | Item currency/date/scope validation and independent reviewer checks work; no bank feed, automated matching, payment initiation or tax integration is introduced. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-039-AC01 | Given valid schedule items, when recalculated, then opening/source/supporting totals and unexplained residual are reproducible from displayed inputs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-039-AC02 | An unexplained nonzero residual or missing required evidence blocks approval; proposed corrections cannot masquerade as already cleared timing items. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-039-AC03 | An accepted source/evidence replacement makes current reconciliation review stale; the previous approved snapshot remains viewable. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-039-AC04 | Item currency/date/scope validation and independent reviewer checks work; no bank feed, automated matching, payment initiation or tax integration is introduced. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L946).
 
@@ -2586,10 +2586,10 @@ Support statement of financial position, profit/loss, changes in equity and cash
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-040-AC01 | Given valid mapped current/prior periods, when statements are built, then each column and subtotal reconciles to its selected source; a missing prior period shows unavailable, not zero. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-040-AC02 | Assets, liabilities/equity and period-result movements reconcile in the supported fixture; invalid totals display blocking validation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-040-AC03 | Changing source, mapping, layout or comparative selection creates a new output revision and stales the previous current review. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-040-AC04 | The preview provides complete visible structure, editing and drill-down for the supported demonstration; unsupported calculations never render invented balanced figures. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-040-AC01 | Given valid mapped current/prior periods, when statements are built, then each column and subtotal reconciles to its selected source; a missing prior period shows unavailable, not zero. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-040-AC02 | Assets, liabilities/equity and period-result movements reconcile in the supported fixture; invalid totals display blocking validation. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-040-AC03 | Changing source, mapping, layout or comparative selection creates a new output revision and stales the previous current review. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-040-AC04 | The preview provides complete visible structure, editing and drill-down for the supported demonstration; unsupported calculations never render invented balanced figures. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L963).
 
@@ -2641,10 +2641,10 @@ Add notes/disclosure list with reference, applicability, text/data table, eviden
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-041-AC01 | Given closing TB data alone, when cash flows lack required movement support, then the screen reports incomplete support instead of inventing movements. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-041-AC02 | Not-applicable notes need a reason and reviewer decision; a blank note is not an approved exemption. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-041-AC03 | Approved note/support edits preserve prior revision and invalidate current package review; totals tie to current statement context. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-041-AC04 | Client previews expose only deliberately shared note content; internal reviewer comments remain internal and no professional conclusion is autogenerated. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-041-AC01 | Given closing TB data alone, when cash flows lack required movement support, then the screen reports incomplete support instead of inventing movements. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-041-AC02 | Not-applicable notes need a reason and reviewer decision; a blank note is not an approved exemption. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-041-AC03 | Approved note/support edits preserve prior revision and invalidate current package review; totals tie to current statement context. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-041-AC04 | Client previews expose only deliberately shared note content; internal reviewer comments remain internal and no professional conclusion is autogenerated. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L980).
 
@@ -2696,10 +2696,10 @@ Add package contents selection/order, output preview, validation summary, versio
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-042-AC01 | Given a valid supported package, when exported, then XLSX/DOCX/PDF files open as their actual formats and contain the displayed totals, entity, period and demo watermark. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-042-AC02 | Export generation failure or unsupported content blocks that output and reports the reason; no renamed CSV, empty PDF or fake success is accepted. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-042-AC01 | Given a valid supported package, when exported, then XLSX/DOCX/PDF files open as their actual formats and contain the displayed totals, entity, period and demo watermark. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-042-AC02 | Export generation failure or unsupported content blocks that output and reports the reason; no renamed CSV, empty PDF or fake success is accepted. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 | VP-042-AC03 | When package content changes, prior artifacts and decisions remain historical and a new artifact revision must be reviewed. | VERIFIED: AT-41/42/48 verifies unchanged prior bytes/decision history, a new presentation and independent acknowledgement for revision 4. |
-| VP-042-AC04 | External sharing remains explicit and scope-bound; internal workpapers/comments are excluded from management/client outputs by default. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-042-AC04 | External sharing remains explicit and scope-bound; internal workpapers/comments are excluded from management/client outputs by default. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L997).
 
@@ -2788,9 +2788,9 @@ Pinned component snapshots, period/currency context and dated foreign closing-ra
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-044-E01 — Verification/evidence pending:** Stale-pin warning, immutable old snapshot, and explicit current-source re-pin now pass AT-44 on `5ee4128`. Still verify incompatible reporting basis/period and unreviewed-package gates before closing the criterion.
+- [ ] **VP-044-E01 — Verification/evidence pending:** Stale-pin warning, immutable old snapshot, and explicit current-source re-pin now pass AT-44 on `5ee4128`. Unit guards reject mixed basis and period-book ownership; AT-44 proves a re-pinned package stays blocked until an attributable review records its exact source revision, basis, period and evidence. The full generated-package artifact linkage remains open.
 
-- [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 now shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. A complete published fixture and balancing translation-difference reconciliation remain open.
+- [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 now shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. The FX browser fixture shows the translated pre-elimination residual and explicitly states that the difference remains unallocated with no plug; a balanced source fixture that isolates the translation delta remains open.
 
 - [ ] **VP-044-R03 — Requirement/scope reconciliation:** Do not add live exchange-rate feeds or unsupported complex translation methods.
 
@@ -2807,9 +2807,9 @@ Create component intake grid with readiness, period, basis, currency, package re
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-044-AC01 | Given eligible component packages, when selected, then exact revisions are pinned and a subsequent replacement produces a stale-component warning rather than silent refresh. | SUBCASES VERIFIED 2026-09-24 — AT-44 retains the old snapshot, warns on source replacement, then re-pins the exact current source only after an attributable user action; full package eligibility remains open. |
-| VP-044-AC02 | Missing rates, incompatible basis/period or unreviewed component packages block group output; missing amounts never default to zero. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | SUBCASES VERIFIED 2026-09-24 — FX trace lists source, rate revision/date, translated cents and per-line rounding; deterministic `100.01 × 3.64 = 364.04` example yields `0.0036`. Full balancing-difference fixture remains open. |
-| VP-044-AC04 | An unapproved/unsupported translation rule shows a limitation and no fabricated consolidation result; component client packages remain unchanged. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-044-AC02 | Missing rates, incompatible basis/period or unreviewed component packages block group output; missing amounts never default to zero. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | SUBCASES VERIFIED 2026-09-24 — FX trace lists source, rate revision/date, translated cents and per-line rounding; deterministic `100.01 × 3.64 = 364.04` example yields `0.0036`. The rendered pre-elimination residual is explicit and no plug is added; a balanced source fixture isolating the translation-only residual remains open. |
+| VP-044-AC04 | An unapproved/unsupported translation rule shows a limitation and no fabricated consolidation result; component client packages remain unchanged. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1033).
 
@@ -2859,10 +2859,10 @@ Add elimination register with component counterparties, account/line references,
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1050).
 
@@ -2912,10 +2912,10 @@ Display component columns, translated totals, eliminations, group adjustments an
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-046-AC01 | Given compatible reviewed components and approved adjustments, when the supported fixture is consolidated, then consolidated = translated components + approved group adjustments/eliminations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC02 | Statement equations and reconciliation columns agree with fixed expected fixture values; unresolved required inputs prevent a ready-for-review state. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC03 | Group output review binds to the exact perimeter/component/rate/elimination revisions; edits require fresh review. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC04 | Exported group demo artifacts preserve these references and exclude unrelated client information; no group action posts into component or firm ledgers. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-046-AC01 | Given compatible reviewed components and approved adjustments, when the supported fixture is consolidated, then consolidated = translated components + approved group adjustments/eliminations. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-046-AC02 | Statement equations and reconciliation columns agree with fixed expected fixture values; unresolved required inputs prevent a ready-for-review state. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-046-AC03 | Group output review binds to the exact perimeter/component/rate/elimination revisions; edits require fresh review. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-046-AC04 | Exported group demo artifacts preserve these references and exclude unrelated client information; no group action posts into component or firm ledgers. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1067).
 
@@ -3016,10 +3016,10 @@ Add plan tabs for entity/service scope, team, timing, materiality, significant a
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-048-AC01 | Given a draft plan, when submitted, then scope, required rationale and valid assignments are checked before independent review. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-048-AC02 | Calculated fixture amounts match deterministic expected values; missing benchmark/source or invalid thresholds produce clear errors rather than recommended defaults. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-048-AC03 | Editing an approved plan/materiality creates a new revision and shows affected fieldwork/conclusion review as stale where applicable. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-048-AC04 | A plan status does not grant professional authority or release a report; the screen clearly distinguishes entered assumptions, calculations and human judgments. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-048-AC01 | Given a draft plan, when submitted, then scope, required rationale and valid assignments are checked before independent review. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-048-AC02 | Calculated fixture amounts match deterministic expected values; missing benchmark/source or invalid thresholds produce clear errors rather than recommended defaults. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-048-AC03 | Editing an approved plan/materiality creates a new revision and shows affected fieldwork/conclusion review as stale where applicable. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-048-AC04 | A plan status does not grant professional authority or release a report; the screen clearly distinguishes entered assumptions, calculations and human judgments. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1103).
 
@@ -3069,10 +3069,10 @@ Create risk records with title, area/assertions, description, rationale, respons
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-049-AC01 | Given a risk, when linked to procedures, then risk detail and program detail show reciprocal links and unresolved coverage gaps. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-049-AC02 | Manual template application copies current instructions with fresh procedure IDs, but no prior results, evidence or approvals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-049-AC03 | A changed approved risk/program creates a new plan revision and explicit review impact; retired templates do not change existing engagements. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-049-AC04 | Cross-engagement links, invalid assignments and unsupported service templates are rejected; a static risk card alone cannot count as an implemented risk workflow. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-049-AC01 | Given a risk, when linked to procedures, then risk detail and program detail show reciprocal links and unresolved coverage gaps. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-049-AC02 | Manual template application copies current instructions with fresh procedure IDs, but no prior results, evidence or approvals. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-049-AC03 | A changed approved risk/program creates a new plan revision and explicit review impact; retired templates do not change existing engagements. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-049-AC04 | Cross-engagement links, invalid assignments and unsupported service templates are rejected; a static risk card alone cannot count as an implemented risk workflow. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1120).
 
@@ -3122,10 +3122,10 @@ Add a procedure execution grid/detail with work performed, result, evidence link
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-050-AC01 | Given an assigned procedure, when results are submitted, then required work description/evidence or a justified documented limitation is present. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-050-AC02 | An exception can be linked to a finding and remains visible after procedure completion; completion does not silently clear it. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-050-AC03 | Preparer cannot independently clear the same work; source/result/evidence changes require renewed review for the affected procedure. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-050-AC04 | Fieldwork counts agree with individual states; no upload automatically completes an entire audit area and no task-completion shortcut grants clearance. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-050-AC01 | Given an assigned procedure, when results are submitted, then required work description/evidence or a justified documented limitation is present. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-050-AC02 | An exception can be linked to a finding and remains visible after procedure completion; completion does not silently clear it. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-050-AC03 | Preparer cannot independently clear the same work; source/result/evidence changes require renewed review for the affected procedure. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-050-AC04 | Fieldwork counts agree with individual states; no upload automatically completes an entire audit area and no task-completion shortcut grants clearance. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1137).
 
@@ -3322,10 +3322,10 @@ Add finding type, title, description, affected account/assertion, source/procedu
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-054-AC01 | Given an exception, when promoted to a finding, then source/procedure/sample/evidence references remain traceable and the originating exception remains visible. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-054-AC02 | Qualitative findings can exist without amounts; monetary findings require valid currency and preserve gross amounts even when positive/negative differences offset. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-054-AC03 | Accepting a proposed correction is not evidence of external posting; reporting inclusion/reflection states come from the linked reviewed journal decision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-054-AC04 | Closing/reopening a finding requires permitted human rationale; unresolved significant matters remain visible in completion and are not hidden by clearing a review point. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-054-AC01 | Given an exception, when promoted to a finding, then source/procedure/sample/evidence references remain traceable and the originating exception remains visible. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-054-AC02 | Qualitative findings can exist without amounts; monetary findings require valid currency and preserve gross amounts even when positive/negative differences offset. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-054-AC03 | Accepting a proposed correction is not evidence of external posting; reporting inclusion/reflection states come from the linked reviewed journal decision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-054-AC04 | Closing/reopening a finding requires permitted human rationale; unresolved significant matters remain visible in completion and are not hidden by clearing a review point. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1205).
 
@@ -3671,10 +3671,10 @@ Index bounded local text/metadata for clients, contacts, engagements, jobs/tasks
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-061-AC01 | Given a term matching several record types, when searched, then grouped results use actual record IDs and open the right context/revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-061-AC02 | An unauthorized record never contributes title, snippet, count, autocomplete or result ordering visible to a narrower user. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-061-AC03 | Editing/archiving a record updates search availability consistently; deleted/unavailable targets lead to a safe unavailable view, not a different record. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-061-AC04 | Typing ordinary markup/text does not execute code; bounded search is responsive at the agreed fixture size and no external request is made. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-061-AC01 | Given a term matching several record types, when searched, then grouped results use actual record IDs and open the right context/revision. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-061-AC02 | An unauthorized record never contributes title, snippet, count, autocomplete or result ordering visible to a narrower user. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-061-AC03 | Editing/archiving a record updates search availability consistently; deleted/unavailable targets lead to a safe unavailable view, not a different record. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-061-AC04 | Typing ordinary markup/text does not execute code; bounded search is responsive at the agreed fixture size and no external request is made. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1328).
 
@@ -3726,10 +3726,10 @@ Provide firm name/logo placeholder, locale/timezone/display settings, synthetic 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-062-AC01 | Given a valid setting change, when saved, then forms/previews use it where appropriate and the local configuration history records actor/reason. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-062-AC02 | Numbering avoids collisions and applies prospectively; changed defaults do not rewrite issued invoices, released packages or existing template-based jobs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-062-AC03 | Business-role restrictions apply to cost rates, professional templates and accounting review; system-admin identity alone is insufficient. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-062-AC04 | Invalid settings, stale revisions and unavailable logos/files show clear validation; no actual tenant/hosting secrets, Purview, tax, AI or payment configuration is offered. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-062-AC01 | Given a valid setting change, when saved, then forms/previews use it where appropriate and the local configuration history records actor/reason. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-062-AC02 | Numbering avoids collisions and applies prospectively; changed defaults do not rewrite issued invoices, released packages or existing template-based jobs. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-062-AC03 | Business-role restrictions apply to cost rates, professional templates and accounting review; system-admin identity alone is insufficient. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-062-AC04 | Invalid settings, stale revisions and unavailable logos/files show clear validation; no actual tenant/hosting secrets, Purview, tax, AI or payment configuration is offered. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1345).
 
@@ -3781,10 +3781,10 @@ Add/extend the repository’s tests after inventorying them; preserve useful exi
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-063-AC01 | Every required module/story has at least one working positive journey and the relevant validation/scope/stale/rework negative checks; no excluded-module absence test is replaced by a static screenshot alone. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-063-AC02 | Tests run with isolated deterministic fixture state and verify the compiled Vite app; dependency/bootstrap failures are reported, not converted to skipped success. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-063-AC03 | Runtime egress tests block/assert absence of external Microsoft/email/payment/AI requests; route actions still work as local simulations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-063-AC04 | Existing review/PBC/release tests remain passing or receive documented justified changes; actual run counts, commit, fixture and artifact identities are recorded only after execution. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-063-AC01 | Every required module/story has at least one working positive journey and the relevant validation/scope/stale/rework negative checks; no excluded-module absence test is replaced by a static screenshot alone. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-063-AC02 | Tests run with isolated deterministic fixture state and verify the compiled Vite app; dependency/bootstrap failures are reported, not converted to skipped success. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-063-AC03 | Runtime egress tests block/assert absence of external Microsoft/email/payment/AI requests; route actions still work as local simulations. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-063-AC04 | Existing review/PBC/release tests remain passing or receive documented justified changes; actual run counts, commit, fixture and artifact identities are recorded only after execution. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1362).
 
@@ -3836,10 +3836,10 @@ Deliver a 39-row coverage checklist, story-to-route/command/test map, synthetic 
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-064-AC01 | Every module in §4 has implemented route(s), local command(s), fixture(s), test(s) and current observed status; no row is marked complete based only on a source paragraph. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-064-AC02 | All 64 stories are accounted for as verified, failed or blocked with a precise reason; acceptance is incomplete while any required story remains blocked. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-064-AC03 | The guide provides end-to-end presenter steps, role switches and expected results, including a fresh empty-state journey and a failure/rework scenario. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-064-AC04 | The final report lists only actually executed checks and repository changes; it never claims live M365, real authorization, professional assurance, tax compliance, external retention or successful deployment. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-064-AC01 | Every module in §4 has implemented route(s), local command(s), fixture(s), test(s) and current observed status; no row is marked complete based only on a source paragraph. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-064-AC02 | All 64 stories are accounted for as verified, failed or blocked with a precise reason; acceptance is incomplete while any required story remains blocked. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-064-AC03 | The guide provides end-to-end presenter steps, role switches and expected results, including a fresh empty-state journey and a failure/rework scenario. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
+| VP-064-AC04 | The final report lists only actually executed checks and repository changes; it never claims live M365, real authorization, professional assurance, tax compliance, external retention or successful deployment. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1379).
 

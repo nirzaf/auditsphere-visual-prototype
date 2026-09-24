@@ -219,7 +219,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 22);
+    assert.equal(migrated.schema, 23);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -238,9 +238,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v22 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v23 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 21; version++) {
+    for (let version = 0; version <= 22; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 22) {
@@ -268,9 +268,11 @@ describe('fixture integrity (AT-02/AT-54)', () => {
         legacy.engagements.forEach((engagement: any) => { delete engagement.accountingPeriodBookId; delete engagement.accountingProfileRevision; delete engagement.accountingChartRevision; engagement.sourceHistory?.forEach((item: any) => { delete item.accountingProfileRevision; delete item.accountingChartRevision; delete item.periodBookId; }); });
       }
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
+      if (version < 23) for (const group of legacy.consolidationGroups) { delete group.reportingBasis; group.components.forEach((component: any) => delete component.packageReview); }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 22, `schema ${version} should reach v22`);
+      assert.equal(migrated.schema, 23, `schema ${version} should reach v23`);
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
+      assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, 'Pending');
       assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
@@ -1375,6 +1377,17 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
       ...structuredClone(group),
       components: group.components.map((component: any, index: number) => index === 1 ? { ...component, role: 'Associate' } : component)
     }), /one Parent and one 100% owned Subsidiary/);
+    const sub = state.engagements.find((engagement: any) => engagement.id === 'ENG-26002');
+    const subClient = state.clients.find((client: any) => client.id === sub.client);
+    const priorBasis = subClient.accountingProfile.reportingBasis;
+    subClient.accountingProfile.reportingBasis = 'Local GAAP';
+    assert.throws(() => prototypeStore.updateConsolidationGroup(structuredClone(group), { reason: 'reject mixed reporting bases' }), /incompatible or unselected reporting basis\/period book/);
+    subClient.accountingProfile.reportingBasis = priorBasis;
+    const pendingReview = structuredClone(group);
+    pendingReview.components[1].status = 'Pending';
+    delete pendingReview.components[1].packageReview;
+    prototypeStore.updateConsolidationGroup(pendingReview, { reason: 'hold pending package review' });
+    assert.equal(prototypeStore.getSnapshot().consolidationGroups[0].components[1].status, 'Pending', 'a pending package may be pinned but cannot claim a review');
     const mismatchedSnapshot = structuredClone(group);
     mismatchedSnapshot.components[1].packageRows[0].balance += 1;
     assert.throws(() => prototypeStore.updateConsolidationGroup(mismatchedSnapshot), /retain its pinned snapshot or pin the exact current/);
@@ -1416,6 +1429,12 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const seed = structuredClone(state.engagements.find((e: any) => e.id === 'ENG-26002'));
     seed.id = 'ENG-26004';
     state.engagements.push(seed);
+    const ownerProfile = state.clients.find((client: any) => client.id === seed.client).accountingProfile;
+    const ownerBook = structuredClone(ownerProfile.periodBooks.find((book: any) => book.ownerEngagementId === 'ENG-26002'));
+    ownerBook.id = 'PB-ENG-26004';
+    ownerBook.ownerEngagementId = 'ENG-26004';
+    ownerProfile.periodBooks.push(ownerBook);
+    seed.accountingPeriodBookId = ownerBook.id;
     const sourceBefore = structuredClone(state.engagements.map((e: any) => ({ id: e.id, rows: e.rows })));
     const current = () => state.consolidationGroups[0];
     const dated = structuredClone(current());
@@ -1430,7 +1449,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     swapped.components[1] = {
       componentId: 'ENG-26004', role: 'Subsidiary', legalEntityName: 'Northstar Services (Subsidiary)',
       currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1,
-      packageRows: structuredClone(seed.rows), status: 'Ready',
+      packageRows: structuredClone(seed.rows), status: 'Pending',
     };
     prototypeStore.updateConsolidationGroup(swapped, { reason: 'Correct subsidiary to the in-scope 2026 engagement' });
     assert.equal(current().perimeterRevision, 3);

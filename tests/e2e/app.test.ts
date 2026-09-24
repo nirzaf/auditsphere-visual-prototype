@@ -2513,7 +2513,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const perimeter = await browserTab!.evaluate<string>('document.body.innerText');
       assert.match(perimeter, /Example Trading Entity/);
       assert.match(perimeter, /Northstar Services/);
-      assert.match(perimeter, /Pinned snapshot/);
+      assert.match(perimeter, /Package Rev 3/);
+      assert.match(perimeter, /SYNTHETIC-REVIEW-GRP-01-ENG-26002/);
       await clickButton('Intercompany Eliminations (1)');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Elimination of Intercompany Management Fee/);
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /50,000/);
@@ -2539,7 +2540,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButton('Group Consolidation');
-      assert.equal(await waitForBrowser('document.body.innerText.includes("Stale component package pin")'), true);
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Stale component package pin")'), true, await browserTab!.evaluate<string>('document.body.innerText'));
       const pinnedBefore = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const c=s.consolidationGroups[0].components.find(x=>x.role==='Subsidiary');const e=s.engagements.find(x=>x.id===c.componentId);return {pin:c.packageRevisionPinned,source:e.packageRevision,pinnedRows:c.packageRows,currentRows:e.rows};})()`);
       assert.equal(pinnedBefore.pin + 1, pinnedBefore.source);
       assert.notDeepEqual(pinnedBefore.pinnedRows, pinnedBefore.currentRows, 'the old immutable snapshot is preserved while the UI warns');
@@ -2551,6 +2552,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(pinnedAfter.pin, pinnedAfter.source);
       assert.deepEqual(pinnedAfter.pinnedRows, pinnedAfter.currentRows);
       assert.equal(pinnedAfter.history, 1);
+      assert.equal((await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].components.find(x=>x.role==='Subsidiary').status`)), 'Pending');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Review required/);
+      assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /Consolidated Balance Sheet Equation Satisfied/);
+      await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const reason=document.querySelector('[aria-label="Reason for perimeter change"]');set.call(reason,'Independent review of refreshed component package');reason.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Package review evidence reference"]');set.call(evidence,'GROUP-REVIEW-AT44');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Review pinned component packages');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].components.find(x=>x.role==='Subsidiary').status==='Ready'`), true);
+      assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].components.find(x=>x.role==='Subsidiary').packageReview.evidenceRef`), 'GROUP-REVIEW-AT44');
+      await clickButton('Consolidated Balance Sheet Grid');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Consolidated Balance Discrepancy")'), true, 'explicit package review restores calculated figures');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
@@ -2594,6 +2604,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /1000 · Bank current account · USD 100\.01/);
       assert.match(text, /364\.04/);
       assert.match(text, /0\.0036/);
+      assert.match(text, /assets less liabilities and equity: QAR [\d,]+\.\d{2}/);
+      assert.match(text, /difference remains unallocated; no plug is added/);
       assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').rows`), sourceBefore, 'translation leaves component TB rows unchanged');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
@@ -2667,7 +2679,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const seed = structuredClone(state.engagements.find(e => e.id === 'ENG-26002'));
         seed.id = 'ENG-26004';
         seed.client = 'CL-002';
+        seed.accountingPeriodBookId = 'PB-ENG-26004';
         state.engagements.push(seed);
+        const profile = state.clients.find(c => c.id === seed.client).accountingProfile;
+        profile.periodBooks.push({ ...structuredClone(profile.periodBooks.find(book => book.ownerEngagementId === 'ENG-26002')), id: 'PB-ENG-26004', ownerEngagementId: seed.id });
         localStorage.setItem('ste-auditsphere-role-portals-v2', JSON.stringify(state));
         return JSON.stringify(state.engagements.filter(e => ['ENG-26001', 'ENG-26002', 'ENG-26004'].includes(e.id)).map(e => ({ id: e.id, rows: e.rows })));
       })()`);
@@ -3182,7 +3197,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(recoveryText, /SIMULATED IDENTITY \(NOT LIVE AUTH\)/, 'the app remains usable with a fresh in-memory demo');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), corrupt, 'the exact malformed payload is retained for recovery');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), corrupt, 'recovery does not silently overwrite the original payload');
-      const validButIncomplete = JSON.stringify({ schema: 22, engagements: [] });
+      const validButIncomplete = JSON.stringify({ schema: 23, engagements: [] });
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(validButIncomplete)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
@@ -3207,14 +3222,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const backupKey = `${key}.backup`;
     const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
     const futureState = createInitialState() as any;
-    futureState.schema = 23;
+    futureState.schema = 24;
     const futurePayload = JSON.stringify(futureState);
     const downloadDir = mkdtempSync(join(tmpdir(), 'auditsphere-preserved-export-'));
     try {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v23, newer than supported v22/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v24, newer than supported v23/);
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
       assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
@@ -3227,15 +3242,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       }
       assert.equal(downloaded.length, 1, 'preserved state export creates one completed download');
       assert.equal(readFileSync(join(downloadDir, downloaded[0]), 'utf8'), futurePayload, 'downloaded export bytes equal the exact preserved future-schema payload');
-      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File(['{"schema":22}'],'ambiguous-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File(['{"schema":23}'],'ambiguous-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser(`document.body.innerText.includes('Imported state is ambiguous: missing engagements')`), true, 'ambiguous imports report why they were rejected');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'rejected import does not overwrite the unsupported prior payload');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'rejected import keeps the preserved backup unchanged');
       const validPayload = JSON.stringify(createInitialState());
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(validPayload)}],'recovered-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v22')`), true, 'successful import clears the recovery error');
+      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v23')`), true, 'successful import clears the recovery error');
       const restored = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(restored.schema, 22);
+      assert.equal(restored.schema, 23);
       assert.ok(restored.engagements > 0);
       assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
       assert.deepEqual(browserTab!.exceptions, []);
