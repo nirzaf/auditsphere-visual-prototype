@@ -2695,6 +2695,57 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('AT-44: isolates a translation-rounding residual from balanced component sources', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const sourceTotals = await browserTab!.evaluate<number[]>(`(() => {
+        const state = ${JSON.stringify(createInitialState())};
+        const group = state.consolidationGroups[0];
+        group.eliminations = [];
+        group.fxRates.USD = 1.37;
+        group.fxRateHistory ||= {};
+        group.fxRateHistory.USD = [{ revision: 1, rate: 1.37, purpose: 'Closing', effectiveDate: '2026-09-23', changedBy: 'Layla Rahman', changedAt: '2026-09-23T10:00:00Z' }];
+        const parentRows = [
+          { code: '1000', name: 'Cash', type: 'asset', balance: 0 },
+          { code: '2000', name: 'Payables', type: 'liability', balance: 0 },
+          { code: '3000', name: 'Equity', type: 'equity', balance: 0 }
+        ];
+        const subsidiaryRows = [
+          { code: '1000', name: 'Cash', type: 'asset', balance: 0.01 },
+          { code: '1100', name: 'Receivables', type: 'asset', balance: 0.01 },
+          { code: '2000', name: 'Payables', type: 'liability', balance: -0.02 }
+        ];
+        for (const [index, rows] of [parentRows, subsidiaryRows].entries()) {
+          const component = group.components[index];
+          const engagement = state.engagements.find(item => item.id === component.componentId);
+          component.packageRows = structuredClone(rows);
+          engagement.rows = structuredClone(rows);
+        }
+        const sub = group.components[1];
+        sub.currency = 'USD';
+        sub.functionalCurrency = 'USD';
+        localStorage.setItem('ste-auditsphere-role-portals-v2', JSON.stringify(state));
+        return [parentRows.reduce((sum, row) => sum + row.balance, 0), subsidiaryRows.reduce((sum, row) => sum + row.balance, 0)];
+      })()`);
+      assert.deepEqual(sourceTotals, [0, 0], 'both component trial balances start balanced');
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
+      await clickButton('Currency Translation (FX)');
+      const text = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(text, /assets less liabilities and equity: QAR 0\.01/);
+      assert.match(text, /difference remains unallocated; no plug is added/);
+      assert.deepEqual(await browserTab!.evaluate<number[]>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.filter(item=>['ENG-26001','ENG-26002'].includes(item.id)).map(item=>item.rows.reduce((sum,row)=>sum+row.balance,0))`), [0, 0], 'calculating group FX leaves both balanced component sources unchanged');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-43: blocks consolidation output and identifies a missing perimeter role', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
