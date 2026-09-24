@@ -2211,7 +2211,9 @@ class PrototypeStore {
       const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
       if (!engagement || journal.reflectionSourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'Confirm the journal reflection status against the current trial-balance source revision.');
       if (Boolean(journal.reflectedInClientBooks) !== (journal.reflectionStatus === 'Reflected in TB')) throw new GuardError('INVALID_STATE', 'The source-reflected flag and reflection status must agree.');
-      if (journal.reflectionStatus !== current.reflectionStatus || journal.reflectionSourceVersion !== current.reflectionSourceVersion) journal.reflectionHistory = [...(current.reflectionHistory || []), { status: current.reflectionStatus, sourceVersion: current.reflectionSourceVersion || 0, recordedAt: new Date().toISOString(), recordedByUserId: this.state.currentUserId }];
+      if (journal.reflectionStatus === 'Reflected in TB' && !journal.reflectionEvidenceRef?.trim()) throw new GuardError('INVALID_STATE', 'A reflected-in-TB decision requires an evidence reference.');
+      if ((journal.reflectionEvidenceRef?.trim().length || 0) > 160) throw new GuardError('INVALID_STATE', 'Reflection evidence reference must be 160 characters or fewer.');
+      if (journal.reflectionStatus !== current.reflectionStatus || journal.reflectionSourceVersion !== current.reflectionSourceVersion || journal.reflectionEvidenceRef !== current.reflectionEvidenceRef) journal.reflectionHistory = [...(current.reflectionHistory || []), { status: current.reflectionStatus, sourceVersion: current.reflectionSourceVersion || 0, evidenceRef: current.reflectionEvidenceRef, recordedAt: new Date().toISOString(), recordedByUserId: this.state.currentUserId }];
       this.state.adjustmentJournals[index] = journal;
       this.invalidateReleaseBasis(engagement);
       this.notify();

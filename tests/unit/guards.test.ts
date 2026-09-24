@@ -1048,11 +1048,16 @@ describe('adjustment approval lifecycle (AT-38)', () => {
     assert.equal(accepted.managementAcceptedBy, 'Omar Nasser');
     setPersona(storeState, 'Layla Rahman');
     assert.throws(() => prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionSourceVersion: 0 }), /current trial-balance source revision/);
-    prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionStatus: 'Partially reflected', reflectedInClientBooks: false, reflectionSourceVersion: 1 });
+    assert.throws(() => prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionStatus: 'Reflected in TB', reflectedInClientBooks: true, reflectionSourceVersion: 1 }), /requires an evidence reference/);
+    prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionStatus: 'Reflected in TB', reflectedInClientBooks: true, reflectionSourceVersion: 1, reflectionEvidenceRef: 'TB-IMPORT-REV-1' });
+    const reflected = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
+    assert.equal(reflected.reflectionEvidenceRef, 'TB-IMPORT-REV-1');
+    assert.deepEqual(reflected.reflectionHistory.map((entry: any) => [entry.status, entry.sourceVersion, entry.evidenceRef]), [['Not reflected', 1, undefined]]);
+    prototypeStore.updateAdjustmentJournal({ ...reflected, reflectionStatus: 'Partially reflected', reflectedInClientBooks: false, reflectionSourceVersion: 1 });
     const reflection = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
     assert.equal(reflection.reflectionStatus, 'Partially reflected');
     assert.equal(reflection.reflectionSourceVersion, 1);
-    assert.deepEqual(reflection.reflectionHistory.map((entry: any) => [entry.status, entry.sourceVersion]), [['Not reflected', 1]]);
+    assert.deepEqual(reflection.reflectionHistory.map((entry: any) => [entry.status, entry.sourceVersion, entry.evidenceRef]), [['Not reflected', 1, undefined], ['Reflected in TB', 1, 'TB-IMPORT-REV-1']]);
     setPersona(storeState, 'Adam Khan');
     prototypeStore.addAdjustmentJournal({
       id: 'AJ-REJECT', engagementId: 'ENG-26001', title: 'Rejection lifecycle fixture', status: 'Draft',

@@ -39,6 +39,8 @@ interface AccountingWorkbenchViewProps {
 export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations' | 'setup'>('tb');
+  const [reflectionEvidenceDrafts, setReflectionEvidenceDrafts] = useState<Record<string, string>>({});
+  const [adjustmentNotice, setAdjustmentNotice] = useState('');
   const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
   const [recDraft, setRecDraft] = useState<ReconciliationSchedule | null>(null);
   const [recNotice, setRecNotice] = useState('');
@@ -126,12 +128,23 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   };
 
   const handleReflectionChange = (adj: AdjustmentJournalItem, reflectionStatus: AdjustmentJournalItem['reflectionStatus']) => {
-    prototypeStore.updateAdjustmentJournal({
-      ...adj,
-      reflectedInClientBooks: reflectionStatus === 'Reflected in TB',
-      reflectionStatus,
-      reflectionSourceVersion: selectedEng.sourceVersion
-    });
+    try {
+      prototypeStore.updateAdjustmentJournal({
+        ...adj,
+        reflectedInClientBooks: reflectionStatus === 'Reflected in TB',
+        reflectionStatus,
+        reflectionSourceVersion: selectedEng.sourceVersion,
+        reflectionEvidenceRef: reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef
+      });
+      setAdjustmentNotice('Reflection decision saved against the current trial-balance revision.');
+    } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : 'Reflection decision could not be saved.'); }
+  };
+
+  const handleReflectionEvidenceSave = (adj: AdjustmentJournalItem, evidenceRef: string) => {
+    try {
+      prototypeStore.updateAdjustmentJournal({ ...adj, reflectionEvidenceRef: evidenceRef.trim(), reflectionSourceVersion: selectedEng.sourceVersion });
+      setAdjustmentNotice('Reflection evidence reference saved.');
+    } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : 'Reflection evidence could not be saved.'); }
   };
 
   return (
@@ -671,6 +684,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
       {/* Tab 4: Adjustments */}
       {activeTab === 'adjustments' && (
         <div className="stack" style={{ gap: 16 }}>
+          {adjustmentNotice && <div role="status" className="panel panel-pad">{adjustmentNotice}</div>}
           <div className="panel panel-pad">
             <div className="between">
               <div>
@@ -698,7 +712,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                       {adj.status}
                     </span>
                     {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => prototypeStore.reviewAdjustmentJournal(adj.id, true)}>Complete Technical Review</button>}
-                    {['Management accepted', 'Reporting included'].includes(adj.status) && <label>Reflection on TB v{selectedEng.sourceVersion}<select aria-label={`Reflection status for ${adj.id}`} value={adj.reflectionSourceVersion === selectedEng.sourceVersion ? adj.reflectionStatus : 'Unknown'} onChange={event => handleReflectionChange(adj, event.target.value as AdjustmentJournalItem['reflectionStatus'])}><option>Not reflected</option><option>Reflected in TB</option><option>Partially reflected</option><option>Unknown</option></select></label>}
+                    {['Management accepted', 'Reporting included'].includes(adj.status) && <div className="stack" style={{ gap: 6 }}><label>Reflection on TB v{selectedEng.sourceVersion}<select aria-label={`Reflection status for ${adj.id}`} value={adj.reflectionSourceVersion === selectedEng.sourceVersion ? adj.reflectionStatus : 'Unknown'} onChange={event => handleReflectionChange(adj, event.target.value as AdjustmentJournalItem['reflectionStatus'])}><option>Not reflected</option><option>Reflected in TB</option><option>Partially reflected</option><option>Unknown</option></select></label><label>Reflection evidence reference<div className="row"><input aria-label={`Reflection evidence reference for ${adj.id}`} value={reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? ''} onChange={event => setReflectionEvidenceDrafts(current => ({ ...current, [adj.id]: event.target.value }))} maxLength={160} /><button type="button" className="btn sm ghost" aria-label={`Save reflection evidence for ${adj.id}`} onClick={() => handleReflectionEvidenceSave(adj, reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? '')}>Save evidence</button></div></label></div>}
                   </div>
                 </div>
                 <div className="caption mt4">Source reflection: {adj.reflectionStatus} · {adj.reflectionSourceVersion === undefined ? 'unversioned source' : `TB v${adj.reflectionSourceVersion}`}{adj.reflectionSourceVersion !== undefined && adj.reflectionSourceVersion !== selectedEng.sourceVersion ? ' · re-review required' : ''} · Prepared by {adj.preparedBy}{adj.reviewedBy ? ` · Technical review by ${adj.reviewedBy}` : ''}{adj.managementAcceptedBy ? ` · Accepted by ${adj.managementAcceptedBy}` : ''}</div>

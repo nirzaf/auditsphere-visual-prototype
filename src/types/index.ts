@@ -868,7 +868,8 @@ export interface AdjustmentJournalItem {
   reflectionStatus: 'Not reflected' | 'Reflected in TB' | 'Partially reflected' | 'Unknown';
   reflectedInClientBooks?: boolean;
   reflectionSourceVersion?: number;
-  reflectionHistory?: Array<{ status: AdjustmentJournalItem['reflectionStatus']; sourceVersion: number; recordedAt: string; recordedByUserId: string }>;
+  reflectionEvidenceRef?: string;
+  reflectionHistory?: Array<{ status: AdjustmentJournalItem['reflectionStatus']; sourceVersion: number; evidenceRef?: string; recordedAt: string; recordedByUserId: string }>;
   rationale?: string;
   evidenceRef?: string;
   lines: Array<{
