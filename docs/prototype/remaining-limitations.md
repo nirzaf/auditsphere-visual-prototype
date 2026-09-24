@@ -263,8 +263,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   movement reconciliation and agreement with the current approved mapped TB
   cash balance. Source or mapping changes stale reviewed schedules. A current
   reviewed schedule can be selected into the exact saved financial package
-  artifacts. Per-note disclosure records, shared client note projections,
-  complete statement layout and broader cash-flow edge coverage remain open.
+  artifacts. Chrome confirms a shared reviewed note is included in the generated
+  PDF and an unshared reviewed note is omitted; store checks confirm disclosure
+  and cash-flow revisions stale package generation while retaining historical
+  snapshots. Broader disclosure rework, complete statement layout and cash-flow
+  edge coverage remain open.
   Package preparation still has one overall disclosure applicability and note
   rationale; this does not replace a per-note accounting-standard checklist.
 - **VP-042 — financial packages:** package sections and their order persist
