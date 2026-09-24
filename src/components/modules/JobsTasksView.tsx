@@ -27,6 +27,10 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [taskToReassign, setTaskToReassign] = useState<JobTaskItem | null>(null);
+  const [taskToEdit, setTaskToEdit] = useState<JobTaskItem | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDescription, setEditTaskDescription] = useState('');
+  const [editTaskDueDate, setEditTaskDueDate] = useState('');
   const [newAssignee, setNewAssignee] = useState('Adam Khan');
   const [reassignReason, setReassignReason] = useState('');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -66,7 +70,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
 
   // Filter tasks for selected job
   const jobTasks = state.jobTasks.filter(t => scopedJobIds.has(t.jobId) && t.jobId === selectedJob?.id);
-  const parentTasks = jobTasks.filter(t => !t.parentTaskId);
+  const parentTasks = jobTasks.filter(t => !t.parentTaskId).sort((a, b) => a.order - b.order);
   const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal');
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
 
@@ -169,11 +173,46 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   };
 
   const handleUpdateTaskStatus = (task: JobTaskItem, completed: boolean) => {
+    handleSetTaskStatus(task, completed ? 'Completed' : 'In progress');
+  };
+
+  const handleSetTaskStatus = (task: JobTaskItem, status: JobTaskItem['status']) => {
+    let blockedReason = task.blockedReason;
+    if (status === 'Blocked') {
+      blockedReason = window.prompt('Why is this task blocked?')?.trim();
+      if (!blockedReason) return;
+    } else blockedReason = undefined;
     try {
       prototypeStore.updateTask({
         ...task,
-        status: completed ? 'Completed' : 'In progress'
+        status,
+        blockedReason
       });
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const moveTask = (task: JobTaskItem, direction: -1 | 1) => {
+    const siblings = jobTasks.filter(item => item.parentTaskId === task.parentTaskId).sort((a, b) => a.order - b.order);
+    const index = siblings.findIndex(item => item.id === task.id);
+    const other = siblings[index + direction];
+    if (!other) return;
+    try {
+      prototypeStore.updateTask({ ...task, order: other.order });
+      prototypeStore.updateTask({ ...other, order: task.order });
+    } catch (err: any) {
+      triggerNotice('error', err.message);
+    }
+  };
+
+  const saveTaskDetails = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!taskToEdit) return;
+    try {
+      prototypeStore.updateTask({ ...taskToEdit, title: editTaskTitle.trim(), description: editTaskDescription.trim(), dueDate: editTaskDueDate || undefined });
+      setTaskToEdit(null);
+      triggerNotice('success', 'Task details updated.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -338,7 +377,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     <p className="sub">No tasks defined for this job yet.</p>
                   ) : (
                     parentTasks.map(parent => {
-                      const subtasks = jobTasks.filter(t => t.parentTaskId === parent.id);
+                      const subtasks = jobTasks.filter(t => t.parentTaskId === parent.id).sort((a, b) => a.order - b.order);
                       return (
                         <div key={parent.id} className="borderbox" style={{ padding: 12 }}>
                           <div className="between">
@@ -356,9 +395,14 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                                 <div className="cell-sub">
                                   Assigned: {parent.assignee} · Status: {parent.status}
                                 </div>
+                                {parent.status === 'Blocked' && <div className="cell-sub">Blocked: {parent.blockedReason}</div>}
+                                <select className="input sm mt4" aria-label={`Task status ${parent.id}`} value={parent.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(parent, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed'].map(status => <option key={status}>{status}</option>)}</select>
                               </div>
                             </div>
                             <div className="row" style={{ gap: 6 }}>
+                              <button className="btn sm ghost" aria-label={`Edit task ${parent.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToEdit(parent); setEditTaskTitle(parent.title); setEditTaskDescription(parent.description || ''); setEditTaskDueDate(parent.dueDate || ''); }}>Edit</button>
+                              <button className="btn sm ghost" aria-label={`Move ${parent.title} up`} disabled={selectedJob.status === 'Cancelled' || parentTasks[0]?.id === parent.id} onClick={() => moveTask(parent, -1)}>↑</button>
+                              <button className="btn sm ghost" aria-label={`Move ${parent.title} down`} disabled={selectedJob.status === 'Cancelled' || parentTasks.at(-1)?.id === parent.id} onClick={() => moveTask(parent, 1)}>↓</button>
                               <button
                                 className="btn sm ghost"
                                 disabled={selectedJob.status === 'Cancelled'}
@@ -399,18 +443,16 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                                         {sub.title}
                                       </span>
                                       <div className="cell-sub">{sub.assignee}</div>
+                                      {sub.status === 'Blocked' && <div className="cell-sub">Blocked: {sub.blockedReason}</div>}
+                                      <select className="input sm mt4" aria-label={`Task status ${sub.id}`} value={sub.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(sub, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed'].map(status => <option key={status}>{status}</option>)}</select>
                                     </div>
                                   </div>
-                                  <button
-                                    className="btn sm ghost"
-                                    disabled={selectedJob.status === 'Cancelled'}
-                                    onClick={() => {
-                                      setTaskToReassign(sub);
-                                      setShowReassignModal(true);
-                                    }}
-                                  >
-                                    Reassign
-                                  </button>
+                                  <div className="row" style={{ gap: 6 }}>
+                                    <button className="btn sm ghost" aria-label={`Edit task ${sub.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToEdit(sub); setEditTaskTitle(sub.title); setEditTaskDescription(sub.description || ''); setEditTaskDueDate(sub.dueDate || ''); }}>Edit</button>
+                                    <button className="btn sm ghost" aria-label={`Move ${sub.title} up`} disabled={selectedJob.status === 'Cancelled' || subtasks[0]?.id === sub.id} onClick={() => moveTask(sub, -1)}>↑</button>
+                                    <button className="btn sm ghost" aria-label={`Move ${sub.title} down`} disabled={selectedJob.status === 'Cancelled' || subtasks.at(-1)?.id === sub.id} onClick={() => moveTask(sub, 1)}>↓</button>
+                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToReassign(sub); setShowReassignModal(true); }}>Reassign</button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -422,7 +464,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                 </div>
                 <div className="divider mt20" />
                 <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => setShowNoteModal(true)}>Add Internal Note</button></div>
-                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p>{comment.author === state.currentPerson && <button className="btn sm ghost" onClick={() => { setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}</div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
+                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => <div className="borderbox" style={{ padding: 12 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}</p>{comment.author === state.currentPerson && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => { setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}</div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}</div></div>)}</div>}
               </div>
             </div>
           )}
@@ -521,6 +563,23 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                 <button type="button" className="btn ghost sm" onClick={() => setShowAddJobModal(false)}>Cancel</button>
                 <button type="submit" className="btn primary sm">Create Job</button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {taskToEdit && (
+        <div className="modal-backdrop" onClick={() => setTaskToEdit(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label={`Edit ${taskToEdit.title}`} style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head"><h2>Edit Task</h2><button className="icon-btn" onClick={() => setTaskToEdit(null)}>✕</button></div>
+            <form onSubmit={saveTaskDetails}>
+              <div className="modal-body stack" style={{ gap: 12 }}>
+                <label className="caption">Task title<input className="input mt4" aria-label="Edited task title" required value={editTaskTitle} onChange={e => setEditTaskTitle(e.target.value)} /></label>
+                <label className="caption">Description<textarea className="input mt4" aria-label="Edited task description" value={editTaskDescription} onChange={e => setEditTaskDescription(e.target.value)} /></label>
+                <label className="caption">Due date<input className="input mt4" aria-label="Edited task due date" type="date" value={editTaskDueDate} onChange={e => setEditTaskDueDate(e.target.value)} /></label>
+              </div>
+              <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setTaskToEdit(null)}>Cancel</button><button type="submit" className="btn primary sm">Save Task</button></div>
             </form>
           </div>
         </div>
