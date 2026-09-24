@@ -1832,6 +1832,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const billingCsv = parseCsv(await browserTab!.evaluate<string>('window.__reportCsv.text()'));
       assert.ok(billingCsv.length > 1, 'billing persona has scoped invoice rows');
       assert.ok(billingCsv.slice(1).every(row => row[2] === 'Example Trading Entity'), 'billing export must honor the active client filter');
+
+      const selectPersona = async (label: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Persona missing: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await selectPersona('Engagement partner');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === 'partner'`), true);
+      assert.equal((await browserTab!.evaluate<string[]>('[...document.querySelectorAll("#practice-report option")].map(o=>o.value)')).length, 16, 'partner can use the complete manager report catalogue');
+
+      await selectPersona('Records administrator');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === 'records'`), true);
+      const recordsReports = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("#practice-report option")].map(o=>o.value)');
+      assert.deepEqual(recordsReports, ['compliance', 'clients', 'jobs', 'tasks'], 'records persona sees only its four permitted operational reports');
+      await browserTab!.evaluate(`(() => {const c=document.querySelector('#report-client-filter');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(c,'CL-002');c.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const engagementClients = await browserTab!.evaluate<Record<string, string>>(`Object.fromEntries(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.map(e=>[e.id,e.client]))`);
+      const engagementColumn: Record<string, number> = { compliance: 0, clients: 1, jobs: 1, tasks: 2 };
+      const expectedRecordsRows = await browserTab!.evaluate<Record<string, number>>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const ids=new Set(s.engagements.filter(e=>e.client==='CL-002').map(e=>e.id));const jobs=s.jobs.filter(j=>ids.has(j.engagementId));const jobIds=new Set(jobs.map(j=>j.id));return {compliance:ids.size,clients:ids.size,jobs:jobs.length,tasks:s.jobTasks.filter(t=>jobIds.has(t.jobId)).length};})()`);
+      for (const key of recordsReports) {
+        await browserTab!.evaluate(`(() => {const s=document.querySelector('#practice-report');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(key)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+        await clickButton('Export Active Report (CSV)');
+        const rows = parseCsv(await browserTab!.evaluate<string>('window.__reportCsv.text()')).slice(1);
+        assert.equal(rows.length, expectedRecordsRows[key], `${key} filter should match selected-client source rows`);
+        assert.ok(rows.every(row => engagementClients[row[engagementColumn[key]]] === 'CL-002'), `${key} export must contain only the selected client's engagements`);
+      }
       assert.equal(browserTab!.exceptions.length, 0);
     } finally {
       if (priorState) {

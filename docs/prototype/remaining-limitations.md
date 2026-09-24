@@ -2,8 +2,8 @@
 
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-047, VP-051,
-VP-052, VP-053, VP-055, VP-056, VP-057, VP-058 and VP-059 are Verified;
-30 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
+VP-052, VP-053, VP-055, VP-056, VP-057, VP-058, VP-059 and VP-060 are Verified;
+29 of 39 modules remain Partial. Automated sources explicitly trace AT-01 through AT-54. See
 `verification.md` for exact executed checks.
 
 ## Known acceptance gaps
@@ -40,14 +40,15 @@ VP-052, VP-053, VP-055, VP-056, VP-057, VP-058 and VP-059 are Verified;
   internal communication and can find a shared document; unit coverage checks
   document-name grant scoping. Other client/person grant combinations, result
   cross-links and search types still need direct journey coverage.
-- **VP-060 — reporting:** WIP now values approved time using its approval-pinned
+- **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.
   Chrome now maps every exported CSV field for all 16 reports to persisted source
   records; WIP, utilization and compliance values are also independently
-  recomputed. The billing persona's restricted report catalogue and client-filtered
-  invoice export are also verified. OS-level print output and other filter/persona
-  combinations still lack full acceptance evidence.
+  recomputed. Chrome verifies manager and partner full catalogues, billing's nine
+  reports, records' four reports and client-filtered exports for all records views.
+  Print actions are invoked for all 16 reports. Device-specific printer output and
+  external BI are outside the browser prototype.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   across two issued invoices and reverses one allocation with a reason while
   preserving the other invoice settlement. It exports a client-scoped CSV
@@ -255,7 +256,7 @@ includes five static checks and 57 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-047, VP-051,
-VP-052, VP-053, VP-055, VP-056, VP-057, VP-058 and VP-059 are Verified;
-54 of 64 stories and 30 of 39 modules remain Partial because full
+VP-052, VP-053, VP-055, VP-056, VP-057, VP-058, VP-059 and VP-060 are Verified;
+53 of 64 stories and 29 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
