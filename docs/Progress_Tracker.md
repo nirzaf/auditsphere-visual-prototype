@@ -55,7 +55,7 @@
 | Unit checks passing in this review | 170 / 170 | Fresh full run on 2026-09-24 at app source `8d30a82` and test HEAD `06ac059`; includes group-output package identity, independent approval, stale-input and tamper guards. |
 | E2E checks passing in this review | 73 / 73 | Fresh full run at `8d30a82`: 5 static checks + 68 actual Chrome checks, including same-currency and FX group-output preparation, independent approval, persisted digest and scoped export. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Open acceptance actions in Section 9.3 | 111 | 78 evidence/verification actions and 33 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Open acceptance actions in Section 9.3 | 110 | 78 evidence/verification actions and 32 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, independently reviewed cash-flow and per-note disclosure records, and VP-043 perimeter acceptance. The current story totals are 16 verified / 48 partial; module totals remain 10 verified / 29 partial because other stories in the consolidation module are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported completion estimate is used.
 
@@ -2796,7 +2796,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. New 2026-09-24 balanced-source Chrome fixture (`tests/e2e/app.test.ts`, commit `0e34c58`) isolates a QAR 0.01 per-line translation-rounding residual while both component source balances remain zero and unchanged. Broader criterion coverage remains open.
 
-- [ ] **VP-044-R03 — Requirement/scope reconciliation:** Do not add live exchange-rate feeds or unsupported complex translation methods.
+- [x] **VP-044-R03 — Scope reconciled (2026-09-24):** Keep rates manually entered and versioned; only the disclosed closing-rate profile is calculated. Live feeds and unsupported average/historical methods stay excluded.
 
 #### Original user story and dependencies
 **Target modules:** 26  
@@ -3939,7 +3939,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **111 open planning actions** attached to the 48 Partial stories. Open actions remain unchecked; completed actions are checked or marked complete in the evidence ledger. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **110 open planning actions** attached to the 48 Partial stories. Open actions remain unchecked; completed actions are checked or marked complete in the evidence ledger. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4095,7 +4095,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-040-R02 | [VP-040](#vp-040) | Reconcile the versioned layout, grouping/order/subtotal editor requirements and fill actual missing supported-fixture operations. | Open / — |
 | VP-042-R03 | [VP-042](#vp-042) | Package inclusion requires a current independently reviewed cash-flow schedule; without one, output remains unavailable. | Complete / verified 2026-09-24 |
 | VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Complete / acceptance scope reconciled 2026-09-24 |
-| VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Open / — |
+| VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Complete / scope disclosure and `FxRateEditor`, 2026-09-24 |
 | VP-045-R01 | [VP-045](#vp-045) | Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria. | Open / — |
 | VP-046-R01 | [VP-046](#vp-046) | Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey. | Complete / AT-45 Chrome + group output package tests, 2026-09-24 |
 | VP-048-R02 | [VP-048](#vp-048) | Check any remaining hard-coded threshold/team/timing assumption against the contract; implement editable bounded fixture inputs where required, without asserting professional recommended rates. | Open / — |
