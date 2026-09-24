@@ -3616,14 +3616,14 @@ Provide report pages for active clients/engagements, jobs/tasks by status and ov
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-060-AC01 | Given a report filter, when totals are calculated, then drill-down rows and exports reconcile to the same scoped dataset. | Repository story-level Verified; individual test locator not separately assigned here |
-| VP-060-AC02 | Changing a source time/invoice/receipt/task record updates relevant reports without independent manually maintained counters. | Repository story-level Verified; individual test locator not separately assigned here |
-| VP-060-AC03 | Different currencies and unknown cost information are shown honestly; budget, billing-rate value and actual delivery cost are not conflated. | Repository story-level Verified; individual test locator not separately assigned here |
-| VP-060-AC04 | Client/persona restrictions apply to filters, totals and downloads; reports contain no AI narrative, semantic analysis or Power BI integration. | Repository story-level Verified; individual test locator not separately assigned here |
+| VP-060-AC01 | Given a report filter, when totals are calculated, then drill-down rows and exports reconcile to the same scoped dataset. | Verified — `tests/e2e/app.test.ts` AT-49/AT-60 checks all 16 CSV row sets against independent source calculations or the rendered report, plus client-filtered export. |
+| VP-060-AC02 | Changing a source time/invoice/receipt/task record updates relevant reports without independent manually maintained counters. | Verified — AT-49/AT-60 changes approved time, invoice and its line total, receipt and task in deterministic persisted fixture state, reloads the compiled app, and observes each changed report row. |
+| VP-060-AC03 | Different currencies and unknown cost information are shown honestly; budget, billing-rate value and actual delivery cost are not conflated. | Verified — AT-49/AT-60 changes one engagement to USD and confirms currency-specific rows plus Unknown mixed-currency aggregate metrics; `tests/unit/calculations.test.ts` VP-060 confirms missing approved-time rate remains unknown. |
+| VP-060-AC04 | Client/persona restrictions apply to filters, totals and downloads; reports contain no AI narrative, semantic analysis or Power BI integration. | Verified — AT-49/AT-60 verifies manager, billing and records report catalogues, selected-client CSV scope, and network isolation in the full Chrome suite. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1311).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Acceptance evidence:** Commit `3919046094f14be627f282cadfb234d105a78115` (2026-09-24); deterministic `createInitialState()` browser fixture. Criteria AC01–AC04 map to `tests/e2e/app.test.ts::AT-49/AT-60` and, for missing-rate handling, `tests/unit/calculations.test.ts::recorded WIP rates (VP-060)`. Run: `npm run lint && npm run test:unit && npm run test:e2e` — PASS, 168/168 unit and 71/71 E2E (5 static + 66 Chrome). Reviewer: recorded automated acceptance evidence, 2026-09-24.
 
 
 <a id="vp-061"></a>
