@@ -56,6 +56,20 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
   const [subsidiaryId, setSubsidiaryId] = useState(subComp?.componentId || '');
   const [reason, setReason] = useState('');
   const [notice, setNotice] = useState('');
+  const repinCurrentPackages = () => {
+    try {
+      const next = structuredClone(group);
+      for (const component of next.components) {
+        const engagement = snapshot.engagements.find(item => item.id === component.componentId);
+        if (!engagement) throw new Error(`Engagement "${component.componentId}" is no longer available.`);
+        component.packageRevisionPinned = engagement.packageRevision;
+        component.packageRows = structuredClone(engagement.rows);
+        component.status = 'Ready';
+      }
+      prototypeStore.updateConsolidationGroup(next, { reason });
+      setNotice('Current component package revisions pinned; prior snapshots remain in group history.');
+    } catch (error: any) { setNotice(error.message); }
+  };
   const save = (event: React.FormEvent) => {
     event.preventDefault();
     try {
@@ -103,7 +117,7 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
         <label className="caption">Subsidiary component engagement<select className="input mt4" aria-label="Subsidiary component engagement" value={subsidiaryId} onChange={event => setSubsidiaryId(event.target.value)}>{candidates.map(e => <option key={e.id} value={e.id}>{e.id} · {snapshot.clients.find(c => c.id === e.client)?.name || e.client} · FY {e.year}</option>)}</select></label>
         <label className="caption">Reason for perimeter change or revert<input className="input mt4" aria-label="Reason for perimeter change" placeholder="e.g. Correct subsidiary to the in-scope 2026 engagement" value={reason} onChange={event => setReason(event.target.value)} /></label>
       </div>
-      <div className="row mt12"><button className="btn primary sm" type="submit">Save perimeter revision</button></div>
+      <div className="row mt12"><button className="btn primary sm" type="submit">Save perimeter revision</button><button className="btn sm" type="button" onClick={repinCurrentPackages}>Pin current component packages</button></div>
       {notice && <p role="status" className="caption mt8">{notice}</p>}
     </form>
     {(group.perimeterHistory || []).length > 0 && <div className="mt16">
@@ -215,6 +229,10 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   }
   const missingPackage = !parentComp?.packageRows?.length || !subComp?.packageRows?.length || !parentEng || !subEng || !parentComp.packageRevisionPinned || !subComp.packageRevisionPinned;
   const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
+  const staleComponents = group.components.filter(component => {
+    const current = state.engagements.find(engagement => engagement.id === component.componentId);
+    return !current || component.packageRevisionPinned !== current.packageRevision || JSON.stringify(component.packageRows) !== JSON.stringify(current.rows);
+  });
 
   if (missingPackage || missingRate) {
     const missingComponent = group.components.find(c => !state.engagements.some(e => e.id === c.componentId) || !c.packageRows?.length)?.componentId;
@@ -287,6 +305,10 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {/* Grid Tab */}
       {activeTab === 'grid' && (
         <div className="stack" style={{ gap: 16 }}>
+          {staleComponents.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
+            <b>Stale component package pin</b>
+            <div className="sub mt4">{staleComponents.map(component => `${component.role || 'Component'} ${component.componentId}`).join(', ')} has a newer source revision. Figures remain based on the exact pinned snapshot; review the perimeter and pin current component packages before relying on this output.</div>
+          </div>}
           {unmatchedEliminationLines.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
             <b>Some approved elimination accounts do not match the pinned packages.</b>
             <div className="sub mt4">These lines were excluded from the calculation: {unmatchedEliminationLines.join('; ')}</div>
@@ -407,6 +429,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
               <tbody>
                 {group.components.map((c: any) => {
                   const componentEngagement = state.engagements.find(e => e.id === c.componentId);
+                  const stale = !componentEngagement || c.packageRevisionPinned !== componentEngagement.packageRevision || JSON.stringify(c.packageRows) !== JSON.stringify(componentEngagement.rows);
                   const clientRecord = state.clients.find(x => x.id === componentEngagement?.client);
                   return (
                     <tr key={c.componentId || c.clientId}>
@@ -416,7 +439,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
                       <td>{c.effectiveDate || '—'}</td>
                       <td>{c.functionalCurrency || c.currency}</td>
                       <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b></td>
-                      <td><span className={`badge ${c.packageRows ? 'green' : 'red'}`}>{c.packageRows ? 'Pinned snapshot' : 'Missing snapshot'}</span></td>
+                      <td><span className={`badge ${!c.packageRows ? 'red' : stale ? 'amber' : 'green'}`}>{!c.packageRows ? 'Missing snapshot' : stale ? 'Stale package pin' : 'Pinned snapshot'}</span></td>
                     </tr>
                   );
                 })}
@@ -456,10 +479,22 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {activeTab === 'fx' && (
         <div className="stack" style={{ gap: 12 }}>
           <FxRateEditor group={group} />
-          {group.components.map(component => <div key={component.componentId} className="borderbox panel-pad">
-            <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{fxRate(component)} ×</b></div>
-            <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · translation source: local group rate table · profile: closing rate for all balance-sheet lines</div>
-          </div>)}
+          {group.components.map(component => {
+            const rate = fxRate(component);
+            const currentRate = (group.fxRateHistory?.[component.currency] || []).at(-1);
+            return <div key={component.componentId} className="borderbox panel-pad">
+              <div className="between"><span>{component.componentId} · {component.currency} to {groupCurrency}</span><b>{rate} ×</b></div>
+              <div className="cell-sub">Pinned package revision {component.packageRevisionPinned} · {currentRate ? `rate v${currentRate.revision}, ${currentRate.purpose}, effective ${currentRate.effectiveDate}` : 'presentation-currency rate 1'} · closing rate applies to each balance-sheet line</div>
+              <div className="tablewrap mt8"><table>
+                <thead><tr><th>Account / source amount ({component.currency})</th><th>Rate</th><th>Translated amount ({groupCurrency})</th><th>Rounding difference</th></tr></thead>
+                <tbody>{(component.packageRows || []).map(row => {
+                  const exact = row.balance * rate;
+                  const translated = Math.round(exact * 100) / 100;
+                  return <tr key={`${component.componentId}-${row.code}`}><td>{row.code} · {row.name} · {formatCurrency(row.balance, component.currency)}</td><td>{rate}</td><td>{formatCurrency(translated, groupCurrency)}</td><td>{(translated - exact).toFixed(4)}</td></tr>;
+                })}</tbody>
+              </table></div>
+            </div>;
+          })}
         </div>
       )}
     </div>

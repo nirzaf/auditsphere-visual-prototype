@@ -2532,6 +2532,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('AT-44: warns on a changed component source and requires an explicit re-pin', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=${JSON.stringify(createInitialState())};const e=s.engagements.find(x=>x.id==='ENG-26002');e.packageRevision+=1;e.rows[0].balance+=10;localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Stale component package pin")'), true);
+      const pinnedBefore = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const c=s.consolidationGroups[0].components.find(x=>x.role==='Subsidiary');const e=s.engagements.find(x=>x.id===c.componentId);return {pin:c.packageRevisionPinned,source:e.packageRevision,pinnedRows:c.packageRows,currentRows:e.rows};})()`);
+      assert.equal(pinnedBefore.pin + 1, pinnedBefore.source);
+      assert.notDeepEqual(pinnedBefore.pinnedRows, pinnedBefore.currentRows, 'the old immutable snapshot is preserved while the UI warns');
+      await clickButton('Group Perimeter & Pinned Packages (2)');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="Reason for perimeter change"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Review replacement source revision');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Pin current component packages');
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const c=s.consolidationGroups[0].components.find(x=>x.role==='Subsidiary');const e=s.engagements.find(x=>x.id===c.componentId);return c.packageRevisionPinned===e.packageRevision&&JSON.stringify(c.packageRows)===JSON.stringify(e.rows);})()`), true);
+      const pinnedAfter = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const c=s.consolidationGroups[0].components.find(x=>x.role==='Subsidiary');const e=s.engagements.find(x=>x.id===c.componentId);return {pin:c.packageRevisionPinned,source:e.packageRevision,pinnedRows:c.packageRows,currentRows:e.rows,history:s.consolidationGroups[0].perimeterHistory.length};})()`);
+      assert.equal(pinnedAfter.pin, pinnedAfter.source);
+      assert.deepEqual(pinnedAfter.pinnedRows, pinnedAfter.currentRows);
+      assert.equal(pinnedAfter.history, 1);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-43: blocks missing FX and accepts a dated component-currency closing rate', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
@@ -2542,6 +2570,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         group.components[1].functionalCurrency = 'USD';
         delete group.fxRates.USD;
         const eng = state.engagements.find(item => item.id === group.components[1].componentId);
+        eng.rows[0].balance = 100.01;
+        group.components[1].packageRows[0].balance = 100.01;
         localStorage.setItem('ste-auditsphere-role-portals-v2', JSON.stringify(state));
         return structuredClone(eng.rows);
       })()`);
@@ -2561,6 +2591,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const text = await browserTab!.evaluate<string>('document.body.innerText');
       assert.match(text, /USD → QAR: 3\.64/);
       assert.match(text, /v1 · Closing · 2026-09-23 · 3\.64/);
+      assert.match(text, /1000 · Bank current account · USD 100\.01/);
+      assert.match(text, /364\.04/);
+      assert.match(text, /0\.0036/);
       assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').rows`), sourceBefore, 'translation leaves component TB rows unchanged');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
