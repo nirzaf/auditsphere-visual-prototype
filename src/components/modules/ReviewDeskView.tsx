@@ -4,6 +4,7 @@ import { RouteKey, ReviewNoteItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { eligibleReviewAssignees, visibleEngagementIds } from '../../services/guards';
+import { exportService } from '../../services/exportService';
 
 interface ReviewDeskViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -34,6 +35,8 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   const [selectedNote, setSelectedNote] = useState<ReviewNoteItem | null>(null);
   const [selectedNoteEngagementId, setSelectedNoteEngagementId] = useState(selectedEng.id);
   const [queueFilter, setQueueFilter] = useState<'engagement' | 'assigned' | 'scoped'>('engagement');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [severityFilter, setSeverityFilter] = useState('All');
   const [reassignmentTargets, setReassignmentTargets] = useState<Record<string, string>>({});
   const [showRaiseModal, setShowRaiseModal] = useState(false);
   const [showRespondModal, setShowRespondModal] = useState(false);
@@ -127,6 +130,12 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     .filter(engagement => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(engagement.id))
     .flatMap(engagement => engagement.reviews.map(note => ({ engagementId: engagement.id, note })))
     .filter(row => queueFilter === 'scoped' || queueFilter === 'assigned' && (row.note.assignedUserId === state.currentUserId || (!row.note.assignedUserId && (row.note.assignee || row.note.assigned) === state.currentPerson)) || queueFilter === 'engagement' && row.engagementId === selectedEng.id);
+  const filteredQueueRows = queueRows.filter(({ note }) => (statusFilter === 'All' || note.status === statusFilter) && (severityFilter === 'All' || note.severity === severityFilter));
+
+  const handleExportQueue = () => exportService.exportCSV(`Review_Queue_${state.asOfDate}`, [
+    ['Engagement', 'Note ID', 'Subject Type', 'Subject ID', 'Assignee', 'Status', 'Severity', 'Due', 'Query', 'Response', 'Response Evidence'],
+    ...filteredQueueRows.map(({ engagementId, note }) => [engagementId, note.id, note.subjectType === 'finding' ? 'Finding' : 'Workpaper', note.wp, note.assignee || note.assigned, note.status, note.severity, note.due, note.text || note.body, note.response, note.responseEvidence || ''])
+  ]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -151,14 +160,27 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
       <div className="panel">
         <div className="panel-head">
           <div className="between" style={{ flexWrap: 'wrap', gap: 12 }}>
-            <h3>Review Queue ({queueRows.length})</h3>
-            <label className="caption">Queue scope
-              <select aria-label="Review queue scope" className="input" value={queueFilter} onChange={e => setQueueFilter(e.target.value as typeof queueFilter)}>
-                <option value="engagement">Selected engagement</option>
-                <option value="assigned">Assigned to me</option>
-                <option value="scoped">All permitted engagements</option>
-              </select>
-            </label>
+            <h3>Review Queue ({filteredQueueRows.length} of {queueRows.length})</h3>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <label className="caption">Queue scope
+                <select aria-label="Review queue scope" className="input" value={queueFilter} onChange={e => setQueueFilter(e.target.value as typeof queueFilter)}>
+                  <option value="engagement">Selected engagement</option>
+                  <option value="assigned">Assigned to me</option>
+                  <option value="scoped">All permitted engagements</option>
+                </select>
+              </label>
+              <label className="caption">Status
+                <select aria-label="Review status filter" className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                  {['All', 'Open', 'Responded', 'Reopened', 'Cleared'].map(status => <option key={status}>{status}</option>)}
+                </select>
+              </label>
+              <label className="caption">Severity
+                <select aria-label="Review severity filter" className="input" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
+                  {['All', 'High', 'Medium', 'Low'].map(severity => <option key={severity}>{severity}</option>)}
+                </select>
+              </label>
+              <button className="btn sm ghost" onClick={handleExportQueue}>Export filtered queue</button>
+            </div>
           </div>
           <span className="caption">Only notes in your granted engagement scope appear. Responders cannot clear their own query.</span>
         </div>
@@ -176,7 +198,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
               </tr>
             </thead>
             <tbody>
-              {queueRows.map(({ engagementId, note: r }) => (
+              {filteredQueueRows.map(({ engagementId, note: r }) => (
                 <tr key={`${engagementId}:${r.id}`}>
                   <td><b>{r.id}</b></td>
                   <td><span className="mono">{engagementId} · {r.subjectType === 'finding' ? 'Finding' : 'Workpaper'} {r.wp}</span></td>
@@ -227,6 +249,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                   </td>
                 </tr>
               ))}
+              {filteredQueueRows.length === 0 && <tr><td colSpan={7} className="caption">No review points match these filters in your permitted scope.</td></tr>}
             </tbody>
           </table>
         </div>

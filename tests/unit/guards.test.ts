@@ -557,6 +557,7 @@ describe('separation of duties (AT-24/AT-31/AT-47)', () => {
 
 describe('review-note assignment (VP-055)', () => {
   it('limits assignees to active scoped preparers/managers and retains reassignment history', () => {
+    assert.equal(canOpenRoute('preparer', 'reviews'), true, 'assigned preparers need access to their personal review queue');
     (prototypeStore as any).state = createInitialState();
     setPersona((prototypeStore as any).state, 'Layla Rahman');
     const note = {
