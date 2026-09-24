@@ -2208,7 +2208,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /USD → QAR: 3\.64/);
       assert.match(text, /v1 · Closing · 2026-09-23 · 3\.64/);
       assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').rows`), sourceBefore, 'translation leaves component TB rows unchanged');
-      assert.deepEqual(browserTab!.exceptions, [], JSON.stringify(browserTab!.exceptions));
+      assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
       else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);

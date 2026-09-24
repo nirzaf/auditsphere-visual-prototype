@@ -21,15 +21,27 @@ export async function artifactSha256(blob: Blob): Promise<string> {
 }
 
 export async function persistArtifact(record: GeneratedArtifactRecord, blob: Blob): Promise<void> {
-  if (blob.size !== record.size || blob.type !== record.mimeType || await artifactSha256(blob) !== record.sha256) throw new Error(`Generated artifact ${record.name} does not match its declared size, type or digest.`);
+  return persistArtifacts([{ record, blob }]);
+}
+
+export async function persistArtifacts(items: Array<{ record: GeneratedArtifactRecord; blob: Blob }>): Promise<void> {
+  for (const { record, blob } of items) {
+    if (blob.size !== record.size || blob.type !== record.mimeType || await artifactSha256(blob) !== record.sha256) throw new Error(`Generated artifact ${record.name} does not match its declared size, type or digest.`);
+  }
   const db = await openArtifactDb();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put({ id: record.id, blob });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error || new Error('Could not persist generated artifact.'));
       tx.onabort = () => reject(tx.error || new Error('Generated artifact persistence was aborted.'));
+      try {
+        const store = tx.objectStore(STORE_NAME);
+        for (const { record, blob } of items) store.put({ id: record.id, blob });
+      } catch (error) {
+        tx.abort();
+        reject(error);
+      }
     });
   } finally { db.close(); }
 }

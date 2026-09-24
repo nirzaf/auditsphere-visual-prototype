@@ -8,7 +8,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { exportService } from '../../services/exportService';
 import { applyReportingAdjustments } from '../../services/calculations';
-import { artifactSha256, downloadVerifiedArtifact, persistArtifact } from '../../services/artifactStore';
+import { artifactSha256, downloadVerifiedArtifact, persistArtifacts } from '../../services/artifactStore';
 import { FinancialPackageRevision, GeneratedArtifactRecord } from '../../types';
 
 const DEFAULT_SECTIONS = [
@@ -142,12 +142,8 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         { kind: 'DOCX' as const, name: `${fileBase}.docx`, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', blob: await exportService.createDOCXBlob(title, lines) },
         { kind: 'PDF' as const, name: `${fileBase}.pdf`, mimeType: 'application/pdf', blob: exportService.createPDFBlob(title, lines) }
       ];
-      const artifacts: GeneratedArtifactRecord[] = [];
-      for (const item of blobs) {
-        const artifact = { id: `${selectedEng.id}-PKG-${revision}-${item.kind}-${crypto.randomUUID()}`, name: item.name, kind: item.kind, mimeType: item.mimeType, size: item.blob.size, sha256: await artifactSha256(item.blob) };
-        await persistArtifact(artifact, item.blob);
-        artifacts.push(artifact);
-      }
+      const artifacts: GeneratedArtifactRecord[] = await Promise.all(blobs.map(async item => ({ id: `${selectedEng.id}-PKG-${revision}-${item.kind}-${crypto.randomUUID()}`, name: item.name, kind: item.kind, mimeType: item.mimeType, size: item.blob.size, sha256: await artifactSha256(item.blob) })));
+      await persistArtifacts(blobs.map((item, index) => ({ record: artifacts[index], blob: item.blob })));
       const record: FinancialPackageRevision = {
         id: `${selectedEng.id}-PKG-${revision}`,
         engagementId: selectedEng.id,

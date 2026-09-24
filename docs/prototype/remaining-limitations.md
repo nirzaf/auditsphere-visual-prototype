@@ -236,8 +236,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   selection of the unsupported cash-flow output, and confirms older artifact IDs
   and bytes remain intact after reassembly. Cash-flow source data is still
   unavailable. A forced XLSX-generation failure reports the exception and leaves
-  the current revision unchanged. Format-specific/persistence failure cases and
-  independent review of a replacement package revision remain incomplete.
+  the current revision unchanged. Package artifacts now persist together in one
+  IndexedDB transaction; Chrome forces the second write to fail and confirms no
+  partial blobs or package revision remain. Independent review of a replacement
+  package revision remains incomplete.
 - **R09 — consolidation:** component resolution and pinned snapshots are improved;
   Chrome now verifies the configured group, approved elimination, balanced output
   and source-TB immutability. A separate Chrome journey blocks a missing foreign-
@@ -249,8 +251,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   a new pin to match the engagement's exact current revision and rows; altered
   balances cannot be submitted as a package snapshot. Schema v22 corrects only
   the known seeded label from Associate to Subsidiary. Chrome also removes the
-  Subsidiary and verifies no output or source mutation. Perimeter editing/recovery
-  controls and broader elimination cases remain incomplete.
+  Subsidiary and verifies no output or source mutation. Perimeter edits now reject
+  invalid dates and duplicate components, retain prior revisions, revert through
+  a new revision, return an approved elimination to draft after component changes,
+  and leave source trial balances unchanged. Broader elimination and ownership
+  cases remain incomplete.
 - **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
   integrity checks. Chrome verifies concurrent-save and quota failures, and now
   injects malformed saved JSON to confirm the exact raw value is retained as a
