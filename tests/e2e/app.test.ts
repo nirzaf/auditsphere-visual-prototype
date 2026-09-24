@@ -2732,7 +2732,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(fxArtifact.body.totals.balanced, true);
       assert.equal(fxArtifact.body.eliminations[0].status, 'Draft');
       assert.equal(fxArtifact.body.eliminations[0].includedInOutput, false);
+      assert.match(fxArtifact.body.eliminations[0].reviewHistory.at(-1).note, /Closing-rate revision 1 for USD changed/);
       assert.equal(fxArtifact.body.group.perimeterRevision, 1);
+      await clickButton('Currency Translation (FX)');
+      await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="FX closing rate"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'3.65');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save closing rate');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].fxRateHistory.USD.length===2`), true);
+      await clickButton('Consolidated Balance Sheet Grid');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Stale — rebuild required/);
+      assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(button=>button.textContent==='Download verified group output')`), false, 'a changed closing rate blocks download of the old reviewed artifact');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
