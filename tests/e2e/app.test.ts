@@ -2452,6 +2452,32 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     } finally { secondTab.close(); }
   });
 
+  it('AT-02: preserves malformed saved state and offers a recoverable demo session', async () => {
+    const key = 'ste-auditsphere-role-portals-v2';
+    const backupKey = `${key}.backup`;
+    const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
+    const corrupt = '{"schema":22,"engagements":';
+    try {
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(corrupt)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      const recoveryText = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(recoveryText, /Saved demo state could not be parsed/);
+      assert.match(recoveryText, /SIMULATED IDENTITY \(NOT LIVE AUTH\)/, 'the app remains usable with a fresh in-memory demo');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), corrupt, 'the exact malformed payload is retained for recovery');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), corrupt, 'recovery does not silently overwrite the original payload');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      await browserTab!.evaluate(`(() => {
+        const key=${JSON.stringify(key)},backupKey=${JSON.stringify(backupKey)};
+        if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});
+        if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});
+      })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('VP-047/v13: legacy accepted case remains historical and requires evidence review', async () => {
     const legacy = createInitialState() as any;
     const engagement = legacy.engagements.find((item: any) => item.id === 'ENG-26001');

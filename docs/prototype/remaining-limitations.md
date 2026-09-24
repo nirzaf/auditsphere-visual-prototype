@@ -231,15 +231,17 @@ Automated sources explicitly trace AT-01 through AT-55. See
   the known seeded label from Associate to Subsidiary. Chrome also removes the
   Subsidiary and verifies no output or source mutation. Perimeter editing/recovery
   controls and broader elimination cases remain incomplete.
-- **R10 — migration/recovery:** migrations from schema versions 0–18 pass unit
-  integrity checks, and Chrome checks preserve a concurrent save and report quota
-  failures. Other recovery and corrupted-storage paths remain unverified.
+- **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
+  integrity checks. Chrome verifies concurrent-save and quota failures, and now
+  injects malformed saved JSON to confirm the exact raw value is retained as a
+  recovery backup while a usable simulated demo session opens. Other corrupted-
+  storage and recovery paths remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
   package persistence/release/amendment/archive, the full report catalogue and
   storage recovery journeys, CSV/XLSX TB replacement, and the complete PBC
   request/response/clarification/replacement/acceptance cycle, plus client
   creation/contact/custom-field/relationship-group and Client 360 navigation
-  journeys (AT-05/AT-06). Every AT-01 through AT-54 identifier now appears
+  journeys (AT-05/AT-06). Every AT-01 through AT-55 identifier now appears
   explicitly in automated test source, but every acceptance criterion has not been
   executed end to end. VP-018 now covers local identity creation/disable, invitation
   expiry block, renewal, revocation and history; external onboarding remains simulated.
@@ -278,9 +280,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 145/145 unit checks and 63/63 E2E checks passed; the
-AT-11/12 journey also passes alone with its final read-only assertion. E2E
-includes five static checks and 58 Chrome journeys. The Chrome suite blocks
+Latest recorded full run: 146/146 unit checks and 66/66 E2E checks passed.
+E2E includes five static checks and 61 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,
