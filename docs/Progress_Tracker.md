@@ -52,10 +52,10 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks reported passing | 154 / 154 | Rerun after revisioned cash-flow schedule and package-lineage implementation. |
+| Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 127 | 6 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 126 | 5 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and the new independently reviewed cash-flow movement schedule. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -2624,7 +2624,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [x] **VP-041-I01 — Implemented and exercised:** Revisioned opening cash, classified operating/investing/financing/non-cash movements, evidence references and closing-cash reconciliation are saved against the current TB and approved mapping; independent review and source/mapping staleness are guarded. Verified by focused Chrome AT-37 and store regression in the 2026-09-24 run.
 
-- [ ] **VP-041-I02 — Implementation pending:** Complete per-note disclosure records, applicability/evidence/preparer/reviewer states and independent not-applicable decisions rather than a single package-level note flag.
+- [x] **VP-041-I02 — Implemented and exercised:** Per-note records persist as engagement revisions; applicable notes require in-scope document evidence, not-applicable notes require rationale, reviewer role and identity are independent, reviewed records are pinned into package revisions, and client output contains only notes explicitly shared. Verified by disclosure store regression and 155/155 unit checks on 2026-09-24. Client sharing/rework/browser journey evidence remains open under VP-041-E03.
 
 - [ ] **VP-041-E03 — Verification/evidence pending:** Verify reviewed note/support revisions stale packages and expose only explicitly shared client note content.
 
@@ -3961,7 +3961,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 - [x] **VP-041-I01** (P1; [VP-041](#vp-041)): Revisioned and independently reviewed cash-flow movement schedule implemented and verified; complete the per-note and client-sharing acceptance separately. Evidence: AT-37 + cash-flow store regression, 2026-09-24.
 
-- [ ] **VP-041-I02** (P1; [VP-041](#vp-041)): Complete per-note disclosure records, applicability/evidence/preparer/reviewer states and independent not-applicable decisions rather than a single package-level note flag. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-041-I02** (P1; [VP-041](#vp-041)): Implemented: durable per-note revision, applicability/evidence or not-applicable rationale, preparer, independent reviewer, and client-sharing flag; package assembly requires the exact current reviewed disclosure collection. Evidence: unit store regression, 2026-09-24. Browser journey and broader note/rework combinations remain under E03.
 
 - [x] **VP-043-I01** (P1; [VP-043](#vp-043)): Implemented and verified supported-profile perimeter edit/recovery controls; full independent-scope and effective-date matrix remains open. Evidence: AT-43 Chrome, 2026-09-24.
 

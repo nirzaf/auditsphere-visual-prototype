@@ -1493,6 +1493,25 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.cashFlowScheduleHistory?.[0].status, 'Stale');
   });
 
+  it('persists per-note disclosure drafts and requires independent review plus scoped evidence', () => {
+    (prototypeStore as any).state = state;
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    prototypeStore.setPersona('preparer');
+    const input = { id: 'DISC-01', title: 'Significant accounting policies', applicability: 'Applicable' as const, text: 'Revenue is recognized when control transfers.', evidenceRef: 'DOC-002', sharedWithClient: true };
+    assert.throws(() => prototypeStore.saveDisclosureReview(engagement.id, { ...input, evidenceRef: undefined }), /content with evidence/);
+    prototypeStore.saveDisclosureReview(engagement.id, input);
+    assert.throws(() => prototypeStore.reviewDisclosure(engagement.id, input.id, 1), /cannot review financial disclosures/);
+    prototypeStore.setPersona('partner');
+    prototypeStore.reviewDisclosure(engagement.id, input.id, 1);
+    const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.disclosureHistory?.[0];
+    assert.equal(saved?.status, 'Reviewed');
+    assert.notEqual(saved?.preparedByUserId, saved?.reviewedByUserId);
+    prototypeStore.setPersona('preparer');
+    assert.equal(prototypeStore.saveDisclosureReview(engagement.id, { ...input, evidenceRef: 'DOC-MISSING' }), 2);
+    prototypeStore.setPersona('partner');
+    assert.throws(() => prototypeStore.reviewDisclosure(engagement.id, input.id, 2), /in-scope client document/);
+  });
+
   it('binds a package containing cash flows to the current reviewed schedule revision', () => {
     (prototypeStore as any).state = createInitialState();
     (prototypeStore as any).isSessionOnly = false;

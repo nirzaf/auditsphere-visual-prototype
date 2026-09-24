@@ -299,6 +299,7 @@ export interface FinancialPackageRevision {
   notes: string;
   noteApplicability?: 'Not assessed' | 'Applicable' | 'Not applicable';
   noteRevision: number;
+  disclosures?: DisclosureReviewRecord[];
   cashFlowScheduleRevision?: number;
   sections: Array<{ id: string; title: string; desc: string; enabled: boolean; order: number }>;
   validation: { passed: boolean; trialBalanceNet: number; pendingWorkpapers: number; openReviews: number; materialFindings: number };
@@ -306,6 +307,21 @@ export interface FinancialPackageRevision {
   createdAt: string;
   createdBy: string;
   createdByUserId: string;
+}
+
+export interface DisclosureReviewRecord {
+  id: string;
+  title: string;
+  applicability: 'Applicable' | 'Not applicable';
+  text: string;
+  evidenceRef?: string;
+  rationale?: string;
+  sharedWithClient: boolean;
+  revision: number;
+  status: 'Draft' | 'Reviewed';
+  preparedByUserId: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
 }
 
 export interface StatementSetRevision {
@@ -393,6 +409,7 @@ export interface EngagementRecord {
     periodBookId?: string;
   }>;
   packageHistory?: FinancialPackageRevision[];
+  disclosureHistory?: DisclosureReviewRecord[];
   cashFlowScheduleHistory?: CashFlowScheduleRevision[];
   eqrRequired: boolean;
   eqrReviewerUserId?: string;

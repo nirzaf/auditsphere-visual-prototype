@@ -36,6 +36,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || '');
   const [noteApplicability, setNoteApplicability] = useState<NonNullable<FinancialPackageRevision['noteApplicability']>>(savedPackage?.noteApplicability || 'Not assessed');
+  const [disclosures, setDisclosures] = useState(selectedEng?.disclosureHistory?.length ? selectedEng.disclosureHistory : [{ id: 'DISC-01', title: 'Significant accounting policies', applicability: 'Applicable' as const, text: '', sharedWithClient: false, revision: 0, status: 'Draft' as const, preparedByUserId: '' }]);
   const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: id === 'cf' ? DEFAULT_SECTIONS.find(section => section.id === 'cf')!.desc : desc, enabled: id === 'cf' ? false : enabled })) || DEFAULT_SECTIONS.map(section => section.id === 'cf' ? { ...section, desc: 'Requires a current independently reviewed cash-flow schedule.', enabled: cashFlowReady } : section));
   const [assembling, setAssembling] = useState(false);
 
@@ -74,7 +75,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const mappingsReady = Boolean(currentMapping?.status === 'Approved' && unmappedAccounts.length === 0);
 
   const disclosureRequired = sections.some(section => section.id === 'notes' && section.enabled);
-  const disclosuresReady = !disclosureRequired || noteApplicability !== 'Not assessed' && Boolean(packageNotes.trim());
+  const disclosuresReady = !disclosureRequired || disclosures.length > 0 && disclosures.every(item => item.status === 'Reviewed' && item.reviewedByUserId);
   const cashFlowRequired = sections.some(section => section.id === 'cf' && section.enabled);
   const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady && (!cashFlowRequired || cashFlowReady);
   const packageSections = sections.map(section => section.id === 'cf' ? { ...section, desc: cashFlowReady && cashFlowSchedule ? `Reviewed cash-flow schedule v${cashFlowSchedule.revision}; ${selectedEng!.currency}.` : DEFAULT_SECTIONS.find(item => item.id === 'cf')!.desc, enabled: section.enabled && cashFlowReady } : section);
@@ -124,7 +125,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     '', 'TABLE OF CONTENTS (ORDERED SECTIONS):',
     ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
     ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? ['', 'STATEMENT OF CASH FLOWS', `Opening cash: ${cashFlowSchedule.openingCash.toFixed(2)} ${selectedEng.currency}`, ...cashFlowSchedule.movements.map(item => `${item.category} · ${item.description}: ${item.amount.toFixed(2)} ${selectedEng.currency} · Evidence ${item.evidenceRef}`), `Closing cash: ${cashFlowSchedule.closingCash.toFixed(2)} ${selectedEng.currency}`] : []),
-    '', `Disclosure applicability: ${noteApplicability}`, `Disclosures & Management Notes: ${packageNotes || 'No disclosure note or applicability rationale entered.'}`
+    '', ...disclosures.filter(item => item.sharedWithClient).flatMap(item => [`${item.title} — ${item.applicability}`, item.applicability === 'Applicable' ? `${item.text} · Evidence ${item.evidenceRef}` : `Not applicable: ${item.rationale}`])
   ];
 
   const handleAssembleNewRevision = async () => {
@@ -168,6 +169,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         notes: packageNotes,
         noteApplicability,
         noteRevision: revision,
+        disclosures: structuredClone(disclosures),
         sections: packageSections.map((s, order) => ({ ...s, order: order + 1 })),
         validation: { passed: allValid, trialBalanceNet: tbSum, pendingWorkpapers: selectedEng.workpapers.filter(w => w.applicable && w.status !== 'Cleared' && w.status !== 'Not applicable').length, openReviews: selectedEng.reviews.filter(r => r.status !== 'Cleared').length, materialFindings: state.findings.filter(f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)).length },
         artifacts,
@@ -276,7 +278,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           </span>
         </div>
         {!mappingsReady && <div role="alert" className="badge danger mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: account mappings must be independently approved and cover every trial balance account. Unmapped: {unmappedAccounts.map(row => row.code).join(', ') || 'none'}.</div>}
-        {!disclosuresReady && <div role="alert" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: assess disclosure applicability and enter the prepared note or not-applicable rationale before including disclosures.</div>}
+        {!disclosuresReady && <div role="alert" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>Package validation blocked: every disclosure must be prepared, supported or justified, and independently reviewed.</div>}
 
         <div className="grid4 mt16" style={{ gap: 12 }}>
           <div className="borderbox" style={{ padding: 12 }}>
@@ -386,20 +388,20 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         </div>
 
         <div className="panel-pad">
-          <label className="caption" htmlFor="disclosure-applicability">Disclosure applicability</label>
-          <select id="disclosure-applicability" aria-label="Disclosure note applicability" className="input mt4" value={noteApplicability} onChange={e => setNoteApplicability(e.target.value as NonNullable<FinancialPackageRevision['noteApplicability']>)}>
-            <option>Not assessed</option><option>Applicable</option><option>Not applicable</option>
-          </select>
-          <label className="caption mt8" htmlFor="disclosure-notes">Prepared disclosure note or not-applicable rationale</label>
-          <textarea
-            id="disclosure-notes"
-            aria-label="Prepared disclosure note or not-applicable rationale"
-            className="input mt4"
-            rows={2}
-            value={packageNotes}
-            onChange={e => setPackageNotes(e.target.value)}
-            placeholder="Enter the prepared note or rationale supporting not-applicable."
-          />
+          <h3>Disclosure register</h3>
+          {disclosures.map(item => <div className="borderbox mt8 panel-pad" key={item.id}>
+            <b>{item.title} · v{item.revision} · {item.status}</b>
+            <div className="grid2 mt8">
+              <label className="caption">Disclosure title<input aria-label="Disclosure title" className="input mt4" value={item.title} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, title: e.target.value } : row))} /></label>
+              <label className="caption">Applicability<select aria-label={`${item.title} applicability`} className="input mt4" value={item.applicability} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, applicability: e.target.value as typeof row.applicability } : row))}><option>Applicable</option><option>Not applicable</option></select></label>
+            </div>
+            {item.applicability === 'Applicable' ? <><textarea className="input mt8" aria-label={`${item.title} disclosure text`} value={item.text} disabled={item.status === 'Reviewed'} placeholder="Prepared disclosure content" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, text: e.target.value } : row))} /><label className="caption mt8">Evidence document ID<input aria-label="Evidence document ID" className="input mt4" value={item.evidenceRef || ''} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, evidenceRef: e.target.value } : row))} /></label></> : <textarea className="input mt8" aria-label={`${item.title} not-applicable rationale`} value={item.rationale || ''} disabled={item.status === 'Reviewed'} placeholder="Reason this disclosure is not applicable" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, rationale: e.target.value } : row))} />}
+            <label className="caption mt8"><input type="checkbox" aria-label={`${item.title} client sharing`} checked={item.sharedWithClient} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, sharedWithClient: e.target.checked } : row))} /> Include this note in the client package</label>
+            {item.status === 'Reviewed' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, status: 'Draft', reviewedByUserId: undefined, reviewedAt: undefined } : row))}>Revise disclosure</button>}
+            {item.status === 'Draft' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }); setDisclosures(prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []); triggerNotice('success', 'Disclosure saved as a new draft revision.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Save preparer draft</button>}
+            {item.status === 'Draft' && ['reviewer', 'partner', 'eqr'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.reviewDisclosure(selectedEng.id, item.id, item.revision); setDisclosures(prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []); triggerNotice('success', 'Disclosure independently reviewed.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Review independently</button>}
+          </div>)}
+          {['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => [...items, { id: crypto.randomUUID(), title: '', applicability: 'Applicable', text: '', sharedWithClient: false, revision: 0, status: 'Draft', preparedByUserId: '' }])}>Add disclosure</button>}
         </div>
       </div>
     </div>

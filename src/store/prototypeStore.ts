@@ -3491,6 +3491,42 @@ class PrototypeStore {
     return eng.candidate;
   }
 
+  public saveDisclosureReview(engagementId: string, input: Omit<import('../types').DisclosureReviewRecord, 'revision' | 'status' | 'preparedByUserId' | 'reviewedByUserId' | 'reviewedAt'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer'], 'prepare financial disclosures');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    if (!engagement || !input.id.trim() || !input.title.trim() || input.applicability === 'Applicable' && (!input.text.trim() || !input.evidenceRef?.trim()) || input.applicability === 'Not applicable' && !input.rationale?.trim()) throw new GuardError('INVALID_STATE', 'Each disclosure needs a title and either prepared content with evidence or a not-applicable rationale.');
+    const prior = engagement.disclosureHistory?.find(item => item.id === input.id);
+    engagement.disclosureHistory ||= [];
+    const record = { ...structuredClone(input), revision: (prior?.revision || 0) + 1, status: 'Draft' as const, preparedByUserId: this.state.currentUserId };
+    engagement.disclosureHistory = [...engagement.disclosureHistory.filter(item => item.id !== input.id), record];
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Disclosure ${input.id} v${record.revision} prepared`, engagementId);
+    this.notify();
+    return record.revision;
+  }
+
+  public reviewDisclosure(engagementId: string, disclosureId: string, revision: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'partner', 'eqr'], 'review financial disclosures');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const record = engagement?.disclosureHistory?.find(item => item.id === disclosureId && item.revision === revision);
+    if (!record || record !== engagement?.disclosureHistory?.find(item => item.id === disclosureId) || record.status !== 'Draft') throw new GuardError('STALE_REVISION', 'Only the current disclosure draft can be reviewed.');
+    requireIndependentActor(record.preparedByUserId, this.state.currentUserId, 'review a disclosure they prepared', this.state);
+    if (record.applicability === 'Applicable') {
+      const document = this.state.documents.find(item => item.id === record.evidenceRef && item.clientId === engagement!.client && (!item.engagementId || item.engagementId === engagementId));
+      if (!document) throw new GuardError('INVALID_STATE', 'Disclosure evidence must reference an in-scope client document.');
+    }
+    record.status = 'Reviewed';
+    record.reviewedByUserId = this.state.currentUserId;
+    record.reviewedAt = new Date().toISOString();
+    this.invalidateReleaseBasis(engagement!);
+    this.logEvent(`Disclosure ${disclosureId} v${revision} independently reviewed`, engagementId);
+    this.notify();
+  }
+
   public saveFinancialPackageRevision(record: import('../types').FinancialPackageRevision) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer'], 'assemble a financial package revision');
@@ -3504,7 +3540,10 @@ class PrototypeStore {
     const cashFlowLineageValid = cashFlowSectionEnabled
       ? latestCashFlow?.status === 'Reviewed' && latestCashFlow.revision === record.cashFlowScheduleRevision && latestCashFlow.sourceVersion === eng?.sourceVersion && latestCashFlow.mappingRevision === mappingRevision
       : record.cashFlowScheduleRevision === undefined;
-    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || !cashFlowLineageValid || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, valid cash-flow lineage, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
+    const notesEnabled = record.sections.some(section => section.id === 'notes' && section.enabled);
+    const currentDisclosures = eng?.disclosureHistory || [];
+    const disclosureLineageValid = !notesEnabled || currentDisclosures.length > 0 && currentDisclosures.every(item => item.status === 'Reviewed' && item.reviewedByUserId && item.reviewedByUserId !== item.preparedByUserId) && JSON.stringify(record.disclosures || []) === JSON.stringify(currentDisclosures);
+    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || !cashFlowLineageValid || !disclosureLineageValid || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, reviewed disclosure lineage, valid cash-flow lineage, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
     eng.packageHistory ||= [];
     if (eng.packageHistory.some(p => p.revision === record.revision || p.id === record.id) || this.state.engagements.some(other => other.packageHistory?.some(p => p.artifacts.some(a => record.artifacts.some(n => n.id === a.id))))) throw new GuardError('INVALID_STATE', 'Package revision or artifact identity already exists.');
     eng.packageHistory.push(structuredClone(record));
