@@ -1,8 +1,0 @@
-
-> auditsphere-visual-prototype@2.0.0 preview
-> vite preview --host 0.0.0.0 --port 3000
-
-  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
-  [32m➜[39m  [1mNetwork[22m: [36mhttp://100.121.44.113:[1m3000[22m/[39m  [2mTailscale[22m
-  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.31.182:[1m3000[22m/[39m  [2mWi-Fi[22m
-  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.160.1:[1m3000[22m/[39m   [2mvEthernet (Default …[22m
