@@ -1696,6 +1696,11 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.throws(() => prototypeStore.saveFinancialPackageRevision(record as any), /valid cash-flow lineage/);
     prototypeStore.saveFinancialPackageRevision({ ...record, cashFlowScheduleRevision: 1 } as any);
     assert.equal(engagement.packageHistory.at(-1).cashFlowScheduleRevision, 1);
+    const priorPackageGeneration = engagement.packageHistory.at(-1).generation;
+    prototypeStore.saveCashFlowSchedule({ engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, openingCash: 900000, closingCash: 1000000, movements: [{ id: 'CF-2', description: 'Updated contribution support', category: 'Equity contribution', amount: 100000, evidenceRef: 'DOC-002' }] });
+    assert.equal(engagement.cashFlowScheduleHistory[0].status, 'Stale', 'support replacement stales the reviewed prior schedule');
+    assert.equal(engagement.packageHistory.at(-1).generation, priorPackageGeneration, 'saved package snapshot remains immutable');
+    assert.notEqual(engagement.packageHistory.at(-1).generation, engagement.generation, 'support replacement stales package generation');
   });
 
   it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {
