@@ -522,3 +522,11 @@ remaining search result links. The existing bundle-size warning remains. Commit
 `assets/index-DIGbSQtQ.js` (2,226,692 bytes; SHA-256
 `4bfed1f8d168f2c124c1819865bd1b53efb74f8a114562e91c48a78d08ab8886`), matching
 the local build. Wrangler reports production source `ff3c5ff`.
+
+VP-061 identifier search follow-up: local search now matches record IDs as well
+as names for clients, contacts, engagements, jobs, tasks, documents, invoices,
+communications, findings, workpapers and PBC requests while retaining the
+existing grant filters. Chrome searches `JOB-2601` and `INV-26002`, opens their
+respective workspaces and confirms both retain `ENG-26001` context. `npm run
+lint` passed, unit tests passed 144/144, and full build/Chrome E2E passed 63/63.
+The existing >500 kB bundle advisory remains. Deployment evidence follows.

@@ -148,6 +148,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const searchResults = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
+    const matches = (...values: Array<string | undefined>) => values.some(value => value?.toLowerCase().includes(q));
     const allowedClients = visibleClientIds(state);
     const allowedEngs = visibleEngagementIds(state);
     const clientAllowed = (id?: string) =>
@@ -156,38 +157,38 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       allowedEngs === 'ALL' || (!!id && allowedEngs.includes(id));
     const clientRole = isClientRole(state.currentRole);
     const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string }> = [];
-    state.clients.filter(c => clientAllowed(c.id) && c.name.toLowerCase().includes(q))
+    state.clients.filter(c => clientAllowed(c.id) && matches(c.name, c.id))
       .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
-    state.contacts.filter(c => clientAllowed(c.clientId) && c.name.toLowerCase().includes(q))
+    state.contacts.filter(c => clientAllowed(c.clientId) && matches(c.name, c.id))
       .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
-    state.engagements.filter(e => engAllowed(e.id) && (e.service.toLowerCase().includes(q) || e.id.toLowerCase().includes(q)))
+    state.engagements.filter(e => engAllowed(e.id) && matches(e.service, e.id))
       .forEach(e => out.push({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements', objectId: e.id, clientId: e.client, engagementId: e.id }));
-    state.jobs.filter(j => engAllowed(j.engagementId) && j.title.toLowerCase().includes(q))
+    state.jobs.filter(j => engAllowed(j.engagementId) && matches(j.title, j.id))
       .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs', objectId: j.id, clientId: j.clientId, engagementId: j.engagementId }));
     if (!clientRole) {
-      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.name.toLowerCase().includes(q))
+      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && matches(d.name, d.id))
         .forEach(d => out.push({ title: d.name, sub: `Document · v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
       state.jobTasks.filter(t => {
         const job = state.jobs.find(j => j.id === t.jobId);
-        return job && engAllowed(job.engagementId) && t.title.toLowerCase().includes(q);
+        return job && engAllowed(job.engagementId) && matches(t.title, t.id);
       }).forEach(t => { const j = state.jobs.find(x => x.id === t.jobId)!; out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs', objectId: t.id, clientId: j.clientId, engagementId: j.engagementId }); });
-      state.invoices.filter(i => clientAllowed(i.clientId) && i.invoiceNumber.toLowerCase().includes(q))
+      state.invoices.filter(i => clientAllowed(i.clientId) && matches(i.invoiceNumber, i.id))
         .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId, engagementId: i.engagementId || i.eng }));
-      state.communications.filter(c => clientAllowed(c.clientId) && (c.summary.toLowerCase().includes(q) || c.participants.toLowerCase().includes(q)))
+      state.communications.filter(c => clientAllowed(c.clientId) && matches(c.summary, c.participants, c.id))
         .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications', objectId: c.id, clientId: c.clientId, engagementId: c.engagementId }));
       state.findings.filter(f => {
         const eng = state.engagements.find(e => e.id === f.engagementId);
-        return eng && engAllowed(eng.id) && f.title.toLowerCase().includes(q);
+        return eng && engAllowed(eng.id) && matches(f.title, f.id);
       }).forEach(f => out.push({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings', objectId: f.id, engagementId: f.engagementId }));
       state.engagements.filter(e => engAllowed(e.id)).forEach(e => {
-        e.workpapers.filter(w => w.title.toLowerCase().includes(q))
+        e.workpapers.filter(w => matches(w.title, w.id))
           .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit', objectId: w.id, clientId: e.client, engagementId: e.id }));
-        e.pbc.filter(p => p.title.toLowerCase().includes(q))
+        e.pbc.filter(p => matches(p.title, p.id))
           .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'portal', objectId: p.id, clientId: e.client, engagementId: e.id }));
       });
     } else {
       // Client projection: only explicitly shared documents/packages surface.
-      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.visibility === 'Client shared' && d.name.toLowerCase().includes(q))
+      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.visibility === 'Client shared' && matches(d.name, d.id))
         .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
     }
     return out.slice(0, 30);

@@ -1350,6 +1350,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Client · CL-001'));if(!result)throw Error('Client result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'staff client search result opens the selected client detail');
     assert.ok((await browserTab!.evaluate<string>('document.body.innerText')).includes(clientName), 'client result opens the matching client record');
+    assert.match(await search('JOB-2601'), /Job · JOB-2601/, 'record IDs are searchable for jobs');
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Job · JOB-2601'));if(!result)throw Error('Job result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('JOBS')`), true, 'job result opens the Jobs workspace');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'job result selects its engagement');
+    assert.match(await search('INV-26002'), /Invoice · 200000 QAR/, 'record IDs are searchable for invoices');
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Invoice · 200000 QAR'));if(!result)throw Error('Invoice result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('BILLING')`), true, 'invoice result opens Billing');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'invoice result selects its engagement');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

@@ -41,8 +41,9 @@ Automated sources explicitly trace AT-01 through AT-55. See
   internal communication and can find a shared document; unit coverage checks
   document-name grant scoping. Shared-document results now open the client
   portal with the matching engagement selected; staff client results open the
-  matching client detail. Other client/person grant combinations and links for
-  remaining result types still need direct journey coverage.
+  matching client detail; job and invoice IDs are searchable and navigate with
+  their engagement context. Other client/person grant combinations and direct
+  links for remaining result types still need journey coverage.
 - **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.
@@ -251,8 +252,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,226.69 kB,
-  620.04 kB gzip in the current build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,226.46 kB,
+  620.03 kB gzip in the current build).
 
 ## Verification snapshot
 
