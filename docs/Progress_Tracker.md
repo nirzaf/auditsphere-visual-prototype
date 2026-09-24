@@ -1065,7 +1065,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-012-E01 — Verification/evidence pending:** Finish the affected-review matrix after team, service, period, fee and scope changes across plans, procedures, statements, evidence, approvals and packages.
 
-- [ ] **VP-012-E02 — Verification/evidence pending:** Verify terminal-state handling, cross-view lineage and historical outputs for every lifecycle transition.
+- [ ] **VP-012-E02 — Verification/evidence pending:** Verify terminal-state handling, cross-view lineage and historical outputs for every lifecycle transition. 2026-09-24 subcase: real Chrome confirms Cancelled state, all three suspend/resume/cancel history events, and terminal controls remain correct after reload (verification record: `a816e5e`); complete transition matrix and cross-view lineage remain open.
 
 - [ ] **VP-012-R03 — Requirement/scope reconciliation:** Do not introduce workflow automation or future-period task generation as a lifecycle shortcut.
 
@@ -1083,7 +1083,7 @@ Complete engagement records with client, service, period, partner/manager, team 
 |---|---|---|
 | VP-012-AC01 | Creating from an accepted proposal prepopulates a draft once; repeat submission does not create duplicate engagements. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-012-AC02 | Activation requires the current permitted professional decision and required commercial scope, but does not fabricate missing evidence or mark Microsoft connectivity as live. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-012-AC03 | Suspension blocks new professional actions as defined by the demo policy while allowing historical view and permitted billing/records operations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-012-AC03 | Suspension blocks new professional actions as defined by the demo policy while allowing historical view and permitted billing/records operations. | SUBCASES VERIFIED 2026-09-24 — unit checks block new professional work while retaining billing/records access and terminal immutability; Chrome verifies terminal state/history after reload. Full historical cross-view evidence remains open. |
 | VP-012-AC04 | Scope/period/team edits validate grants and preserve change history; relevant professional changes show affected review applicability, not silent inherited approvals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L477).
