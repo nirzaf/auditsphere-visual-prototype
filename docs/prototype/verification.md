@@ -513,5 +513,12 @@ client selects the permitted engagement and opens the portal. The Chrome
 journey checks both links and confirms internal communications remain absent.
 `npm run lint` passed, unit tests passed 144/144, and build/Chrome E2E passed
 63/63. VP-061 remains Partial for broader person/grant combinations and the
-remaining search result links. The existing bundle-size warning remains;
-deployment details follow after publication.
+remaining search result links. The existing bundle-size warning remains. Commit
+`ff3c5ff` was pushed to `main` and deployed to the existing
+`steaudit-prototype` production Pages project as deployment
+`00e7da3e-bfa9-4b80-ae6b-e798337c09e1`
+([release](https://00e7da3e.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-DIGbSQtQ.js` (2,226,692 bytes; SHA-256
+`4bfed1f8d168f2c124c1819865bd1b53efb74f8a114562e91c48a78d08ab8886`), matching
+the local build. Wrangler reports production source `ff3c5ff`.
