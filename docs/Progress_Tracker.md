@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 161 / 161 | Fresh run on `5ee4128`; includes the consolidation perimeter guard matrix. |
-| E2E checks passing in this review | 71 / 71 | Fresh run on `5ee4128`: 5 static checks + 66 actual Chrome checks. |
+| Unit checks passing in this review | 162 / 162 | Fresh run on `51de04c98d74302589634f27c69b9d0137c16e83`; includes the consolidation perimeter guard matrix and stale-state command guard. |
+| E2E checks passing in this review | 71 / 71 | Fresh run on `51de04c98d74302589634f27c69b9d0137c16e83`: 5 static checks + 66 actual Chrome checks, including the cross-tab stale-dialog case. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -1440,7 +1440,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-019-E01 — Verification/evidence pending:** Complete professional/management-role approval-evidence combinations, compatible-role changes and narrow group/component scope tests.
 
-- [ ] **VP-019-E02 — Verification/evidence pending:** Recheck commands after revocation/expiry while dialogs remain open, including search, counts, dropdowns and exports.
+- [ ] **VP-019-E02 — Verification/evidence pending:** Chrome now covers the cross-tab revocation subcase: an open form, navigation and workspace projections disappear; no stale record is saved, and newer grant history is preserved before explicit resolution. See ledger run on `51de04c98d74302589634f27c69b9d0137c16e83`. Expiry-specific variations remain untested.
 
 - [ ] **VP-019-R03 — Requirement/scope reconciliation:** Related-client groups must not silently widen permissions; administrator identity alone does not confer professional approval rights.
 
@@ -1457,13 +1457,13 @@ Add user detail tabs for role grants, client/engagement/group assignments and ac
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-019-AC01 | Given an engagement-only grant, when navigating/searching/exporting, then only that engagement is visible and sibling engagements remain excluded. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-019-AC02 | Grant/revoke changes take effect on the next command and refresh projections; stale dialogs must revalidate scope before saving. | OPEN FOR SIGN-OFF; cross-tab revocation subcase is recorded at `51de04c98d74302589634f27c69b9d0137c16e83`; expiry-specific variations remain untested |
 | VP-019-AC03 | Technical administrators cannot self-promote into professional approval through their own access request or use admin status to inspect client financial data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-019-AC04 | The privilege matrix reflects grants and conditions accurately; grants/expiry/revocation preserve an attributable local change history. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L600).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Evidence update:** `51de04c98d74302589634f27c69b9d0137c16e83` covers the cross-tab revocation/stale-dialog subcase; see the Section 10.2 ledger and `verification.md`. Expiry-specific and remaining AC01/AC03/AC04 evidence remains open.
 
 
 <a id="vp-020"></a>
@@ -3994,7 +3994,7 @@ This queue contains **113 open planning actions** attached to the 48 Partial sto
 | VP-017-E01 | [VP-017](#vp-017) | P2 | Complete the setup start/back/cancel/review-summary path and every invalid tenant/resource/person selection while proving liveConnected remains false. | Pending / Unassigned / — |
 | VP-017-E02 | [VP-017](#vp-017) | P2 | Verify a skipped setup or failed optional service never blocks unrelated local work. | Pending / Unassigned / — |
 | VP-019-E01 | [VP-019](#vp-019) | P1 | Complete professional/management-role approval-evidence combinations, compatible-role changes and narrow group/component scope tests. | Pending / Unassigned / — |
-| VP-019-E02 | [VP-019](#vp-019) | P1 | Recheck commands after revocation/expiry while dialogs remain open, including search, counts, dropdowns and exports. | Pending / Unassigned / — |
+| VP-019-E02 | [VP-019](#vp-019) | P1 | Recheck commands after revocation/expiry while dialogs remain open, including search, counts, dropdowns and exports. | Pending; cross-tab revocation fail-closed subcase passes / `51de04c98d74302589634f27c69b9d0137c16e83` AT-02/AT-54; expiry-specific variation remains open |
 | VP-020-E01 | [VP-020](#vp-020) | P2 | Prove accepted-client/binding prerequisites, exact configured root validation, idempotent preparation and duplicate/rename behavior for all permitted scopes. | Pending / Unassigned / — |
 | VP-020-E02 | [VP-020](#vp-020) | P2 | Verify independent library access and cross-links to jobs/PBC/workpapers use the same logical document. | Pending / Unassigned / — |
 | VP-021-E01 | [VP-021](#vp-021) | P2 | Close wrong-root, inaccessible, unavailable/restore and linked-version cases for each original criterion and relevant record type. | Pending / Unassigned / — |
@@ -4127,6 +4127,7 @@ This blank row is a template, not a newly discovered defect. Known current pendi
 
 | Story / criterion | Test path + test name | Tested SHA | Fixture + scenario date | Expected result | Actual result | Run/log/artifact link | Reviewer/date |
 |---|---|---|---|---|---|---|---|
+| VP-019-AC02 subcase | `tests/e2e/app.test.ts` — `AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite`; `tests/unit/reproduction_register.test.ts` — stale browser-state guard | `51de04c98d74302589634f27c69b9d0137c16e83` | Local Chrome; relationship identity; unsaved client form; second tab revokes a stored grant and updates as-of date; 2026-09-24 | Stale tab must not save; remove stale dialog and projections; preserve newer grant history before explicit local-state replacement | PASS — no stale client persisted; dialog/navigation/workspace hidden; revocation is backed up before user resolution | `npm run test:e2e` 71/71 (5 static + 66 Chrome); `npm run test:unit` 162/162; `npm run lint` PASS | 2026-09-24 |
 | VP-000-AC00 (template) | — | — | — | Exact criterion assertion | Not run | — | — |
 
 Existing repository Verified statuses are preserved here without inventing missing per-criterion log links. Populate this ledger to make acceptance independently replayable. An updated test count alone is not an evidence ledger.
@@ -4162,6 +4163,7 @@ None of these overall-product gates is prechecked merely because a subset of sto
 | Date | Tracker version | Source snapshot | Change |
 |---|---|---|---|
 | 2026-09-24 | 1.0 | `eaaa7cfd0ea9379a19e147c98752466ea75aab8d` | Initial complete status tracker: original 64 stories/256 criteria and 54 journeys retained; 13 stories and 10 modules repository-verified; pending work separated into implementation, evidence and scope reconciliation. |
+| 2026-09-24 | 1.0 | `51de04c98d74302589634f27c69b9d0137c16e83` | Added browser evidence for the VP-019-E02 cross-tab revocation subcase. A storage conflict now replaces the stale workspace with a resolution gate, removing unsaved dialogs and stale search/count/export surfaces. E02 remains open for expiry-specific variations; story/module status remains Partial. |
 
 ### 10.5 Original verification and handoff obligations — preserved
 

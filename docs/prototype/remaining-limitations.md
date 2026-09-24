@@ -171,6 +171,13 @@ Automated sources explicitly trace AT-01 through AT-55. See
   Grants now record approved-request references and effective/expiry dates;
   scheduled authority is excluded until its effective date, and the original
   window remains in grant history after revocation.
+  When another tab saves a grant change, the stale tab now removes its open
+  dialogs, search/navigation controls and all business projections until the
+  conflict is explicitly resolved; a shared command guard rejects stale writes.
+  Chrome verifies a grant revocation while an unsaved client form is open and
+  confirms no stale client is persisted. Expiry-specific projection checks and
+  the wider professional/management approval and group-scope matrices remain
+  incomplete, so VP-019 and Module 19 stay Partial.
   The M365 wizard also saves permitted-person and initial role mappings without
   creating access grants. Local identity creation, disable/reactivate history, disabled-route restriction,
   and simulated invite/expiry/revoke/accept actions are covered; external invitations
