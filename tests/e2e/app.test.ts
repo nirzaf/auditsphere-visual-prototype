@@ -2262,6 +2262,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-35: rejects an unbalanced TB import then preserves the accepted source revision on replacement', async () => {
+    await browserTab!.evaluate(`(() => {const state=${JSON.stringify(createInitialState())};state.selectedEngagement='ENG-26002';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
     const before = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,history:e.sourceHistory};})()`);
     await clickButton('Accounting Workbench');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Trial-Balance Intake")'), true);
@@ -2270,6 +2273,28 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       transfer.items.add(new File([${JSON.stringify(contents)}],${JSON.stringify(name)},{type:'text/csv'}));
       input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
     })()`;
+    const assertSourceUnchanged = async (message: string) => {
+      const current = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
+      assert.equal(current.version, before.version, message);
+      assert.deepEqual(current.rows, before.rows, message);
+    };
+    await browserTab!.evaluate(file('duplicate.csv', 'code,name,balance\n1000,Cash,50\n1000,Cash duplicate,-50\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: duplicate.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("duplicate account code")'), true);
+    await assertSourceUnchanged('duplicate account codes cannot replace an accepted source');
+    await browserTab!.evaluate(file('formula.csv', 'code,name,balance\n1000,Cash,=1+1\n2000,Payables,-100\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: formula.csv")'), true);
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("formula cells are rejected")'), true);
+    await assertSourceUnchanged('formula cells cannot replace an accepted source');
+    await browserTab!.evaluate(file('renamed.csv.xlsx', 'code,name,balance\n1000,Cash,50\n2000,Payables,-50\n'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: renamed.csv.xlsx")'), true);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("CSV or text renamed to .xlsx is rejected")'), true);
+    await assertSourceUnchanged('a CSV with an XLSX extension is rejected before preview');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('input[type=file]');const transfer=new DataTransfer();transfer.items.add(new File([new Uint8Array(2*1024*1024+1)],'too-large.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("File exceeds the 2 MB demo limit")'), true);
+    await assertSourceUnchanged('oversized sources cannot replace an accepted source');
     await browserTab!.evaluate(file('unbalanced.csv', 'code,name,balance\n1000,Cash,100\n2000,Payables,-50\n'));
     assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: unbalanced.csv")'), true);
     await clickButton('Preview & validate');

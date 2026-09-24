@@ -199,7 +199,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   client management acceptance. Reflection/rejection edge matrices, general-ledger
   and remaining downstream lineage workflows are still incomplete. Chrome also
   opens all 16 reports and checks CSV structure/client scoping; TB import retains
-  predecessor rows and source hashes for balanced CSV and actual XLSX.
+  predecessor rows and source hashes for balanced CSV and actual XLSX. AT-35
+  also exercises UI-level rejection of duplicate codes, formula amounts, CSV
+  bytes mislabeled XLSX, unbalanced totals and files above 2 MB; each rejected
+  input leaves the accepted source rows/version unchanged. Broader import
+  mapping, malformed-workbook and recovery combinations remain unverified.
 - **VP-037 — account mapping:** every account now requires an explicit mapping in
   a current independently approved revision before statements can be exported or
   a package can validate. Unmapped accounts are listed rather than silently

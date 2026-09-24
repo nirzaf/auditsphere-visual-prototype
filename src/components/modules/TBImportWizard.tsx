@@ -19,6 +19,12 @@ interface TBImportWizardProps {
 
 type Convention = 'signed-net' | 'debit-credit';
 
+const isZipOfficeWorkbook = (bytes: ArrayBuffer) => {
+  if (bytes.byteLength < 4) return false;
+  const signature = new Uint8Array(bytes, 0, 4);
+  return signature[0] === 0x50 && signature[1] === 0x4b && signature[2] === 0x03 && signature[3] === 0x04;
+};
+
 export function parseTBWorkbook(
   fileName: string,
   bytes: ArrayBuffer,
@@ -34,6 +40,9 @@ export function parseTBWorkbook(
   let grid: unknown[][] = [];
   if (isXlsx) {
     // Genuine workbook parse — a CSV renamed to .xlsx fails here and is rejected.
+    if ((lower.endsWith('.xlsx') || lower.endsWith('.xlsm')) && !isZipOfficeWorkbook(bytes)) {
+      return { rows, errors: ['CSV or text renamed to .xlsx is rejected.'], format: 'XLSX' };
+    }
     const wb = XLSX.read(bytes, { type: 'array', sheetStubs: false });
     if (!wb.SheetNames.length) {
       return { rows, errors: ['Workbook contains no worksheets.'], format: 'XLSX' };
@@ -134,6 +143,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
       const lower = f.name.toLowerCase();
       let headerRow: string[] = [];
       if (lower.endsWith('.xlsx') || lower.endsWith('.xlsm') || lower.endsWith('.xls')) {
+        if ((lower.endsWith('.xlsx') || lower.endsWith('.xlsm')) && !isZipOfficeWorkbook(buf)) throw new Error('CSV or text renamed to .xlsx is rejected.');
         const wb = XLSX.read(buf, { type: 'array', sheetStubs: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
