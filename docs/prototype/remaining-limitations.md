@@ -397,10 +397,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
 ## Verification snapshot
 
 Latest recorded full run: 172/172 unit checks and 74/74 E2E checks passed at
-test HEAD `b04b566` / application source `188ee3b`.
+test HEAD `804ccc8` / application source `188ee3b`.
 E2E includes five static checks and 69 Chrome journeys. The VP-042 AT-38/40 package
 subcase confirms internal-only disclosure/comment/workpaper references do not
-appear in generated XLSX, DOCX, or PDF bytes. The Chrome suite blocks
+appear in generated XLSX, DOCX, PDF bytes, or the client portal. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-014, VP-018,
