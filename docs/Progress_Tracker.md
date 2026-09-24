@@ -696,7 +696,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-005-E02 — Verification/evidence pending:** Reconcile each counter, filtered row and click-through under empty, completed, blocked, archived and no-access conditions.
 
-  Chrome covers a manager scoped to client CL-003 with no engagements and a manager with no grants: both show six zero metrics, hide stale selected ENG-26001, and show task/job/activity empty messages; the granted empty-scope active-engagement drill-down reports zero matches. A synthetic overdue fixture confirms completed and cancelled tasks are excluded, while a blocked job/task remain in open-task and overdue counts and matching drill-downs. Archived conditions remain open.
+  Chrome covers an empty client grant and a manager with no grants (zero metrics and explicit empty states), a fixed-date overdue fixture (completed/cancelled excluded; blocked job/task retained in counts and drill-downs), and an archived engagement (excluded from active count, ready metric/drill-down, and deadline rows). Full counter/filter combinations and sign-off remain open.
 
 #### Original user story and dependencies
 **Target modules:** 01  
@@ -712,7 +712,7 @@ Extend rather than discard existing role homepages. Show my tasks, jobs by state
 |---|---|---|
 | VP-005-AC01 | Given a task/date/status or PBC change, when returning to the dashboard, then its counters and drill-down rows agree with the underlying register. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-005-AC02 | Given a narrow engagement grant, when viewing a count or recent-activity card, then sibling engagements and other clients do not contribute. | SUBCASES VERIFIED 2026-09-24: narrow billing grant shows one engagement and omits ENG-26002 and its sibling job; existing group-user journey also omits sibling client/job/activity. Other narrow-grant cards and role combinations remain open. |
-| VP-005-AC03 | Overdue calculations use the fixed demo as-of date; completed/cancelled work is excluded and empty data shows an honest zero/empty state. | SUBCASES VERIFIED 2026-09-24: no-engagement scope renders six zero metrics, hides stale out-of-scope selection, and shows task/job/activity empty states; active-engagement drill-down shows zero matches. Synthetic past-due completed/cancelled tasks are excluded, while blocked job/task remain in overdue and open-task counts and lists. Other archived/no-access variants remain open. |
+| VP-005-AC03 | Overdue calculations use the fixed demo as-of date; completed/cancelled work is excluded and empty data shows an honest zero/empty state. | SUBCASES VERIFIED 2026-09-24: no-engagement scope renders six zero metrics, hides stale out-of-scope selection, and shows task/job/activity empty states; active-engagement drill-down shows zero matches. Fixed-date checks confirm completed/cancelled exclusion and blocked overdue work remains actionable. Remaining full role/filter combinations remain open. |
 | VP-005-AC04 | All headline metrics open a filtered working list; no placeholder chart or hard-coded success percentage is presented as computed data. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L358).

@@ -467,6 +467,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+    const archivedState = createInitialState() as any;
+    const archivedEngagement = archivedState.engagements.find((item: any) => item.id === 'ENG-26001');
+    archivedEngagement.archive = { archivedAt: '2026-09-23T12:00:00.000Z', archivedBy: 'Layla Rahman', releaseId: 'REL-ARCHIVED-DASHBOARD', manifest: [], artifacts: [] };
+    archivedEngagement.reviews.forEach((item: any) => { item.status = 'Cleared'; });
+    archivedEngagement.pbc.forEach((item: any) => { item.status = 'Accepted'; });
+    archivedEngagement.workpapers.forEach((item: any) => { item.status = 'Cleared'; });
+    archivedState.jobs.filter((item: any) => item.engagementId === archivedEngagement.id).forEach((item: any) => { item.status = 'Completed'; });
+    const archivedJobIds = new Set(archivedState.jobs.filter((item: any) => item.engagementId === archivedEngagement.id).map((item: any) => item.id));
+    archivedState.jobTasks.filter((item: any) => archivedJobIds.has(item.jobId)).forEach((item: any) => { item.status = 'Completed'; });
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(archivedState))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      const archivedDashboard = await browserTab!.evaluate<any>(`(() => ({body:document.querySelector('main#main')?.innerText||'',metrics:Object.fromEntries([...document.querySelectorAll('.metric')].map(x=>[x.querySelector('.metric-top')?.innerText,Number(x.querySelector('.metric-value')?.innerText)])),deadlineRows:[...document.querySelectorAll('.grid-main table tbody tr')].map(row=>row.innerText)}))()`);
+      assert.equal(archivedDashboard.metrics['Active Engagements'], 2, 'archived engagement is excluded from active count');
+      assert.equal(archivedDashboard.metrics['Awaiting Review'], 0);
+      assert.equal(archivedDashboard.metrics['Client Requests'], 0);
+      assert.equal(archivedDashboard.metrics['Ready to Release'], 0, 'archived engagement cannot be counted as ready for another release');
+      assert.ok(archivedDashboard.deadlineRows.every((row: string) => !row.includes('ENG-26001')), 'archived engagement is omitted from active deadline table');
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="Ready to Release"]')?.click()`);
+      const readyList = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(panel=>panel.innerText.includes('Filtered work list'))?.innerText||''`);
+      assert.match(readyList, /0 record\(s\)/);
+      assert.doesNotMatch(readyList, /ENG-26001/);
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(roleViewState)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

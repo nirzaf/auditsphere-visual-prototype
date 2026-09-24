@@ -38,7 +38,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const tasks: Array<DashboardItem & { record: JobTaskItem }> = state.jobTasks.filter(t => jobIds.has(t.jobId) && (assigneeFilter === 'ALL' || t.assignee === assigneeFilter)).map(t => ({ id: t.id, engagementId: state.jobs.find(j => j.id === t.jobId)!.engagementId, label: t.title, status: t.status, due: t.dueDate, route: 'jobs', kind: 'Task', record: t }));
   const myTasks = tasks.filter(t => t.record.assignee === state.currentPerson && !['Completed', 'Cancelled'].includes(t.status));
   const openPbc = pbc;
-  const ready = engagements.filter(e => e.workpapers.length > 0 && e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared')).length;
+  const readyEngagements = engagements.filter(e => !e.archive && e.workpapers.length > 0 && e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared'));
+  const ready = readyEngagements.length;
   const overdue: DashboardItem[] = [
     ...jobs.filter(j => j.due && j.due < asOfDate && !['Completed', 'Cancelled'].includes(j.status)),
     ...tasks.filter(t => t.due && t.due < asOfDate && !['Completed', 'Cancelled'].includes(t.status)),
@@ -63,7 +64,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const listItems: DashboardItem[] = activeList === 'engagements' ? engagements.filter(e => !e.archive).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'engagements', kind: 'Engagement' }))
     : activeList === 'reviews' ? reviews
     : activeList === 'pbc' ? pbc
-    : activeList === 'ready' ? engagements.filter(e => e.workpapers.length > 0 && e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared')).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'delivery', kind: 'Engagement' }))
+    : activeList === 'ready' ? readyEngagements.map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'delivery', kind: 'Engagement' }))
     : activeList === 'tasks' ? myTasks
     : activeList === 'overdue' ? overdue : [];
   const attention = [...overdue, ...reviews, ...pbc, ...tasks].filter(item => item.due).sort((a, b) => (a.due || '').localeCompare(b.due || ''))[0];
@@ -174,7 +175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...engagements].sort((a, b) => a.due.localeCompare(b.due)).map(eng => {
+                  {engagements.filter(eng => !eng.archive).sort((a, b) => a.due.localeCompare(b.due)).map(eng => {
                     const c = clients.find(x => x.id === eng.client);
                     return (
                       <tr key={eng.id}>
