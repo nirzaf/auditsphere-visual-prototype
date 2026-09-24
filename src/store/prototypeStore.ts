@@ -1278,6 +1278,39 @@ class PrototypeStore {
     this.notify();
   }
 
+  public linkDocumentToTask(documentId: string, taskId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'preparer', 'reviewer'], 'link a document to a task');
+    const document = this.state.documents.find(item => item.id === documentId);
+    const task = this.state.jobTasks.find(item => item.id === taskId);
+    const job = task && this.state.jobs.find(item => item.id === task.jobId);
+    if (!document || !task || !job || document.clientId !== job.clientId || document.engagementId !== job.engagementId) throw new GuardError('INVALID_STATE', 'Task file must be a registered document in the same client and engagement.');
+    requireEngagementScope(this.state, job.engagementId, 'records');
+    if (document.linkedTaskId === taskId) return;
+    if (document.linkedTaskId) throw new GuardError('INVALID_STATE', 'Unlink the document from its current task before linking it elsewhere.');
+    document.linkedTaskId = taskId;
+    document.taskLinkHistory ||= [];
+    document.taskLinkHistory.push({ action: 'Linked', taskId, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString() });
+    this.logEvent(`Document linked to task ${task.title}: ${document.name}`, document.id);
+    this.notify();
+  }
+
+  public unlinkDocumentFromTask(documentId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'preparer', 'reviewer'], 'unlink a document from a task');
+    const document = this.state.documents.find(item => item.id === documentId);
+    const task = document?.linkedTaskId && this.state.jobTasks.find(item => item.id === document.linkedTaskId);
+    const job = task && this.state.jobs.find(item => item.id === task.jobId);
+    if (!document || !task || !job) throw new GuardError('INVALID_STATE', 'Linked task file was not found.');
+    requireEngagementScope(this.state, job.engagementId, 'records');
+    if (typeof reason !== 'string' || !reason.trim() || reason.length > 1000) throw new GuardError('INVALID_STATE', 'A reason of 1,000 characters or fewer is required to unlink a task file.');
+    document.taskLinkHistory ||= [];
+    document.taskLinkHistory.push({ action: 'Unlinked', taskId: task.id, by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
+    delete document.linkedTaskId;
+    this.logEvent(`Document unlinked from task ${task.title}: ${reason.trim()}`, document.id);
+    this.notify();
+  }
+
   public setDocumentClientSharing(documentId: string, shared: boolean, reason: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['relationship', 'manager', 'partner', 'admin'], 'change client document sharing');

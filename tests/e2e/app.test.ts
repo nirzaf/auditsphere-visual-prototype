@@ -1155,6 +1155,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const taskNote = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.text==='AT14 internal task note.')`);
     assert.equal(taskNote.subjectType, 'task');
     assert.ok(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('AT14 internal task note.')`));
+    const taskFileId = await browserTab!.evaluate<string>(`(() => {const s=document.querySelector('select[aria-label^="Task file to link"]');if(!s||s.options.length<2)throw Error('No same-engagement document can be linked to a task');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,s.options[1].value);s.dispatchEvent(new Event('change',{bubbles:true}));return s.options[1].value;})()`);
+    await clickButton('Link file');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(d=>d.id===${JSON.stringify(taskFileId)}).linkedTaskId===${JSON.stringify(taskNote.subjectId)}`), true, 'the task retains its registered document reference');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement partner')&&x.textContent.includes('Daniel James'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();})()`);
     assert.equal(await waitForBrowser(`document.body.innerText.includes('My Local Notices')&&document.body.innerText.includes('Layla Rahman mentioned you on job')`), true, 'recipient sees a local notice without the comment text in the notice preview');
     await clickButton('Mark read');

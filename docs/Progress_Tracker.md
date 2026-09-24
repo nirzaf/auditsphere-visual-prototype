@@ -52,10 +52,10 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
+| Unit checks reported passing | 156 / 156 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 122 | 1 stated implementation action; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 121 | 0 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -1164,12 +1164,12 @@ Required: title, client, engagement and owner. Optional: description, start/due 
 **Original journey links:** [AT-11](#at-11), [AT-12](#at-12); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Tasks support one-level subtasks, hierarchy/cycle/cross-job guards, parent-completion blocking, qualified-person reassignment, detail/history edits, manual status, blocked reasons, sibling order persistence and staff-only task-linked notes. Task-specific file attachments remain incomplete.
+Tasks support one-level subtasks, hierarchy/cycle/cross-job guards, parent-completion blocking, qualified-person reassignment, detail/history edits, manual status, blocked reasons, sibling order persistence, staff-only task-linked notes and versioned library-document references with reasoned unlink history.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-014-I01 — Partially implemented:** Staff-only notes are now linked to individual tasks and exercised in Chrome; complete task-specific file attachment/link surfaces required by the shared collaboration contract.
+- [x] **VP-014-I01 — Implemented and exercised:** Staff-only notes and registered same-engagement document references are linked to individual tasks; task file unlinking requires a reason and preserves actor/time history. Evidence: AT-14 Chrome and task-file unit regression, 156/156 unit + 68/68 E2E checks, 2026-09-24. Broader criterion sign-off remains open under E02.
 
 - [ ] **VP-014-E02 — Verification/evidence pending:** Complete leaf-only progress counts, cross-client assignees, empty-work counts, task cancel/reopen and all ownership/order reload cases.
 
@@ -1874,7 +1874,7 @@ A shared communication register includes manually recorded incoming email/call/m
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [x] **VP-027-I01 — Implemented and exercised:** Manual communications can link to a validated same-client/same-engagement job; client timeline, global register and linked job view project the same stored record. Evidence: AT-27 Chrome and unit job-scope regression, 155/155 unit + 68/68 E2E checks, 2026-09-24. Remaining date/text/visibility correction checks stay under E02.
+- [x] **VP-027-I01 — Implemented and exercised:** Manual communications can link to a validated same-client/same-engagement job; client timeline, global register and linked job view project the same stored record. Evidence: AT-27 Chrome and unit job-scope regression, 156/156 unit + 68/68 E2E checks, 2026-09-24. Remaining date/text/visibility correction checks stay under E02.
 
 - [ ] **VP-027-E02 — Verification/evidence pending:** Validate visibility-change warning/permission, linked-attachment scope, date/text limits and correction history.
 
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **122 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **121 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -3951,13 +3951,13 @@ This queue contains **122 open planning actions** attached to the 51 Partial sto
 
 - [x] **VP-007-I01** (P2; [VP-007](#vp-007)): Implemented responsibility and effective-period fields with date-range guards. Evidence: AT-05/AT-06 Chrome + unit regression, 2026-09-24. Owner: `—`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-014-I01** (P2; [VP-014](#vp-014)): Staff-only task-linked notes implemented and exercised; task-specific file attachment/link surfaces remain. Evidence: AT-14 Chrome, 155/155 unit + 68/68 E2E checks, 2026-09-24. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-014-I01** (P2; [VP-014](#vp-014)): Staff-only task notes and registered-document links implemented; unlink requires a reason and retains actor/time history. Evidence: AT-14 Chrome + task-file unit regression; 156/156 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
 
-- [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 155/155 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
+- [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 156/156 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
 
 - [x] **VP-025-I02** (P2; [VP-025](#vp-025)): Implemented required-reason share/withdraw actions with attributable history and current client visibility projection. Evidence: store regression + VP-021 Chrome, 2026-09-24. Broader portal withdrawal/no-access cases remain under E03.
 
-- [x] **VP-027-I01** (P2; [VP-027](#vp-027)): Validated optional job links and shared communication projections in client and job views. Evidence: AT-27 Chrome + unit scope regression; 155/155 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
+- [x] **VP-027-I01** (P2; [VP-027](#vp-027)): Validated optional job links and shared communication projections in client and job views. Evidence: AT-27 Chrome + unit scope regression; 156/156 unit + 68/68 E2E checks, 2026-09-24. Criterion sign-off remains open under E02.
 
 - [x] **VP-041-I01** (P1; [VP-041](#vp-041)): Revisioned and independently reviewed cash-flow movement schedule implemented and verified; complete the per-note and client-sharing acceptance separately. Evidence: AT-37 + cash-flow store regression, 2026-09-24.
 

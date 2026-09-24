@@ -851,6 +851,27 @@ describe('internal collaboration scope (AT-14)', () => {
   });
 });
 
+describe('task file references (VP-014)', () => {
+  it('links same-engagement library metadata and preserves a reasoned unlink history', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const task = state.jobTasks.find(item => state.jobs.find(job => job.id === item.jobId)?.engagementId === 'ENG-26001')!;
+    const job = state.jobs.find(item => item.id === task.jobId)!;
+    const doc = state.documents.find(item => item.clientId === job.clientId && item.engagementId === job.engagementId && !item.linkedTaskId)!;
+    const foreign = { ...doc, id: 'DOC-FOREIGN-TEST', clientId: 'CL-FOREIGN' };
+    state.documents.push(foreign);
+    assert.throws(() => prototypeStore.linkDocumentToTask(foreign.id, task.id), /same client and engagement/);
+    prototypeStore.linkDocumentToTask(doc.id, task.id);
+    prototypeStore.linkDocumentToTask(doc.id, task.id);
+    assert.equal(doc.linkedTaskId, task.id);
+    assert.equal(doc.taskLinkHistory?.filter(item => item.action === 'Linked').length, 1);
+    assert.throws(() => prototypeStore.unlinkDocumentFromTask(doc.id, ' '), /reason/);
+    prototypeStore.unlinkDocumentFromTask(doc.id, 'No longer relevant to this task.');
+    assert.equal(doc.linkedTaskId, undefined);
+    assert.equal(doc.taskLinkHistory?.at(-1)?.reason, 'No longer relevant to this task.');
+  });
+});
+
 describe('simulated mail attempts (AT-26)', () => {
   it('accepts only an active client contact and requires unique local outcome evidence', () => {
     (prototypeStore as any).state = state;

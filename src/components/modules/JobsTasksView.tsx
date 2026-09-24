@@ -44,6 +44,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   const [noteSubject, setNoteSubject] = useState<{ type: 'job' | 'task'; id: string; label: string }>({ type: 'job', id: '', label: 'Job' });
   const [noteText, setNoteText] = useState('');
   const [noteMentions, setNoteMentions] = useState<string[]>([]);
+  const [taskDocumentChoices, setTaskDocumentChoices] = useState<Record<string, string>>({});
   const [parentTaskIdForSubtask, setParentTaskIdForSubtask] = useState<string | undefined>(undefined);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('Adam Khan');
@@ -78,6 +79,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   const isHidden = (comment: CommentItem) => comment.moderationHistory?.at(-1)?.action === 'Hidden';
   const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal' && (isModerator || !isHidden(comment)));
   const taskComments = state.comments.filter(comment => comment.subjectType === 'task' && jobTasks.some(task => task.id === comment.subjectId) && comment.visibility === 'internal' && (isModerator || !isHidden(comment)));
+  const taskLinkableDocuments = state.documents.filter(document => document.clientId === selectedJob?.clientId && document.engagementId === selectedJob?.engagementId && !document.linkedTaskId);
   const myLocalNotices = (state.localNotices || []).filter(item => {
     if (item.recipientUserId !== state.currentUserId) return false;
     const comment = state.comments.find(record => record.id === item.commentId);
@@ -509,6 +511,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                             <div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.moderationHistory?.map(item => `${item.action} by ${item.by}: ${item.reason}`).join(' · ')}</div>
                           </div>;
                         })}
+                        <div className="mt8">
+                          <b className="caption">Task files</b>
+                          {state.documents.filter(document => document.linkedTaskId === task.id).map(document => <div className="between cell-sub mt4" key={document.id}><span>{document.name} · v{document.version}{document.brokenLink ? ' · reference unavailable' : ''}</span><button className="btn sm ghost" onClick={() => { const reason = window.prompt('Reason to unlink this task file?') || ''; if (!reason.trim()) return; try { prototypeStore.unlinkDocumentFromTask(document.id, reason); } catch (err: any) { triggerNotice('error', err.message); } }}>Unlink</button></div>)}
+                          <div className="row mt4"><select className="input sm" aria-label={`Task file to link ${task.id}`} value={taskDocumentChoices[task.id] || ''} onChange={e => setTaskDocumentChoices({ ...taskDocumentChoices, [task.id]: e.target.value })}><option value="">Select a registered engagement file</option>{taskLinkableDocuments.map(document => <option key={document.id} value={document.id}>{document.name}</option>)}</select><button className="btn sm ghost" disabled={!taskDocumentChoices[task.id]} onClick={() => { try { prototypeStore.linkDocumentToTask(taskDocumentChoices[task.id], task.id); setTaskDocumentChoices({ ...taskDocumentChoices, [task.id]: '' }); } catch (err: any) { triggerNotice('error', err.message); } }}>Link file</button></div>
+                        </div>
                       </div>
                     ))}
                   </div>

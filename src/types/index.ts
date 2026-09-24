@@ -640,6 +640,8 @@ export interface DocumentItem {
   spItemId?: string;
   source: 'SharePoint' | 'OneDrive Import' | 'Local In-Session';
   linkedJobId?: string;
+  linkedTaskId?: string;
+  taskLinkHistory?: Array<{ action: 'Linked' | 'Unlinked'; taskId: string; by: string; byUserId: string; at: string; reason?: string }>;
   linkedPbcId?: string;
   linkedWorkpaperId?: string;
   supersedesDocumentId?: string;
