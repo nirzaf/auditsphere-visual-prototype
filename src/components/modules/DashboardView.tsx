@@ -63,7 +63,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const listItems: DashboardItem[] = activeList === 'engagements' ? engagements.filter(e => !e.archive).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'engagements', kind: 'Engagement' }))
     : activeList === 'reviews' ? reviews
     : activeList === 'pbc' ? pbc
-    : activeList === 'ready' ? engagements.filter(e => e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared')).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'delivery', kind: 'Engagement' }))
+    : activeList === 'ready' ? engagements.filter(e => e.workpapers.length > 0 && e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared')).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'delivery', kind: 'Engagement' }))
     : activeList === 'tasks' ? myTasks
     : activeList === 'overdue' ? overdue : [];
   const attention = [...overdue, ...reviews, ...pbc, ...tasks].filter(item => item.due).sort((a, b) => (a.due || '').localeCompare(b.due || ''))[0];
