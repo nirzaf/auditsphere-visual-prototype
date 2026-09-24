@@ -57,7 +57,7 @@
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Pending action rows in this tracker | 126 | 5 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
-Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and the new independently reviewed cash-flow movement schedule. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
+Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
 ### 1.2 Status and pending-work legend
 
