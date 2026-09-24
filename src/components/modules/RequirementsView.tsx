@@ -161,7 +161,7 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
         <div>
           <h1>Prototype Requirements &amp; Verification Evidence</h1>
           <p>
-            Original 64-story backlog (VP-001–VP-064) and 39-module map. Every row is Partial because route smoke and focused tests do not prove each complete acceptance journey.
+            Original 64-story backlog (VP-001–VP-064) and 39-module map. Story status reflects current repository evidence; a verified story does not mark its whole module complete.
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
