@@ -3,7 +3,7 @@
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-014, VP-018,
 VP-035, VP-037, VP-047, VP-051, VP-052, VP-053, VP-055, VP-056, VP-057,
-VP-058, VP-059 and VP-060 are Verified; 49 of 64 stories and 29 of 39 modules remain
+VP-043, VP-058, VP-059 and VP-060 are Verified; 48 of 64 stories and 29 of 39 modules remain
 Partial.
 Automated sources explicitly trace AT-01 through AT-55. See
 `verification.md` for exact executed checks.
@@ -333,7 +333,7 @@ E2E includes five static checks and 65 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-014, VP-018,
-VP-035, VP-037, VP-047, VP-051, VP-052, VP-053, VP-055, VP-056, VP-057,
-VP-058, VP-059 and VP-060 are Verified; 49 of 64 stories and 29 of 39 modules remain Partial because full
+VP-035, VP-037, VP-043, VP-047, VP-051, VP-052, VP-053, VP-055, VP-056,
+VP-057, VP-058, VP-059 and VP-060 are Verified; 48 of 64 stories and 29 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.

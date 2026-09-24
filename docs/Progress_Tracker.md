@@ -47,17 +47,17 @@
 | Repository-verified modules | 10 | Source module status, not a new independent audit. |
 | Partial modules | 29 | Contain residual implementation and/or acceptance work. |
 | Original user stories | 64 | Original VP-001–VP-064 identifiers and titles retained. |
-| Repository-verified stories | 14 | Includes VP-014, whose four criteria now pass the expanded AT-11 Chrome/unit evidence. |
-| Partial stories | 50 | All have current progress and a closure plan below. |
+| Repository-verified stories | 16 | Includes VP-014 and VP-043, whose criterion evidence is recorded below. |
+| Partial stories | 48 | All have current progress and a closure plan below. |
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks reported passing | 161 / 161 | Includes task assignment scope, cancellation history, and task hierarchy regressions. |
-| E2E checks reported passing | 70 / 70 | Rerun: 5 static checks + 65 actual Chrome checks. |
+| Unit checks passing in this review | 161 / 161 | Fresh run on `fded7b5`; includes the consolidation perimeter guard matrix. |
+| E2E checks passing in this review | 70 / 70 | Fresh run on `fded7b5`: 5 static checks + 65 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 117 | 0 stated implementation actions; 82 evidence/verification actions; 35 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
-Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. The current story totals are 14 verified / 50 partial; module totals remain 10 verified / 29 partial because other stories in the same modules are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
+Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, independently reviewed cash-flow and per-note disclosure records, and VP-043 perimeter acceptance. The current story totals are 16 verified / 48 partial; module totals remain 10 verified / 29 partial because other stories in the consolidation module are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported completion estimate is used.
 
 ### 1.2 Status and pending-work legend
 
@@ -312,7 +312,7 @@ Minimum report definitions:
 | M4 — Portal & communication | VP-023–VP-027 | 0/5 | 5 | Open — close linked story criteria | Unassigned / not set |
 | M5 — Practice finance | VP-028–VP-033 | 0/6 | 6 | Open — close linked story criteria | Unassigned / not set |
 | M6 — Accounting | VP-034–VP-042 | 1/9 | 8 | Open — close linked story criteria | Unassigned / not set |
-| M7 — Consolidation | VP-043–VP-046 | 0/4 | 4 | Open — close linked story criteria | Unassigned / not set |
+| M7 — Consolidation | VP-043–VP-046 | 1/4 | 4 | Open — close linked story criteria | Unassigned / not set |
 | M8 — Audit | VP-047–VP-056 | 6/10 | 4 | Open — close linked story criteria | Unassigned / not set |
 | M9 — Delivery & records | VP-057–VP-059 | 3/3 | 0 | Assigned stories repository-verified; upstream/shared acceptance still applies | Unassigned / not set |
 | M10 — Product completeness | VP-060–VP-064 | 1/5 | 4 | Open — close linked story criteria | Unassigned / not set |
@@ -352,7 +352,7 @@ The current module-status column follows [S3], not a recalculated guess. Detaile
 | <a id="mod-23"></a>MOD-23 | **Reconciliations** | Light | PARTIAL | [VP-039](#vp-039) | 0/1 |
 | <a id="mod-24"></a>MOD-24 | **Financial Statements** | Partial | PARTIAL | [VP-040](#vp-040), [VP-041](#vp-041) | 0/2 |
 | <a id="mod-25"></a>MOD-25 | **Financial Packages** | Partial | PARTIAL | [VP-042](#vp-042) | 0/1 |
-| <a id="mod-26"></a>MOD-26 | **Consolidation** | Missing | PARTIAL | [VP-043](#vp-043), [VP-044](#vp-044), [VP-045](#vp-045), [VP-046](#vp-046) | 0/4 |
+| <a id="mod-26"></a>MOD-26 | **Consolidation** | Missing | PARTIAL | [VP-043](#vp-043), [VP-044](#vp-044), [VP-045](#vp-045), [VP-046](#vp-046) | 1/4 |
 | <a id="mod-27"></a>MOD-27 | **Client Acceptance** | Partial | VERIFIED (reported) | [VP-047](#vp-047) | 1/1 |
 | <a id="mod-28"></a>MOD-28 | **Audit Planning** | Light | PARTIAL | [VP-048](#vp-048) | 0/1 |
 | <a id="mod-29"></a>MOD-29 | **Risks & Audit Programs** | Light | PARTIAL | [VP-049](#vp-049) | 0/1 |
@@ -419,7 +419,7 @@ Use this register for planning and the detailed records below for implementation
 | [VP-040](#vp-040) | Build configurable financial statements and comparatives | M6 | PARTIAL | E/R | P1 | Unassigned / not linked |
 | [VP-041](#vp-041) | Complete notes, cash-flow support and disclosure review | M6 | PARTIAL | E/I | P1 | Unassigned / not linked |
 | [VP-042](#vp-042) | Complete financial-package assembly and genuine exports | M6 | PARTIAL | E/R | P1 | Unassigned / not linked |
-| [VP-043](#vp-043) | Create consolidation groups and effective perimeters | M7 | PARTIAL | E/I/R | P1 | Unassigned / not linked |
+| [VP-043](#vp-043) | Create consolidation groups and effective perimeters | M7 | VERIFIED | E/I/R | P1 | Acceptance evidence recorded 2026-09-24 |
 | [VP-044](#vp-044) | Select component packages and demonstrate currency translation | M7 | PARTIAL | E/R | P1 | Unassigned / not linked |
 | [VP-045](#vp-045) | Implement manual eliminations and group adjustment review | M7 | PARTIAL | E/R | P1 | Unassigned / not linked |
 | [VP-046](#vp-046) | Produce, review and export consolidated output | M7 | PARTIAL | E/R | P1 | Unassigned / not linked |
@@ -505,7 +505,7 @@ Inventory the active Vite routes, renderer overrides, actions, service cards, fi
 <a id="vp-002"></a>
 ### VP-002 — Introduce a single typed state and legacy/React route bridge
 
-**Current status:** PARTIAL  
+**Current status:** PARTIAL
 **Milestone:** M0  
 **Tracker priority:** P1  
 **Owner:** Unassigned  
@@ -2709,7 +2709,7 @@ Add package contents selection/order, output preview, validation summary, versio
 <a id="vp-043"></a>
 ### VP-043 — Create consolidation groups and effective perimeters
 
-**Current status:** PARTIAL  
+**Current status:** VERIFIED
 **Milestone:** M7  
 **Tracker priority:** P1  
 **Owner:** Unassigned  
@@ -2717,7 +2717,7 @@ Add package contents selection/order, output preview, validation summary, versio
 **Target date:** Not set  
 **Status snapshot:** 2026-09-24, `eaaa7cf`
 
-- [ ] **Story acceptance recorded as complete in the repository.**
+- [x] **Story acceptance recorded as complete in the repository.**
 
 **Current evidence and status basis:** [Current coverage](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/module-coverage.md#L35) · [Verification record](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/verification.md) · [Limitations](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/docs/prototype/remaining-limitations.md)
 
@@ -2733,11 +2733,11 @@ The bounded consolidation profile is explicit: one Parent and one wholly owned S
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [x] **VP-043-I01 — Implemented and exercised:** Supported-profile perimeter editing, date/component validation, attributable history, revert-as-new-revision, and elimination re-review after a component change are implemented; focused AT-43 Chrome journey passed in the 68/68 E2E run on 2026-09-24. Full group acceptance remains open under VP-043-E02.
+- [x] **VP-043-I01 — Implemented and exercised:** Supported-profile perimeter editing, date/component validation, attributable history, revert-as-new-revision, and elimination re-review after a component change are implemented.
 
-- [ ] **VP-043-E02 — Verification/evidence pending:** Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access.
+- [x] **VP-043-E02 — Verified:** The fresh full run on `fded7b5` passed 161/161 unit and 70/70 E2E checks. Unit checks prove independent group revisions, reject duplicate/self-loop components, invalid ownership, mismatched period/entity and invalid dates without mutation, and deny a narrow-grant perimeter edit without widening access. Chrome confirms the narrow grant sees only its approved Parent projection, with the other component identity, figures, tabs, editor and history redacted. AT-43 also verifies the supported wholly-owned profile disclosure, unsupported minority profile with no figures, reasoned effective-date/component revision, unchanged source rows and elimination re-review.
 
-- [ ] **VP-043-R03 — Requirement/scope reconciliation:** Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog.
+- [x] **VP-043-R03 — Reconciled:** The delivered, disclosed supported profile is exactly one Parent plus one 100%-owned Subsidiary. Associate, minority and advanced consolidation methods remain explicitly unsupported and produce no result; expansion is outside the acceptance contract.
 
 #### Original user story and dependencies
 **Target modules:** 26  
@@ -2751,14 +2751,14 @@ Add group identity, reporting period/basis/currency, manager and revisioned comp
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-043-AC01 | Given a valid group/perimeter, when saved, then the group has its own scope, revision and component links and no source client balances are changed. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-043-AC02 | Duplicate components, cycles, invalid ownership percentages and incompatible period/entity assignments are rejected. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-043-AC03 | Adding a component does not expand the operator’s access to its unrelated engagements; narrow group access exposes only approved component projections. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-043-AC04 | The selected calculation profile and limitations are visible; unsupported ownership/accounting methods cannot silently fall back to full consolidation. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-043-AC01 | Given a valid group/perimeter, when saved, then the group has its own scope, revision and component links and no source client balances are changed. | VERIFIED — AT-43 perimeter lifecycle and AT-42 group calculation; unit checks confirm per-group revision isolation and unchanged source rows. |
+| VP-043-AC02 | Duplicate components, cycles, invalid ownership percentages and incompatible period/entity assignments are rejected. | VERIFIED — unit guard matrix rejects self-loop/duplicates, non-100% ownership, cross-period entity, malformed dates and invalid component assignments without mutation. |
+| VP-043-AC03 | Adding a component does not expand the operator’s access to its unrelated engagements; narrow group access exposes only approved component projections. | VERIFIED — unit denial checks and AT-43 narrow-grant Chrome projection confirm no access expansion or ungranted identity/figure disclosure. |
+| VP-043-AC04 | The selected calculation profile and limitations are visible; unsupported ownership/accounting methods cannot silently fall back to full consolidation. | VERIFIED — AT-43 displays the supported Parent/wholly-owned Subsidiary profile and blocks minority/missing-role output; unit guards reject Associate ownership. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1016).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Evidence:** tested tree `fded7b5ad305c0d6178cb404e2a81a2a57776682`; fixture: GRP-01 plus narrow ENG-26001 group grant; criterion evidence: AT-42/AT-43 Chrome journeys and consolidation perimeter guard checks; verified 2026-09-24.
 
 
 <a id="vp-044"></a>
@@ -3935,7 +3935,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **116 open planning actions** attached to the 49 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **113 open planning actions** attached to the 48 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4033,7 +4033,7 @@ This queue contains **116 open planning actions** attached to the 49 Partial sto
 | VP-041-E03 | [VP-041](#vp-041) | P1 | Verify reviewed note/support revisions stale packages and expose only explicitly shared client note content. | Pending / Unassigned / — |
 | VP-042-E01 | [VP-042](#vp-042) | P1 | Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision. | Pending / Unassigned / — |
 | VP-042-E02 | [VP-042](#vp-042) | P1 | Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly. | Complete / full AT-41/42/48 E2E, 2026-09-24 |
-| VP-043-E02 | [VP-043](#vp-043) | P1 | Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access. | Pending / Unassigned / — |
+| VP-043-E02 | [VP-043](#vp-043) | P1 | Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access. | Complete / full acceptance run `fded7b5`, 2026-09-24 |
 | VP-044-E01 | [VP-044](#vp-044) | P1 | Complete incompatible basis/period and unreviewed-component gates, old/new package selection, stale-pin warnings and rounded translation reconciliation. | Pending / Unassigned / — |
 | VP-044-E02 | [VP-044](#vp-044) | P1 | Prove each selected rate and translation difference is traceable under the documented supported rule. | Pending / Unassigned / — |
 | VP-045-E02 | [VP-045](#vp-045) | P1 | Exercise unmatched amounts, duplicate inclusion, unbalanced/mixed-context entries and component/rate/perimeter changes that stale prior elimination approval. | Pending / Unassigned / — |
@@ -4090,7 +4090,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-039-R02 | [VP-039](#vp-039) | The record still labels this Partial, but its named external statement/bank-system limits are excluded. Identify the remaining in-scope criterion before assigning new implementation work. | Open / — |
 | VP-040-R02 | [VP-040](#vp-040) | Reconcile the versioned layout, grouping/order/subtotal editor requirements and fill actual missing supported-fixture operations. | Open / — |
 | VP-042-R03 | [VP-042](#vp-042) | Package inclusion requires a current independently reviewed cash-flow schedule; without one, output remains unavailable. | Complete / verified 2026-09-24 |
-| VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Open / — |
+| VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Complete / acceptance scope reconciled 2026-09-24 |
 | VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Open / — |
 | VP-045-R01 | [VP-045](#vp-045) | Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria. | Open / — |
 | VP-046-R01 | [VP-046](#vp-046) | Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey. | Open / — |
