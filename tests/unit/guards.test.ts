@@ -595,6 +595,7 @@ describe('separation of duties (AT-24/AT-31/AT-47)', () => {
 describe('review-note assignment (VP-055)', () => {
   it('limits assignees to active scoped preparers/managers and retains reassignment history', () => {
     assert.equal(canOpenRoute('preparer', 'reviews'), true, 'assigned preparers need access to their personal review queue');
+    assert.equal(canOpenRoute('preparer', 'financial-packages'), true, 'preparers must reach the package editor that permits them to assemble revisions');
     (prototypeStore as any).state = createInitialState();
     setPersona((prototypeStore as any).state, 'Layla Rahman');
     const note = {
@@ -1454,6 +1455,58 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     prototypeStore.setPersona('preparer');
     prototypeStore.updateTrialBalanceRows(engagement.id, engagement.rows.map((row: any, index: number) => ({ ...row, balance: row.balance + (index === 0 ? 1 : 0) })));
     assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
+  });
+
+  it('saves evidence-backed cash-flow schedules, requires independent reconciliation, and stales on source replacement', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    state.accountMappingRevisions = [];
+    const engagement = state.engagements.find((item: any) => item.id === 'ENG-26001');
+    const target = (row: any) => row.code === '1000' ? 'Cash and cash equivalents' : row.type === 'asset' ? 'Other current assets' : row.type === 'liability' ? 'Trade payables' : row.type === 'equity' ? 'Share capital and reserves' : row.type === 'revenue' ? 'Revenue' : 'Operating expenses';
+    prototypeStore.setPersona('preparer');
+    prototypeStore.saveAccountMappings(engagement.id, engagement.rows.map((row: any) => ({ accountCode: row.code, targets: [{ statementLine: target(row), percentage: 100 }] })));
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.approveAccountMappings(engagement.id, 1);
+    prototypeStore.setPersona('preparer');
+    const input = { engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, openingCash: 900000, closingCash: 1000000, movements: [{ id: 'CF-1', description: 'Equity contribution', category: 'Equity contribution' as const, amount: 100000, evidenceRef: 'DOC-002' }, { id: 'CF-2', description: 'Equipment acquired on lease', category: 'Non-cash' as const, amount: 50000, evidenceRef: 'DOC-002' }] };
+    assert.throws(() => prototypeStore.saveCashFlowSchedule({ ...input, movements: [{ ...input.movements[0], amount: 1.001 }] }), /cent-accurate/);
+    assert.throws(() => prototypeStore.saveCashFlowSchedule({ ...input, movements: [{ ...input.movements[0], amount: -100000 }, input.movements[1]] }), /equity contributions are inflows/);
+    prototypeStore.saveCashFlowSchedule(input);
+    const preparer = state.users.find((user: any) => user.id === 'preparer');
+    const samePersonReviewer = { ...state.users.find((user: any) => user.id === 'reviewer'), id: 'same-person-cash-reviewer', personId: preparer.personId };
+    state.users.push(samePersonReviewer);
+    state.roleGrants.push({ userId: samePersonReviewer.id, role: 'reviewer', scopeKind: 'Global' });
+    prototypeStore.setPersona(samePersonReviewer.id);
+    assert.throws(() => prototypeStore.reviewCashFlowSchedule(engagement.id, 1), /same person cannot review their own work/);
+    prototypeStore.setPersona('partner');
+    prototypeStore.reviewCashFlowSchedule(engagement.id, 1);
+    const reviewed = prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.cashFlowScheduleHistory?.[0];
+    assert.equal(reviewed?.status, 'Reviewed');
+    assert.equal(reviewed?.movements.filter(item => item.category !== 'Non-cash').reduce((sum, item) => sum + item.amount, 0), 100000);
+    assert.equal(validateFixtures(state).some(issue => issue.code === 'CASH_FLOW_REVISION'), false);
+    const brokenEvidence = structuredClone(state);
+    brokenEvidence.engagements.find((item: any) => item.id === engagement.id).cashFlowScheduleHistory[0].movements[0].evidenceRef = 'DOC-MISSING';
+    assert.equal(validateFixtures(brokenEvidence).some(issue => issue.code === 'CASH_FLOW_REVISION'), true, 'recovery validation rejects a persisted broken cash-flow evidence reference');
+    prototypeStore.setPersona('preparer');
+    prototypeStore.updateTrialBalanceRows(engagement.id, structuredClone(engagement.rows));
+    assert.equal(prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.cashFlowScheduleHistory?.[0].status, 'Stale');
+  });
+
+  it('binds a package containing cash flows to the current reviewed schedule revision', () => {
+    (prototypeStore as any).state = createInitialState();
+    (prototypeStore as any).isSessionOnly = false;
+    (prototypeStore as any).persist = () => {};
+    const state = (prototypeStore as any).state;
+    const engagement = state.engagements.find((item: any) => item.id === 'ENG-26001');
+    engagement.cashFlowScheduleHistory = [{ id: `${engagement.id}-CF-1`, engagementId: engagement.id, revision: 1, sourceVersion: engagement.sourceVersion, mappingRevision: 1, openingCash: 900000, closingCash: 1000000, movements: [{ id: 'CF-1', description: 'Equity contribution', category: 'Equity contribution', amount: 100000, evidenceRef: 'DOC-002' }], status: 'Reviewed', preparedByUserId: 'preparer', preparedAt: '2026-09-24T00:00:00Z', reviewedByUserId: 'reviewer', reviewedAt: '2026-09-24T00:01:00Z' }];
+    prototypeStore.setPersona('manager');
+    const revision = engagement.packageRevision + 1;
+    const artifacts = [['XLSX', 'test.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'], ['DOCX', 'test.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], ['PDF', 'test.pdf', 'application/pdf']].map(([kind, name, mimeType]) => ({ id: `${engagement.id}-NEW-${kind}`, kind, name, mimeType, size: 1, sha256: 'a'.repeat(64) }));
+    const record = { id: `${engagement.id}-PKG-${revision}`, engagementId: engagement.id, revision, generation: engagement.generation + 1, sourceVersion: engagement.sourceVersion, mappingRevision: 1, notes: 'Test package', noteApplicability: 'Applicable', noteRevision: revision, sections: [{ id: 'cf', title: 'Cash flows', desc: 'Reviewed v1', enabled: true, order: 1 }], validation: { passed: true, trialBalanceNet: 0, pendingWorkpapers: 0, openReviews: 0, materialFindings: 0 }, artifacts, createdAt: '2026-09-24T00:00:00Z', createdBy: 'Layla Rahman', createdByUserId: state.currentUserId };
+    assert.throws(() => prototypeStore.saveFinancialPackageRevision(record as any), /valid cash-flow lineage/);
+    prototypeStore.saveFinancialPackageRevision({ ...record, cashFlowScheduleRevision: 1 } as any);
+    assert.equal(engagement.packageHistory.at(-1).cashFlowScheduleRevision, 1);
   });
 
   it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {

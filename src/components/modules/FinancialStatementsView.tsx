@@ -1,6 +1,6 @@
 // Module 24: Financial Statements Generation & Export (VP-040, VP-041)
 import React, { useState } from 'react';
-import { RouteKey, TrialBalanceRow } from '../../types';
+import { CashFlowScheduleRevision, RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { applyReportingAdjustments, calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
@@ -16,6 +16,13 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const [comparativeEngagementId, setComparativeEngagementId] = useState('');
   const [, refreshRevisionHistory] = useState(0);
   const [revisionError, setRevisionError] = useState('');
+  const [cashFlowError, setCashFlowError] = useState('');
+  const latestCashFlow = state.engagements.find(e => e.id === state.selectedEngagement)?.cashFlowScheduleHistory?.at(-1);
+  const [cashFlowDraft, setCashFlowDraft] = useState(() => ({
+    openingCash: latestCashFlow?.openingCash ?? 0,
+    closingCash: latestCashFlow?.closingCash ?? 0,
+    movements: latestCashFlow?.movements.map(item => ({ ...item })) ?? [{ id: crypto.randomUUID(), description: '', category: 'Operating' as const, amount: 0, evidenceRef: '' }]
+  }));
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -41,6 +48,23 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const mappedAccounts = currentMapping?.mappings || [];
   const unmappedRows = selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code));
   const mappingReady = Boolean(currentMapping?.status === 'Approved' && !unmappedRows.length);
+  const cashFlowHistory = (selectedEng.cashFlowScheduleHistory || []).slice().sort((a, b) => b.revision - a.revision);
+  const currentCashFlowRevision = cashFlowHistory[0];
+  const cashFlowCurrent = Boolean(currentCashFlowRevision && currentCashFlowRevision.sourceVersion === selectedEng.sourceVersion && currentCashFlowRevision.mappingRevision === currentMapping?.revision && mappingReady);
+  const updateCashFlowMovement = (id: string, changes: Partial<CashFlowScheduleRevision['movements'][number]>) => setCashFlowDraft(current => ({ ...current, movements: current.movements.map(item => item.id === id ? { ...item, ...changes } : item) }));
+  const saveCashFlow = () => {
+    try {
+      setCashFlowError('');
+      prototypeStore.saveCashFlowSchedule({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, ...structuredClone(cashFlowDraft) });
+      const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.cashFlowScheduleHistory?.at(-1);
+      if (saved) setCashFlowDraft({ openingCash: saved.openingCash, closingCash: saved.closingCash, movements: saved.movements.map(item => ({ ...item })) });
+      refreshRevisionHistory(value => value + 1);
+    } catch (error) { setCashFlowError(error instanceof Error ? error.message : String(error)); }
+  };
+  const reviewCashFlow = () => {
+    try { setCashFlowError(''); prototypeStore.reviewCashFlowSchedule(selectedEng.id, currentCashFlowRevision!.revision); refreshRevisionHistory(value => value + 1); }
+    catch (error) { setCashFlowError(error instanceof Error ? error.message : String(error)); }
+  };
   const mapRows = (rows: TrialBalanceRow[], mappings: typeof mappedAccounts): TrialBalanceRow[] => rows.flatMap(row => {
     const targets = mappings.find(mapping => mapping.accountCode === row.code)?.targets || [];
     let allocatedCents = 0;
@@ -401,10 +425,35 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       {/* 4: Statement of Cash Flows */}
       {statementType === 'cashflow' && (
         <section className="panel panel-pad" aria-label="Statement of Cash Flows">
-          <h3>Statement of Cash Flows (Indirect Method)</h3>
-          <div role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>
-            Cash-flow statement unavailable. This prototype stores trial-balance snapshots, not classified operating, investing, and financing cash movements. No cash-flow figures are inferred.
+          <div className="between"><div><h3>Statement of Cash Flows</h3><p className="sub">Enter supported movements from scoped evidence. Non-cash items are disclosed separately and excluded from the cash reconciliation.</p></div>
+            <div className="row" style={{ gap: 8 }}>
+              {currentCashFlowRevision?.status === 'Draft' && cashFlowCurrent && <button className="btn sm primary" onClick={reviewCashFlow}>Review schedule v{currentCashFlowRevision.revision}</button>}
+              <button className="btn sm ghost" disabled={!mappingReady} onClick={saveCashFlow}>Save movement revision</button>
+            </div>
           </div>
+          {!mappingReady && <div role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>An approved complete account mapping is required before preparing cash flows.</div>}
+          {cashFlowError && <p role="alert" className="badge danger mt12">{cashFlowError}</p>}
+          {currentCashFlowRevision && <p role="status" className="mt12">Latest schedule v{currentCashFlowRevision.revision} · {cashFlowCurrent ? currentCashFlowRevision.status : 'Stale'} · prepared by {currentCashFlowRevision.preparedByUserId}{currentCashFlowRevision.reviewedByUserId ? ` · reviewed by ${currentCashFlowRevision.reviewedByUserId}` : ''}</p>}
+          <div className="grid2 mt12">
+            <label className="caption">Opening cash ({selectedEng.currency})<input className="input mt4" type="number" step="0.01" min="0" aria-label="Opening cash" value={cashFlowDraft.openingCash} onChange={event => setCashFlowDraft(current => ({ ...current, openingCash: Number(event.target.value) }))} /></label>
+            <label className="caption">Closing cash ({selectedEng.currency})<input className="input mt4" type="number" step="0.01" min="0" aria-label="Closing cash" value={cashFlowDraft.closingCash} onChange={event => setCashFlowDraft(current => ({ ...current, closingCash: Number(event.target.value) }))} /></label>
+          </div>
+          <div className="tablewrap mt12"><table><thead><tr><th>Movement</th><th>Classification</th><th>Amount ({selectedEng.currency})</th><th>Evidence document ID</th><th></th></tr></thead><tbody>
+            {cashFlowDraft.movements.map(item => <tr key={item.id}>
+              <td><input className="input" aria-label={`Movement description ${item.id}`} value={item.description} onChange={event => updateCashFlowMovement(item.id, { description: event.target.value })} /></td>
+              <td><select className="input" aria-label={`Movement category ${item.id}`} value={item.category} onChange={event => updateCashFlowMovement(item.id, { category: event.target.value as CashFlowScheduleRevision['movements'][number]['category'] })}>{['Operating', 'Investing', 'Financing', 'Equity contribution', 'Equity distribution', 'Non-cash'].map(category => <option key={category}>{category}</option>)}</select></td>
+              <td><input className="input" aria-label={`Movement amount ${item.id}`} type="number" step="0.01" value={item.amount} onChange={event => updateCashFlowMovement(item.id, { amount: Number(event.target.value) })} /></td>
+              <td><input className="input" aria-label={`Movement evidence ${item.id}`} value={item.evidenceRef} onChange={event => updateCashFlowMovement(item.id, { evidenceRef: event.target.value })} /></td>
+              <td><button className="btn sm ghost" aria-label={`Remove movement ${item.id}`} onClick={() => setCashFlowDraft(current => ({ ...current, movements: current.movements.filter(movement => movement.id !== item.id) }))}>Remove</button></td>
+            </tr>)}
+          </tbody></table></div>
+          <button className="btn sm ghost mt8" onClick={() => setCashFlowDraft(current => ({ ...current, movements: [...current.movements, { id: crypto.randomUUID(), description: '', category: 'Operating', amount: 0, evidenceRef: '' }] }))}>Add movement</button>
+          <div className="grid3 mt12">
+            <div className="borderbox panel-pad"><span className="caption">Cash movement (non-cash excluded)</span><b className="block mt4">{formatCurrency(cashFlowDraft.movements.filter(item => item.category !== 'Non-cash').reduce((sum, item) => sum + item.amount, 0))}</b></div>
+            <div className="borderbox panel-pad"><span className="caption">Calculated closing cash</span><b className="block mt4">{formatCurrency(cashFlowDraft.openingCash + cashFlowDraft.movements.filter(item => item.category !== 'Non-cash').reduce((sum, item) => sum + item.amount, 0))}</b></div>
+            <div className="borderbox panel-pad"><span className="caption">Approved mapped TB cash</span><b className="block mt4">{formatCurrency(mappedAccounts.flatMap(mapping => mapping.targets.filter(target => target.statementLine === 'Cash and cash equivalents').map(target => (selectedEng.rows.find(row => row.code === mapping.accountCode)?.balance || 0) * target.percentage / 100)).reduce((sum, amount) => sum + amount, 0))}</b></div>
+          </div>
+          {cashFlowHistory.length > 0 && <div className="caption mt12">History: {cashFlowHistory.map(item => `v${item.revision} ${item.status} · ${new Date(item.preparedAt).toLocaleString()}`).join(' | ')}</div>}
         </section>
       )}
     </div>

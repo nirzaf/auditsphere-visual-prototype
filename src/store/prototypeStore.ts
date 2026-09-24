@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -213,6 +213,15 @@ class PrototypeStore {
           (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision || revision.comparativeScopeSnapshot && (revision.comparativeScopeSnapshot.service !== comparison.service || revision.comparativeScopeSnapshot.year !== comparison.year || revision.comparativeScopeSnapshot.period !== comparison.period)))) {
         revision.status = 'Stale';
       }
+    }
+  }
+
+  private staleCashFlowSchedules(changedEngagementId: string) {
+    const engagement = this.state.engagements.find(item => item.id === changedEngagementId);
+    if (!engagement) return;
+    const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === changedEngagementId).map(item => item.revision));
+    for (const revision of engagement.cashFlowScheduleHistory || []) {
+      if (revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision) revision.status = 'Stale';
     }
   }
 
@@ -1753,6 +1762,7 @@ class PrototypeStore {
     const predecessorVersion = eng.sourceVersion;
     eng.sourceVersion++;
     eng.rows = structuredClone(rows);
+    this.staleCashFlowSchedules(engId);
     eng.sourceHistory.push({
       version: eng.sourceVersion,
       rows: structuredClone(rows),
@@ -1837,6 +1847,7 @@ class PrototypeStore {
     const revision = history.length ? Math.max(...history.map(r => r.revision)) + 1 : 1;
     this.state.accountMappingRevisions.push({ engagementId, revision, mappings: structuredClone(mappings), status: 'Draft', preparedBy: this.state.currentUserId });
     this.staleStatementSetRevisions(engagementId);
+    this.staleCashFlowSchedules(engagementId);
     this.invalidateReleaseBasis(engagement);
     this.logEvent(`Account mappings saved for ${engagementId} (Mapping v${revision}); dependent output is stale`, engagementId);
     this.notify();
@@ -1853,6 +1864,7 @@ class PrototypeStore {
     mapping.status = 'Approved';
     mapping.reviewedBy = this.state.currentUserId;
     this.staleStatementSetRevisions(engagementId);
+    this.staleCashFlowSchedules(engagementId);
     this.invalidateReleaseBasis(engagement);
     this.logEvent(`Account mappings v${revision} independently approved for ${engagementId}`, engagementId);
     this.notify();
@@ -1925,6 +1937,55 @@ class PrototypeStore {
     revision.reviewedByUserId = this.state.currentUserId;
     revision.reviewedAt = new Date().toISOString();
     this.logEvent(`Financial statement set v${revisionNumber} independently reviewed`, engagementId);
+    this.notify();
+  }
+
+  public saveCashFlowSchedule(input: Omit<CashFlowScheduleRevision, 'id' | 'revision' | 'status' | 'preparedByUserId' | 'preparedAt' | 'reviewedByUserId' | 'reviewedAt'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'prepare cash-flow schedules');
+    requireEngagementScope(this.state, input.engagementId);
+    const engagement = this.state.engagements.find(item => item.id === input.engagementId);
+    const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    if (!engagement || !mapping || mapping.status !== 'Approved' || mapping.revision !== input.mappingRevision || input.sourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'A cash-flow schedule requires the current trial balance and an approved account mapping.');
+    const money = (value: number) => Number.isFinite(value) && Math.round(value * 100) === value * 100;
+    if (!money(input.openingCash) || input.openingCash < 0 || !money(input.closingCash) || input.closingCash < 0 || !input.movements.length || input.movements.some(item => !item.id.trim() || !item.description.trim() || !item.evidenceRef.trim() || !money(item.amount) || !['Operating', 'Investing', 'Financing', 'Equity contribution', 'Equity distribution', 'Non-cash'].includes(item.category) || item.category === 'Equity contribution' && item.amount < 0 || item.category === 'Equity distribution' && item.amount > 0) || new Set(input.movements.map(item => item.id)).size !== input.movements.length) throw new GuardError('INVALID_STATE', 'Enter non-negative opening/closing cash and uniquely identified, classified movement lines with a description, evidence reference and cent-accurate amount; equity contributions are inflows and distributions are outflows.');
+    engagement.cashFlowScheduleHistory ||= [];
+    const history = engagement.cashFlowScheduleHistory;
+    const revision = Math.max(0, ...history.map(item => item.revision)) + 1;
+    for (const prior of history) prior.status = 'Stale';
+    history.push({ ...structuredClone(input), id: `${engagement.id}-CF-${revision}`, revision, status: 'Draft', preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString() });
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Cash-flow schedule v${revision} saved for ${engagement.id}`, engagement.id);
+    this.notify();
+    return revision;
+  }
+
+  public reviewCashFlowSchedule(engagementId: string, revisionNumber: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['reviewer', 'partner', 'eqr'], 'review cash-flow schedules');
+    requireEngagementScope(this.state, engagementId);
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const history = engagement?.cashFlowScheduleHistory || [];
+    const revision = history.find(item => item.revision === revisionNumber);
+    const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    if (!engagement || !revision || revision !== history.at(-1) || revision.status !== 'Draft' || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mapping?.revision || mapping.status !== 'Approved') {
+      if (revision) revision.status = 'Stale';
+      this.notify();
+      throw new GuardError('STALE_REVISION', 'Only the latest cash-flow schedule tied to the current source and approved mapping can be reviewed.');
+    }
+    requireIndependentActor(revision.preparedByUserId, this.state.currentUserId, 'review a cash-flow schedule they prepared', this.state);
+    const netCashMovement = revision.movements.filter(item => item.category !== 'Non-cash').reduce((sum, item) => sum + item.amount, 0);
+    const hasScopedEvidence = (reference: string) => this.state.documents.some(document => document.id === reference && document.clientId === engagement.client && (!document.engagementId || document.engagementId === engagementId));
+    const cashTarget = mapping.mappings.flatMap(item => {
+      const row = engagement.rows.find(source => source.code === item.accountCode);
+      return item.targets.filter(target => target.statementLine === 'Cash and cash equivalents').map(target => (row?.balance || 0) * target.percentage / 100);
+    }).reduce((sum, amount) => sum + amount, 0);
+    if (revision.movements.some(item => !hasScopedEvidence(item.evidenceRef)) || !engagement.rows.every(row => mapping.mappings.some(item => item.accountCode === row.code)) || Math.abs(revision.openingCash + netCashMovement - revision.closingCash) > 0.005 || Math.abs(cashTarget - revision.closingCash) > 0.005) throw new GuardError('INVALID_STATE', 'Every movement needs in-scope document evidence; cash movements must reconcile opening to closing cash, and closing cash must equal the approved mapped trial-balance cash balance.');
+    revision.status = 'Reviewed';
+    revision.reviewedByUserId = this.state.currentUserId;
+    revision.reviewedAt = new Date().toISOString();
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Cash-flow schedule v${revisionNumber} independently reviewed`, engagementId);
     this.notify();
   }
 
@@ -3438,7 +3499,12 @@ class PrototypeStore {
     const eng = this.state.engagements.find(e => e.id === record.engagementId);
     const requiredKinds = ['XLSX', 'DOCX', 'PDF'];
     const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === record.engagementId).map(r => r.revision));
-    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
+    const cashFlowSectionEnabled = record.sections.some(section => section.id === 'cf' && section.enabled);
+    const latestCashFlow = eng?.cashFlowScheduleHistory?.at(-1);
+    const cashFlowLineageValid = cashFlowSectionEnabled
+      ? latestCashFlow?.status === 'Reviewed' && latestCashFlow.revision === record.cashFlowScheduleRevision && latestCashFlow.sourceVersion === eng?.sourceVersion && latestCashFlow.mappingRevision === mappingRevision
+      : record.cashFlowScheduleRevision === undefined;
+    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || !cashFlowLineageValid || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, valid cash-flow lineage, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
     eng.packageHistory ||= [];
     if (eng.packageHistory.some(p => p.revision === record.revision || p.id === record.id) || this.state.engagements.some(other => other.packageHistory?.some(p => p.artifacts.some(a => record.artifacts.some(n => n.id === a.id))))) throw new GuardError('INVALID_STATE', 'Package revision or artifact identity already exists.');
     eng.packageHistory.push(structuredClone(record));

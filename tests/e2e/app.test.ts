@@ -1776,7 +1776,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.ok(packageSections.titles.indexOf('Statement of Comprehensive Income') < packageSections.titles.indexOf('Statement of Financial Position'), `the changed section order is shown before assembly: ${JSON.stringify(packageSections)}`);
     assert.equal(packageSections.cashDisabled, true, 'unsupported cash-flow output cannot be selected');
     assert.equal(packageSections.cashChecked, false);
-    assert.match(packageSections.cashReason, /classified cash movements are not stored/);
+      assert.match(packageSections.cashReason, /current cash-flow schedule is independently reviewed/);
     await browserTab!.evaluate('(() => {const BaseBlob=window.Blob;window.__testBaseBlob=BaseBlob;window.Blob=class extends BaseBlob {constructor(){throw new Error("fixture XLSX generation failure")}};})()');
     try {
       await clickButton('+ Assemble New Revision (Rev 2)');
@@ -2889,9 +2889,41 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(button=>button.innerText.includes('Review statement revision v1'))`), false, 'stale statement set cannot be reviewed again');
       await clickButton('Statement of Cash Flows');
       const cashFlowDisclosure = await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Statement of Cash Flows"]')?.innerText || ''`);
-      assert.match(cashFlowDisclosure, /Cash-flow statement unavailable/);
-      assert.match(cashFlowDisclosure, /No cash-flow figures are inferred/);
-      assert.doesNotMatch(cashFlowDisclosure, /45,000|20,000|50,000/, 'cash flows contain no unsupported illustrative amounts');
+      assert.match(cashFlowDisclosure, /Enter supported movements from scoped evidence/);
+      await browserTab!.evaluate(`(() => {
+        const set=(selector,value,prototype)=>{const el=document.querySelector(selector);if(!el)throw Error('Missing '+selector);Object.getOwnPropertyDescriptor(prototype,'value').set.call(el,String(value));el.dispatchEvent(new Event(prototype===HTMLSelectElement.prototype?'change':'input',{bubbles:true}));};
+        set('[aria-label="Opening cash"]',1400000,HTMLInputElement.prototype);
+        set('[aria-label="Closing cash"]',1500000,HTMLInputElement.prototype);
+        set('[aria-label^="Movement description"]','Owner equity contribution',HTMLInputElement.prototype);
+        set('[aria-label^="Movement category"]','Equity contribution',HTMLSelectElement.prototype);
+        set('[aria-label^="Movement amount"]',100000,HTMLInputElement.prototype);
+        set('[aria-label^="Movement evidence"]','DOC-002',HTMLInputElement.prototype);
+      })()`);
+      await clickButton('Add movement');
+      await browserTab!.evaluate(`(() => {
+        const set=(selector,value,prototype,index=0)=>{const el=document.querySelectorAll(selector)[index];if(!el)throw Error('Missing '+selector);Object.getOwnPropertyDescriptor(prototype,'value').set.call(el,String(value));el.dispatchEvent(new Event(prototype===HTMLSelectElement.prototype?'change':'input',{bubbles:true}));};
+        set('[aria-label^="Movement description"]','Lease asset recognised',HTMLInputElement.prototype,1);
+        set('[aria-label^="Movement category"]','Non-cash',HTMLSelectElement.prototype,1);
+        set('[aria-label^="Movement amount"]',50000,HTMLInputElement.prototype,1);
+        set('[aria-label^="Movement evidence"]','DOC-002',HTMLInputElement.prototype,1);
+      })()`);
+      await clickButton('Save movement revision');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').cashFlowScheduleHistory?.at(-1)?.status==='Draft'`), true, 'movement inputs persist as a draft revision');
+      await setRole('reviewer');
+      await clickButton('Review schedule v1');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').cashFlowScheduleHistory?.at(-1)?.status==='Reviewed'`), true, 'independent reviewer approves the reconciled cash-flow schedule');
+      const cashFlowRecord = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').cashFlowScheduleHistory.at(-1)`);
+      assert.equal(cashFlowRecord.openingCash + cashFlowRecord.movements.reduce((total: number, movement: any) => total + (movement.category === 'Non-cash' ? 0 : movement.amount), 0), cashFlowRecord.closingCash);
+      assert.equal(cashFlowRecord.movements[0].evidenceRef, 'DOC-002');
+      assert.equal(cashFlowRecord.movements[0].category, 'Equity contribution');
+      assert.equal(cashFlowRecord.movements[1].category, 'Non-cash', 'non-cash item is retained but excluded from reconciliation');
+      await setRole('preparer');
+      await clickButton('Financial Packages');
+      const packageCashFlow = await browserTab!.evaluate<any>(`(() => {const item=document.querySelector('[aria-label="Include Statement of Cash Flows"]');return {exists:!!item,enabled:item&&!item.disabled,checked:!!item?.checked,desc:item?.closest('tr')?.innerText||''}})()`);
+      assert.equal(packageCashFlow.exists && packageCashFlow.enabled, true);
+      if (!packageCashFlow.checked) await browserTab!.evaluate(`document.querySelector('[aria-label="Include Statement of Cash Flows"]').click()`);
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Include Statement of Cash Flows"]')?.checked`), true);
+      assert.match(packageCashFlow.desc, /Reviewed cash-flow schedule v1/);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

@@ -30,10 +30,22 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
   const engIds = new Set(engagements.map(e => e.id));
   const jobIds = new Set(jobs.map(j => j.id));
   const taskIds = new Set(tasks.map(t => t.id));
+  const userIds = new Set(users.map(u => u.id));
 
   for (const e of engagements) {
     if (!clientIds.has(e.client)) {
       issues.push({ code: 'FK_ENGAGEMENT_CLIENT', message: `Engagement ${e.id} references unknown client ${e.client}` });
+    }
+    const cashFlowRevisions = list<NonNullable<PrototypeState['engagements'][number]['cashFlowScheduleHistory']>[number]>(e.cashFlowScheduleHistory);
+    const cashFlowIds = new Set<string>();
+    const cashFlowNumbers = new Set<number>();
+    for (const revision of cashFlowRevisions) {
+      if (!revision || revision.engagementId !== e.id || !revision.id || cashFlowIds.has(revision.id) || !Number.isInteger(revision.revision) || revision.revision < 1 || cashFlowNumbers.has(revision.revision) || !['Draft', 'Reviewed', 'Stale'].includes(revision.status) || !Number.isFinite(revision.openingCash) || revision.openingCash < 0 || !Number.isFinite(revision.closingCash) || revision.closingCash < 0 || !Number.isFinite(revision.sourceVersion) || !Number.isFinite(revision.mappingRevision) || !userIds.has(revision.preparedByUserId) || revision.reviewedByUserId && !userIds.has(revision.reviewedByUserId) || !Array.isArray(revision.movements) || revision.movements.some(item => !item || !item.id || !item.description || !Number.isFinite(item.amount) || !item.evidenceRef || !['Operating', 'Investing', 'Financing', 'Equity contribution', 'Equity distribution', 'Non-cash'].includes(item.category) || !state.documents?.some(document => document.id === item.evidenceRef))) {
+        issues.push({ code: 'CASH_FLOW_REVISION', message: `Cash-flow schedule ${revision?.id || '(missing id)'} on ${e.id} contains invalid history, movement or evidence references.` });
+        continue;
+      }
+      cashFlowIds.add(revision.id);
+      cashFlowNumbers.add(revision.revision);
     }
   }
   for (const j of jobs) {
@@ -84,7 +96,6 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
       issues.push({ code: 'FIXTURE_PII', message: `User ${u.name} email ${u.email} is not a synthetic .demo address` });
     }
   }
-  const userIds = new Set(users.map(u => u.id));
   for (const g of list<PrototypeState['roleGrants'][number]>(state?.roleGrants)) {
     if (!userIds.has(g.userId)) issues.push({ code: 'FK_GRANT_USER', message: `Access grant references unknown persona ${g.userId}` });
     else if (users.find(u => u.id === g.userId)?.role !== g.role) issues.push({ code: 'GRANT_ROLE_MISMATCH', message: `Access grant role does not match persona ${g.userId}` });
@@ -305,6 +316,7 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
     evidence.adequacyHistory ||= [];
   }
   for (const finding of state.findings || []) finding.dispositionHistory ||= [];
+  for (const engagement of state.engagements) engagement.cashFlowScheduleHistory = Array.isArray(engagement.cashFlowScheduleHistory) ? engagement.cashFlowScheduleHistory : [];
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.statementSetRevisions = Array.isArray(state.statementSetRevisions) ? state.statementSetRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];

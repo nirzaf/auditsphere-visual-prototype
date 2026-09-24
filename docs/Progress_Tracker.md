@@ -52,12 +52,12 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks reported passing | 146 / 146 | Repository-recorded latest run; not rerun for this tracker. |
-| E2E checks reported passing | 66 / 66 | Repository records 5 static checks + 61 actual Chrome checks. |
+| Unit checks reported passing | 154 / 154 | Rerun after revisioned cash-flow schedule and package-lineage implementation. |
+| E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 130 | 8 stated implementation actions; 84 evidence/verification actions; 38 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 128 | 7 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
-Sources: [S1], [S3], [S4], [S5]. This snapshot includes recent portal entity-switching/invoice-download evidence and exact task/workpaper search-target fixes. Those increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
+Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and the new independently reviewed cash-flow movement schedule. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
 ### 1.2 Status and pending-work legend
 
@@ -2622,7 +2622,7 @@ Package-level disclosure applicability and prepared note/not-applicable rational
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-041-I01 — Implementation pending:** Provide bounded user-entered opening cash, classified cash/noncash movements and closing-cash reconciliation for the agreed fixture, with equity contribution/distribution inputs.
+- [x] **VP-041-I01 — Implemented and exercised:** Revisioned opening cash, classified operating/investing/financing/non-cash movements, evidence references and closing-cash reconciliation are saved against the current TB and approved mapping; independent review and source/mapping staleness are guarded. Verified by focused Chrome AT-37 and store regression in the 2026-09-24 run.
 
 - [ ] **VP-041-I02 — Implementation pending:** Complete per-note disclosure records, applicability/evidence/preparer/reviewer states and independent not-applicable decisions rather than a single package-level note flag.
 
@@ -2681,7 +2681,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-042-E02 — Verification/evidence pending:** Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly.
 
-- [ ] **VP-042-R03 — Requirement/scope reconciliation:** Do not mark absent cash-flow data as an artifact-generation defect: keep that section unavailable until VP-041 provides supported inputs.
+- [x] **VP-042-R03 — Requirement/scope reconciliation:** Closed after VP-041 added evidenced, independently reviewed cash-flow inputs. Package inclusion requires that current reviewed schedule; unavailable output remains disabled when support is absent.
 
 #### Original user story and dependencies
 **Target modules:** 25  
@@ -3959,7 +3959,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 - [ ] **VP-027-I01** (P2; [VP-027](#vp-027)): Complete communication/client/job activity projections identified as incomplete, using the same underlying record. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-041-I01** (P1; [VP-041](#vp-041)): Provide bounded user-entered opening cash, classified cash/noncash movements and closing-cash reconciliation for the agreed fixture, with equity contribution/distribution inputs. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-041-I01** (P1; [VP-041](#vp-041)): Revisioned and independently reviewed cash-flow movement schedule implemented and verified; complete the per-note and client-sharing acceptance separately. Evidence: AT-37 + cash-flow store regression, 2026-09-24.
 
 - [ ] **VP-041-I02** (P1; [VP-041](#vp-041)): Complete per-note disclosure records, applicability/evidence/preparer/reviewer states and independent not-applicable decisions rather than a single package-level note flag. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
@@ -4088,7 +4088,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-038-R03 | [VP-038](#vp-038) | Posting into real client or firm ledgers is excluded; it is not a missing integration requirement. | Open / — |
 | VP-039-R02 | [VP-039](#vp-039) | The record still labels this Partial, but its named external statement/bank-system limits are excluded. Identify the remaining in-scope criterion before assigning new implementation work. | Open / — |
 | VP-040-R02 | [VP-040](#vp-040) | Reconcile the versioned layout, grouping/order/subtotal editor requirements and fill actual missing supported-fixture operations. | Open / — |
-| VP-042-R03 | [VP-042](#vp-042) | Do not mark absent cash-flow data as an artifact-generation defect: keep that section unavailable until VP-041 provides supported inputs. | Open / — |
+| VP-042-R03 | [VP-042](#vp-042) | Package inclusion requires a current independently reviewed cash-flow schedule; without one, output remains unavailable. | Complete / verified 2026-09-24 |
 | VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Open / — |
 | VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Open / — |
 | VP-045-R01 | [VP-045](#vp-045) | Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria. | Open / — |

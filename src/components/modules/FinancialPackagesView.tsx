@@ -16,7 +16,7 @@ const DEFAULT_SECTIONS = [
   { id: 'bs', title: 'Statement of Financial Position', desc: 'Comparative balance sheet verified to underlying trial balance.', enabled: true },
   { id: 'pnl', title: 'Statement of Comprehensive Income', desc: 'Operating results, gross margin, and tax provisions.', enabled: true },
   { id: 'eq', title: 'Statement of Changes in Equity', desc: 'Share capital, statutory reserves, and retained earnings.', enabled: true },
-  { id: 'cf', title: 'Statement of Cash Flows', desc: 'Unavailable: classified cash movements are not stored. This section is excluded from generated packages.', enabled: false },
+  { id: 'cf', title: 'Statement of Cash Flows', desc: 'Unavailable until a current cash-flow schedule is independently reviewed.', enabled: false },
   { id: 'notes', title: 'Statutory Notes & Disclosures', desc: 'Summary of significant IFRS accounting policies and risk disclosures.', enabled: true }
 ];
 
@@ -29,11 +29,14 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
   const savedPackage = selectedEng?.packageHistory?.find(p => p.revision === selectedEng.packageRevision);
+  const currentMapping = [...(state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id)].sort((a, b) => b.revision - a.revision)[0];
+  const cashFlowSchedule = selectedEng?.cashFlowScheduleHistory?.at(-1);
+  const cashFlowReady = Boolean(selectedEng && cashFlowSchedule?.status === 'Reviewed' && cashFlowSchedule.sourceVersion === selectedEng.sourceVersion && cashFlowSchedule.mappingRevision === currentMapping?.revision && currentMapping.status === 'Approved');
 
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || '');
   const [noteApplicability, setNoteApplicability] = useState<NonNullable<FinancialPackageRevision['noteApplicability']>>(savedPackage?.noteApplicability || 'Not assessed');
-  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: id === 'cf' ? DEFAULT_SECTIONS.find(section => section.id === 'cf')!.desc : desc, enabled: id === 'cf' ? false : enabled })) || DEFAULT_SECTIONS);
+  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: id === 'cf' ? DEFAULT_SECTIONS.find(section => section.id === 'cf')!.desc : desc, enabled: id === 'cf' ? false : enabled })) || DEFAULT_SECTIONS.map(section => section.id === 'cf' ? { ...section, desc: 'Requires a current independently reviewed cash-flow schedule.', enabled: cashFlowReady } : section));
   const [assembling, setAssembling] = useState(false);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -67,13 +70,14 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)
   ).length === 0;
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
-  const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
   const unmappedAccounts = selectedEng.rows.filter(row => !currentMapping?.mappings.some(mapping => mapping.accountCode === row.code));
   const mappingsReady = Boolean(currentMapping?.status === 'Approved' && unmappedAccounts.length === 0);
 
   const disclosureRequired = sections.some(section => section.id === 'notes' && section.enabled);
   const disclosuresReady = !disclosureRequired || noteApplicability !== 'Not assessed' && Boolean(packageNotes.trim());
-  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady;
+  const cashFlowRequired = sections.some(section => section.id === 'cf' && section.enabled);
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady && (!cashFlowRequired || cashFlowReady);
+  const packageSections = sections.map(section => section.id === 'cf' ? { ...section, desc: cashFlowReady && cashFlowSchedule ? `Reviewed cash-flow schedule v${cashFlowSchedule.revision}; ${selectedEng!.currency}.` : DEFAULT_SECTIONS.find(item => item.id === 'cf')!.desc, enabled: section.enabled && cashFlowReady } : section);
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -98,6 +102,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   };
 
   const handleToggleSection = (index: number) => {
+    if (sections[index].id === 'cf' && !cashFlowReady) return;
     setSections(prev => prev.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s));
   };
 
@@ -110,6 +115,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Package Revision: Version ${revision}`,
     `Source Revision: TB v${selectedEng.sourceVersion}`,
     `Mapping Revision: v${currentMapping?.revision || 0}`,
+    ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? [`Cash-flow Schedule Revision: v${cashFlowSchedule.revision}`] : []),
     `Auditor Opinion: ${selectedEng.opinion}`,
     `Signed trial-balance total: ${tbSum.toFixed(2)} ${selectedEng.currency}`,
     `Total assets: ${packageRows.filter(r => r.type === 'asset').reduce((sum, r) => sum + r.balance, 0).toFixed(2)} ${selectedEng.currency}`,
@@ -117,6 +123,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Included accepted unreflected adjustments: ${adjustmentResult.applied.join(', ') || 'None'}`,
     '', 'TABLE OF CONTENTS (ORDERED SECTIONS):',
     ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
+    ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? ['', 'STATEMENT OF CASH FLOWS', `Opening cash: ${cashFlowSchedule.openingCash.toFixed(2)} ${selectedEng.currency}`, ...cashFlowSchedule.movements.map(item => `${item.category} · ${item.description}: ${item.amount.toFixed(2)} ${selectedEng.currency} · Evidence ${item.evidenceRef}`), `Closing cash: ${cashFlowSchedule.closingCash.toFixed(2)} ${selectedEng.currency}`] : []),
     '', `Disclosure applicability: ${noteApplicability}`, `Disclosures & Management Notes: ${packageNotes || 'No disclosure note or applicability rationale entered.'}`
   ];
 
@@ -125,13 +132,19 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     try {
       if (prototypeStore.isSessionOnlyMode()) throw new Error('Browser storage is in session-only mode; package files cannot be committed as a durable revision.');
       const revision = selectedEng.packageRevision + 1;
-      const included = sections.filter(s => s.enabled);
+      const included = packageSections.filter(s => s.enabled);
       const title = `Financial Reporting Package - ${client?.name || 'Example Trading Entity'} - Rev ${revision}`;
       const lines = packageLines(revision, included);
       const fileBase = `Financial_Report_Package_${client?.code || 'CL001'}_v${revision}`;
       const rows = [
         ['Account code', 'Account name', 'Type', `Signed balance (${selectedEng.currency})`],
         ...packageRows.map(r => [r.code, r.name, r.type, r.balance]),
+        ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? [
+          ['', 'Statement of Cash Flows', '', ''],
+          ['', 'Opening cash', '', cashFlowSchedule.openingCash],
+          ...cashFlowSchedule.movements.map(item => ['', `${item.category}: ${item.description} · ${item.evidenceRef}`, item.category, item.amount]),
+          ['', 'Closing cash', '', cashFlowSchedule.closingCash]
+        ] : []),
         ['Total', '', '', tbSum],
         ['Source revision', '', '', selectedEng.sourceVersion],
         ['Mapping revision', '', '', currentMapping?.revision || 0],
@@ -151,10 +164,11 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         generation: selectedEng.generation + 1,
         sourceVersion: selectedEng.sourceVersion,
         mappingRevision: currentMapping?.revision || 0,
+        cashFlowScheduleRevision: cashFlowRequired && cashFlowReady ? cashFlowSchedule!.revision : undefined,
         notes: packageNotes,
         noteApplicability,
         noteRevision: revision,
-        sections: sections.map((s, order) => ({ ...s, order: order + 1 })),
+        sections: packageSections.map((s, order) => ({ ...s, order: order + 1 })),
         validation: { passed: allValid, trialBalanceNet: tbSum, pendingWorkpapers: selectedEng.workpapers.filter(w => w.applicable && w.status !== 'Cleared' && w.status !== 'Not applicable').length, openReviews: selectedEng.reviews.filter(r => r.status !== 'Cleared').length, materialFindings: state.findings.filter(f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)).length },
         artifacts,
         createdAt: new Date().toISOString(),
@@ -339,14 +353,14 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
                       <input
                       type="checkbox"
                       checked={sec.enabled}
-                      disabled={sec.id === 'cf'}
+                      disabled={sec.id === 'cf' && !cashFlowReady}
                       aria-label={`Include ${sec.title}`}
                       onChange={() => handleToggleSection(idx)}
                     />
                   </td>
                   <td><b>#{idx + 1}</b></td>
                   <td><b>{sec.title}</b></td>
-                  <td><span className="cell-sub">{sec.desc}</span></td>
+                  <td><span className="cell-sub">{packageSections[idx].desc}</span></td>
                   <td>
                     <div className="row" style={{ gap: 4 }}>
                       <button

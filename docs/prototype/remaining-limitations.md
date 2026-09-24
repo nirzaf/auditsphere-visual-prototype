@@ -224,18 +224,22 @@ Automated sources explicitly trace AT-01 through AT-55. See
   verifies that the saved current-period statement becomes durably stale and
   cannot be reviewed again; the guard also has a unit check. Comparative source
   and current mapping changes are covered by the shared stale-revision path.
-  The cash-flow tab now explicitly reports unavailable because classified
-  operating, investing and financing movements are not stored; it no longer
-  displays unsupported sample amounts. Full cash-flow source-data, layout and
-  disclosure acceptance remains incomplete. Package preparation also requires
-  an applicability decision and prepared note or not-applicable rationale;
-  this package-level check does not replace a per-note accounting-standard
-  checklist.
+  Cash-flow schedules now persist revisioned opening cash, signed operating,
+  investing, financing and non-cash movements, closing cash and evidence
+  references. Independent review checks evidence scope, cent accuracy, cash
+  movement reconciliation and agreement with the current approved mapped TB
+  cash balance. Source or mapping changes stale reviewed schedules. A current
+  reviewed schedule can be selected into the exact saved financial package
+  artifacts. Per-note disclosure records, shared client note projections,
+  complete statement layout and broader cash-flow edge coverage remain open.
+  Package preparation still has one overall disclosure applicability and note
+  rationale; this does not replace a per-note accounting-standard checklist.
 - **VP-042 — financial packages:** package sections and their order persist
-  across reload and revisions; Chrome verifies changed section ordering, blocks
-  selection of the unsupported cash-flow output, and confirms older artifact IDs
-  and bytes remain intact after reassembly. Cash-flow source data is still
-  unavailable. A forced XLSX-generation failure reports the exception and leaves
+  across reload and revisions; Chrome verifies changed section ordering and
+  confirms older artifact IDs and bytes remain intact after reassembly. A
+  cash-flow section is selectable only from a current independently reviewed
+  schedule and is added to package content with source evidence references. A
+  forced XLSX-generation failure reports the exception and leaves
   the current revision unchanged. Package artifacts now persist together in one
   IndexedDB transaction; Chrome forces the second write to fail and confirms no
   partial blobs or package revision remain. After amendment, Chrome verifies the

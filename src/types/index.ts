@@ -299,6 +299,7 @@ export interface FinancialPackageRevision {
   notes: string;
   noteApplicability?: 'Not assessed' | 'Applicable' | 'Not applicable';
   noteRevision: number;
+  cashFlowScheduleRevision?: number;
   sections: Array<{ id: string; title: string; desc: string; enabled: boolean; order: number }>;
   validation: { passed: boolean; trialBalanceNet: number; pendingWorkpapers: number; openReviews: number; materialFindings: number };
   artifacts: GeneratedArtifactRecord[];
@@ -322,6 +323,22 @@ export interface StatementSetRevision {
   totals: { assets: number; liabilities: number; equity: number; revenue: number; netProfit: number };
   comparativeTotals?: StatementSetRevision['totals'];
   lines: Array<{ line: string; current: number; comparative?: number; currentSources: string[]; comparativeSources: string[] }>;
+  status: 'Draft' | 'Reviewed' | 'Stale';
+  preparedByUserId: string;
+  preparedAt: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+}
+
+export interface CashFlowScheduleRevision {
+  id: string;
+  engagementId: string;
+  revision: number;
+  sourceVersion: number;
+  mappingRevision: number;
+  openingCash: number;
+  closingCash: number;
+  movements: Array<{ id: string; description: string; category: 'Operating' | 'Investing' | 'Financing' | 'Equity contribution' | 'Equity distribution' | 'Non-cash'; amount: number; evidenceRef: string }>;
   status: 'Draft' | 'Reviewed' | 'Stale';
   preparedByUserId: string;
   preparedAt: string;
@@ -376,6 +393,7 @@ export interface EngagementRecord {
     periodBookId?: string;
   }>;
   packageHistory?: FinancialPackageRevision[];
+  cashFlowScheduleHistory?: CashFlowScheduleRevision[];
   eqrRequired: boolean;
   eqrReviewerUserId?: string;
   eqrAssignmentHistory?: Array<{ userId: string; assignedByUserId: string; at: string; reason: string }>;
