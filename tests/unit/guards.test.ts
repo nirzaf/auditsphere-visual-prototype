@@ -1428,6 +1428,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     state.currentUserId = 'partner'; state.currentRole = 'partner'; state.currentPerson = 'Daniel James';
     prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Approved', 'Independent group review', 'GROUP-REVIEW-01');
     assert.equal(group.outputPackages?.[0].approvedFingerprint, fingerprint);
+    const altered = structuredClone(group); altered.outputPackages![0].status = 'Returned';
+    assert.throws(() => prototypeStore.updateConsolidationGroup(altered, { reason: 'tamper with approval' }), /guarded prepare and independent-review actions/);
     group.fxRates.USD = 3.65;
     assert.throws(() => prototypeStore.reviewConsolidationOutputPackage(group.id, 'GROUP-OUT-TEST', 'Returned', 'stale revision', 'GROUP-REVIEW-02'), /exact group-output revision/);
   });

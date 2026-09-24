@@ -2296,6 +2296,7 @@ class PrototypeStore {
     const index = this.state.consolidationGroups.findIndex(item => item.id === group.id);
     const existingGroup = this.state.consolidationGroups[index];
     if (existingGroup && JSON.stringify(group.eliminations) !== JSON.stringify(existingGroup.eliminations)) throw new GuardError('INVALID_STATE', 'Group elimination journals must use the guarded draft and independent-review actions.');
+    if (existingGroup && JSON.stringify(group.outputPackages || []) !== JSON.stringify(existingGroup.outputPackages || [])) throw new GuardError('INVALID_STATE', 'Group output package revisions and review decisions must use the guarded prepare and independent-review actions.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
@@ -2451,7 +2452,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'prepare consolidated output packages');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
-    if (!group || !record.evidenceRef.trim() || record.preparedByUserId !== this.state.currentUserId || record.status !== 'Draft' || !/^[a-f0-9]{64}$/i.test(record.artifact.sha256) || record.artifact.size <= 0 || !record.artifact.name || record.artifact.mimeType !== 'application/json') throw new GuardError('INVALID_STATE', 'A prepared group output requires its exact active preparer, review evidence and a verified JSON artifact identity.');
+    if (!group || !record.id || !record.evidenceRef.trim() || record.preparedByUserId !== this.state.currentUserId || record.status !== 'Draft' || !/^[a-f0-9]{64}$/i.test(record.artifact.sha256) || record.artifact.size <= 0 || !record.artifact.name || record.artifact.mimeType !== 'application/json' || group.outputPackages?.some(item => item.id === record.id || item.artifact.id === record.artifact.id)) throw new GuardError('INVALID_STATE', 'A prepared group output requires a unique identity, its exact active preparer, review evidence and a verified JSON artifact identity.');
     if (record.revision !== (group.outputPackages?.length || 0) + 1 || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'The consolidated output changed before its package could be saved. Rebuild from current reviewed inputs.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(item => item.id === component.componentId);
