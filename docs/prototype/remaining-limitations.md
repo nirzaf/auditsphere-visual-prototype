@@ -8,6 +8,12 @@ Partial.
 Automated sources explicitly trace AT-01 through AT-55. See
 `verification.md` for exact executed checks.
 
+- **VP-040/041 equity rollforward (Partial):** Opening total equity and evidenced
+  contributions/distributions now reconcile to mapped equity and current-period
+  result. Unsupported output remains unavailable; approved combined equity
+  mapping does not support component balances. Full statement layout and
+  broader disclosure/rework acceptance remain open.
+
 - **VP-044 — consolidation packages and translation (Partial):** AT-44 now
   warns when the component source moves past its pinned revision, preserves the
   old rows, and requires an attributable explicit re-pin. FX detail exposes each

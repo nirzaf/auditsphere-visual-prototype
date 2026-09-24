@@ -357,6 +357,7 @@ export interface CashFlowScheduleRevision {
   mappingRevision: number;
   openingCash: number;
   closingCash: number;
+  openingEquity?: number;
   movements: Array<{ id: string; description: string; category: 'Operating' | 'Investing' | 'Financing' | 'Equity contribution' | 'Equity distribution' | 'Non-cash'; amount: number; evidenceRef: string }>;
   status: 'Draft' | 'Reviewed' | 'Stale';
   preparedByUserId: string;

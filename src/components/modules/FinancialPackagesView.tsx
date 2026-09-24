@@ -7,7 +7,7 @@ import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { exportService } from '../../services/exportService';
-import { applyReportingAdjustments } from '../../services/calculations';
+import { applyReportingAdjustments, calculateIncomeStatement } from '../../services/calculations';
 import { artifactSha256, downloadVerifiedArtifact, persistArtifacts } from '../../services/artifactStore';
 import { FinancialPackageRevision, GeneratedArtifactRecord } from '../../types';
 
@@ -15,7 +15,7 @@ const DEFAULT_SECTIONS = [
   { id: 'rpt', title: 'Independent Auditor Report', desc: 'Standard unmodified opinion under ISA 700 with key audit matters.', enabled: true },
   { id: 'bs', title: 'Statement of Financial Position', desc: 'Comparative balance sheet verified to underlying trial balance.', enabled: true },
   { id: 'pnl', title: 'Statement of Comprehensive Income', desc: 'Operating results, gross margin, and tax provisions.', enabled: true },
-  { id: 'eq', title: 'Statement of Changes in Equity', desc: 'Share capital, statutory reserves, and retained earnings.', enabled: true },
+  { id: 'eq', title: 'Statement of Changes in Equity', desc: 'Unavailable until opening equity and evidence-backed movements are independently reviewed.', enabled: false },
   { id: 'cf', title: 'Statement of Cash Flows', desc: 'Unavailable until a current cash-flow schedule is independently reviewed.', enabled: false },
   { id: 'notes', title: 'Statutory Notes & Disclosures', desc: 'Summary of significant IFRS accounting policies and risk disclosures.', enabled: true }
 ];
@@ -32,12 +32,15 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const currentMapping = [...(state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id)].sort((a, b) => b.revision - a.revision)[0];
   const cashFlowSchedule = selectedEng?.cashFlowScheduleHistory?.at(-1);
   const cashFlowReady = Boolean(selectedEng && cashFlowSchedule?.status === 'Reviewed' && cashFlowSchedule.sourceVersion === selectedEng.sourceVersion && cashFlowSchedule.mappingRevision === currentMapping?.revision && currentMapping.status === 'Approved');
+  const equityMovements = cashFlowSchedule?.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)) || [];
+  const equityNetMovement = equityMovements.reduce((sum, item) => sum + item.amount, 0);
+  const equityReady = Boolean(cashFlowReady && cashFlowSchedule?.openingEquity !== undefined);
 
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [packageNotes, setPackageNotes] = useState(savedPackage?.notes || '');
   const [noteApplicability, setNoteApplicability] = useState<NonNullable<FinancialPackageRevision['noteApplicability']>>(savedPackage?.noteApplicability || 'Not assessed');
   const [disclosures, setDisclosures] = useState(selectedEng?.disclosureHistory?.length ? selectedEng.disclosureHistory : [{ id: 'DISC-01', title: 'Significant accounting policies', applicability: 'Applicable' as const, text: '', sharedWithClient: false, revision: 0, status: 'Draft' as const, preparedByUserId: '' }]);
-  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: id === 'cf' ? DEFAULT_SECTIONS.find(section => section.id === 'cf')!.desc : desc, enabled: id === 'cf' ? false : enabled })) || DEFAULT_SECTIONS.map(section => section.id === 'cf' ? { ...section, desc: 'Requires a current independently reviewed cash-flow schedule.', enabled: cashFlowReady } : section));
+  const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(({ id, title, desc, enabled }) => ({ id, title, desc: ['cf', 'eq'].includes(id) ? DEFAULT_SECTIONS.find(section => section.id === id)!.desc : desc, enabled: ['cf', 'eq'].includes(id) ? false : enabled })) || DEFAULT_SECTIONS.map(section => section.id === 'cf' ? { ...section, desc: 'Requires a current independently reviewed cash-flow schedule.', enabled: cashFlowReady } : section.id === 'eq' ? { ...section, enabled: equityReady } : section));
   const [assembling, setAssembling] = useState(false);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
@@ -63,6 +66,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   // Pre-release validation summary gates
   const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
   const packageRows = adjustmentResult.rows;
+  const equityClosing = (cashFlowSchedule?.openingEquity ?? 0) + equityNetMovement + calculateIncomeStatement(packageRows).netProfit;
   const tbSum = packageRows.reduce((sum, r) => sum + r.balance, 0);
   const tbBalanced = Math.abs(tbSum) < 1;
   const workpapersCleared = selectedEng.workpapers.every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
@@ -77,8 +81,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const disclosureRequired = sections.some(section => section.id === 'notes' && section.enabled);
   const disclosuresReady = !disclosureRequired || disclosures.length > 0 && disclosures.every(item => item.status === 'Reviewed' && item.reviewedByUserId);
   const cashFlowRequired = sections.some(section => section.id === 'cf' && section.enabled);
-  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady && (!cashFlowRequired || cashFlowReady);
-  const packageSections = sections.map(section => section.id === 'cf' ? { ...section, desc: cashFlowReady && cashFlowSchedule ? `Reviewed cash-flow schedule v${cashFlowSchedule.revision}; ${selectedEng!.currency}.` : DEFAULT_SECTIONS.find(item => item.id === 'cf')!.desc, enabled: section.enabled && cashFlowReady } : section);
+  const equityRequired = sections.some(section => section.id === 'eq' && section.enabled);
+  const allValid = tbBalanced && workpapersCleared && reviewNotesCleared && findingsImmaterial && adjustmentResult.unapplied.length === 0 && mappingsReady && disclosuresReady && (!cashFlowRequired || cashFlowReady) && (!equityRequired || equityReady);
+  const packageSections = sections.map(section => section.id === 'cf' ? { ...section, desc: cashFlowReady && cashFlowSchedule ? `Reviewed cash-flow schedule v${cashFlowSchedule.revision}; ${selectedEng!.currency}.` : DEFAULT_SECTIONS.find(item => item.id === 'cf')!.desc, enabled: section.enabled && cashFlowReady } : section.id === 'eq' ? { ...section, desc: equityReady && cashFlowSchedule ? `Reviewed opening equity and evidence-backed movements in schedule v${cashFlowSchedule.revision}; ${selectedEng!.currency}.` : DEFAULT_SECTIONS.find(item => item.id === 'eq')!.desc, enabled: section.enabled && equityReady } : section);
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -104,6 +109,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
 
   const handleToggleSection = (index: number) => {
     if (sections[index].id === 'cf' && !cashFlowReady) return;
+    if (sections[index].id === 'eq' && !equityReady) return;
     setSections(prev => prev.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s));
   };
 
@@ -117,6 +123,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Source Revision: TB v${selectedEng.sourceVersion}`,
     `Mapping Revision: v${currentMapping?.revision || 0}`,
     ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? [`Cash-flow Schedule Revision: v${cashFlowSchedule.revision}`] : []),
+    ...(included.some(section => section.id === 'eq') && cashFlowSchedule ? [`Equity Schedule Revision: v${cashFlowSchedule.revision}`] : []),
     `Auditor Opinion: ${selectedEng.opinion}`,
     `Signed trial-balance total: ${tbSum.toFixed(2)} ${selectedEng.currency}`,
     `Total assets: ${packageRows.filter(r => r.type === 'asset').reduce((sum, r) => sum + r.balance, 0).toFixed(2)} ${selectedEng.currency}`,
@@ -125,6 +132,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     '', 'TABLE OF CONTENTS (ORDERED SECTIONS):',
     ...included.map((s, idx) => `${idx + 1}. ${s.title} — ${s.desc}`),
     ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? ['', 'STATEMENT OF CASH FLOWS', `Opening cash: ${cashFlowSchedule.openingCash.toFixed(2)} ${selectedEng.currency}`, ...cashFlowSchedule.movements.map(item => `${item.category} · ${item.description}: ${item.amount.toFixed(2)} ${selectedEng.currency} · Evidence ${item.evidenceRef}`), `Closing cash: ${cashFlowSchedule.closingCash.toFixed(2)} ${selectedEng.currency}`] : []),
+    ...(included.some(section => section.id === 'eq') && cashFlowSchedule?.openingEquity !== undefined ? ['', 'STATEMENT OF CHANGES IN EQUITY', `Opening total equity: ${cashFlowSchedule.openingEquity.toFixed(2)} ${selectedEng.currency}`, ...equityMovements.map(item => `${item.category} · ${item.description}: ${item.amount.toFixed(2)} ${selectedEng.currency} · Evidence ${item.evidenceRef}`), `Current-period result: ${calculateIncomeStatement(packageRows).netProfit.toFixed(2)} ${selectedEng.currency}`, `Closing total equity: ${equityClosing.toFixed(2)} ${selectedEng.currency}`, 'Component breakdown unavailable because the approved mapping combines equity accounts.'] : []),
     '', ...disclosures.filter(item => item.sharedWithClient).flatMap(item => [`${item.title} — ${item.applicability}`, item.applicability === 'Applicable' ? `${item.text} · Evidence ${item.evidenceRef}` : `Not applicable: ${item.rationale}`])
   ];
 
@@ -146,6 +154,13 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           ...cashFlowSchedule.movements.map(item => ['', `${item.category}: ${item.description} · ${item.evidenceRef}`, item.category, item.amount]),
           ['', 'Closing cash', '', cashFlowSchedule.closingCash]
         ] : []),
+        ...(included.some(section => section.id === 'eq') && cashFlowSchedule?.openingEquity !== undefined ? [
+          ['', 'Statement of Changes in Equity', '', ''],
+          ['', 'Opening total equity', '', cashFlowSchedule.openingEquity],
+          ...equityMovements.map(item => ['', `${item.category}: ${item.description} · ${item.evidenceRef}`, item.category, item.amount]),
+          ['', 'Current-period result', '', calculateIncomeStatement(packageRows).netProfit],
+          ['', 'Closing total equity', '', equityClosing]
+        ] : []),
         ['Total', '', '', tbSum],
         ['Source revision', '', '', selectedEng.sourceVersion],
         ['Mapping revision', '', '', currentMapping?.revision || 0],
@@ -165,7 +180,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         generation: selectedEng.generation + 1,
         sourceVersion: selectedEng.sourceVersion,
         mappingRevision: currentMapping?.revision || 0,
-        cashFlowScheduleRevision: cashFlowRequired && cashFlowReady ? cashFlowSchedule!.revision : undefined,
+        cashFlowScheduleRevision: (cashFlowRequired && cashFlowReady || equityRequired && equityReady) ? cashFlowSchedule!.revision : undefined,
         notes: packageNotes,
         noteApplicability,
         noteRevision: revision,
@@ -355,7 +370,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
                       <input
                       type="checkbox"
                       checked={sec.enabled}
-                      disabled={sec.id === 'cf' && !cashFlowReady}
+                      disabled={sec.id === 'cf' && !cashFlowReady || sec.id === 'eq' && !equityReady}
                       aria-label={`Include ${sec.title}`}
                       onChange={() => handleToggleSection(idx)}
                     />

@@ -21,6 +21,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const [cashFlowDraft, setCashFlowDraft] = useState(() => ({
     openingCash: latestCashFlow?.openingCash ?? 0,
     closingCash: latestCashFlow?.closingCash ?? 0,
+    openingEquity: latestCashFlow?.openingEquity ?? 0,
     movements: latestCashFlow?.movements.map(item => ({ ...item })) ?? [{ id: crypto.randomUUID(), description: '', category: 'Operating' as const, amount: 0, evidenceRef: '' }]
   }));
 
@@ -51,13 +52,15 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const cashFlowHistory = (selectedEng.cashFlowScheduleHistory || []).slice().sort((a, b) => b.revision - a.revision);
   const currentCashFlowRevision = cashFlowHistory[0];
   const cashFlowCurrent = Boolean(currentCashFlowRevision && currentCashFlowRevision.sourceVersion === selectedEng.sourceVersion && currentCashFlowRevision.mappingRevision === currentMapping?.revision && mappingReady);
+  const equityMovementLines = currentCashFlowRevision?.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)) || [];
+  const equityMovementTotal = equityMovementLines.reduce((sum, item) => sum + item.amount, 0);
   const updateCashFlowMovement = (id: string, changes: Partial<CashFlowScheduleRevision['movements'][number]>) => setCashFlowDraft(current => ({ ...current, movements: current.movements.map(item => item.id === id ? { ...item, ...changes } : item) }));
   const saveCashFlow = () => {
     try {
       setCashFlowError('');
       prototypeStore.saveCashFlowSchedule({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, ...structuredClone(cashFlowDraft) });
       const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.cashFlowScheduleHistory?.at(-1);
-      if (saved) setCashFlowDraft({ openingCash: saved.openingCash, closingCash: saved.closingCash, movements: saved.movements.map(item => ({ ...item })) });
+      if (saved) setCashFlowDraft({ openingCash: saved.openingCash, closingCash: saved.closingCash, openingEquity: saved.openingEquity ?? 0, movements: saved.movements.map(item => ({ ...item })) });
       refreshRevisionHistory(value => value + 1);
     } catch (error) { setCashFlowError(error instanceof Error ? error.message : String(error)); }
   };
@@ -86,6 +89,8 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     : adjustmentResult.rows;
   const bs = calculateBalanceSheet(statementRows);
   const is = calculateIncomeStatement(statementRows);
+  const equityClosing = (currentCashFlowRevision?.openingEquity ?? 0) + equityMovementTotal + is.netProfit;
+  const equityScheduleReady = Boolean(cashFlowCurrent && currentCashFlowRevision?.status === 'Reviewed' && currentCashFlowRevision.openingEquity !== undefined && Math.abs(equityClosing - bs.totalEquity) <= 0.005);
   const priorPeriods = state.engagements.filter(eng => eng.client === selectedEng.client && eng.currency === selectedEng.currency && eng.year < selectedEng.year).sort((a, b) => b.year - a.year);
   const comparativeEngagement = priorPeriods.find(eng => eng.id === comparativeEngagementId) || priorPeriods[0];
   const priorMapping = comparativeEngagement && [...(state.accountMappingRevisions || []).filter(item => item.engagementId === comparativeEngagement.id)].sort((a, b) => b.revision - a.revision)[0];
@@ -385,9 +390,14 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       {statementType === 'equity' && (
         <section className="panel panel-pad" aria-label="Statement of Changes in Equity">
           <h3>Statement of Changes in Equity</h3>
-          <p role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>
-            Statement of Changes in Equity is unavailable: the current account mapping combines share capital and reserves, and no reviewed equity movement schedule is recorded. No equity figures are substituted.
-          </p>
+          {!equityScheduleReady ? <p role="status" className="badge amber mt12" style={{ display: 'block', padding: 12 }}>
+            Statement of Changes in Equity is unavailable: enter opening total equity and evidence-backed contributions/distributions in the movement schedule, then obtain independent review. No equity figures are substituted.
+          </p> : <div className="tablewrap mt12"><table><thead><tr><th>Movement</th><th>Amount ({selectedEng.currency})</th><th>Evidence</th></tr></thead><tbody>
+            <tr><td>Opening total equity</td><td>{formatCurrency(currentCashFlowRevision!.openingEquity!, selectedEng.currency)}</td><td>Prior-period balance entered for this schedule</td></tr>
+            {equityMovementLines.map(item => <tr key={item.id}><td>{item.category}: {item.description}</td><td>{formatCurrency(item.amount, selectedEng.currency)}</td><td>{item.evidenceRef}</td></tr>)}
+            <tr><td>Current-period result</td><td>{formatCurrency(is.netProfit, selectedEng.currency)}</td><td>Current mapped statement result</td></tr>
+            <tr><th>Closing total equity</th><th>{formatCurrency(equityClosing, selectedEng.currency)}</th><th>Agrees to approved mapped trial balance</th></tr>
+          </tbody></table><p className="caption mt8">Total equity only. The combined Share capital and reserves mapping does not support component-level balances.</p></div>}
         </section>
       )}
 
@@ -406,7 +416,9 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
           <div className="grid2 mt12">
             <label className="caption">Opening cash ({selectedEng.currency})<input className="input mt4" type="number" step="0.01" min="0" aria-label="Opening cash" value={cashFlowDraft.openingCash} onChange={event => setCashFlowDraft(current => ({ ...current, openingCash: Number(event.target.value) }))} /></label>
             <label className="caption">Closing cash ({selectedEng.currency})<input className="input mt4" type="number" step="0.01" min="0" aria-label="Closing cash" value={cashFlowDraft.closingCash} onChange={event => setCashFlowDraft(current => ({ ...current, closingCash: Number(event.target.value) }))} /></label>
+            <label className="caption">Opening total equity ({selectedEng.currency})<input className="input mt4" type="number" step="0.01" min="0" aria-label="Opening total equity" value={cashFlowDraft.openingEquity} onChange={event => setCashFlowDraft(current => ({ ...current, openingEquity: Number(event.target.value) }))} /></label>
           </div>
+          <p className="caption">Equity contributions and distributions are shown in the Changes in Equity statement after this schedule is independently reviewed and reconciles to the mapped trial balance.</p>
           <div className="tablewrap mt12"><table><thead><tr><th>Movement</th><th>Classification</th><th>Amount ({selectedEng.currency})</th><th>Evidence document ID</th><th></th></tr></thead><tbody>
             {cashFlowDraft.movements.map(item => <tr key={item.id}>
               <td><input className="input" aria-label={`Movement description ${item.id}`} value={item.description} onChange={event => updateCashFlowMovement(item.id, { description: event.target.value })} /></td>

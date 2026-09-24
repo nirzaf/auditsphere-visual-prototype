@@ -3562,7 +3562,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Statement of Changes in Equity');
       assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="Statement of Changes in Equity"]')?.innerText.includes('unavailable')`), true, 'unsupported equity statement renders its explicit unavailable state');
       const equityStatement = await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Statement of Changes in Equity"]')?.innerText || ''`);
-      assert.match(equityStatement, /unavailable.*combines share capital and reserves.*no reviewed equity movement schedule.*No equity figures are substituted/i);
+      assert.match(equityStatement, /unavailable.*enter opening total equity and evidence-backed contributions\/distributions.*independent review.*No equity figures are substituted/i);
       assert.doesNotMatch(equityStatement, /500,000|100,000/, 'unsupported opening and closing equity figures are never presented as sourced data');
       await browserTab!.evaluate(`(() => {URL.createObjectURL=(blob)=>{window.__statementExport=blob;return 'blob:statement-export'};URL.revokeObjectURL=()=>{};})()`);
       await clickButton('Export XLSX');
@@ -3609,6 +3609,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const set=(selector,value,prototype)=>{const el=document.querySelector(selector);if(!el)throw Error('Missing '+selector);Object.getOwnPropertyDescriptor(prototype,'value').set.call(el,String(value));el.dispatchEvent(new Event(prototype===HTMLSelectElement.prototype?'change':'input',{bubbles:true}));};
         set('[aria-label="Opening cash"]',1400000,HTMLInputElement.prototype);
         set('[aria-label="Closing cash"]',1500000,HTMLInputElement.prototype);
+        const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const engagement=state.engagements.find(x=>x.id==='ENG-26001');const mapping=state.accountMappingRevisions.filter(x=>x.engagementId===engagement.id).at(-1);const openingEquity=mapping.mappings.flatMap(item=>{const row=engagement.rows.find(source=>source.code===item.accountCode);return item.targets.filter(target=>target.statementLine==='Share capital and reserves').map(target=>Math.abs((row?.balance||0)*target.percentage/100));}).reduce((sum,value)=>sum+value,0)-100000;
+        set('[aria-label="Opening total equity"]',openingEquity,HTMLInputElement.prototype);
         set('[aria-label^="Movement description"]','Owner equity contribution',HTMLInputElement.prototype);
         set('[aria-label^="Movement category"]','Equity contribution',HTMLSelectElement.prototype);
         set('[aria-label^="Movement amount"]',100000,HTMLInputElement.prototype);
@@ -3631,7 +3633,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(cashFlowRecord.openingCash + cashFlowRecord.movements.reduce((total: number, movement: any) => total + (movement.category === 'Non-cash' ? 0 : movement.amount), 0), cashFlowRecord.closingCash);
       assert.equal(cashFlowRecord.movements[0].evidenceRef, 'DOC-002');
       assert.equal(cashFlowRecord.movements[0].category, 'Equity contribution');
+      assert.ok(cashFlowRecord.openingEquity > 0, 'reviewed movement schedule pins an explicit opening equity balance');
       assert.equal(cashFlowRecord.movements[1].category, 'Non-cash', 'non-cash item is retained but excluded from reconciliation');
+      await clickButton('Statement of Changes in Equity');
+      const equityRollforward = await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Statement of Changes in Equity"]')?.innerText || ''`);
+      assert.match(equityRollforward, /Opening total equity/);
+      assert.match(equityRollforward, /Equity contribution: Owner equity contribution/);
+      assert.match(equityRollforward, /Current-period result/);
+      assert.match(equityRollforward, /Agrees to approved mapped trial balance/i);
+      assert.doesNotMatch(equityRollforward, /500,000/, 'the prior hard-coded equity example is absent');
       await setRole('preparer');
       await clickButton('Financial Packages');
       const packageCashFlow = await browserTab!.evaluate<any>(`(() => {const item=document.querySelector('[aria-label="Include Statement of Cash Flows"]');return {exists:!!item,enabled:item&&!item.disabled,checked:!!item?.checked,desc:item?.closest('tr')?.innerText||''}})()`);
@@ -3639,6 +3649,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       if (!packageCashFlow.checked) await browserTab!.evaluate(`document.querySelector('[aria-label="Include Statement of Cash Flows"]').click()`);
       assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Include Statement of Cash Flows"]')?.checked`), true);
       assert.match(packageCashFlow.desc, /Reviewed cash-flow schedule v1/);
+      const packageEquity = await browserTab!.evaluate<any>(`(() => {const item=document.querySelector('[aria-label="Include Statement of Changes in Equity"]');return {exists:!!item,enabled:item&&!item.disabled,checked:!!item?.checked,desc:item?.closest('tr')?.innerText||''}})()`);
+      assert.equal(packageEquity.exists && packageEquity.enabled, true);
+      if (!packageEquity.checked) await browserTab!.evaluate(`document.querySelector('[aria-label="Include Statement of Changes in Equity"]').click()`);
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Include Statement of Changes in Equity"]')?.checked`), true);
+      assert.match(packageEquity.desc, /reviewed opening equity and evidence-backed movements in schedule v1/i);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

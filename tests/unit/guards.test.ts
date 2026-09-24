@@ -1658,7 +1658,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     prototypeStore.setPersona('reviewer');
     prototypeStore.approveAccountMappings(engagement.id, 1);
     prototypeStore.setPersona('preparer');
-    const input = { engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, openingCash: 900000, closingCash: 1000000, movements: [{ id: 'CF-1', description: 'Equity contribution', category: 'Equity contribution' as const, amount: 100000, evidenceRef: 'DOC-002' }, { id: 'CF-2', description: 'Equipment acquired on lease', category: 'Non-cash' as const, amount: 50000, evidenceRef: 'DOC-002' }] };
+    const openingEquity = engagement.rows.filter((row: any) => row.type === 'equity').reduce((sum: number, row: any) => sum + Math.abs(row.balance), 0) - 100000;
+    const input = { engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, openingCash: 900000, closingCash: 1000000, openingEquity, movements: [{ id: 'CF-1', description: 'Equity contribution', category: 'Equity contribution' as const, amount: 100000, evidenceRef: 'DOC-002' }, { id: 'CF-2', description: 'Equipment acquired on lease', category: 'Non-cash' as const, amount: 50000, evidenceRef: 'DOC-002' }] };
     assert.throws(() => prototypeStore.saveCashFlowSchedule({ ...input, movements: [{ ...input.movements[0], amount: 1.001 }] }), /cent-accurate/);
     assert.throws(() => prototypeStore.saveCashFlowSchedule({ ...input, movements: [{ ...input.movements[0], amount: -100000 }, input.movements[1]] }), /equity contributions are inflows/);
     prototypeStore.saveCashFlowSchedule(input);

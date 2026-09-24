@@ -6,7 +6,7 @@ import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
 import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
-import { calculateReconciliationVariance } from '../services/calculations';
+import { applyReportingAdjustments, calculateReconciliationVariance } from '../services/calculations';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
 const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
@@ -2106,7 +2106,7 @@ class PrototypeStore {
     const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.engagementId)].sort((a, b) => b.revision - a.revision)[0];
     if (!engagement || !mapping || mapping.status !== 'Approved' || mapping.revision !== input.mappingRevision || input.sourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'A cash-flow schedule requires the current trial balance and an approved account mapping.');
     const money = (value: number) => Number.isFinite(value) && Math.round(value * 100) === value * 100;
-    if (!money(input.openingCash) || input.openingCash < 0 || !money(input.closingCash) || input.closingCash < 0 || !input.movements.length || input.movements.some(item => !item.id.trim() || !item.description.trim() || !item.evidenceRef.trim() || !money(item.amount) || !['Operating', 'Investing', 'Financing', 'Equity contribution', 'Equity distribution', 'Non-cash'].includes(item.category) || item.category === 'Equity contribution' && item.amount < 0 || item.category === 'Equity distribution' && item.amount > 0) || new Set(input.movements.map(item => item.id)).size !== input.movements.length) throw new GuardError('INVALID_STATE', 'Enter non-negative opening/closing cash and uniquely identified, classified movement lines with a description, evidence reference and cent-accurate amount; equity contributions are inflows and distributions are outflows.');
+    if (!money(input.openingCash) || input.openingCash < 0 || !money(input.closingCash) || input.closingCash < 0 || input.openingEquity !== undefined && (!money(input.openingEquity) || input.openingEquity < 0) || !input.movements.length || input.movements.some(item => !item.id.trim() || !item.description.trim() || !item.evidenceRef.trim() || !money(item.amount) || !['Operating', 'Investing', 'Financing', 'Equity contribution', 'Equity distribution', 'Non-cash'].includes(item.category) || item.category === 'Equity contribution' && item.amount < 0 || item.category === 'Equity distribution' && item.amount > 0) || new Set(input.movements.map(item => item.id)).size !== input.movements.length) throw new GuardError('INVALID_STATE', 'Enter non-negative opening cash/equity and closing cash plus uniquely identified, classified movement lines with a description, evidence reference and cent-accurate amount; equity contributions are inflows and distributions are outflows.');
     engagement.cashFlowScheduleHistory ||= [];
     const history = engagement.cashFlowScheduleHistory;
     const revision = Math.max(0, ...history.map(item => item.revision)) + 1;
@@ -2138,7 +2138,14 @@ class PrototypeStore {
       const row = engagement.rows.find(source => source.code === item.accountCode);
       return item.targets.filter(target => target.statementLine === 'Cash and cash equivalents').map(target => (row?.balance || 0) * target.percentage / 100);
     }).reduce((sum, amount) => sum + amount, 0);
-    if (revision.movements.some(item => !hasScopedEvidence(item.evidenceRef)) || !engagement.rows.every(row => mapping.mappings.some(item => item.accountCode === row.code)) || Math.abs(revision.openingCash + netCashMovement - revision.closingCash) > 0.005 || Math.abs(cashTarget - revision.closingCash) > 0.005) throw new GuardError('INVALID_STATE', 'Every movement needs in-scope document evidence; cash movements must reconcile opening to closing cash, and closing cash must equal the approved mapped trial-balance cash balance.');
+    const equityMovements = revision.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)).reduce((sum, item) => sum + item.amount, 0);
+    const adjustedRows = applyReportingAdjustments(engagement.rows, this.state.adjustmentJournals.filter(item => item.engagementId === engagementId), engagement.sourceVersion).rows;
+    const equityTarget = mapping.mappings.flatMap(item => {
+      const row = adjustedRows.find(source => source.code === item.accountCode);
+      return item.targets.filter(target => target.statementLine === 'Share capital and reserves').map(target => Math.abs((row?.balance || 0) * target.percentage / 100));
+    }).reduce((sum, amount) => sum + amount, 0);
+    const equityTies = revision.openingEquity === undefined || Math.abs(revision.openingEquity + equityMovements - equityTarget) <= 0.005;
+    if (revision.movements.some(item => !hasScopedEvidence(item.evidenceRef)) || !engagement.rows.every(row => mapping.mappings.some(item => item.accountCode === row.code)) || Math.abs(revision.openingCash + netCashMovement - revision.closingCash) > 0.005 || Math.abs(cashTarget - revision.closingCash) > 0.005 || !equityTies) throw new GuardError('INVALID_STATE', 'Every movement needs in-scope document evidence; cash movements must reconcile to the approved mapped cash balance, and supplied opening equity plus evidenced contributions/distributions must reconcile to mapped equity excluding current-period result.');
     revision.status = 'Reviewed';
     revision.reviewedByUserId = this.state.currentUserId;
     revision.reviewedAt = new Date().toISOString();
@@ -3759,10 +3766,11 @@ class PrototypeStore {
     const eng = this.state.engagements.find(e => e.id === record.engagementId);
     const requiredKinds = ['XLSX', 'DOCX', 'PDF'];
     const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === record.engagementId).map(r => r.revision));
-    const cashFlowSectionEnabled = record.sections.some(section => section.id === 'cf' && section.enabled);
+    const cashFlowSectionEnabled = record.sections.some(section => ['cf', 'eq'].includes(section.id) && section.enabled);
+    const equitySectionEnabled = record.sections.some(section => section.id === 'eq' && section.enabled);
     const latestCashFlow = eng?.cashFlowScheduleHistory?.at(-1);
     const cashFlowLineageValid = cashFlowSectionEnabled
-      ? latestCashFlow?.status === 'Reviewed' && latestCashFlow.revision === record.cashFlowScheduleRevision && latestCashFlow.sourceVersion === eng?.sourceVersion && latestCashFlow.mappingRevision === mappingRevision
+      ? latestCashFlow?.status === 'Reviewed' && (!equitySectionEnabled || latestCashFlow.openingEquity !== undefined) && latestCashFlow.revision === record.cashFlowScheduleRevision && latestCashFlow.sourceVersion === eng?.sourceVersion && latestCashFlow.mappingRevision === mappingRevision
       : record.cashFlowScheduleRevision === undefined;
     const notesEnabled = record.sections.some(section => section.id === 'notes' && section.enabled);
     const currentDisclosures = eng?.disclosureHistory || [];
