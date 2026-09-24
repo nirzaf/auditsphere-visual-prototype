@@ -11,6 +11,7 @@ import { formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { sha256OfFile } from '../../services/fileMetadata';
 import { persistArtifact } from '../../services/artifactStore';
+import { validatePbcUpload } from '../../services/pbcUpload';
 
 interface ClientPortalViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -111,6 +112,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     if (!uploadPbcModal || !uploadFile || !eng) return;
 
     try {
+      const validationError = validatePbcUpload(uploadFile);
+      if (validationError) throw new Error(validationError);
       const sha256 = await sha256OfFile(uploadFile);
       const id = `DOC-PBC-${crypto.randomUUID()}`;
       const responseBlob = new Blob([uploadFile], { type: uploadFile.type || 'application/octet-stream' });
@@ -119,7 +122,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
         id,
         name: uploadFile.name,
         size: uploadFile.size,
-        sha256
+        sha256,
+        type: uploadFile.type
       });
       triggerNotice(`Saved ${uploadFile.name} locally (${uploadFile.size} bytes, SHA-256 ${sha256.slice(0, 12)}…). No file was uploaded to an external service.`);
       setUploadPbcModal(null);
@@ -611,6 +615,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                   <input
                     type="file"
                     className="input"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/png,image/jpeg"
                     onChange={e => setUploadFile(e.target.files?.[0] || null)}
                     required
                   />

@@ -1711,11 +1711,11 @@ Client responses retain versions and digests, client-visible threads and indepen
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-024-E01 — Verification/evidence pending:** Complete file-type/size/empty/storage-failure paths and same-natural-person review attempts across role labels.
+- [x] **VP-024-E01 — Verified (2026-09-24):** PBC upload validation rejects empty, over-10-MB, unsupported-extension and mismatched-MIME files before bytes or metadata are persisted; `uploadPbcResponse` enforces the same policy at the store boundary. AT-23/24 injects IndexedDB quota failure and confirms no response metadata is created. RR34 blocks uploader self-acceptance. The complete run passed 71/71 browser journeys and 168/168 unit checks.
 
-- [ ] **VP-024-E02 — Verification/evidence pending:** Show the supported route from accepted evidence to a new reviewed replacement without losing the prior acceptance or silently replacing evidence pins.
+- [x] **VP-024-E02 — Verified subcase (2026-09-24):** AT-23/24 accepts submission v2, requests a reasoned replacement, saves v3, independently accepts it and reloads. Both acceptance decisions, actor IDs and all three original file references/bytes/digests remain in history. Reopening invalidates current package/release approvals; a unit regression verifies generation change. Linked procedure/evidence reassessment remains open under AC03.
 
-- [ ] **VP-024-R03 — Requirement/scope reconciliation:** Clarify durable PBC byte storage versus metadata-only library handling; do not describe one storage policy as universal.
+- [x] **VP-024-R03 — Requirement/scope reconciliation:** PBC response bytes are stored and re-hashed in browser-local IndexedDB; the shared document catalogue retains scoped metadata references, and neither path claims server-side or SharePoint persistence. AT-23/24 verifies exact bytes after reload.
 
 #### Original user story and dependencies
 **Target modules:** 09  
@@ -1729,10 +1729,10 @@ Reuse the existing shared request thread. Add multiple document references, text
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-024-AC01 | Given a permitted contributor, when submitting/replacing evidence, then staff see that exact submission as received, not accepted, and the client sees only client-visible comments. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC02 | An uploader/responder cannot accept their own submission by switching role labels; a different authorized person must review it. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC03 | Replacing previously accepted evidence preserves the old decision and marks current adequacy/dependent review as requiring a new assessment. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-024-AC04 | Empty/oversized/disallowed files and storage failure show accurate errors; uploaded metadata is never represented as durable original document storage. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-024-AC01 | Given a permitted contributor, when submitting/replacing evidence, then staff see that exact submission as received, not accepted, and the client sees only client-visible comments. | VERIFIED — AT-23/24 checks Received before independent acceptance, client-scoped visibility and clarified replacement versions. |
+| VP-024-AC02 | An uploader/responder cannot accept their own submission by switching role labels; a different authorized person must review it. | VERIFIED — RR34 denies same-person uploader acceptance; AT-23/24 accepts only from the separate manager identity. |
+| VP-024-AC03 | Replacing previously accepted evidence preserves the old decision and marks current adequacy/dependent review as requiring a new assessment. | SUBCASE VERIFIED — AT-23/24 preserves v2 acceptance history and invalidates package/release basis before v3 is reviewed; linked evidence adequacy/procedure re-assessment remains to be exercised. |
+| VP-024-AC04 | Empty/oversized/disallowed files and storage failure show accurate errors; uploaded metadata is never represented as durable original document storage. | VERIFIED — AT-23/24 covers empty, >10 MB, unsupported extension, MIME mismatch and IndexedDB quota failure; upload UI describes browser-local original bytes, not remote storage. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L687).
 
@@ -4007,8 +4007,8 @@ This queue contains **113 open planning actions** attached to the 48 Partial sto
 | VP-022-E02 | [VP-022](#vp-022) | P2 | Verify provider-dependent controls are unavailable after disconnect while records/history remain intact and no background retry occurs. | Pending / Unassigned / — |
 | VP-023-E01 | [VP-023](#vp-023) | P2 | Complete manual request editing, due-date/owner/recipient reassignment and cancellation with prior submissions retained and outstanding counts corrected. | Pending / Unassigned / — |
 | VP-023-E02 | [VP-023](#vp-023) | P2 | Test cross-client/inactive recipients, no-context presentation and all request filters. | Pending / Unassigned / — |
-| VP-024-E01 | [VP-024](#vp-024) | P1 | Complete file-type/size/empty/storage-failure paths and same-natural-person review attempts across role labels. | Pending / Unassigned / — |
-| VP-024-E02 | [VP-024](#vp-024) | P1 | Show the supported route from accepted evidence to a new reviewed replacement without losing the prior acceptance or silently replacing evidence pins. | Pending / Unassigned / — |
+| VP-024-E01 | [VP-024](#vp-024) | P1 | Complete file-type/size/empty/storage-failure paths and same-natural-person review attempts across role labels. | Verified — AT-23/24 + RR34, full run 2026-09-24 |
+| VP-024-E02 | [VP-024](#vp-024) | P1 | Show the supported route from accepted evidence to a new reviewed replacement without losing the prior acceptance or silently replacing evidence pins. | Verified subcase — AT-23/24; linked procedure/evidence reassessment remains open |
 | VP-025-E01 | [VP-025](#vp-025) | P2 | Verify every portal list, badge, search result, action and nomination/acknowledgement role boundary across multiple entities/engagements. | Pending / Unassigned / — |
 | VP-025-E03 | [VP-025](#vp-025) | P2 | Validate no-access, pending-review and withdrawn-sharing views and separation of package acknowledgement from management account approval. | Pending / Unassigned / — |
 | VP-026-E01 | [VP-026](#vp-026) | P2 | Verify unavailable sender, unresolved placeholders, cross-client document links, template-editor permissions and duplicate-click behavior. | Pending / Unassigned / — |

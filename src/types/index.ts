@@ -607,6 +607,7 @@ export interface PbcRequestItem {
   acceptedBy?: string;
   acceptedAt?: string;
   acceptedVersion?: number;
+  acceptanceHistory?: Array<{ version: number; acceptedBy: string; acceptedByUserId: string; acceptedAt: string }>;
   contributor?: string;
   requestedBy?: string;
   requestedAt?: string;

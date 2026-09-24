@@ -3023,10 +3023,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const opened = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Information Requests'));if(!b)return false;b.click();return true;})()`);
       assert.equal(opened, true, 'portal information requests tab should be available');
     };
-    const uploadResponse = async (requestId: string, name: string) => {
+    const openUploadResponse = async (requestId: string) => {
       const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(requestId)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.includes('Upload Document'));if(!b||b.disabled)return false;b.click();return true;})()`);
       assert.equal(opened, true, 'client upload should be enabled for a presented request');
-      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');const d=new DataTransfer();d.items.add(new File([${JSON.stringify(`Synthetic evidence ${name}`)}],${JSON.stringify(name)},{type:'text/plain'}));input.files=d.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    };
+    const selectUploadFile = async (name: string, contents: string | number, type: string) => browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');const d=new DataTransfer();d.items.add(new File([${typeof contents === 'number' ? `new Uint8Array(${contents})` : JSON.stringify(contents)}],${JSON.stringify(name)},{type:${JSON.stringify(type)}}));input.files=d.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const uploadResponse = async (requestId: string, name: string) => {
+      await openUploadResponse(requestId);
+      await selectUploadFile(name, `Synthetic evidence ${name}`, 'text/plain');
       await clickButton('Save response file');
     };
 
@@ -3052,6 +3056,33 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await switchPersona('Northstar management approver', 'client');
     await openPortalRequests();
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Updated fixed-asset register/);
+    await openUploadResponse(created.id);
+    await selectUploadFile('empty.pdf', '', 'application/pdf');
+    await clickButton('Save response file');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Choose a non-empty local file.")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).sharedFiles||[]).length===0`), true);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop .icon-btn')?.click()`);
+    await openUploadResponse(created.id);
+    await selectUploadFile('unsafe.exe', 'Synthetic evidence', 'application/x-msdownload');
+    await clickButton('Save response file');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Choose a PDF, Word, Excel, CSV, text, PNG or JPEG file.")'), true);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop .icon-btn')?.click()`);
+    await openUploadResponse(created.id);
+    await selectUploadFile('oversized.pdf', 10 * 1024 * 1024 + 1, 'application/pdf');
+    await clickButton('Save response file');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("File exceeds the 10 MB PBC upload limit.")'), true);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop .icon-btn')?.click()`);
+    await openUploadResponse(created.id);
+    await selectUploadFile('fixed-assets-v1.txt', 'Synthetic evidence fixed-assets-v1.txt', 'text/plain');
+    await browserTab!.evaluate(`(() => {window.__originalPbcPut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(){throw new DOMException('fixture PBC storage failure','QuotaExceededError')};})()`);
+    try {
+      await clickButton('Save response file');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Upload error: fixture PBC storage failure")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).sharedFiles||[]).length===0`), true, 'storage failure must not create accepted response metadata');
+    } finally {
+      await browserTab!.evaluate(`IDBObjectStore.prototype.put=window.__originalPbcPut;delete window.__originalPbcPut`);
+    }
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop .icon-btn')?.click()`);
     await uploadResponse(created.id, 'fixed-assets-v1.txt');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Received'`), true);
 
@@ -3078,12 +3109,31 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(accepted.acceptedVersion, 2);
     assert.equal(accepted.acceptedBy, 'Layla Rahman');
     assert.ok(accepted.acceptedAt);
-    assert.deepEqual(accepted.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2]]);
+    const requestReplacement = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Request replacement');if(!button)return false;button.click();return true;})()`);
+    assert.equal(requestReplacement, true, 'accepted evidence can be reopened for a reasoned replacement without deleting its approval history');
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop textarea')?.focus()`);
+    await browserTab!.command('Input.insertText', { text: 'Replace the accepted register with the corrected signed copy.' });
+    await clickButton('Send clarification');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).status === 'Needs clarification'`), true);
+    const priorAcceptance = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).acceptanceHistory`);
+    assert.deepEqual(priorAcceptance.map((item: any) => [item.version, item.acceptedBy, item.acceptedByUserId]), [[2, 'Layla Rahman', 'manager']]);
+    await switchPersona('Northstar management approver', 'client');
+    await openPortalRequests();
+    await uploadResponse(created.id, 'fixed-assets-v3.txt');
+    await switchPersona('Engagement manager', 'manager');
+    await openNorthstarWorkspace();
+    const acceptReplacement = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Accept response');if(!button)return false;button.click();return true;})()`);
+    assert.equal(acceptReplacement, true);
+    const acceptedReplacement = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)})`);
+    assert.deepEqual(acceptedReplacement.acceptanceHistory.map((item: any) => [item.version, item.acceptedBy]), [[2, 'Layla Rahman'], [3, 'Layla Rahman']]);
+    assert.deepEqual(acceptedReplacement.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2], ['fixed-assets-v3.txt', 3]]);
     const localFiles = await browserTab!.evaluate<any>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const req=s.engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)});const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const files=await Promise.all(req.sharedFiles.map(async f=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(f.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});return {id:f.id,exists:!!blob,size:blob?.size,sha:blob&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('')};}));db.close();return files;})()`);
-    assert.equal(localFiles.length, 2);
+    assert.equal(localFiles.length, 3);
     for (const file of localFiles) assert.equal(file.exists && file.size > 0 && /^[0-9a-f]{64}$/.test(file.sha), true, 'each PBC revision retains exact bytes with a verifiable digest');
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    const persistedAcceptanceHistory = await browserTab!.evaluate<any[]>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)}).acceptanceHistory`);
+    assert.deepEqual(persistedAcceptanceHistory.map((item: any) => [item.version, item.acceptedBy, item.acceptedByUserId]), [[2, 'Layla Rahman', 'manager'], [3, 'Layla Rahman', 'manager']]);
     const persistedFiles = await browserTab!.evaluate<any[]>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const req=s.engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)});const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const out=await Promise.all(req.sharedFiles.map(async f=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(f.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});return [f.id,blob?.size,f.size,blob&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join(''),f.sha];}));db.close();return out;})()`);
     for (const [id, size, expectedSize, sha, expectedSha] of persistedFiles) assert.ok(id && size === expectedSize && sha === expectedSha, 'PBC bytes and SHA remain intact after reload');
     assert.ok(accepted.thread.some((m: any) => m.kind==='clarification' && m.clientVisible));

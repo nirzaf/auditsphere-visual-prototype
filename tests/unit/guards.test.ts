@@ -2040,6 +2040,10 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     setPersona((prototypeStore as any).state, 'Omar Nasser');
     assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'wrong-user.pdf', size: 100, sha256: 'a'.repeat(64) }), /named client contributor/);
     setPersona((prototypeStore as any).state, 'Rami Nasser');
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'empty.pdf', size: 0, sha256: 'a'.repeat(64) }), /non-empty local file/);
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'oversized.pdf', size: 10 * 1024 * 1024 + 1, sha256: 'a'.repeat(64) }), /10 MB PBC upload limit/);
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'unsafe.exe', size: 100, sha256: 'a'.repeat(64) }), /Choose a PDF, Word, Excel, CSV, text, PNG or JPEG/);
+    assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'fake.pdf', size: 100, type: 'application/x-msdownload', sha256: 'a'.repeat(64) }), /Choose a PDF, Word, Excel, CSV, text, PNG or JPEG/);
     assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'missing-digest.pdf', size: 100 }), /SHA-256/);
     prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4.pdf', size: 102400, sha256: 'a'.repeat(64) });
 
@@ -2065,9 +2069,23 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.strictEqual(req.acceptedVersion, 2);
     assert.strictEqual(req.acceptedBy, 'Layla Rahman');
     assert.ok(req.acceptedAt);
+    assert.deepEqual(req.acceptanceHistory?.map(item => [item.version, item.acceptedBy, item.acceptedByUserId]), [[2, 'Layla Rahman', 'manager']]);
     setPersona((prototypeStore as any).state, 'Rami Nasser');
     assert.throws(() => prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'late-change.pdf', size: 10, sha256: 'c'.repeat(64) }), /cannot be uploaded while the request is Accepted/);
-    assert.deepEqual(req.sharedFiles?.map((file: any) => file.version), [1, 2]);
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    (prototypeStore as any).state.currentRole = 'manager';
+    const acceptedGeneration = eng.generation;
+    prototypeStore.requestPbcClarification(eng.id, req.id, 'Replace the accepted document with the corrected signed copy.');
+    assert.strictEqual(req.status, 'Needs clarification');
+    assert.equal(eng.generation, acceptedGeneration + 1, 'requesting a replacement invalidates current package/release approval basis');
+    setPersona((prototypeStore as any).state, 'Rami Nasser');
+    prototypeStore.uploadPbcResponse(eng.id, req.id, { name: 'Bank_Statement_Q4_v3.pdf', size: 3072, sha256: 'c'.repeat(64) });
+    assert.deepEqual(req.acceptanceHistory?.map(item => [item.version, item.acceptedBy]), [[2, 'Layla Rahman']]);
+    setPersona((prototypeStore as any).state, 'Layla Rahman');
+    (prototypeStore as any).state.currentRole = 'manager';
+    prototypeStore.acceptPbcResponse(eng.id, req.id);
+    assert.deepEqual(req.acceptanceHistory?.map(item => [item.version, item.acceptedBy]), [[2, 'Layla Rahman'], [3, 'Layla Rahman']]);
+    assert.deepEqual(req.sharedFiles?.map((file: any) => file.version), [1, 2, 3]);
     assert.ok(req.thread?.some((message: any) => message.kind === 'clarification' && message.clientVisible));
   });
 

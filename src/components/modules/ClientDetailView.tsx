@@ -546,6 +546,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                       <div className="row" style={{ gap: 6 }}>
                         {p.status === 'Draft' && <button className="btn sm" onClick={() => handlePresentPbc(p.engagementId, p.id)}>Present request</button>}
                         {p.status === 'Received' && <><button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request clarification</button><button className="btn sm primary" onClick={() => handleAcceptPbc(p.engagementId, p.id)}>Accept response</button></>}
+                        {p.status === 'Accepted' && <button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request replacement</button>}
                         {p.thread?.length ? <details><summary className="caption">{p.thread.length} messages</summary>{p.thread.map(message => <div className="cell-sub" key={message.id}>{message.kind}: {message.text}</div>)}</details> : null}
                       </div>
                     </td>

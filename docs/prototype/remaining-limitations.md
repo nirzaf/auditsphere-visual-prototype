@@ -349,10 +349,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   Package sections, ordering and notes now persist by revision.
 - **R06 — PBC submission limits:** responses are versioned with a required SHA-256;
   only the named contributor can upload, acceptance records actor/time/version,
-  and accepted submissions cannot be overwritten. Chrome verifies both response
-  versions' original bytes and digests remain in browser-local IndexedDB after
-  reload. No external upload occurs; broader evidence and workpaper dependency
-  workflows remain incomplete.
+  and accepted submissions can be reopened only through a reasoned replacement
+  request. Prior acceptance decisions remain in history. Chrome verifies all
+  replacement bytes/digests after reload, plus empty, >10 MB, unsupported type,
+  MIME mismatch and IndexedDB quota failures. No external upload occurs; linked
+  evidence adequacy and workpaper dependency reassessment remains incomplete.
 - **R14 — archive integrity:** archive creation now copies every released package
   artifact into a separate IndexedDB record and verifies size, MIME type and
   SHA-256 before recording the archive. The copies remain browser-local and can

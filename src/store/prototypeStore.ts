@@ -7,6 +7,7 @@ import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
 import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
 import { applyReportingAdjustments, calculateReconciliationVariance } from '../services/calculations';
+import { validatePbcUpload } from '../services/pbcUpload';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
 const STORAGE_BACKUP_KEY = 'ste-auditsphere-role-portals-v2.backup';
@@ -2901,7 +2902,7 @@ class PrototypeStore {
   }
 
   // --- PBC lifecycle (VP-023, VP-024): response is not acceptance ---------------
-  public uploadPbcResponse(engId: string, requestId: string, file: { id?: string; name: string; size?: number; sha256?: string }) {
+  public uploadPbcResponse(engId: string, requestId: string, file: { id?: string; name: string; size?: number; sha256?: string; type?: string }) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['client_admin', 'client_finance', 'client'], 'upload client PBC responses');
     requireEngagementScope(this.state, engId);
@@ -2909,7 +2910,8 @@ class PrototypeStore {
     if (!eng) return;
     const req = eng.pbc.find(r => r.id === requestId);
     if (!req) throw new GuardError('INVALID_STATE', 'PBC request not found.');
-    if (!file.name || !file.name.trim() || !Number.isFinite(file.size) || (file.size || 0) < 1) throw new GuardError('INVALID_STATE', 'Choose a non-empty local file.');
+    const uploadError = validatePbcUpload({ name: file.name, size: file.size || 0, type: file.type });
+    if (uploadError) throw new GuardError('INVALID_STATE', uploadError);
     if (!file.sha256 || !/^[a-f0-9]{64}$/i.test(file.sha256)) throw new GuardError('INVALID_STATE', 'A SHA-256 digest of the selected file is required.');
     if (req.contributor !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the named client contributor can submit this PBC response.');
     if (!['Requested', 'Needs clarification', 'Received'].includes(req.status)) throw new GuardError('INVALID_STATE', `A response cannot be uploaded while the request is ${req.status}.`);
@@ -2989,13 +2991,19 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'reviewer', 'partner'], 'request PBC clarification');
     requireEngagementScope(this.state, engId);
-    const req = this.state.engagements.find(e => e.id === engId)?.pbc.find(r => r.id === requestId);
-    if (!req || req.status !== 'Received') throw new GuardError('INVALID_STATE', 'Clarification requires a received response.');
+    const engagement = this.state.engagements.find(e => e.id === engId);
+    const req = engagement?.pbc.find(r => r.id === requestId);
+    if (!req || !['Received', 'Accepted'].includes(req.status)) throw new GuardError('INVALID_STATE', 'Clarification requires a received or accepted response.');
     if (!note.trim()) throw new GuardError('INVALID_STATE', 'Clarification details are required.');
+    if (req.status === 'Accepted' && req.acceptedBy && req.acceptedAt && req.acceptedVersion !== undefined) {
+      req.acceptanceHistory ||= [];
+      if (!req.acceptanceHistory.some(item => item.version === req.acceptedVersion && item.acceptedAt === req.acceptedAt)) req.acceptanceHistory.push({ version: req.acceptedVersion, acceptedBy: req.acceptedBy, acceptedByUserId: this.state.users.find(user => user.name === req.acceptedBy)?.id || '', acceptedAt: req.acceptedAt });
+    }
     req.status = 'Needs clarification';
     req.clarificationNote = note.trim();
     req.thread ||= [];
     req.thread.push({ id: `TH-${crypto.randomUUID()}`, kind: 'clarification', author: this.state.currentPerson, role: this.state.currentRole, text: req.clarificationNote, time: new Date().toISOString(), clientVisible: true });
+    this.invalidateReleaseBasis(engagement!);
     this.logEvent(`PBC clarification requested: ${req.title}`, req.id);
     this.notify();
   }
@@ -3035,6 +3043,8 @@ class PrototypeStore {
     req.acceptedBy = this.state.currentPerson;
     req.acceptedAt = new Date().toISOString();
     req.acceptedVersion = req.version;
+    req.acceptanceHistory ||= [];
+    req.acceptanceHistory.push({ version: req.version, acceptedBy: this.state.currentPerson, acceptedByUserId: this.state.currentUserId, acceptedAt: req.acceptedAt });
     this.invalidateReleaseBasis(eng);
     this.logEvent(`PBC response accepted: ${req.title}`, req.id);
     this.notify();
