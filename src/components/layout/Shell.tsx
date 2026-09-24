@@ -11,10 +11,11 @@ import { Icon } from '../common/Icons';
 interface ShellProps {
   currentRoute: RouteKey;
   onRouteChange: (route: RouteKey) => void;
+  onSelectClient: (clientId: string) => void;
   children: React.ReactNode;
 }
 
-export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, children }) => {
+export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSelectClient, children }) => {
   const state = prototypeStore.getSnapshot();
   const [showScenarioModal, setShowScenarioModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -156,7 +157,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
     const clientRole = isClientRole(state.currentRole);
     const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string }> = [];
     state.clients.filter(c => clientAllowed(c.id) && c.name.toLowerCase().includes(q))
-      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'clients', objectId: c.id, clientId: c.id }));
+      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
     state.contacts.filter(c => clientAllowed(c.clientId) && c.name.toLowerCase().includes(q))
       .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
     state.engagements.filter(e => engAllowed(e.id) && (e.service.toLowerCase().includes(q) || e.id.toLowerCase().includes(q)))
@@ -171,7 +172,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
         return job && engAllowed(job.engagementId) && t.title.toLowerCase().includes(q);
       }).forEach(t => { const j = state.jobs.find(x => x.id === t.jobId)!; out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs', objectId: t.id, clientId: j.clientId, engagementId: j.engagementId }); });
       state.invoices.filter(i => clientAllowed(i.clientId) && i.invoiceNumber.toLowerCase().includes(q))
-        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId }));
+        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId, engagementId: i.engagementId || i.eng }));
       state.communications.filter(c => clientAllowed(c.clientId) && (c.summary.toLowerCase().includes(q) || c.participants.toLowerCase().includes(q)))
         .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications', objectId: c.id, clientId: c.clientId, engagementId: c.engagementId }));
       state.findings.filter(f => {
@@ -471,6 +472,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, child
                       className="borderbox"
                       style={{ textAlign: 'left', width: '100%', cursor: 'pointer', padding: 10 }}
                       onClick={() => {
+                        if (item.clientId) onSelectClient(item.clientId);
+                        if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
                         onRouteChange(item.route);
                         setShowSearchModal(false);
                       }}

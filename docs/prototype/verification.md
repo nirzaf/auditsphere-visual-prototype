@@ -506,3 +506,12 @@ OS print/PDF output is not captured, and receivables stays offline-only. Commit
 `assets/index-BDgkQtGG.js` (2,226,535 bytes; SHA-256
 `5b1f75fe5926f76cf362c5a396d4e88976c64281e7b5b139ff306f93f2427e57`), matching
 the local build. Wrangler reports production source `e00421d`.
+
+VP-061 result navigation follow-up: clicking a client search result now selects
+that client and opens its detail; clicking an explicitly shared document as a
+client selects the permitted engagement and opens the portal. The Chrome
+journey checks both links and confirms internal communications remain absent.
+`npm run lint` passed, unit tests passed 144/144, and build/Chrome E2E passed
+63/63. VP-061 remains Partial for broader person/grant combinations and the
+remaining search result links. The existing bundle-size warning remains;
+deployment details follow after publication.

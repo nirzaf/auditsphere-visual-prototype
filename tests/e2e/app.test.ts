@@ -1307,7 +1307,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setPersona('billing');
     assert.equal(await invoiceAction(credit.creditNumber,'Approve'), true);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)}).status==='Approved'`), true);
-    await setPersona('manager');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'manager');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
     assert.equal(await invoiceAction(credit.creditNumber,'Issue'), true);
     const final = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoice:s.invoices.find(i=>i.id===${JSON.stringify(invoice.id)}),credit:s.creditNotes.find(c=>c.id===${JSON.stringify(credit.id)})};})()`);
     assert.equal(final.credit.status, 'Issued');
@@ -1319,6 +1320,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-50/VP-061: client search excludes internal activity and finds shared documents', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
     const clientUserId = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.users.find(u=>u.label==='Management approver').id;})()`);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientUserId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole==="client"'), true, 'client persona must be active before search');
@@ -1336,6 +1340,16 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const shared = await search(sharedName);
     assert.ok(shared.includes(sharedName));
     assert.match(shared, /Shared document/);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Shared document'));if(!result)throw Error('Shared document result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('PORTAL')`), true, 'shared client search result opens the portal');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const d=s.documents.find(x=>x.name===${JSON.stringify(sharedName)});return s.selectedEngagement===d.engagementId;})()`), true, 'shared document result selects its permitted engagement context');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'manager');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    const clientName = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id==='CL-001').name`);
+    await search(clientName);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Client · CL-001'));if(!result)throw Error('Client result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'staff client search result opens the selected client detail');
+    assert.ok((await browserTab!.evaluate<string>('document.body.innerText')).includes(clientName), 'client result opens the matching client record');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

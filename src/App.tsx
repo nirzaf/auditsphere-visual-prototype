@@ -197,7 +197,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <Shell currentRoute={effectiveRoute} onRouteChange={navigate}>
+    <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={setSelectedClientId}>
       {renderModule()}
     </Shell>
   );
