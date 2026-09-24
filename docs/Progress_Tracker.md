@@ -2679,7 +2679,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-042-E01 — Verification/evidence pending:** Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision.
 
-- [ ] **VP-042-E02 — Verification/evidence pending:** Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly.
+- [x] **VP-042-E02 — Verification complete:** AT-41/42/48 reassembles revision 4 after amendment, confirms revision 2 artifact bytes and acknowledgement remain historical, then records a separate management acknowledgement bound to revision 4. Full suite: 159/159 unit and 68/68 E2E, 2026-09-24 (`tests/e2e/app.test.ts`, replacement-package review assertions).
 
 - [x] **VP-042-R03 — Requirement/scope reconciliation:** Closed after VP-041 added evidenced, independently reviewed cash-flow inputs. Package inclusion requires that current reviewed schedule; unavailable output remains disabled when support is absent.
 
@@ -2697,7 +2697,7 @@ Add package contents selection/order, output preview, validation summary, versio
 |---|---|---|
 | VP-042-AC01 | Given a valid supported package, when exported, then XLSX/DOCX/PDF files open as their actual formats and contain the displayed totals, entity, period and demo watermark. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-042-AC02 | Export generation failure or unsupported content blocks that output and reports the reason; no renamed CSV, empty PDF or fake success is accepted. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-042-AC03 | When package content changes, prior artifacts and decisions remain historical and a new artifact revision must be reviewed. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-042-AC03 | When package content changes, prior artifacts and decisions remain historical and a new artifact revision must be reviewed. | VERIFIED: AT-41/42/48 verifies unchanged prior bytes/decision history, a new presentation and independent acknowledgement for revision 4. |
 | VP-042-AC04 | External sharing remains explicit and scope-bound; internal workpapers/comments are excluded from management/client outputs by default. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L997).
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **119 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **118 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4031,7 +4031,7 @@ This queue contains **119 open planning actions** attached to the 50 Partial sto
 | VP-040-E03 | [VP-040](#vp-040) | P1 | Coordinate cash-flow/equity movement support and disclosures with VP-041; unsupported figures must remain unavailable. | Pending / Unassigned / — |
 | VP-041-E03 | [VP-041](#vp-041) | P1 | Verify reviewed note/support revisions stale packages and expose only explicitly shared client note content. | Pending / Unassigned / — |
 | VP-042-E01 | [VP-042](#vp-042) | P1 | Test DOCX/PDF failure and failures after one or more artifacts have already persisted; ensure cleanup/recovery cannot announce a complete failed revision. | Pending / Unassigned / — |
-| VP-042-E02 | [VP-042](#vp-042) | P1 | Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly. | Pending / Unassigned / — |
+| VP-042-E02 | [VP-042](#vp-042) | P1 | Complete independent review and acknowledgement of the replacement package revision after amendment/reassembly. | Complete / full AT-41/42/48 E2E, 2026-09-24 |
 | VP-043-E02 | [VP-043](#vp-043) | P1 | Verify independent group scope/revision, effective dates, duplicates/cycles and narrow-component permissions without widening unrelated client access. | Pending / Unassigned / — |
 | VP-044-E01 | [VP-044](#vp-044) | P1 | Complete incompatible basis/period and unreviewed-component gates, old/new package selection, stale-pin warnings and rounded translation reconciliation. | Pending / Unassigned / — |
 | VP-044-E02 | [VP-044](#vp-044) | P1 | Prove each selected rate and translation difference is traceable under the documented supported rule. | Pending / Unassigned / — |
