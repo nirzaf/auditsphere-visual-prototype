@@ -463,8 +463,8 @@ Ready-to-release excludes engagements with no workpapers. Billing and
 receivables summaries remain role-gated and currency-separated. `npm run lint`
 passed, unit tests passed 144/144, and build/Chrome E2E passed 63/63 (five
 static checks and 58 Chrome journeys). The existing >500 kB bundle warning
-remains. VP-005 stays Partial pending a selectable as-of override and direct
-evidence across the full staff/finance visibility matrix. Commit `4bcbf23` was
+remains. VP-005 stays Partial pending direct evidence across the full
+staff/finance visibility matrix. Commit `4bcbf23` was
 pushed to `main` and deployed to the existing `steaudit-prototype` Pages project
 on production branch `production` as deployment
 `36432d1f-634e-409e-9fcf-95ca0b0cd248`
@@ -473,3 +473,13 @@ on production branch `production` as deployment
 `assets/index-CwKgUQxY.js` (2,224,767 bytes; SHA-256
 `8b72e350b3b033ae35d94450881c0bd52a9978b2919b707c2f398e1263387989`), matching
 the local build. Wrangler reports production source `4bcbf23`.
+
+VP-005 date override follow-up: the dashboard date control now overrides the
+shared default for overdue work and receivables aging. Chrome verifies due-date
+inclusivity by showing zero overdue on 2026-09-22 and three on 2026-09-23; the
+previous scoped-count, drill-down, completed-item exclusion and assignee checks
+still pass. The external-egress assertion now correctly ignores local data URIs
+while continuing to reject external HTTP(S) requests. `npm run lint` passed,
+unit tests passed 144/144, and full build/Chrome E2E passed 63/63. The existing
+large-bundle advisory remains. Deployment evidence will be appended after the
+updated build is published.

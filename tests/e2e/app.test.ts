@@ -283,7 +283,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Synthetic records\. No live external integrations/);
     assert.deepEqual(browserTab!.exceptions, []);
     assert.ok(browserTab!.requests.length > 0, 'Chrome should request same-origin app assets');
-    const external = browserTab!.requests.filter(url => !url.startsWith(baseUrl));
+    const external = browserTab!.requests.filter(url => /^https?:/i.test(url) && !url.startsWith(baseUrl));
     assert.deepEqual(external, [], `unexpected browser egress: ${external.join(', ')}`);
   });
 
@@ -309,6 +309,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const el=document.querySelector('[aria-label="Dashboard assignee filter"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,'Layla Rahman');el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`document.querySelector('[aria-label^="Overdue Work"]')?.getAttribute('aria-label').includes('2.')`), true, 'assignee filter recalculates overdue work');
     await browserTab!.evaluate(`(() => {const el=document.querySelector('[aria-label="Dashboard assignee filter"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,'ALL');el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const el=document.querySelector('[aria-label="Dashboard as-of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'2026-09-22');el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('[aria-label^="Overdue Work"]')?.getAttribute('aria-label').includes('Overdue Work: 0.')`), true, 'selectable as-of date recalculates overdue items at the inclusive date boundary');
+    await browserTab!.evaluate(`(() => {const el=document.querySelector('[aria-label="Dashboard as-of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'2026-09-23');el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('[aria-label^="Overdue Work"]')?.getAttribute('aria-label').includes('Overdue Work: 3.')`), true, 'overdue count returns when the as-of date moves forward');
     await browserTab!.evaluate(`document.querySelector('[aria-label^="Overdue Work"]')?.click()`);
     await clickButtonStartingWith('Jobs & Tasks');
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('JOBS')`), true, 'scoped jobs route opened');

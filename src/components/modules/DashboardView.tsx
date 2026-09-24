@@ -14,6 +14,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const [asOfDate, setAsOfDate] = useState(state.asOfDate);
   const [clientFilter, setClientFilter] = useState('ALL');
   const [engagementFilter, setEngagementFilter] = useState('ALL');
   const [assigneeFilter, setAssigneeFilter] = useState('ALL');
@@ -39,9 +40,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const openPbc = pbc;
   const ready = engagements.filter(e => e.workpapers.length > 0 && e.workpapers.every(w => w.status === 'Cleared') && e.reviews.every(r => r.status === 'Cleared')).length;
   const overdue: DashboardItem[] = [
-    ...jobs.filter(j => j.due && j.due < state.asOfDate && !['Completed', 'Cancelled'].includes(j.status)),
-    ...tasks.filter(t => t.due && t.due < state.asOfDate && !['Completed', 'Cancelled'].includes(t.status)),
-    ...pbc.filter(p => p.due && p.due < state.asOfDate && !['Accepted', 'Cancelled', 'Draft'].includes(p.status))
+    ...jobs.filter(j => j.due && j.due < asOfDate && !['Completed', 'Cancelled'].includes(j.status)),
+    ...tasks.filter(t => t.due && t.due < asOfDate && !['Completed', 'Cancelled'].includes(t.status)),
+    ...pbc.filter(p => p.due && p.due < asOfDate && !['Accepted', 'Cancelled', 'Draft'].includes(p.status))
   ];
 
   const currentEng = engagements.find(e => e.id === state.selectedEngagement) || engagements[0];
@@ -57,7 +58,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     const invoiceIds = new Set(invoices.map(i => i.id));
     const credits = state.creditNotes.filter(c => invoiceIds.has(c.invoiceId));
     const receipts = state.receipts.filter(r => clients.some(c => c.id === r.clientId) && r.currency === currency);
-    return { currency, ...calculateReceivablesAging(invoices, credits, receipts, state.asOfDate) };
+    return { currency, ...calculateReceivablesAging(invoices, credits, receipts, asOfDate) };
   });
   const listItems: DashboardItem[] = activeList === 'engagements' ? engagements.filter(e => !e.archive).map(e => ({ id: e.id, engagementId: e.id, label: `${state.clients.find(c => c.id === e.client)?.name || e.client} · ${e.service}`, status: e.stage, due: e.due, route: 'engagements', kind: 'Engagement' }))
     : activeList === 'reviews' ? reviews
@@ -87,7 +88,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         <div className="row" style={{ gap: 10 }}>
           <span className="btn sm">
             <Icon name="calendar" />
-            {new Date(`${state.asOfDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} · As of date
+            {new Date(`${asOfDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} · As of date
           </span>
           <button className="btn primary sm" onClick={() => onNavigate('engagements')}>
             <Icon name="plus" />
@@ -117,6 +118,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <option value="ALL">All assignees</option>{assignees.map(name => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
+        <label>As-of date
+          <input className="input" aria-label="Dashboard as-of date" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} />
+        </label>
       </div>
 
       {/* Metrics Row */}
@@ -126,11 +130,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         {metric('Client Requests', openPbc.length, 'Awaiting client or review', 'blue', 'pbc', 'folder')}
         {metric('Ready to Release', ready, 'All visible workpapers and reviews cleared', 'amber', 'ready', 'shield')}
         {metric('My Open Tasks', myTasks.length, `Assigned to ${state.currentPerson}`, 'green', 'tasks', 'checkcircle')}
-        {metric('Overdue Work', overdue.length, `As of ${state.asOfDate}`, 'red', 'overdue', 'clock')}
+        {metric('Overdue Work', overdue.length, `As of ${asOfDate}`, 'red', 'overdue', 'clock')}
       </div>
 
       {activeList && <div className="panel">
-        <div className="panel-head between"><div><h2>Filtered work list</h2><p className="sub">{listItems.length} record(s) for the selected dashboard metric and filters · as of {state.asOfDate}</p></div><button className="btn sm ghost" onClick={() => setActiveList('')}>Close</button></div>
+        <div className="panel-head between"><div><h2>Filtered work list</h2><p className="sub">{listItems.length} record(s) for the selected dashboard metric and filters · as of {asOfDate}</p></div><button className="btn sm ghost" onClick={() => setActiveList('')}>Close</button></div>
         <div className="tablewrap"><table><thead><tr><th>Type</th><th>Record</th><th>Engagement</th><th>Status</th><th>Due</th><th /></tr></thead><tbody>
           {listItems.map(item => <tr key={`${item.kind}-${item.id}`}><td>{item.kind}</td><td><b>{item.label}</b><div className="cell-sub">{item.id}</div></td><td>{item.engagementId}</td><td>{item.status}</td><td>{item.due || '—'}</td><td><button className="btn sm" onClick={() => openItem(item)}>Open</button></td></tr>)}
           {!listItems.length && <tr><td colSpan={6}>No matching records.</td></tr>}
@@ -155,7 +159,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 <h2>Engagement Deadlines</h2>
                 <p className="sub">Permitted engagements in target-date order.</p>
               </div>
-              <span className="tag gray">As of {state.asOfDate}</span>
+              <span className="tag gray">As of {asOfDate}</span>
             </div>
             <div className="tablewrap">
               <table>

@@ -247,7 +247,7 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,224.76 kB,
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,224.91 kB,
   619.55 kB gzip in the current build).
 
 ## Verification snapshot
