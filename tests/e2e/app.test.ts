@@ -701,6 +701,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Approve Audit Plan Strategy');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.version===2).status==='Approved'`), true, 'independent review can approve the risk-driven plan revision');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Audit Planning & Materiality');
+    await clickButtonStartingWith('Plan Versions & Review');
+    await clickButton('Save Version 3');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));const box=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Rework the risk response rationale before approval.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Return for Rework');
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.version===3);return p.status==='Draft'&&p.reviewNotes==='Rework the risk response rationale before approval.';})()`), true, 'independent return retains reviewer rationale and does not clear planning');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save Version 4');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPlans;return p.find(x=>x.version===3).status==='Superseded'&&p.find(x=>x.version===3).reviewNotes==='Rework the risk response rationale before approval.'&&p.find(x=>x.version===4).status==='Under review';})()`), true, 'manager rework creates a new revision and preserves the returned version');
+    await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Approve Audit Plan Strategy');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.auditPlans.find(p=>p.version===4).status==='Approved'&&s.engagements.find(e=>e.id==='ENG-26001').planning;})()`), true, 'independent approval of the reworked revision restores the planning gate');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

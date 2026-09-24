@@ -569,3 +569,11 @@ SHA-256 `98b1f99c8b8f6eb09a04a0e1ba21591603e434b9546e53b4d13bc8bea85e08ec`),
 matching the local build. Wrangler reports deployment
 `4cfb292a-36c1-4025-bc4e-de0673ffc4bd` as Production on branch `production`,
 source `9816b7b`.
+
+VP-049 risk-plan rework follow-up: the focused real-Chrome journey passed (1/1).
+It returns the risk-driven plan with a retained reviewer rationale, saves manager
+rework as a new revision without erasing the return, then independently approves
+the new revision and verifies planning is restored. `npm run lint` passed,
+`npm run test:unit` passed 145/145, and the complete E2E suite passed 63/63
+(five static checks and 58 Chrome journeys). VP-049 remains Partial for broader
+risk combinations. The bundle-size advisory (>500 kB) remains.

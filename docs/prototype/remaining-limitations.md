@@ -133,8 +133,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   views display reciprocal risk links and unresolved coverage gaps. Risk revisions
   are logged and visible. An approved plan now creates a superseding under-review
   revision when a risk changes, linked procedures require reassessment, and an
-  independent reviewer can approve the new plan. Broader risk change, return/rework
-  and reopen scenarios still need direct acceptance evidence.
+  independent reviewer can approve the new plan. Chrome also returns a plan with
+  reviewer rationale, creates a separate manager rework revision, and independently
+  approves it to restore planning. Broader risk combinations and reopen scenarios
+  still need direct acceptance evidence.
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.
