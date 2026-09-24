@@ -481,5 +481,11 @@ previous scoped-count, drill-down, completed-item exclusion and assignee checks
 still pass. The external-egress assertion now correctly ignores local data URIs
 while continuing to reject external HTTP(S) requests. `npm run lint` passed,
 unit tests passed 144/144, and full build/Chrome E2E passed 63/63. The existing
-large-bundle advisory remains. Deployment evidence will be appended after the
-updated build is published.
+large-bundle advisory remains. Commit `3cfb3e1` was pushed to `main` and
+deployed to the same `steaudit-prototype` production project as deployment
+`094e04c7-1af9-41f5-b05c-41b51a78bade`
+([release](https://094e04c7.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-81CmgsWB.js` (2,224,916 bytes; SHA-256
+`51a6cd20616a9b5b81633478f9a85a70211275da06cf7b4b9a02a060d9692cd6`), matching
+the local build. Wrangler reports production source `3cfb3e1`.
