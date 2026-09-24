@@ -329,11 +329,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   history. A narrow ENG-26001 grant sees a redacted perimeter with no figures,
   editor or history; self-loop and cross-group revision changes are rejected.
   Unmatched amounts, duplicate inclusion, mixed-context/counterparty cases and
-  component-replacement staleness remain incomplete. Group output can now be saved
-  as a digest-verified, watermarked JSON artifact containing only its pinned rows,
-  rates, elimination decisions and reconciled totals. A separate Partner decision
-  binds the output to its current input fingerprint; stale output cannot be approved
-  or downloaded. Broader same-currency/FX export lineage evidence remains open.
+  component-replacement staleness remain incomplete. Group output can be saved as
+  a digest-verified, watermarked JSON artifact with exact component/source/package,
+  rate, elimination decision/history and total lineage. A separate Partner decision
+  binds it to the current input fingerprint; post-review changes stale the artifact
+  and block download. Full story and remaining edge-matrix acceptance are open.
 - **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
   integrity checks. Chrome verifies concurrent-save and quota failures,
   malformed-payload preservation, exact future-schema backup preservation,
