@@ -1359,7 +1359,7 @@ Steps: start demonstration connection; choose synthetic tenant; select permitted
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L566).
 
-**Next evidence update:** Exact tested commit: `1981e07a54f41b2d9fa3db78ac491d3227cdf554`; fixture: seeded synthetic tenant, SharePoint success then access denied, optional mail unavailable, local fixture job `JOB-2601`; criteria → tests: VP-017-AC02 offline/auth subcase and AC04 local-work subcase / AT-15/AT-16; 71/71 E2E checks; 2026-09-24. Remaining criterion cases stay open.
+**Next evidence update:** Exact tested commit: `62f71201ac7bcf0a0bbdb181ea94e05241251200`; fixture: seeded synthetic tenant and active personas; criteria → tests: VP-017-AC01/03 validation/recovery subcases and R03 separate identity mapping / AT-15 plus RR35; 168/168 unit and 71/71 E2E checks; 2026-09-24. Remaining setup cancel/back/review and wrong-tenant/resource cases stay open.
 
 
 <a id="vp-018"></a>
