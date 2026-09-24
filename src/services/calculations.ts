@@ -33,12 +33,16 @@ export function calculateRecordedWipValue(entries: TimeEntryItem[]): number | nu
   return Math.round(billable.reduce((sum, entry) => sum + entry.durationMinutes / 60 * entry.billingRatePerHour!, 0) * 100) / 100;
 }
 
-export function applyReportingAdjustments(rows: TrialBalanceRow[], journals: AdjustmentJournalItem[]) {
+export function applyReportingAdjustments(rows: TrialBalanceRow[], journals: AdjustmentJournalItem[], sourceVersion?: number) {
   const adjustedRows = structuredClone(rows);
   const applied: string[] = [];
   const unapplied: Array<{ journalId: string; reason: string }> = [];
   for (const journal of journals) {
     if (journal.status !== 'Management accepted' && journal.status !== 'Reporting included') continue;
+    if (sourceVersion !== undefined && journal.reflectionSourceVersion !== sourceVersion) {
+      unapplied.push({ journalId: journal.id, reason: `Reflection must be confirmed against current TB source v${sourceVersion}.` });
+      continue;
+    }
     if (journal.reflectedInClientBooks || journal.reflectionStatus === 'Reflected in TB') continue;
     if (journal.reflectionStatus !== 'Not reflected') {
       unapplied.push({ journalId: journal.id, reason: `Reflection status is ${journal.reflectionStatus || 'unknown'}.` });

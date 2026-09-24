@@ -61,7 +61,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   }
 
   // Pre-release validation summary gates
-  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id));
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
   const packageRows = adjustmentResult.rows;
   const tbSum = packageRows.reduce((sum, r) => sum + r.balance, 0);
   const tbBalanced = Math.abs(tbSum) < 1;

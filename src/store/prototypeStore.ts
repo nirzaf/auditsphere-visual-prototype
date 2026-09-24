@@ -2157,7 +2157,7 @@ class PrototypeStore {
     const debits = journal.lines.filter(l => l.type === 'debit').reduce((s, l) => s + l.amount, 0);
     const credits = journal.lines.filter(l => l.type === 'credit').reduce((s, l) => s + l.amount, 0);
     if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Adjustment journal must balance before it can be saved.');
-    this.state.adjustmentJournals.unshift({ ...journal, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined, managementDecisionNote: undefined });
+    this.state.adjustmentJournals.unshift({ ...journal, reflectionSourceVersion: engagement.sourceVersion, status: 'Draft', preparedBy: this.state.currentPerson, reviewedBy: undefined, managementAcceptedBy: undefined, managementDecisionNote: undefined });
     this.logEvent(`Adjustment journal proposed: ${journal.title}`, journal.id);
     this.notify();
   }
@@ -2208,10 +2208,12 @@ class PrototypeStore {
       const current = this.state.adjustmentJournals[index];
       requireEngagementScope(this.state, current.engagementId);
       if (journal.engagementId !== current.engagementId || journal.preparedBy !== current.preparedBy || journal.title !== current.title || journal.status !== current.status || journal.reviewedBy !== current.reviewedBy || journal.managementAcceptedBy !== current.managementAcceptedBy || journal.managementDecisionNote !== current.managementDecisionNote || JSON.stringify(journal.lines) !== JSON.stringify(current.lines)) throw new GuardError('INVALID_STATE', 'Journal content, ownership and approval state are immutable after proposal. Use the guarded review and management-decision actions.');
+      const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
+      if (!engagement || journal.reflectionSourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'Confirm the journal reflection status against the current trial-balance source revision.');
       if (Boolean(journal.reflectedInClientBooks) !== (journal.reflectionStatus === 'Reflected in TB')) throw new GuardError('INVALID_STATE', 'The source-reflected flag and reflection status must agree.');
+      if (journal.reflectionStatus !== current.reflectionStatus || journal.reflectionSourceVersion !== current.reflectionSourceVersion) journal.reflectionHistory = [...(current.reflectionHistory || []), { status: current.reflectionStatus, sourceVersion: current.reflectionSourceVersion || 0, recordedAt: new Date().toISOString(), recordedByUserId: this.state.currentUserId }];
       this.state.adjustmentJournals[index] = journal;
-      const eng = this.state.engagements.find(e => e.id === journal.engagementId);
-      if (eng) this.invalidateReleaseBasis(eng);
+      this.invalidateReleaseBasis(engagement);
       this.notify();
     }
   }

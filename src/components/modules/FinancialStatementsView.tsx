@@ -42,7 +42,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     );
   }
 
-  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id));
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
   const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
   const mappedAccounts = currentMapping?.mappings || [];
@@ -91,7 +91,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const priorMapping = comparativeEngagement && [...(state.accountMappingRevisions || []).filter(item => item.engagementId === comparativeEngagement.id)].sort((a, b) => b.revision - a.revision)[0];
   const priorUnmapped = comparativeEngagement?.rows.filter(row => !priorMapping?.mappings.some(mapping => mapping.accountCode === row.code)) || [];
   const priorMappingReady = Boolean(priorMapping?.status === 'Approved' && priorUnmapped.length === 0);
-  const priorAdjustmentResult = comparativeEngagement && applyReportingAdjustments(comparativeEngagement.rows, state.adjustmentJournals.filter(j => j.engagementId === comparativeEngagement.id));
+  const priorAdjustmentResult = comparativeEngagement && applyReportingAdjustments(comparativeEngagement.rows, state.adjustmentJournals.filter(j => j.engagementId === comparativeEngagement.id), comparativeEngagement.sourceVersion);
   const priorRows = comparativeEngagement && priorMappingReady && priorAdjustmentResult ? mapRows(priorAdjustmentResult.rows, priorMapping!.mappings) : [];
   const priorBalanceSheet = priorRows.length ? calculateBalanceSheet(priorRows) : null;
   const priorIncomeStatement = priorRows.length ? calculateIncomeStatement(priorRows) : null;

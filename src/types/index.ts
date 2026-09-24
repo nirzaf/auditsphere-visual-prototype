@@ -867,6 +867,8 @@ export interface AdjustmentJournalItem {
   managementDecisionNote?: string;
   reflectionStatus: 'Not reflected' | 'Reflected in TB' | 'Partially reflected' | 'Unknown';
   reflectedInClientBooks?: boolean;
+  reflectionSourceVersion?: number;
+  reflectionHistory?: Array<{ status: AdjustmentJournalItem['reflectionStatus']; sourceVersion: number; recordedAt: string; recordedByUserId: string }>;
   rationale?: string;
   evidenceRef?: string;
   lines: Array<{

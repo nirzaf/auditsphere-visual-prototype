@@ -80,6 +80,18 @@ describe('accounting fixed example (AT-38/AT-40)', () => {
     const uncertain = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Unknown' } as any]);
     assert.deepEqual(uncertain.rows, TB_8, 'unknown reflection is not silently double counted');
     assert.equal(uncertain.unapplied[0].journalId, 'AJ-TEST');
+    const partial = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Partially reflected' } as any]);
+    assert.deepEqual(partial.rows, TB_8, 'partial reflection is not guessed or double counted');
+    assert.equal(partial.unapplied[0].journalId, 'AJ-TEST');
+    const stale = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Reflected in TB', reflectionSourceVersion: 1 } as any], 2);
+    assert.deepEqual(stale.rows, TB_8, 'a decision for an older source is not applied to the current source');
+    assert.match(stale.unapplied[0].reason, /current TB source v2/);
+    const current = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Reflected in TB', reflectionSourceVersion: 2 } as any], 2);
+    assert.deepEqual(current.rows, TB_8, 'only reflection confirmed for the current source avoids duplicate reporting');
+    assert.deepEqual(current.unapplied, []);
+    const rejected = applyReportingAdjustments(TB_8, [{ ...journal, status: 'Rejected' } as any], 2);
+    assert.deepEqual(rejected.rows, TB_8, 'rejected adjustments are never included');
+    assert.deepEqual(rejected.unapplied, []);
   });
 });
 

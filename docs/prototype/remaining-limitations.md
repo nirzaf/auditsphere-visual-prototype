@@ -34,6 +34,14 @@ Automated sources explicitly trace AT-01 through AT-55. See
   cases and the remaining negative/output-review matrix remain open for
   acceptance.
 
+- **VP-038 — adjustment journals (Partial):** Reflection decisions now offer
+  Not reflected, Reflected in TB, Partially reflected and Unknown, pinned to the
+  current TB source revision. Unit checks confirm partial/unknown/rejected
+  journals are not silently applied and stale reflected decisions block output;
+  Chrome verifies the selected status and prior decision history persist. Reasoned
+  journal amendments and complete evidence/workpaper/finding linkage scenarios
+  remain open.
+
 - **VP-034 — accounting setup:** client legal entity, reporting basis and
   currency; versioned chart accounts with parent/posting/active state; owned
   open/closed period books; bounded dimensions; engagement profile/chart/book

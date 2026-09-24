@@ -125,11 +125,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     setShowAddAdjModal(false);
   };
 
-  const handleToggleReflected = (adj: AdjustmentJournalItem) => {
+  const handleReflectionChange = (adj: AdjustmentJournalItem, reflectionStatus: AdjustmentJournalItem['reflectionStatus']) => {
     prototypeStore.updateAdjustmentJournal({
       ...adj,
-      reflectedInClientBooks: !adj.reflectedInClientBooks,
-      reflectionStatus: !adj.reflectedInClientBooks ? 'Reflected in TB' : 'Not reflected'
+      reflectedInClientBooks: reflectionStatus === 'Reflected in TB',
+      reflectionStatus,
+      reflectionSourceVersion: selectedEng.sourceVersion
     });
   };
 
@@ -697,10 +698,10 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                       {adj.status}
                     </span>
                     {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => prototypeStore.reviewAdjustmentJournal(adj.id, true)}>Complete Technical Review</button>}
-                    {['Management accepted', 'Reporting included'].includes(adj.status) && <button className="btn sm ghost" onClick={() => handleToggleReflected(adj)}>{adj.reflectedInClientBooks ? 'Mark Not Reflected' : 'Mark Reflected in TB'}</button>}
+                    {['Management accepted', 'Reporting included'].includes(adj.status) && <label>Reflection on TB v{selectedEng.sourceVersion}<select aria-label={`Reflection status for ${adj.id}`} value={adj.reflectionSourceVersion === selectedEng.sourceVersion ? adj.reflectionStatus : 'Unknown'} onChange={event => handleReflectionChange(adj, event.target.value as AdjustmentJournalItem['reflectionStatus'])}><option>Not reflected</option><option>Reflected in TB</option><option>Partially reflected</option><option>Unknown</option></select></label>}
                   </div>
                 </div>
-                <div className="caption mt4">Source reflection: {adj.reflectionStatus} · Prepared by {adj.preparedBy}{adj.reviewedBy ? ` · Technical review by ${adj.reviewedBy}` : ''}{adj.managementAcceptedBy ? ` · Accepted by ${adj.managementAcceptedBy}` : ''}</div>
+                <div className="caption mt4">Source reflection: {adj.reflectionStatus} · {adj.reflectionSourceVersion === undefined ? 'unversioned source' : `TB v${adj.reflectionSourceVersion}`}{adj.reflectionSourceVersion !== undefined && adj.reflectionSourceVersion !== selectedEng.sourceVersion ? ' · re-review required' : ''} · Prepared by {adj.preparedBy}{adj.reviewedBy ? ` · Technical review by ${adj.reviewedBy}` : ''}{adj.managementAcceptedBy ? ` · Accepted by ${adj.managementAcceptedBy}` : ''}</div>
                 {adj.managementDecisionNote && <div className="caption mt4">Management decision note: {adj.managementDecisionNote}</div>}
 
                 <div className="tablewrap mt12">

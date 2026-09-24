@@ -1046,6 +1046,13 @@ describe('adjustment approval lifecycle (AT-38)', () => {
     const accepted = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
     assert.equal(accepted.status, 'Management accepted');
     assert.equal(accepted.managementAcceptedBy, 'Omar Nasser');
+    setPersona(storeState, 'Layla Rahman');
+    assert.throws(() => prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionSourceVersion: 0 }), /current trial-balance source revision/);
+    prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionStatus: 'Partially reflected', reflectedInClientBooks: false, reflectionSourceVersion: 1 });
+    const reflection = storeState.adjustmentJournals.find((j: any) => j.id === 'AJ-LIFECYCLE');
+    assert.equal(reflection.reflectionStatus, 'Partially reflected');
+    assert.equal(reflection.reflectionSourceVersion, 1);
+    assert.deepEqual(reflection.reflectionHistory.map((entry: any) => [entry.status, entry.sourceVersion]), [['Not reflected', 1]]);
     setPersona(storeState, 'Adam Khan');
     prototypeStore.addAdjustmentJournal({
       id: 'AJ-REJECT', engagementId: 'ENG-26001', title: 'Rejection lifecycle fixture', status: 'Draft',

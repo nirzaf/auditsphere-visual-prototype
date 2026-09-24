@@ -3166,6 +3166,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(accepted.status, 'Management accepted');
     assert.equal(accepted.reviewedBy, 'Layla Rahman');
     assert.equal(accepted.managementAcceptedBy, 'Omar Nasser');
+    await switchPersona('Engagement manager', 'manager');
+    await clickButton('Accounting Workbench');
+    await clickButtonStartingWith('Adjustments');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Reflection status for ${journal.id}"]');if(!select)throw Error('reflection decision selector missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Partially reflected');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const reflection = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}))()`);
+    assert.equal(reflection.reflectionStatus, 'Partially reflected');
+    assert.equal(reflection.reflectionSourceVersion, 1);
+    assert.deepEqual(reflection.reflectionHistory.map((item: any) => [item.status, item.sourceVersion]), [['Not reflected', 1]]);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

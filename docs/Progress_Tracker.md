@@ -2455,12 +2455,12 @@ Replace the five-class-only demonstration with explicit source-account to statem
 **Original journey links:** [AT-38](#at-38); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-General adjustment journals, independent technical review, scoped management decision and reflection status exist. Accepted unreflected journals affect statements/packages once and leave source TB unchanged; missing accounts block output.
+General adjustment journals, independent technical review, scoped management decision and reflection status exist. Accepted unreflected journals affect statements/packages once and leave source TB unchanged; missing accounts block output. The reflection selector records all four decisions against the current TB source revision, retains the prior decision, and blocks reporting if that source revision changes.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-038-E01 — Verification/evidence pending:** Complete rejected/partial/unknown/reflected source permutations, journal amendments and linkage to evidence/workpaper/finding revisions.
+- [ ] **VP-038-E01 — Verification/evidence pending:** Partial subcase verified: Chrome records a partially reflected decision with source revision and prior-decision history; unit tests block partial, unknown, rejected and stale-source journals from being silently applied. Still verify the complete rejected/reflected source matrix, reasoned journal amendment lifecycle, and evidence/workpaper/finding links.
 
 - [ ] **VP-038-E02 — Verification/evidence pending:** Verify original journal/decision history, reporting-impact totals and correction re-review across source replacements.
 

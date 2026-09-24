@@ -925,6 +925,7 @@ export function createInitialState(): PrototypeState {
         reviewedBy: 'Sara Malik',
         managementAcceptedBy: 'Omar Nasser',
         reflectionStatus: 'Not reflected',
+        reflectionSourceVersion: 1,
         evidenceRef: 'WP-C1',
         lines: [
           { accountCode: '5000', accountName: 'Operating and administrative expenses (Depreciation)', type: 'debit', amount: 50000 },
