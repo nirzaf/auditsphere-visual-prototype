@@ -1782,6 +1782,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     } finally {
       await browserTab!.evaluate('window.Blob=window.__testBaseBlob;delete window.__testBaseBlob');
     }
+    const artifactCountBeforeFailure = await browserTab!.evaluate<number>(`(async()=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onupgradeneeded=()=>r.result.createObjectStore('artifacts',{keyPath:'id'});const db=await new Promise(resolve=>{r.onsuccess=()=>resolve(r.result)});const count=await new Promise(resolve=>{const q=db.transaction('artifacts').objectStore('artifacts').count();q.onsuccess=()=>resolve(q.result)});db.close();return count})()`);
+    await browserTab!.evaluate(`(() => {window.__originalArtifactPut=IDBObjectStore.prototype.put;window.__artifactPutCount=0;IDBObjectStore.prototype.put=function(...args){if(++window.__artifactPutCount===2)throw new Error('fixture artifact transaction failure');return window.__originalArtifactPut.apply(this,args)};})()`);
+    try {
+      await clickButton('+ Assemble New Revision (Rev 2)');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("fixture artifact transaction failure")'), true, 'partial artifact persistence failure is surfaced');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return e.packageRevision===1&&!e.packageHistory.some(p=>p.revision===2);})()`), true, 'failed artifact transaction does not save a package revision');
+      const artifactCountAfterFailure = await browserTab!.evaluate<number>(`(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result)});const count=await new Promise(resolve=>{const q=db.transaction('artifacts').objectStore('artifacts').count();q.onsuccess=()=>resolve(q.result)});db.close();return count})()`);
+      assert.equal(artifactCountAfterFailure, artifactCountBeforeFailure, 'aborted package write leaves no partial artifact blobs');
+    } finally {
+      await browserTab!.evaluate('IDBObjectStore.prototype.put=window.__originalArtifactPut;delete window.__originalArtifactPut;delete window.__artifactPutCount');
+    }
     await clickButton('+ Assemble New Revision (Rev 2)');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 2 saved with exact XLSX, DOCX and PDF files.")'), true, 'package should persist genuine artifacts');
     const persisted = await browserTab!.evaluate<any>(`(async () => {
@@ -2197,7 +2208,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /USD → QAR: 3\.64/);
       assert.match(text, /v1 · Closing · 2026-09-23 · 3\.64/);
       assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').rows`), sourceBefore, 'translation leaves component TB rows unchanged');
-      assert.deepEqual(browserTab!.exceptions, []);
+      assert.deepEqual(browserTab!.exceptions, [], JSON.stringify(browserTab!.exceptions));
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
       else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
@@ -2252,6 +2263,67 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /only one Parent and one 100% owned Subsidiary/i);
       assert.doesNotMatch(text, /Consolidated Balance Sheet Grid|Equation Satisfied/);
       assert.equal(await browserTab!.evaluate<string>(`JSON.stringify(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(engagement => engagement.id === 'ENG-26002').rows)`), sourceBefore);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-43: edits the group perimeter with validation, history, elimination re-review and revert', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const sourceBefore = await browserTab!.evaluate<string>(`(() => {
+        const state = ${JSON.stringify(createInitialState())};
+        const seed = structuredClone(state.engagements.find(e => e.id === 'ENG-26002'));
+        seed.id = 'ENG-26004';
+        seed.client = 'CL-002';
+        state.engagements.push(seed);
+        localStorage.setItem('ste-auditsphere-role-portals-v2', JSON.stringify(state));
+        return JSON.stringify(state.engagements.filter(e => ['ENG-26001', 'ENG-26002', 'ENG-26004'].includes(e.id)).map(e => ({ id: e.id, rows: e.rows })));
+      })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      const perimeterState = () => browserTab!.evaluate<any>(`(() => {const g=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0];return {rev:g.perimeterRevision||1,history:(g.perimeterHistory||[]).length,subsidiary:g.components.find(c=>c.role==='Subsidiary').componentId,subDate:g.components.find(c=>c.role==='Subsidiary').effectiveDate||null,elim:g.eliminations[0].status,elimHistory:(g.eliminations[0].reviewHistory||[]).length,elimAmount:g.eliminations[0].amount};})()`);
+      const setEditorInput = (label: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label='+JSON.stringify(${JSON.stringify(label)})+']');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      const setEditorSelect = (label: string, value: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label='+JSON.stringify(${JSON.stringify(label)})+']');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(value)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Group Consolidation');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Group Consolidation Workbench")'), true);
+      await clickButton('Group Perimeter & Pinned Packages (2)');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Edit group perimeter")'), true);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Current perimeter revision 1/);
+      await setEditorInput('Effective date for Parent component', '2026-02-30');
+      await setEditorInput('Reason for perimeter change', 'Invalid date attempt');
+      await clickButton('Save perimeter revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("valid effective date")'), true, 'impossible dates are rejected');
+      assert.deepEqual(await perimeterState(), { rev: 1, history: 0, subsidiary: 'ENG-26002', subDate: null, elim: 'Approved', elimHistory: 0, elimAmount: 50000 }, 'a failed save leaves the recorded perimeter untouched');
+      await setEditorInput('Effective date for Parent component', '2026-01-01');
+      await setEditorInput('Effective date for Subsidiary component', '2026-03-15');
+      await setEditorInput('Reason for perimeter change', 'Record component effective dates');
+      await clickButton('Save perimeter revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 2 saved")'), true);
+      assert.deepEqual(await perimeterState(), { rev: 2, history: 1, subsidiary: 'ENG-26002', subDate: '2026-03-15', elim: 'Approved', elimHistory: 0, elimAmount: 50000 }, 'date-only edits keep elimination approval');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /2026-01-01/);
+      await setEditorSelect('Subsidiary component engagement', 'ENG-26001');
+      await setEditorInput('Reason for perimeter change', 'Duplicate attempt');
+      await clickButton('Save perimeter revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("exactly two distinct")'), true, 'duplicate components are rejected');
+      assert.equal((await perimeterState()).rev, 2, 'a rejected swap preserves the perimeter revision');
+      await setEditorSelect('Subsidiary component engagement', 'ENG-26004');
+      await setEditorInput('Reason for perimeter change', 'Correct subsidiary to the in-scope 2026 engagement');
+      await clickButton('Save perimeter revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 3 saved")'), true);
+      assert.deepEqual(await perimeterState(), { rev: 3, history: 2, subsidiary: 'ENG-26004', subDate: null, elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'component replacement returns approval to draft with journal preserved');
+      await clickButton('Intercompany Eliminations (1)');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Re-review required")'), true);
+      await clickButton('Group Perimeter & Pinned Packages (2)');
+      await setEditorInput('Reason for perimeter change', 'Subsidiary correction was premature');
+      await clickButton('Revert to revision 2');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 4 saved")'), true);
+      assert.deepEqual(await perimeterState(), { rev: 4, history: 3, subsidiary: 'ENG-26002', subDate: '2026-03-15', elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'revert restores the recorded revision content');
+      assert.equal(await browserTab!.evaluate<string>(`JSON.stringify(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.filter(e=>['ENG-26001','ENG-26002','ENG-26004'].includes(e.id)).map(e=>({id:e.id,rows:e.rows})))`), sourceBefore, 'perimeter work never mutates engagement trial balances');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
@@ -2883,6 +2955,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-19: prepares the same client workspace twice idempotently', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButtonStartingWith('Documents & SharePoint');
       await clickButton('Verify Client Workspace');
       const afterFirst = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(f=>f.path==='/Clients/EXP-TRAD/').length`);

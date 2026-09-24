@@ -1257,6 +1257,81 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(state.consolidationGroups.find((item: any) => item.id === 'GRP-02')?.components[1].packageRevisionPinned, state.engagements.find((item: any) => item.id === 'ENG-26002')?.packageRevision);
   });
 
+  it('rejects invalid consolidation perimeter edits and preserves the recorded perimeter', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const before = structuredClone(state.consolidationGroups[0]);
+    const attempt = (mutate: (group: any) => void, reason = 'test attempt') => {
+      const candidate = structuredClone(state.consolidationGroups[0]);
+      mutate(candidate);
+      return candidate;
+    };
+    assert.throws(() => prototypeStore.updateConsolidationGroup(attempt(group => { group.components[0].effectiveDate = '2026-02-30'; })), /valid effective date/);
+    assert.throws(() => prototypeStore.updateConsolidationGroup(attempt(group => { group.components[1].effectiveDate = 'not-a-date'; })), /valid effective date/);
+    assert.throws(() => prototypeStore.updateConsolidationGroup(attempt(group => { group.components[1].componentId = 'ENG-26001'; })), /exactly two distinct/);
+    assert.throws(() => prototypeStore.updateConsolidationGroup(attempt(group => {
+      group.components[1].componentId = 'ENG-26003';
+      group.components[1].packageRevisionPinned = 1;
+      group.components[1].packageRows = structuredClone(state.engagements.find((e: any) => e.id === 'ENG-26003').rows);
+    })), /does not match the group period/);
+    assert.throws(() => prototypeStore.updateConsolidationGroup(attempt(group => { group.components[0].effectiveDate = '2026-01-01'; }), ''), /Record a reason/);
+    assert.deepEqual(state.consolidationGroups[0], before, 'failed perimeter edits leave the recorded group untouched');
+  });
+
+  it('versions consolidation perimeter edits, stales eliminations on component change and reverts', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const seed = structuredClone(state.engagements.find((e: any) => e.id === 'ENG-26002'));
+    seed.id = 'ENG-26004';
+    state.engagements.push(seed);
+    const sourceBefore = structuredClone(state.engagements.map((e: any) => ({ id: e.id, rows: e.rows })));
+    const current = () => state.consolidationGroups[0];
+    const dated = structuredClone(current());
+    dated.components[0].effectiveDate = '2026-01-01';
+    dated.components[1].effectiveDate = '2026-03-15';
+    prototypeStore.updateConsolidationGroup(dated, { reason: 'Record component effective dates' });
+    assert.equal(current().perimeterRevision, 2);
+    assert.equal(current().perimeterHistory?.length, 1);
+    assert.equal(current().perimeterHistory?.[0].reason, 'Record component effective dates');
+    assert.equal(current().eliminations[0].status, 'Approved', 'date-only edits keep elimination approval');
+    const swapped = structuredClone(current());
+    swapped.components[1] = {
+      componentId: 'ENG-26004', role: 'Subsidiary', legalEntityName: 'Northstar Services (Subsidiary)',
+      currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1,
+      packageRows: structuredClone(seed.rows), status: 'Ready',
+    };
+    prototypeStore.updateConsolidationGroup(swapped, { reason: 'Correct subsidiary to the in-scope 2026 engagement' });
+    assert.equal(current().perimeterRevision, 3);
+    assert.equal(current().components[1].componentId, 'ENG-26004');
+    assert.equal(current().eliminations[0].status, 'Draft', 'component replacement returns approval to draft');
+    assert.equal(current().eliminations[0].reviewHistory?.length, 1);
+    assert.equal(current().eliminations[0].reviewHistory?.[0].status, 'Approved');
+    assert.match(current().eliminations[0].reviewHistory?.[0].note || '', /returned to draft/);
+    assert.equal(current().eliminations[0].amount, 50000, 'journal content is preserved through staling');
+    assert.equal(current().eliminations[0].lines.length, 2);
+    prototypeStore.revertConsolidationPerimeter('GRP-01', 2, 'Subsidiary correction was premature');
+    assert.equal(current().perimeterRevision, 4);
+    assert.equal(current().components[1].componentId, 'ENG-26002');
+    assert.equal(current().components[1].effectiveDate, '2026-03-15', 'revert restores the recorded revision content');
+    assert.throws(() => prototypeStore.revertConsolidationPerimeter('GRP-01', 9, 'No such revision'), /no recorded history/);
+    assert.deepEqual(state.engagements.map((e: any) => ({ id: e.id, rows: e.rows })), sourceBefore, 'perimeter work never mutates engagement trial balances');
+  });
+
+  it('rejects consolidation perimeter edits outside manager/partner authority', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Adam Khan');
+    const candidate = structuredClone(state.consolidationGroups[0]);
+    candidate.components[0].effectiveDate = '2026-01-01';
+    assert.throws(() => prototypeStore.updateConsolidationGroup(candidate, { reason: 'preparer attempt' }), /cannot change consolidation groups/);
+    assert.throws(() => prototypeStore.revertConsolidationPerimeter('GRP-01', 1, 'preparer attempt'), /cannot change consolidation groups/);
+  });
+
   it('version-controls explicit consolidation FX rates and rejects wrong context', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
