@@ -28,10 +28,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
 - **VP-036 — general-ledger intake (Partial):** AT-36 imports period-bounded
   CSV/XLSX journal lines with explicit opening balances, retains immutable
   engagement-scoped revisions, and reconciles opening plus movement to the
-  closing TB by account. It supports scoped filters/export and invalidates
-  dependent reconciliation/release state on replacement. User-configurable
-  header mapping, partial-batch cases and the complete negative/output-review
-  matrix remain open for acceptance.
+  closing TB by account. Preparers can map unfamiliar headers; the selected
+  source-column mapping is retained with each revision. Scoped filters/export
+  and dependent reconciliation/release invalidation are covered. Partial-batch
+  cases and the remaining negative/output-review matrix remain open for
+  acceptance.
 
 - **VP-034 — accounting setup:** client legal entity, reporting basis and
   currency; versioned chart accounts with parent/posting/active state; owned
@@ -349,7 +350,7 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 167/167 unit checks and 71/71 E2E checks passed.
+Latest recorded full run: 168/168 unit checks and 71/71 E2E checks passed.
 E2E includes five static checks and 66 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
