@@ -128,7 +128,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
   RSK-01↔PRC-03 link after reload, and schema v9 repairs legacy unscoped links.
   Reusable program templates use supported audit areas, can be drafted, independently
   published, applied with fresh procedure IDs and empty work state, revised with prior
-  versions retained, and retired without changing applied engagement work. Program
+  versions retained, and retired without changing applied engagement work. Chrome
+  verifies v1 and v2 remain pinned to separate applications after revision and retirement. Program
   views display reciprocal risk links and unresolved coverage gaps. Risk revisions
   are logged and visible. An approved plan now creates a superseding under-review
   revision when a risk changes, linked procedures require reassessment, and an

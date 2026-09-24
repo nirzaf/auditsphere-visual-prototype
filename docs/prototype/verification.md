@@ -552,3 +552,12 @@ preparer, in addition to the existing manager-wide and narrow-grant checks.
 `npm run lint` passed and `npm run test:e2e` passed 63/63 (five static checks
 and 58 Chrome journeys). No application code changed, so production remains
 the verified `eac4cac` build.
+
+VP-049 template revision follow-up: `npm run test:unit` passed 145/145 and
+`npm run test:e2e` passed 63/63 (five static checks and 58 Chrome journeys).
+The Chrome journey now creates and publishes template v1, applies it, retains
+v1 as history when drafting v2, prevents draft use before publication, applies
+v2 as fresh work, and verifies both applications remain pinned after template
+retirement. Risk edit/review impact checks also pass. VP-049 stays Partial for
+broader risk return/rework and reopen cases. The production bundle-size
+advisory (>500 kB) remains.
