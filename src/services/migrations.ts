@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 21;
+export const CURRENT_SCHEMA = 22;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -289,6 +289,16 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }];
     }
     warnings.push('Initialized attributable archive metadata histories while preserving existing archive manifests (v21).');
+  }
+  if (from < 22) {
+    for (const group of state.consolidationGroups || []) {
+      const seededSubsidiary = group.id === 'GRP-01' ? group.components.find(component => component.componentId === 'ENG-26002') : undefined;
+      if (seededSubsidiary?.role === 'Associate' && seededSubsidiary.ownershipPercent === 100 && seededSubsidiary.legalEntityName === 'Northstar Services (Associate)') {
+        seededSubsidiary.role = 'Subsidiary';
+        seededSubsidiary.legalEntityName = 'Northstar Services (Subsidiary)';
+      }
+    }
+    warnings.push('Corrected the seeded wholly owned consolidation component label; unsupported associate accounting methods remain unchanged (v22).');
   }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];

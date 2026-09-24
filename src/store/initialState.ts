@@ -944,7 +944,7 @@ export function createInitialState(): PrototypeState {
         status: 'In progress',
         components: [
           { componentId: 'ENG-26001', role: 'Parent', legalEntityName: 'Example Trading Entity (Parent)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 3, status: 'Ready' },
-          { componentId: 'ENG-26002', role: 'Associate', legalEntityName: 'Northstar Services (Associate)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1, status: 'Ready' }
+          { componentId: 'ENG-26002', role: 'Subsidiary', legalEntityName: 'Northstar Services (Subsidiary)', currency: 'QAR', ownershipPercent: 100, packageRevisionPinned: 1, status: 'Ready' }
         ],
         fxRates: { 'QAR': 1.0, 'USD': 3.64, 'EUR': 3.95 },
         eliminations: [

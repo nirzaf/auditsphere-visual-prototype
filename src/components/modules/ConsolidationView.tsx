@@ -52,11 +52,20 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   const subEng = subComp && state.engagements.find(e => e.id === subComp.componentId);
   const groupCurrency = group.presentationCurrency || group.currency;
   const fxRate = (component: NonNullable<typeof parentComp>) => component.currency === groupCurrency ? 1 : group.fxRates[component.currency];
+  const missingRoles = (['Parent', 'Subsidiary'] as const).filter(role => !group.components.some(component => component.role === role));
+  const supportedProfile = group.components.length === 2 && missingRoles.length === 0 && group.components.every(component => component.ownershipPercent === 100);
+  if (!supportedProfile) return <div role="alert" className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+    <h3>Unsupported Consolidation Profile</h3>
+    <p className="sub max-w-md mx-auto mt8">
+      {missingRoles.length
+        ? `The group perimeter is incomplete (missing ${missingRoles.join(' and ')}); add the required component before calculating consolidated balances.`
+        : 'This prototype calculates only one Parent and one 100% owned Subsidiary. Other ownership methods produce no result.'}
+    </p>
+  </div>;
   const missingPackage = !parentComp?.packageRows?.length || !subComp?.packageRows?.length || !parentEng || !subEng || !parentComp.packageRevisionPinned || !subComp.packageRevisionPinned;
   const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
 
   if (missingPackage || missingRate) {
-    const missingRoles = (['Parent', 'Associate'] as const).filter(role => !group.components.some(component => component.role === role));
     const missingComponent = group.components.find(c => !state.engagements.some(e => e.id === c.componentId) || !c.packageRows?.length)?.componentId;
     return (
       <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
@@ -93,7 +102,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       <div className="pagehead">
         <div>
           <h1>Group Consolidation Workbench</h1>
-          <p>Calculation from the stored component snapshots and approved manual eliminations shown below.</p>
+          <p>Wholly owned Parent + Subsidiary profile · calculation from pinned component snapshots and approved manual eliminations.</p>
         </div>
       </div>
 

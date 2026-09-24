@@ -188,7 +188,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 21);
+    assert.equal(migrated.schema, 22);
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -207,11 +207,15 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v21 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v22 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 20; version++) {
+    for (let version = 0; version <= 21; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
+      if (version < 22) {
+        const component = legacy.consolidationGroups.find((group: any) => group.id === 'GRP-01')?.components.find((item: any) => item.componentId === 'ENG-26002');
+        if (component) { component.role = 'Associate'; component.legalEntityName = 'Northstar Services (Associate)'; }
+      }
       if (version < 6) delete legacy.m365Config.permittedUsers;
       if (version < 7) legacy.engagements.forEach((e: any) => delete e.sourceHistory);
       if (version < 8) legacy.engagements.forEach((e: any) => delete e.packageHistory);
@@ -234,7 +238,8 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       }
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 21, `schema ${version} should reach v21`);
+      assert.equal(migrated.schema, 22, `schema ${version} should reach v22`);
+      assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
       assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
@@ -1228,6 +1233,22 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
 });
 
 describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () => {
+  it('rejects consolidation ownership outside the supported wholly owned parent/subsidiary profile', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    setPersona(state, 'Layla Rahman');
+    const group = state.consolidationGroups[0];
+    assert.throws(() => prototypeStore.updateConsolidationGroup({
+      ...structuredClone(group),
+      components: group.components.map((component: any, index: number) => index === 1 ? { ...component, ownershipPercent: 80 } : component)
+    }), /one Parent and one 100% owned Subsidiary/);
+    assert.throws(() => prototypeStore.updateConsolidationGroup({
+      ...structuredClone(group),
+      components: group.components.map((component: any, index: number) => index === 1 ? { ...component, role: 'Associate' } : component)
+    }), /one Parent and one 100% owned Subsidiary/);
+  });
+
   it('version-controls explicit consolidation FX rates and rejects wrong context', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
