@@ -3222,6 +3222,25 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(reflection.reflectionStatus, 'Partially reflected');
     assert.equal(reflection.reflectionSourceVersion, 1);
     assert.deepEqual(reflection.reflectionHistory.map((item: any) => [item.status, item.sourceVersion]), [['Not reflected', 1]]);
+    const sourceRowsBeforeReview = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
+    await clickButton('Financial Statements');
+    const partialNotice = await waitForBrowser(`document.body.innerText.includes(${JSON.stringify(`${journal.id}: Reflection status is Partially reflected.`)})`);
+    assert.equal(partialNotice, true, 'partial reflection is excluded with an actionable reason');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Accepted, unreflected adjustments included: AJ-01. Reflected or unapproved journals are excluded.')`), true, 'only the known unreflected source adjustment is included');
+
+    await clickButton('Accounting Workbench');
+    await clickButtonStartingWith('Adjustments');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Reflection status for ${journal.id}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Unknown');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const uncertain = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}))()`);
+    assert.equal(uncertain.reflectionStatus, 'Unknown');
+    assert.deepEqual(uncertain.reflectionHistory.map((item: any) => [item.status, item.sourceVersion]), [['Not reflected', 1], ['Partially reflected', 1]], 'reflection revisions preserve the prior source decision');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}).reflectionHistory.length===2`), true, 'reflection decision history survives reload');
+    await clickButton('Financial Statements');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes(${JSON.stringify(`${journal.id}: Reflection status is Unknown.`)})`), true, 'unknown reflection blocks final reporting inclusion');
+    const sourceRowsAfterReview = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
+    assert.deepEqual(sourceRowsAfterReview, sourceRowsBeforeReview, 'reflection decisions never mutate imported client TB rows');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
