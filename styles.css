@@ -37,3 +37,20 @@
 .wp-progress-card{background:linear-gradient(108deg,#1b3940,#13282d);color:#fff;border-radius:var(--radius);padding:18px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:20px}
 .wp-progress-bar{background:#ffffff20;height:10px;border-radius:5px;overflow:hidden;width:240px;position:relative}
 .wp-progress-bar i{display:block;height:100%;background:#8cd5b0;border-radius:5px;transition:width .3s ease}
+
+/* Collapsible sidebar (desktop; mobile keeps its off-canvas drawer) */
+.sidebar-toggle{display:inline-flex}
+.sidebar-toggle .icon{transform:rotate(180deg);transition:transform .18s ease}
+#app-root.sidebar-collapsed .sidebar-toggle .icon{transform:rotate(0)}
+.sidebar{transition:width .18s ease}
+#app-root.sidebar-collapsed .sidebar{width:66px}
+#app-root.sidebar-collapsed .shell{margin-left:66px}
+#app-root.sidebar-collapsed .brand{padding:0 15px;justify-content:center}
+#app-root.sidebar-collapsed .brandname,
+#app-root.sidebar-collapsed .workspaceselect,
+#app-root.sidebar-collapsed .nav-label,
+#app-root.sidebar-collapsed .navitem span,
+#app-root.sidebar-collapsed .side-demo,
+#app-root.sidebar-collapsed .side-footer{display:none}
+#app-root.sidebar-collapsed .navitem{justify-content:center;padding:11px 0}
+@media(max-width:760px){.sidebar-toggle{display:none}#app-root.sidebar-collapsed .shell{margin-left:0}}

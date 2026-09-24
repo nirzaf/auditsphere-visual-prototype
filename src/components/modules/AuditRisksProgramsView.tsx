@@ -1,14 +1,16 @@
 // Modules 29 & 30: Audit Risk Register & Fieldwork Audit Programs (VP-049, VP-050)
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RouteKey, AuditProcedureItem, AuditProgramTemplate, AuditRiskItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 
 interface AuditRisksProgramsViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ onNavigate }) => {
+export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'risks' | 'programs' | 'templates'>('programs');
   const [selectedProgramId, setSelectedProgramId] = useState<string>('PRG-01');
@@ -22,6 +24,58 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+
+  // VP-003: the risk, template and fieldwork draft panels are inline edit surfaces.
+  // Register them so route/persona/engagement changes cannot silently drop typed work.
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Audit risks & programs',
+      isDirty: () => riskDraft !== null || templateDraft !== null || editingProcedureId !== null,
+      save: () => {
+        try {
+          const snapshot = prototypeStore.getSnapshot();
+          const eng = snapshot.engagements.find(item => item.id === snapshot.selectedEngagement) || snapshot.engagements[0];
+          if (!eng) return false;
+          if (editingProcedureId) {
+            prototypeStore.updateAuditProcedureExecution(eng.id, editingProcedureId, workPerformed, conclusion, evidenceLimitation);
+            setEditingProcedureId(null);
+          }
+          if (riskDraft) {
+            prototypeStore.updateAuditRisk(eng.id, riskDraft.id, {
+              title: riskDraft.title, area: riskDraft.area, assertions: riskDraft.assertions,
+              description: riskDraft.description, rationale: riskDraft.rationale,
+              response: riskDraft.response, owner: riskDraft.owner, rating: riskDraft.rating,
+              linkedProcedureIds: riskDraft.linkedProcedureIds
+            });
+            setRiskDraft(null);
+          }
+          if (templateDraft) {
+            if (editingTemplateId) prototypeStore.reviseAuditProgramTemplate(editingTemplateId, templateDraft);
+            else prototypeStore.createAuditProgramTemplate(templateDraft);
+            setTemplateDraft(null);
+            setEditingTemplateId(null);
+          }
+          setNotice('Open drafts were saved before the context changed.');
+          return true;
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : 'Draft changes could not be saved.');
+          return false;
+        }
+      },
+      discard: () => {
+        setRiskDraft(null);
+        setTemplateDraft(null);
+        setEditingTemplateId(null);
+        setEditingProcedureId(null);
+        setWorkPerformed('');
+        setConclusion('');
+        setEvidenceLimitation('');
+      },
+    };
+    onRegisterUnsavedForm(guard, 'audit-risks-programs');
+    return () => onRegisterUnsavedForm(null, 'audit-risks-programs');
+  }, [riskDraft, templateDraft, editingProcedureId, editingTemplateId, workPerformed, conclusion, evidenceLimitation, onRegisterUnsavedForm]);
 
   if (!selectedEng) {
     return (

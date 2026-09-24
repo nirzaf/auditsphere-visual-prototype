@@ -24,6 +24,18 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const [searchRecordType, setSearchRecordType] = useState('all');
   const [searchContext, setSearchContext] = useState('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Desktop sidebar collapse is a presenter preference, persisted separately from
+  // the validated business state.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('ste-auditsphere-sidebar-collapsed') === '1'; } catch { return false; }
+  });
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed(current => {
+      const next = !current;
+      try { localStorage.setItem('ste-auditsphere-sidebar-collapsed', next ? '1' : '0'); } catch { /* UI preference only */ }
+      return next;
+    });
+  };
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
   const importInput = useRef<HTMLInputElement>(null);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
@@ -107,7 +119,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
         { key: 'reports', label: 'Report Centre', icon: 'calculator' },
         { key: 'administration', label: 'Firm Administration', icon: 'settings' },
         { key: 'm365-setup', label: 'Microsoft 365 Setup', icon: 'settings' },
-        { key: 'requirements', label: 'Requirements & PRD', icon: 'book' }
+        { key: 'requirements', label: 'Requirements & PRD', icon: 'book' },
+        { key: 'module-guide', label: 'Module Guide & Tour', icon: 'layers' }
       ]
     ]
   ];
@@ -117,6 +130,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       'CLIENT SECURE PORTAL',
       [
         { key: 'portal', label: 'Client Experience Portal', icon: 'globe' },
+        { key: 'module-guide', label: 'Module Guide', icon: 'layers' },
         { key: 'requirements', label: 'Specifications & PRD', icon: 'book' }
       ]
     ]
@@ -256,7 +270,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   }
 
   return (
-    <div id="app-root">
+    <div id="app-root" className={sidebarCollapsed ? 'sidebar-collapsed' : undefined}>
       <input ref={importInput} type="file" accept="application/json,.json" aria-label="Import validated state JSON" onChange={handleImportState} style={{ display: 'none' }} />
       {(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode()) && (
         <div role="status" className="panel panel-pad" style={{ background: '#fff7ed', color: '#9a3412', margin: 12 }}>
@@ -278,7 +292,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       )}
 
       {/* Main Sidebar */}
-      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brandmark">
             <Icon name="layers" />
@@ -306,6 +320,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                 <button
                   key={item.key}
                   className={`navitem ${currentRoute === item.key ? 'active' : ''}`}
+                  title={item.label}
+                  aria-label={sidebarCollapsed ? item.label : undefined}
                   onClick={() => {
                     onRouteChange(item.key);
                     setMobileMenuOpen(false);
@@ -348,6 +364,15 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       <div className="shell">
         <header className="topbar">
           <div className="topbar-left">
+            <button
+              className="icon-btn sidebar-toggle"
+              onClick={toggleSidebarCollapsed}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <Icon name="arrow" />
+            </button>
             <button
               className="icon-btn mobile-menu"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

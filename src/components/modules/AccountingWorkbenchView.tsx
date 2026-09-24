@@ -1,24 +1,50 @@
 // Modules 20–23: Accounting Workbench (VP-034 through VP-039)
 // 5 Tabs: Trial Balance, General Ledger, Mappings, Adjustments, Reconciliations
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule, ClientAccountingProfile } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
 import { TBImportWizard } from './TBImportWizard';
 import { GL_FILE_BYTES_LIMIT, GL_IMPORT_COLUMNS, GLImportColumn, parseGLWorkbook, ParsedGLSource } from '../../services/glImport';
 import { exportService } from '../../services/exportService';
 
-const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profile?: ClientAccountingProfile }> = ({ clientId, engagementId, profile }) => {
+const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profile?: ClientAccountingProfile; onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void }> = ({ clientId, engagementId, profile, onRegisterUnsavedForm }) => {
   const seed: ClientAccountingProfile = profile || { legalEntityName: '', reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
   const [draft, setDraft] = useState(structuredClone(seed));
   const [periodId, setPeriodId] = useState(seed.periodBooks.find(book => book.ownerEngagementId === engagementId)?.id || '');
   const [notice, setNotice] = useState('');
-  const set = (key: keyof ClientAccountingProfile, value: any) => setDraft(current => ({ ...current, [key]: value }));
+  const [dirty, setDirty] = useState(false);
+  const set = (key: keyof ClientAccountingProfile, value: any) => { setDirty(true); setDraft(current => ({ ...current, [key]: value })); };
   const updateAccount = (index: number, field: string, value: any) => set('accounts', draft.accounts.map((account, i) => i === index ? { ...account, [field]: value } : account));
   const updateBook = (index: number, field: string, value: any) => set('periodBooks', draft.periodBooks.map((book, i) => i === index ? { ...book, [field]: value } : book));
-  const save = (event: React.FormEvent) => { event.preventDefault(); try { const revision = prototypeStore.saveAccountingProfile(clientId, draft, engagementId, periodId); setNotice(`Accounting setup saved as Rev ${revision}. Dependent mappings and approvals may need review.`); } catch (error) { setNotice(error instanceof Error ? error.message : 'Setup could not be saved.'); } };
+  const saveProfile = () => {
+    try {
+      const revision = prototypeStore.saveAccountingProfile(clientId, draft, engagementId, periodId);
+      setNotice(`Accounting setup saved as Rev ${revision}. Dependent mappings and approvals may need review.`);
+      setDirty(false);
+      return true;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Setup could not be saved.');
+      return false;
+    }
+  };
+  const save = (event: React.FormEvent) => { event.preventDefault(); saveProfile(); };
+  // VP-003: the accounting-context form edits profile drafts inline; guard them.
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Accounting setup',
+      isDirty: () => dirty,
+      save: saveProfile,
+      discard: () => { setDraft(structuredClone(seed)); setDirty(false); },
+    };
+    onRegisterUnsavedForm(guard, 'accounting-setup');
+    return () => onRegisterUnsavedForm(null, 'accounting-setup');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, seed, dirty, clientId, engagementId, periodId, onRegisterUnsavedForm]);
   return <form className="panel panel-pad stack" onSubmit={save}>
     <div className="between"><div><h3>Client accounting context</h3><p className="sub">Profile Rev {seed.revision} · Chart Rev {seed.chartRevision} · Changes are versioned.</p></div><button className="btn primary sm" type="submit">Save Accounting Setup</button></div>
     {notice && <p role="status" className="tag blue">{notice}</p>}
@@ -34,9 +60,10 @@ const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profil
 
 interface AccountingWorkbenchViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate }) => {
+export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'tb' | 'gl' | 'mappings' | 'adjustments' | 'reconciliations' | 'setup'>('tb');
   const [reflectionEvidenceDrafts, setReflectionEvidenceDrafts] = useState<Record<string, string>>({});
@@ -51,25 +78,6 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [glNotice, setGLNotice] = useState('');
   const [glAccountFilter, setGLAccountFilter] = useState('');
   const [glJournalFilter, setGLJournalFilter] = useState('');
-
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const client = state.clients.find(c => c.id === selectedEng?.client);
-
-  if (!selectedEng) {
-    return (
-      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
-        <Icon name="calculator" size="xl" className="text-muted mb16" />
-        <h3>No Active Engagement Selected</h3>
-        <p className="sub max-w-md mx-auto mt8">
-          Select or create an engagement to work with trial balances, GL transactions, adjustments, and reconciliations.
-        </p>
-        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
-          Go to Engagements
-        </button>
-      </div>
-    );
-  }
-
   // TB State
   const [editRowCode, setEditRowCode] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState<number>(0);
@@ -89,6 +97,64 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [adjCreditAccount, setAdjCreditAccount] = useState('2100');
   const [adjAmount, setAdjAmount] = useState(35000);
   const [adjRationale, setAdjRationale] = useState('Record unbilled professional audit and consulting fees.');
+
+  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const client = state.clients.find(c => c.id === selectedEng?.client);
+
+  // VP-003: reconciliation schedules, TB balance edits and reflection-evidence drafts
+  // are inline edit surfaces; register them so context changes cannot silently drop them.
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Accounting workbench',
+      isDirty: () => recDraft !== null || editRowCode !== null || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
+      save: () => {
+        try {
+          const snapshot = prototypeStore.getSnapshot();
+          const eng = snapshot.engagements.find(item => item.id === snapshot.selectedEngagement) || snapshot.engagements[0];
+          if (!eng) return false;
+          if (editRowCode !== null) {
+            prototypeStore.updateTrialBalanceRows(eng.id, eng.rows.map(r => r.code === editRowCode ? { ...r, balance: editBalance } : r));
+            setEditRowCode(null);
+          }
+          for (const [adjId, value] of Object.entries(reflectionEvidenceDrafts)) {
+            if (value.trim() === '') continue;
+            const adj = snapshot.adjustmentJournals.find(item => item.id === adjId);
+            if (adj) prototypeStore.updateAdjustmentJournal({ ...adj, reflectionEvidenceRef: value.trim(), reflectionSourceVersion: eng.sourceVersion });
+          }
+          if (recDraft) {
+            prototypeStore.saveReconciliationSchedule(eng.id, recDraft);
+            setRecDraft(null);
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      discard: () => {
+        setRecDraft(null);
+        setEditRowCode(null);
+        setReflectionEvidenceDrafts({});
+      },
+    };
+    onRegisterUnsavedForm(guard, 'accounting-workbench');
+    return () => onRegisterUnsavedForm(null, 'accounting-workbench');
+  }, [recDraft, editRowCode, editBalance, reflectionEvidenceDrafts, onRegisterUnsavedForm]);
+
+  if (!selectedEng) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="calculator" size="xl" className="text-muted mb16" />
+        <h3>No Active Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Select or create an engagement to work with trial balances, GL transactions, adjustments, and reconciliations.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
 
   const tbTotals = calculateTrialBalanceTotals(selectedEng.rows);
   const glSource = selectedEng.glSourceHistory?.at(-1);
@@ -150,6 +216,13 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const handleReflectionEvidenceSave = (adj: AdjustmentJournalItem, evidenceRef: string) => {
     try {
       prototypeStore.updateAdjustmentJournal({ ...adj, reflectionEvidenceRef: evidenceRef.trim(), reflectionSourceVersion: selectedEng.sourceVersion });
+      // The staged draft is committed; clear it so the unsaved-form guard no longer
+      // treats the saved evidence reference as pending work.
+      setReflectionEvidenceDrafts(current => {
+        const next = { ...current };
+        delete next[adj.id];
+        return next;
+      });
       setAdjustmentNotice('Reflection evidence reference saved.');
     } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : 'Reflection evidence could not be saved.'); }
   };
@@ -190,12 +263,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         <button className={`tab-btn ${activeTab === 'setup' ? 'active' : ''}`} onClick={() => setActiveTab('setup')}>Accounting Setup</button>
       </div>
 
-      {activeTab === 'setup' && <AccountingSetup key={`${client?.id}-${selectedEng.id}`} clientId={selectedEng.client} engagementId={selectedEng.id} profile={client?.accountingProfile} />}
+      {activeTab === 'setup' && <AccountingSetup key={`${client?.id}-${selectedEng.id}`} clientId={selectedEng.client} engagementId={selectedEng.id} profile={client?.accountingProfile} onRegisterUnsavedForm={onRegisterUnsavedForm} />}
 
       {/* Tab 1: Trial Balance */}
       {activeTab === 'tb' && (
         <div className="stack" style={{ gap: 16 }}>
-          <TBImportWizard engagementId={selectedEng.id} onCommitted={() => undefined} />
+          <TBImportWizard engagementId={selectedEng.id} onCommitted={() => undefined} onRegisterUnsavedForm={onRegisterUnsavedForm} />
           {/* Status banner */}
           <div className="panel panel-pad" style={{ background: tbTotals.isBalanced ? '#f0fdf4' : '#fef2f2' }}>
             <div className="between">

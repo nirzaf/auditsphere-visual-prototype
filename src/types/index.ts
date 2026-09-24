@@ -103,6 +103,7 @@ export type RouteKey =
   | 'portal'
   | 'services'
   | 'role-guide'
+  | 'module-guide'
   | 'requirements';
 
 // Module 02: Clients & CRM
