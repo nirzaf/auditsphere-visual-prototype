@@ -577,3 +577,11 @@ the new revision and verifies planning is restored. `npm run lint` passed,
 `npm run test:unit` passed 145/145, and the complete E2E suite passed 63/63
 (five static checks and 58 Chrome journeys). VP-049 remains Partial for broader
 risk combinations. The bundle-size advisory (>500 kB) remains.
+
+The VP-049 risk-plan rework acceptance update in `c275f5c` is deployed to the
+existing Production Pages project. `https://a5c09022.steaudit-prototype.pages.dev`
+and `https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-OaRUoh_2.js` (2,231,684 bytes; SHA-256
+`c006e53c5b958f595219e22b915b89a8c9bd5af2a50f347fc1bb4259664a8dda`), matching
+the local build. Wrangler reports deployment `a5c09022` on branch `production`,
+source `c275f5c`.
