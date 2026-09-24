@@ -2090,6 +2090,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setRole('reviewer');
     await clickButton('Review independently');
     await setRole('manager');
+    await clickButton('Add disclosure');
+    await browserTab!.evaluate(`(() => {const cards=[...document.querySelectorAll('.borderbox.panel-pad')].filter(card=>card.querySelector('[aria-label="Disclosure title"]'));const card=cards.at(-1);const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const title=card.querySelector('[aria-label="Disclosure title"]');set.call(title,'Internal reviewer follow-up');title.dispatchEvent(new Event('input',{bubbles:true}));const text=card.querySelector('[aria-label="Internal reviewer follow-up disclosure text"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(text,'PRIVATE_SCOPE_SENTINEL_DO_NOT_SHARE');text.dispatchEvent(new Event('input',{bubbles:true}));const evidence=card.querySelector('[aria-label="Evidence document ID"]');set.call(evidence,'DOC-AT53');evidence.dispatchEvent(new Event('input',{bubbles:true}));card.querySelector('button').click();})()`);
+    await setRole('reviewer');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.borderbox.panel-pad')].find(item=>item.querySelector('[aria-label="Disclosure title"]')?.value==='Internal reviewer follow-up');const button=[...card.querySelectorAll('button')].find(item=>item.innerText==='Review independently');if(!button)throw Error('Private disclosure independent review action missing');button.click();})()`);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Internal reviewer follow-up · v1 · Reviewed")'), true, 'private disclosure requires and receives independent review');
+    await setRole('manager');
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.innerText.includes('Statement of Comprehensive Income'));row.querySelector('button').click();})()`);
     assert.equal(await waitForBrowser(`(() => {const rows=[...document.querySelectorAll('tbody tr')];return rows.findIndex(row=>row.innerText.includes('Statement of Comprehensive Income'))<rows.findIndex(row=>row.innerText.includes('Statement of Financial Position'));})()`), true, 'React applies the selected section reordering');
     const packageSections = await browserTab!.evaluate<any>(`(() => {
@@ -2130,7 +2136,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const files = await Promise.all(pack.artifacts.map(async a => {
         const blob = await new Promise((resolve, reject) => { const r = db.transaction('artifacts').objectStore('artifacts').get(a.id); r.onsuccess = () => resolve(r.result?.blob); r.onerror = () => reject(r.error); });
         const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(x => x.toString(16).padStart(2, '0')).join('');
-        return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256 };
+        return { kind: a.kind, size: blob.size, mime: blob.type, sha256: digest, expected: a.sha256, text: a.kind === 'PDF' ? await blob.text() : undefined };
       }));
       db.close();
       return { revision: pack.revision, generation: pack.generation, sourceVersion: pack.sourceVersion, mappingRevision: pack.mappingRevision, validation: pack.validation.passed, disclosures: pack.disclosures, sections:pack.sections.map(({id,enabled,order})=>({id,enabled,order})), files };
@@ -2138,9 +2144,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(persisted.revision, 2);
     assert.equal(persisted.mappingRevision, 1, 'mapping revision remains independent of source version 1');
     assert.equal(persisted.validation, true);
-    assert.equal(persisted.disclosures.length, 1);
-    assert.equal(persisted.disclosures[0].status, 'Reviewed');
-    assert.equal(persisted.disclosures[0].sharedWithClient, true);
+    assert.equal(persisted.disclosures.length, 2);
+    assert.ok(persisted.disclosures.every((item: any) => item.status === 'Reviewed'));
+    assert.equal(persisted.disclosures.find((item: any) => item.title === 'Significant accounting policies').sharedWithClient, true);
+    assert.equal(persisted.disclosures.find((item: any) => item.title === 'Internal reviewer follow-up').sharedWithClient, false);
+    const pdfText = persisted.files.find((file: any) => file.kind === 'PDF').text;
+    assert.ok(pdfText.includes('E2E fixture: applicable disclosure note.'), 'explicitly shared note text is present in the client artifact');
+    assert.ok(!pdfText.includes('PRIVATE_SCOPE_SENTINEL_DO_NOT_SHARE'), 'private note text is absent from the client artifact');
     assert.ok(persisted.sections.find((section:any)=>section.id==='pnl').order < persisted.sections.find((section:any)=>section.id==='bs').order);
     assert.equal(persisted.sections.find((section:any)=>section.id==='cf').enabled, false, 'unsupported cash-flow content is excluded from the artifact revision');
     assert.deepEqual(persisted.files.map((f: any) => f.kind).sort(), ['DOCX', 'PDF', 'XLSX']);

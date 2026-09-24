@@ -1658,6 +1658,10 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
   it('persists per-note disclosure drafts and requires independent review plus scoped evidence', () => {
     (prototypeStore as any).state = state;
     const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const priorGeneration = engagement.generation;
+    engagement.packageHistory = [{ revision: 1, generation: priorGeneration }] as any;
+    engagement.candidate = { id: 'old-candidate' } as any;
+    engagement.approvals.manager = { by: 'Manager', byUserId: 'manager', at: '2026-09-20', generation: priorGeneration };
     prototypeStore.setPersona('preparer');
     const input = { id: 'DISC-01', title: 'Significant accounting policies', applicability: 'Applicable' as const, text: 'Revenue is recognized when control transfers.', evidenceRef: 'DOC-002', sharedWithClient: true };
     assert.throws(() => prototypeStore.saveDisclosureReview(engagement.id, { ...input, evidenceRef: undefined }), /content with evidence/);
@@ -1668,6 +1672,10 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)?.disclosureHistory?.[0];
     assert.equal(saved?.status, 'Reviewed');
     assert.notEqual(saved?.preparedByUserId, saved?.reviewedByUserId);
+    assert.equal(engagement.generation, priorGeneration + 2, 'saving and independently reviewing disclosure revisions each stale the prior package generation');
+    assert.equal(engagement.packageHistory[0].generation, priorGeneration, 'prior package snapshot remains immutable and historical');
+    assert.equal(engagement.candidate, null, 'disclosure changes invalidate a frozen release candidate');
+    assert.equal(engagement.approvals.manager, null, 'disclosure changes clear generation-bound approval');
     prototypeStore.setPersona('preparer');
     assert.equal(prototypeStore.saveDisclosureReview(engagement.id, { ...input, evidenceRef: 'DOC-MISSING' }), 2);
     prototypeStore.setPersona('partner');
