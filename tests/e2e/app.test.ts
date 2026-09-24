@@ -499,6 +499,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-15/AT-16: saves a per-capability M365 simulation and retains it on reload', async () => {
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'local business work is available before setup');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'skipping M365 setup leaves fixture jobs usable');
     await clickButton('Microsoft 365 Setup');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Microsoft 365 Setup (Simulated)")'), true);
     const clicked = await browserTab!.evaluate<boolean>(`(() => {
@@ -551,6 +554,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const failures = await browserTab!.evaluate<any>(`(() => { const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return {site:c.verificationResults.sharepoint.outcome,mail:c.verificationResults.mail.outcome}; })()`);
     assert.equal(failures.site, 'access-denied', 'optional mail failure must not overwrite SharePoint state');
     assert.equal(failures.mail, 'unavailable');
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'failed provider simulations do not block local business work');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'fixture jobs remain available while M365 services fail');
+    await clickButton('Microsoft 365 Setup');
     await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'success'`), true);
     await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
