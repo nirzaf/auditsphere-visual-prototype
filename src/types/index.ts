@@ -948,11 +948,12 @@ export interface ConsolidationPerimeterHistoryEntry {
 }
 
 export interface ConsolidationEliminationReviewEntry {
-  status: 'Draft' | 'Approved';
+  status: 'Approved' | 'Returned';
   changedBy: string;
   changedAt: string;
   perimeterRevision: number;
   note: string;
+  evidenceRef?: string;
 }
 
 export interface ConsolidationGroupRecord {
@@ -991,12 +992,18 @@ export interface ConsolidationGroupRecord {
     counterpartyB: string;
     amount: number;
     currency: string;
-    status: 'Draft' | 'Approved';
+    status: 'Draft' | 'Approved' | 'Returned';
     explanation: string;
     description?: string;
     debitAccount?: string;
     creditAccount?: string;
+    preparedByUserId?: string;
+    evidenceRef?: string;
+    revision?: number;
     approvedPerimeterRevision?: number;
+    approvedComponentPins?: Array<{ componentId: string; packageRevision: number; sourceVersion: number }>;
+    approvedFxRates?: Record<string, { rate: number; revision: number }>;
+    approvalEvidenceRef?: string;
     reviewHistory?: ConsolidationEliminationReviewEntry[];
     lines: Array<{ account: string; type: 'debit' | 'credit'; amount: number }>;
   }>;

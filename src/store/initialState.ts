@@ -958,7 +958,17 @@ export function createInitialState(): PrototypeState {
             amount: 50000,
             currency: 'QAR',
             status: 'Approved',
+            revision: 1,
+            preparedByUserId: 'manager',
             explanation: 'Eliminate management service receivable and payable balance.',
+            evidenceRef: 'SYNTHETIC-INTERCOMPANY-RECON-01',
+            approvedPerimeterRevision: 1,
+            approvedComponentPins: [
+              { componentId: 'ENG-26001', packageRevision: 3, sourceVersion: 1 },
+              { componentId: 'ENG-26002', packageRevision: 1, sourceVersion: 1 }
+            ],
+            approvedFxRates: { QAR: { rate: 1, revision: 0 } },
+            approvalEvidenceRef: 'SYNTHETIC-GROUP-ELIM-REVIEW-01',
             lines: [
               { account: 'Trade and other payables', type: 'debit', amount: 50000 },
               { account: 'Trade and other receivables', type: 'credit', amount: 50000 }

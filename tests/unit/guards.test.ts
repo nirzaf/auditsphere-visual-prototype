@@ -1426,15 +1426,18 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     subClient.accountingProfile.reportingBasis = 'Local GAAP';
     assert.throws(() => prototypeStore.updateConsolidationGroup(structuredClone(group), { reason: 'reject mixed reporting bases' }), /incompatible or unselected reporting basis\/period book/);
     subClient.accountingProfile.reportingBasis = priorBasis;
+    const tamperedElimination = structuredClone(prototypeStore.getSnapshot().consolidationGroups[0]);
+    tamperedElimination.eliminations[0].amount = 1;
+    assert.throws(() => prototypeStore.updateConsolidationGroup(tamperedElimination, { reason: 'attempt direct journal mutation' }), /guarded draft and independent-review actions/);
     const pendingReview = structuredClone(group);
     pendingReview.components[1].status = 'Pending';
     delete pendingReview.components[1].packageReview;
     prototypeStore.updateConsolidationGroup(pendingReview, { reason: 'hold pending package review' });
     assert.equal(prototypeStore.getSnapshot().consolidationGroups[0].components[1].status, 'Pending', 'a pending package may be pinned but cannot claim a review');
-    const mismatchedSnapshot = structuredClone(group);
+    const mismatchedSnapshot = structuredClone(prototypeStore.getSnapshot().consolidationGroups[0]);
     mismatchedSnapshot.components[1].packageRows[0].balance += 1;
     assert.throws(() => prototypeStore.updateConsolidationGroup(mismatchedSnapshot), /retain its pinned snapshot or pin the exact current/);
-    const newGroup = structuredClone(group);
+    const newGroup = structuredClone(prototypeStore.getSnapshot().consolidationGroups[0]);
     newGroup.id = 'GRP-02';
     newGroup.name = 'Second supported group';
     prototypeStore.updateConsolidationGroup(newGroup);
@@ -1487,7 +1490,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(current().perimeterRevision, 2);
     assert.equal(current().perimeterHistory?.length, 1);
     assert.equal(current().perimeterHistory?.[0].reason, 'Record component effective dates');
-    assert.equal(current().eliminations[0].status, 'Approved', 'date-only edits keep elimination approval');
+    assert.equal(current().eliminations[0].status, 'Draft', 'every perimeter revision requires elimination re-review');
+    assert.equal(current().eliminations[0].reviewHistory?.length, 1);
     const swapped = structuredClone(current());
     swapped.components[1] = {
       componentId: 'ENG-26004', role: 'Subsidiary', legalEntityName: 'Northstar Services (Subsidiary)',
@@ -1499,8 +1503,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(current().components[1].componentId, 'ENG-26004');
     assert.equal(current().eliminations[0].status, 'Draft', 'component replacement returns approval to draft');
     assert.equal(current().eliminations[0].reviewHistory?.length, 1);
-    assert.equal(current().eliminations[0].reviewHistory?.[0].status, 'Approved');
-    assert.match(current().eliminations[0].reviewHistory?.[0].note || '', /returned to draft/);
+    assert.equal(current().eliminations[0].reviewHistory?.[0].status, 'Returned');
+    assert.match(current().eliminations[0].reviewHistory?.[0].note || '', /requires independent re-review/);
     assert.equal(current().eliminations[0].amount, 50000, 'journal content is preserved through staling');
     assert.equal(current().eliminations[0].lines.length, 2);
     prototypeStore.revertConsolidationPerimeter('GRP-01', 2, 'Subsidiary correction was premature');
@@ -1509,6 +1513,40 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(current().components[1].effectiveDate, '2026-03-15', 'revert restores the recorded revision content');
     assert.throws(() => prototypeStore.revertConsolidationPerimeter('GRP-01', 9, 'No such revision'), /no recorded history/);
     assert.deepEqual(state.engagements.map((e: any) => ({ id: e.id, rows: e.rows })), sourceBefore, 'perimeter work never mutates engagement trial balances');
+  });
+
+  it('validates, independently reviews, and stales group elimination journals', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    const group = state.consolidationGroups[0];
+    const debit = group.components[0].packageRows.find((row: any) => row.type === 'liability');
+    const credit = group.components[1].packageRows.find((row: any) => row.type === 'asset');
+    const draft = { id: '', title: 'Intercompany receivable elimination', counterpartyA: group.components[0].componentId, counterpartyB: group.components[1].componentId, amount: 100, currency: group.currency, status: 'Draft', explanation: 'Reconcile reciprocal balances.', evidenceRef: 'IC-REC-01', debitAccount: debit.code, creditAccount: credit.code, lines: [{ account: debit.code, type: 'debit', amount: 100 }, { account: credit.code, type: 'credit', amount: 100 }] };
+    assert.throws(() => prototypeStore.saveConsolidationElimination(group.id, { ...draft, lines: [{ ...draft.lines[0], amount: 90 }, draft.lines[1]] } as any, 'unbalanced draft'), /must balance/);
+    assert.throws(() => prototypeStore.saveConsolidationElimination(group.id, { ...draft, amount: 0.001, lines: [{ ...draft.lines[0], amount: 0.001 }, { ...draft.lines[1], amount: 0.001 }] } as any, 'fractional cent'), /positive cent amount/);
+    assert.throws(() => prototypeStore.saveConsolidationElimination(group.id, { ...draft, lines: [{ ...draft.lines[0], account: 'UNMAPPED' }, draft.lines[1]] } as any, 'unmapped account'), /match an account/);
+    const id = prototypeStore.saveConsolidationElimination(group.id, draft as any, 'Create supported group-only journal');
+    const saved = group.eliminations.find((item: any) => item.id === id);
+    assert.equal(saved.status, 'Draft');
+    assert.equal(saved.revision, 1);
+    assert.throws(() => prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', 'Looks good', 'IC-REVIEW-01'), /cannot review their own/);
+    prototypeStore.setPersona('reviewer');
+    assert.throws(() => prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', '', 'IC-REVIEW-01'), /rationale and evidence/);
+    prototypeStore.reviewConsolidationElimination(group.id, id, 'Approved', 'Reciprocal balances agree to the component package pins.', 'IC-REVIEW-01');
+    assert.equal(saved.status, 'Approved');
+    assert.equal(saved.approvedPerimeterRevision, 1);
+    assert.equal(saved.approvedComponentPins.length, 2);
+    assert.equal(saved.approvalEvidenceRef, 'IC-REVIEW-01');
+    setPersona(state, 'Layla Rahman');
+    const changedPerimeter = structuredClone(group);
+    changedPerimeter.components[0].effectiveDate = '2026-01-01';
+    prototypeStore.updateConsolidationGroup(changedPerimeter, { reason: 'Change effective date' });
+    const stale = state.consolidationGroups[0].eliminations.find((item: any) => item.id === id);
+    assert.equal(stale.status, 'Draft');
+    assert.equal(stale.amount, 100);
+    assert.equal(stale.reviewHistory.at(-1).status, 'Returned');
+    assert.equal(stale.approvalEvidenceRef, undefined);
   });
 
   it('rejects consolidation perimeter edits outside manager/partner authority', async () => {

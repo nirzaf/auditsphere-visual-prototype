@@ -2675,6 +2675,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.evaluate(`(() => {const e=document.querySelector('[aria-label="FX closing rate"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'3.64');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Save closing rate');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].fxRateHistory.USD[0].rate===3.64`), true);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations[0].status==='Draft'`), true, 'a new FX rate revision invalidates the prior elimination approval');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Consolidated Balance Sheet Grid")'), true, 'valid rate unblocks the calculation');
       await clickButton('Currency Translation (FX)');
       const text = await browserTab!.evaluate<string>('document.body.innerText');
@@ -2836,7 +2837,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await setEditorInput('Reason for perimeter change', 'Record component effective dates');
       await clickButton('Save perimeter revision');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 2 saved")'), true);
-      assert.deepEqual(await perimeterState(), { rev: 2, history: 1, subsidiary: 'ENG-26002', subDate: '2026-03-15', elim: 'Approved', elimHistory: 0, elimAmount: 50000 }, 'date-only edits keep elimination approval');
+      assert.deepEqual(await perimeterState(), { rev: 2, history: 1, subsidiary: 'ENG-26002', subDate: '2026-03-15', elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'every perimeter edit returns dependent approval for review');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /2026-01-01/);
       await setEditorSelect('Subsidiary component engagement', 'ENG-26001');
       await setEditorInput('Reason for perimeter change', 'Duplicate attempt');
@@ -2847,7 +2848,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await setEditorInput('Reason for perimeter change', 'Correct subsidiary to the in-scope 2026 engagement');
       await clickButton('Save perimeter revision');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 3 saved")'), true);
-      assert.deepEqual(await perimeterState(), { rev: 3, history: 2, subsidiary: 'ENG-26004', subDate: null, elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'component replacement returns approval to draft with journal preserved');
+      assert.deepEqual(await perimeterState(), { rev: 3, history: 2, subsidiary: 'ENG-26004', subDate: null, elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'component replacement keeps the dependent approval stale with journal preserved');
       await clickButton('Intercompany Eliminations (1)');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Re-review required")'), true);
       await clickButton('Group Perimeter & Pinned Packages (2)');
@@ -2856,6 +2857,74 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('document.body.innerText.includes("Perimeter revision 4 saved")'), true);
       assert.deepEqual(await perimeterState(), { rev: 4, history: 3, subsidiary: 'ENG-26002', subDate: '2026-03-15', elim: 'Draft', elimHistory: 1, elimAmount: 50000 }, 'revert restores the recorded revision content');
       assert.equal(await browserTab!.evaluate<string>(`JSON.stringify(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.filter(e=>['ENG-26001','ENG-26002','ENG-26004'].includes(e.id)).map(e=>({id:e.id,rows:e.rows})))`), sourceBefore, 'perimeter work never mutates engagement trial balances');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-45: creates, returns and independently approves a balanced group elimination', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Accounting Workbench');
+      await clickButton('Group Consolidation');
+      await clickButtonStartingWith('Intercompany Eliminations');
+      const sourceBefore = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.filter(e=>['ENG-26001','ENG-26002'].includes(e.id)).map(e=>({id:e.id,rows:e.rows}))`);
+      await browserTab!.evaluate(`(() => {
+        const set=(label,value,kind='input')=>{const e=document.querySelector('[aria-label="'+label+'"]');if(!e)throw Error('Missing '+label);const proto=e instanceof HTMLSelectElement?HTMLSelectElement.prototype:e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new Event(kind,{bubbles:true}));};
+        const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));
+        const group=state.consolidationGroups[0];
+        const rows=group.components.flatMap(c=>c.packageRows||[]);
+        set('Elimination title','AT-45 receivable/payable elimination');
+        set('Elimination amount','125');
+        set('Elimination debit account',rows.find(r=>r.type==='liability').code,'change');
+        set('Elimination credit account',rows.find(r=>r.type==='asset').code,'change');
+        set('Elimination reason','Eliminate reciprocal intercompany balance once in group output.');
+        set('Elimination evidence reference','AT45-IC-REC-01');
+        set('Elimination save rationale','Create a reviewed group-only journal.');
+      })()`);
+      await clickButton('Save elimination draft');
+      const created = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.at(-1)`);
+      assert.equal(created.status, 'Draft');
+      assert.equal(created.amount, 125);
+      assert.equal(created.lines.reduce((sum,line)=>sum+(line.type==='debit'?line.amount:-line.amount),0), 0);
+      assert.equal(created.evidenceRef, 'AT45-IC-REC-01');
+      const setRole = async (role: string) => browserTab!.evaluate(`(() => {const e=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(role)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const setReviewFields = (note: string, evidence: string) => browserTab!.evaluate(`(() => {const set=(label,value)=>{const e=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));};set('Elimination review rationale ${created.id}',${JSON.stringify(note)});set('Elimination review evidence ${created.id}',${JSON.stringify(evidence)});})()`);
+      await setReviewFields('Amounts need a second-party reconciliation.','AT45-IC-RETURN-01');
+      await clickButton('Approve elimination');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /cannot review their own group elimination/);
+      await setRole('partner');
+      await clickButton('Return for rework');
+      const returned = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
+      assert.equal(returned.status, 'Returned');
+      assert.equal(returned.reviewHistory.at(-1).evidenceRef, 'AT45-IC-RETURN-01');
+      await setRole('manager');
+      await clickButton('Edit draft');
+      await browserTab!.evaluate(`(() => {const set=(label,value)=>{const e=document.querySelector('[aria-label="'+label+'"]');const proto=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));};set('Elimination save rationale','Reconciled reciprocal account detail after reviewer return.');set('Elimination reason','Eliminate the confirmed reciprocal intercompany balance in group output.');})()`);
+      await clickButton('Save elimination revision');
+      const reworked = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
+      assert.equal(reworked.status, 'Draft');
+      assert.equal(reworked.revision, 2);
+      assert.equal(reworked.reviewHistory.length, 1);
+      await setRole('partner');
+      await setReviewFields('Reciprocal balances and account references agree.','AT45-IC-REVIEW-02');
+      await clickButton('Approve elimination');
+      const approved = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
+      assert.equal(approved.status, 'Approved');
+      assert.equal(approved.approvedPerimeterRevision, 1);
+      assert.equal(approved.approvedComponentPins.length, 2);
+      assert.equal(approved.approvalEvidenceRef, 'AT45-IC-REVIEW-02');
+      await clickButton('Consolidated Balance Sheet Grid');
+      const groupOutput = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(groupOutput, /125\.00/,'approved elimination amount appears in the group-only output');
+      assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.filter(e=>['ENG-26001','ENG-26002'].includes(e.id)).map(e=>({id:e.id,rows:e.rows}))`), sourceBefore, 'the group elimination never mutates either component source');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

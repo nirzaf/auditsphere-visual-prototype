@@ -2294,6 +2294,7 @@ class PrototypeStore {
     if (!group.reportingBasis) throw new GuardError('INVALID_STATE', 'Select a supported group reporting basis.');
     const index = this.state.consolidationGroups.findIndex(item => item.id === group.id);
     const existingGroup = this.state.consolidationGroups[index];
+    if (existingGroup && JSON.stringify(group.eliminations) !== JSON.stringify(existingGroup.eliminations)) throw new GuardError('INVALID_STATE', 'Group elimination journals must use the guarded draft and independent-review actions.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
@@ -2314,21 +2315,20 @@ class PrototypeStore {
     if (index >= 0) {
       const reason = options?.reason?.trim() || '';
       if (!reason) throw new GuardError('INVALID_STATE', 'Record a reason for the perimeter change.');
-      const priorKey = existingGroup.components.map(c => c.componentId).sort().join('|');
-      const nextKey = group.components.map(c => c.componentId).sort().join('|');
-      const componentSetChanged = priorKey !== nextKey;
       const nextRevision = (existingGroup.perimeterRevision || 1) + 1;
       group.perimeterRevision = nextRevision;
       group.perimeterHistory = [
         ...(existingGroup.perimeterHistory || []),
         { revision: nextRevision, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), reason, components: structuredClone(group.components) },
       ];
-      if (componentSetChanged) {
-        for (const elimination of group.eliminations) {
-          if (elimination.status === 'Approved') {
-            elimination.reviewHistory = [...(elimination.reviewHistory || []), { status: 'Approved' as const, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: existingGroup.perimeterRevision || 1, note: `Approved under perimeter revision ${existingGroup.perimeterRevision || 1}; returned to draft after the component set changed.` }];
-            elimination.status = 'Draft';
-          }
+      for (const elimination of group.eliminations) {
+        if (elimination.status === 'Approved') {
+          elimination.reviewHistory = [...(elimination.reviewHistory || []), { status: 'Returned' as const, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: existingGroup.perimeterRevision || 1, note: `Approval was bound to perimeter revision ${existingGroup.perimeterRevision || 1}; perimeter revision ${nextRevision} requires independent re-review.`, evidenceRef: 'System staleness event' }];
+          elimination.status = 'Draft';
+          delete elimination.approvedPerimeterRevision;
+          delete elimination.approvedComponentPins;
+          delete elimination.approvedFxRates;
+          delete elimination.approvalEvidenceRef;
         }
       }
       this.state.consolidationGroups[index] = group;
@@ -2353,6 +2353,99 @@ class PrototypeStore {
     this.updateConsolidationGroup(candidate, { reason: reason.trim() });
   }
 
+  public saveConsolidationElimination(groupId: string, input: ConsolidationGroupRecord['eliminations'][number], reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'prepare group elimination journals');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    if (!group || !reason.trim()) throw new GuardError('INVALID_STATE', 'Choose a group and record why this elimination is being saved.');
+    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    const components = group.components;
+    if (input.counterpartyA === input.counterpartyB || !components.some(component => component.componentId === input.counterpartyA) || !components.some(component => component.componentId === input.counterpartyB)) throw new GuardError('INVALID_STATE', 'Choose the two distinct component entities as counterparties.');
+    const currency = group.presentationCurrency || group.currency;
+    if (input.currency !== currency || !isValidMoney(input.amount) || !input.title.trim() || !input.explanation.trim() || !input.evidenceRef?.trim() || input.evidenceRef.trim().length > 160) throw new GuardError('INVALID_STATE', 'A group-currency elimination requires a title, positive cent amount, rationale and evidence reference of at most 160 characters.');
+    if (!input.lines.length || input.lines.some(line => !line.account.trim() || !isValidMoney(line.amount))) throw new GuardError('INVALID_STATE', 'Every elimination journal line requires an account and positive amount in cents.');
+    const debits = input.lines.filter(line => line.type === 'debit').reduce((sum, line) => sum + line.amount, 0);
+    const credits = input.lines.filter(line => line.type === 'credit').reduce((sum, line) => sum + line.amount, 0);
+    if (!debits || !credits || Math.abs(debits - credits) > 0.005 || Math.abs(debits - input.amount) > 0.005) throw new GuardError('INVALID_STATE', 'Elimination debit and credit lines must balance and equal the stated amount.');
+    const availableAccounts = new Set(components.flatMap(component => component.packageRows || []).flatMap(row => [row.code.trim().toLowerCase(), row.name.trim().toLowerCase()]));
+    if (input.lines.some(line => !availableAccounts.has(line.account.trim().toLowerCase()))) throw new GuardError('INVALID_STATE', 'Every elimination account must match an account in a pinned component package.');
+    const index = group.eliminations.findIndex(item => item.id === input.id);
+    const current = group.eliminations[index];
+    if (current?.status === 'Approved') throw new GuardError('INVALID_STATE', 'Approved elimination content is immutable; create a new revision after a reasoned return.');
+    if (current && current.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can amend this elimination draft.');
+    const revision = (current?.revision || 0) + 1;
+    if (current && current.status === 'Returned') {
+      current.reviewHistory ||= [];
+    }
+    const saved = {
+      ...structuredClone(input),
+      id: current?.id || `ELIM-${group.id}-${String(group.eliminations.length + 1).padStart(3, '0')}`,
+      status: 'Draft' as const,
+      currency,
+      revision,
+      preparedByUserId: current?.preparedByUserId || this.state.currentUserId,
+      evidenceRef: input.evidenceRef.trim(),
+      reviewHistory: current?.reviewHistory || [],
+      approvedPerimeterRevision: undefined,
+      approvedComponentPins: undefined,
+      approvedFxRates: undefined,
+      approvalEvidenceRef: undefined,
+      lines: structuredClone(input.lines)
+    };
+    if (current) group.eliminations[index] = saved;
+    else group.eliminations.push(saved);
+    group.status = 'In progress';
+    this.logEvent(`Group elimination ${saved.id} revision ${revision} saved by ${this.state.currentPerson}: ${reason.trim()}`, group.id, 'history');
+    this.notify();
+    return saved.id;
+  }
+
+  public reviewConsolidationElimination(groupId: string, eliminationId: string, decision: 'Approved' | 'Returned', note: string, evidenceRef: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner', 'reviewer'], 'review group elimination journals');
+    const group = this.state.consolidationGroups.find(item => item.id === groupId);
+    const elimination = group?.eliminations.find(item => item.id === eliminationId);
+    if (!group || !elimination || elimination.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a saved draft group elimination can be reviewed.');
+    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    if (!note.trim() || !evidenceRef.trim() || evidenceRef.trim().length > 160) throw new GuardError('INVALID_STATE', 'Record the review rationale and evidence reference (160 characters or fewer).');
+    if (!elimination.preparedByUserId) throw new GuardError('INVALID_STATE', 'The elimination draft has no recorded preparer.');
+    requireIndependentActor(elimination.preparedByUserId, this.state.currentUserId, 'review their own group elimination', this.state);
+    if (decision === 'Approved') for (const component of group.components) {
+      const engagement = this.state.engagements.find(item => item.id === component.componentId);
+      const client = this.state.clients.find(item => item.id === engagement?.client);
+      const review = component.packageReview;
+      if (!engagement || component.status !== 'Ready' || component.packageRevisionPinned !== engagement.packageRevision || JSON.stringify(component.packageRows) !== JSON.stringify(engagement.rows) || !review || review.sourceVersion !== engagement.sourceVersion || review.reportingBasis !== group.reportingBasis || review.period !== group.period || !review.evidenceRef.trim()) throw new GuardError('STALE_REVISION', `Current reviewed package pins are required before approving group elimination ${elimination.id}.`);
+      if (client?.accountingProfile?.reportingBasis !== group.reportingBasis) throw new GuardError('STALE_REVISION', `Component ${component.componentId} has an incompatible reporting basis.`);
+      const rate = component.currency === (group.presentationCurrency || group.currency) ? 1 : group.fxRates[component.currency];
+      if (!Number.isFinite(rate) || rate <= 0) throw new GuardError('STALE_REVISION', `A current closing rate is required for ${component.currency}.`);
+    }
+    elimination.reviewHistory ||= [];
+    elimination.reviewHistory.push({ status: decision, changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: group.perimeterRevision || 1, note: note.trim(), evidenceRef: evidenceRef.trim() });
+    if (decision === 'Returned') {
+      elimination.status = 'Returned';
+      delete elimination.approvedPerimeterRevision;
+      delete elimination.approvedComponentPins;
+      delete elimination.approvedFxRates;
+      delete elimination.approvalEvidenceRef;
+    } else {
+      elimination.status = 'Approved';
+      elimination.approvedPerimeterRevision = group.perimeterRevision || 1;
+      elimination.approvedComponentPins = group.components.map(component => ({
+        componentId: component.componentId,
+        packageRevision: component.packageRevisionPinned || 0,
+        sourceVersion: this.state.engagements.find(item => item.id === component.componentId)?.sourceVersion || 0
+      }));
+      elimination.approvedFxRates = Object.fromEntries(group.components.map(component => {
+        const currency = component.currency;
+        const rate = currency === (group.presentationCurrency || group.currency) ? 1 : group.fxRates[currency];
+        return [currency, { rate: rate || 0, revision: group.fxRateHistory?.[currency]?.length || 0 }];
+      }));
+      elimination.approvalEvidenceRef = evidenceRef.trim();
+    }
+    this.logEvent(`Group elimination ${elimination.id} ${decision.toLowerCase()} by ${this.state.currentPerson}: ${note.trim()}`, group.id, 'history');
+    this.notify();
+  }
+
   public updateConsolidationFxRate(groupId: string, currency: string, rate: number, effectiveDate: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'change consolidation exchange rates');
@@ -2367,6 +2460,14 @@ class PrototypeStore {
     const history = group.fxRateHistory[currency] ||= [];
     history.push({ revision: history.length + 1, rate, purpose: 'Closing', effectiveDate, changedBy: this.state.currentPerson, changedAt: new Date().toISOString() });
     group.fxRates[currency] = rate;
+    for (const elimination of group.eliminations) if (elimination.status === 'Approved') {
+      elimination.reviewHistory = [...(elimination.reviewHistory || []), { status: 'Returned', changedBy: this.state.currentPerson, changedAt: new Date().toISOString(), perimeterRevision: group.perimeterRevision || 1, note: `Closing-rate revision ${history.length} for ${currency} changed; independent elimination re-review is required.`, evidenceRef: 'System staleness event' }];
+      elimination.status = 'Draft';
+      delete elimination.approvedPerimeterRevision;
+      delete elimination.approvedComponentPins;
+      delete elimination.approvedFxRates;
+      delete elimination.approvalEvidenceRef;
+    }
     group.status = 'In progress';
     this.logEvent(`Consolidation ${currency} closing rate updated to ${rate} for ${effectiveDate}`, groupId);
     this.notify();

@@ -42,6 +42,62 @@ const FxRateEditor: React.FC<{ group: NonNullable<ReturnType<typeof prototypeSto
 
 type ConsolidationGroup = NonNullable<ReturnType<typeof prototypeStore.getSnapshot>['consolidationGroups'][number]>;
 
+const eliminationApprovalIsCurrent = (group: ConsolidationGroup, elimination: ConsolidationGroup['eliminations'][number], state: ReturnType<typeof prototypeStore.getSnapshot>) => {
+  if (elimination.status !== 'Approved' || elimination.approvedPerimeterRevision !== (group.perimeterRevision || 1) || !elimination.approvalEvidenceRef) return false;
+  return group.components.every(component => {
+    const source = state.engagements.find(item => item.id === component.componentId);
+    const pin = elimination.approvedComponentPins?.find(item => item.componentId === component.componentId);
+    const currency = component.currency;
+    const rate = currency === (group.presentationCurrency || group.currency) ? 1 : group.fxRates[currency];
+    const rateRevision = group.fxRateHistory?.[currency]?.length || 0;
+    const approvedRate = elimination.approvedFxRates?.[currency];
+    return Boolean(source && pin && pin.packageRevision === component.packageRevisionPinned && pin.packageRevision === source.packageRevision && pin.sourceVersion === source.sourceVersion && JSON.stringify(component.packageRows) === JSON.stringify(source.rows) && approvedRate?.rate === rate && approvedRate.revision === rateRevision);
+  });
+};
+
+const EliminationEditor: React.FC<{ group: ConsolidationGroup; state: ReturnType<typeof prototypeStore.getSnapshot> }> = ({ group, state }) => {
+  const [draft, setDraft] = useState({ id: '', title: '', counterpartyA: group.components[0]?.componentId || '', counterpartyB: group.components[1]?.componentId || '', amount: '', debitAccount: '', creditAccount: '', explanation: '', evidenceRef: '', reason: '' });
+  const [reviewNote, setReviewNote] = useState('');
+  const [reviewEvidence, setReviewEvidence] = useState('');
+  const [notice, setNotice] = useState('');
+  const accounts = [...new Map(group.components.flatMap(component => component.packageRows || []).map(row => [row.code, row])).values()];
+  const edit = (entry: ConsolidationGroup['eliminations'][number]) => setDraft({ id: entry.id, title: entry.title, counterpartyA: entry.counterpartyA, counterpartyB: entry.counterpartyB, amount: String(entry.amount), debitAccount: entry.lines.find(line => line.type === 'debit')?.account || '', creditAccount: entry.lines.find(line => line.type === 'credit')?.account || '', explanation: entry.explanation, evidenceRef: entry.evidenceRef || '', reason: '' });
+  return <div className="borderbox panel-pad mt12">
+    <h4>Manual elimination journal</h4>
+    <p className="caption">Draft a group-only adjustment between the selected entities. It affects the group calculation only after an independent review bound to the current component pins and closing rates.</p>
+    <form className="mt8" onSubmit={event => {
+      event.preventDefault();
+      try {
+        const amount = Number(draft.amount);
+        const id = prototypeStore.saveConsolidationElimination(group.id, { id: draft.id, title: draft.title, counterpartyA: draft.counterpartyA, counterpartyB: draft.counterpartyB, amount, currency: group.presentationCurrency || group.currency, status: 'Draft', explanation: draft.explanation, evidenceRef: draft.evidenceRef, debitAccount: draft.debitAccount, creditAccount: draft.creditAccount, lines: [{ account: draft.debitAccount, type: 'debit', amount }, { account: draft.creditAccount, type: 'credit', amount }] }, draft.reason);
+        setNotice(`Saved ${id} as a draft.`);
+        setDraft({ id: '', title: '', counterpartyA: group.components[0]?.componentId || '', counterpartyB: group.components[1]?.componentId || '', amount: '', debitAccount: '', creditAccount: '', explanation: '', evidenceRef: '', reason: '' });
+      } catch (error: any) { setNotice(error.message); }
+    }}>
+      <div className="grid2">
+        <label className="caption">Journal title<input className="input mt4" aria-label="Elimination title" value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} required /></label>
+        <label className="caption">Amount ({group.presentationCurrency || group.currency})<input className="input mt4" aria-label="Elimination amount" type="number" min="0.01" step="0.01" value={draft.amount} onChange={event => setDraft({ ...draft, amount: event.target.value })} required /></label>
+        <label className="caption">Counterparty A<select className="input mt4" aria-label="Elimination counterparty A" value={draft.counterpartyA} onChange={event => setDraft({ ...draft, counterpartyA: event.target.value })}>{group.components.map(component => <option key={component.componentId} value={component.componentId}>{component.legalEntityName} · {component.componentId}</option>)}</select></label>
+        <label className="caption">Counterparty B<select className="input mt4" aria-label="Elimination counterparty B" value={draft.counterpartyB} onChange={event => setDraft({ ...draft, counterpartyB: event.target.value })}>{group.components.map(component => <option key={component.componentId} value={component.componentId}>{component.legalEntityName} · {component.componentId}</option>)}</select></label>
+        <label className="caption">Debit account<select className="input mt4" aria-label="Elimination debit account" value={draft.debitAccount} onChange={event => setDraft({ ...draft, debitAccount: event.target.value })} required><option value="">Select account</option>{accounts.map(row => <option key={`debit-${row.code}`} value={row.code}>{row.code} · {row.name}</option>)}</select></label>
+        <label className="caption">Credit account<select className="input mt4" aria-label="Elimination credit account" value={draft.creditAccount} onChange={event => setDraft({ ...draft, creditAccount: event.target.value })} required><option value="">Select account</option>{accounts.map(row => <option key={`credit-${row.code}`} value={row.code}>{row.code} · {row.name}</option>)}</select></label>
+        <label className="caption">Reason<textarea className="input mt4" aria-label="Elimination reason" value={draft.explanation} onChange={event => setDraft({ ...draft, explanation: event.target.value })} required /></label>
+        <label className="caption">Supporting evidence reference<input className="input mt4" aria-label="Elimination evidence reference" value={draft.evidenceRef} onChange={event => setDraft({ ...draft, evidenceRef: event.target.value })} required /></label>
+        <label className="caption">Change rationale<input className="input mt4" aria-label="Elimination save rationale" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} required /></label>
+      </div>
+      <button className="btn primary sm mt8" type="submit">{draft.id ? 'Save elimination revision' : 'Save elimination draft'}</button>
+      {notice && <p role="status" className="caption mt8">{notice}</p>}
+    </form>
+    {group.eliminations.filter(entry => entry.status === 'Draft' || entry.status === 'Returned').map(entry => <div className="borderbox panel-pad mt8" key={`review-${entry.id}`}>
+      <div className="between"><b>{entry.id} · revision {entry.revision || 1}</b><button className="btn sm" type="button" onClick={() => edit(entry)}>Edit draft</button></div>
+      <label className="caption mt8">Review rationale<input className="input mt4" aria-label={`Elimination review rationale ${entry.id}`} value={reviewNote} onChange={event => setReviewNote(event.target.value)} /></label>
+      <label className="caption mt8">Review evidence reference<input className="input mt4" aria-label={`Elimination review evidence ${entry.id}`} value={reviewEvidence} onChange={event => setReviewEvidence(event.target.value)} /></label>
+      <div className="row mt8"><button className="btn primary sm" type="button" onClick={() => { try { prototypeStore.reviewConsolidationElimination(group.id, entry.id, 'Approved', reviewNote, reviewEvidence); setNotice(`${entry.id} approved for perimeter revision ${group.perimeterRevision || 1}.`); setReviewNote(''); setReviewEvidence(''); } catch (error: any) { setNotice(error.message); } }}>Approve elimination</button><button className="btn sm" type="button" onClick={() => { try { prototypeStore.reviewConsolidationElimination(group.id, entry.id, 'Returned', reviewNote, reviewEvidence); setNotice(`${entry.id} returned with its review history retained.`); setReviewNote(''); setReviewEvidence(''); } catch (error: any) { setNotice(error.message); } }}>Return for rework</button></div>
+      {entry.reviewHistory?.map((review, index) => <div className="caption mt4" key={`${entry.id}-review-${index}`}>{review.status} by {review.changedBy}: {review.note} · {review.evidenceRef}</div>)}
+    </div>)}
+  </div>;
+};
+
 const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => {
   const snapshot = prototypeStore.getSnapshot();
   const periodYear = Number(group.period.match(/\d{4}/)?.[0]);
@@ -283,7 +339,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   }
 
   const translate = (rows: TrialBalanceRow[], rate: number) => rows.map(row => ({ ...row, balance: Math.round(row.balance * rate * 100) / 100 }));
-  const approvedEliminations = group.eliminations.filter(e => e.status === 'Approved');
+  const staleEliminationApprovals = group.eliminations.filter(e => e.status === 'Approved' && !eliminationApprovalIsCurrent(group, e, state));
+  const approvedEliminations = group.eliminations.filter(e => eliminationApprovalIsCurrent(group, e, state));
   const translatedParent = translate(parentComp!.packageRows!, fxRate(parentComp!));
   const translatedSub = translate(subComp!.packageRows!, fxRate(subComp!));
   const translationCheck = calculateConsolidatedBalanceSheet(translatedParent, translatedSub, []);
@@ -339,6 +396,10 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
           {staleComponents.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
             <b>Stale component package pin</b>
             <div className="sub mt4">{staleComponents.map(component => `${component.role || 'Component'} ${component.componentId}`).join(', ')} has a newer source revision. Figures remain based on the exact pinned snapshot; review the perimeter and pin current component packages before relying on this output.</div>
+          </div>}
+          {staleEliminationApprovals.length > 0 && <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
+            <b>Elimination re-review required</b>
+            <div className="sub mt4">Approved entries {staleEliminationApprovals.map(entry => entry.id).join(', ')} no longer match the current perimeter, pinned component sources or FX rates. Their amounts are excluded until an independent reviewer approves the current revision.</div>
           </div>}
           {unreviewedComponents.length > 0 ? <div role="alert" className="panel panel-pad" style={{ background: '#fffbeb', color: '#92400e' }}>
             <b>Component Package Review Required</b>
@@ -492,15 +553,16 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {activeTab === 'eliminations' && (
         <div className="panel panel-pad">
           <h3>Intercompany Elimination Entries</h3>
+          <EliminationEditor group={group} state={state} />
           <div className="stack mt12" style={{ gap: 10 }}>
             {group.eliminations.map((e: any) => (
               <div key={e.id} className="borderbox" style={{ padding: 12 }}>
                 <div className="between">
                   <b>{e.description || e.title}</b>
-                  <b style={{ color: 'var(--teal-dark)' }}>{formatCurrency(e.amount)}</b>
+                  <b style={{ color: 'var(--teal-dark)' }}>{formatCurrency(e.amount, e.currency)}</b>
                 </div>
                 <div className="cell-sub mt8">
-                  Debit: {e.debitAccount || e.counterpartyA} · Credit: {e.creditAccount || e.counterpartyB} · Status: {e.status}
+                  Debit: {e.debitAccount || e.counterpartyA} · Credit: {e.creditAccount || e.counterpartyB} · Status: {e.status === 'Approved' && !eliminationApprovalIsCurrent(group, e, state) ? 'Approved — re-review required' : e.status} · Evidence: {e.approvalEvidenceRef || e.evidenceRef || 'none'}
                 </div>
                 {e.status === 'Draft' && (e.reviewHistory || []).length > 0 && <div className="caption mt4" style={{ color: '#92400e' }}>
                   Re-review required: {e.reviewHistory[e.reviewHistory.length - 1].note} Prior approval and journal lines are preserved in history.
