@@ -430,3 +430,9 @@ request then served the deployment bundle. Verification before deployment:
 The issued-artifact/version-bound review journey passes; other review queues,
 filters and assignment gaps remain open, so VP-055 and overall acceptance
 remain Partial.
+
+VP-055 filter regression follow-up: `npm run lint` and `npm run test:e2e` passed
+(61/61) after extending AT-55. The browser journey explicitly checks
+that status filtering retains Responded notes, High severity excludes a Low
+note, and clearing the severity filter restores it. Application code and the
+deployed `fffc74d` asset did not change.
