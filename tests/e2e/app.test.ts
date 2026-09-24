@@ -242,6 +242,10 @@ describe('vite build serves locally', () => {
 
   it('AT-03: no external Microsoft/mail/payment/AI egress is baked into markup', async () => {
     const html = await fetch(`${baseUrl}/`).then(r => r.text());
+    const csp = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/i)?.[1];
+    assert.ok(csp, 'the built app must ship a Content Security Policy');
+    assert.match(csp, /(?:^|;\s*)connect-src 'self'(?:;|$)/, 'runtime connections must stay same-origin');
+    assert.match(csp, /(?:^|;\s*)default-src 'self'(?:;|$)/, 'unspecified resource types must stay same-origin');
     const egressHosts = [
       'graph.microsoft.com', 'login.microsoftonline.com', 'outlook.office',
       'api.stripe.com', 'paypal.com', 'openai.com', 'api.anthropic.com'

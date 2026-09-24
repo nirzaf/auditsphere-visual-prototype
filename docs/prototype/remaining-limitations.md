@@ -237,8 +237,10 @@ sources explicitly trace AT-01 through AT-54. See
   retains a baseline for existing archives, and the store links a successor archive
   to its predecessor. Successor-release artifact copying still needs a browser
   journey.
-- **Cross-cutting:** Chrome network observation covers the exercised journeys only;
-  no formal all-state egress policy is established. This is a browser-local,
+- **Cross-cutting:** The shipped Content Security Policy limits runtime connections and default
+  resources to the same origin; Chrome also blocks non-local HTTP(S) requests
+  during all exercised journeys. Top-level external navigation after a user
+  follows a link is outside this resource-egress policy. This is a browser-local,
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
@@ -250,7 +252,8 @@ sources explicitly trace AT-01 through AT-54. See
 Latest recorded run: 144/144 unit checks and 62/62 E2E checks passed. E2E
 includes five static checks and 57 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
-attempted by the exercised flows. VP-009, VP-018, VP-037,
+attempted by the exercised flows. The built HTML also enforces same-origin
+resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,
 VP-051, VP-052, VP-053, VP-055 and VP-056 are Verified; 57 of 64 stories and 33 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
