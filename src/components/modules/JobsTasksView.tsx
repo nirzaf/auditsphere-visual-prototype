@@ -51,7 +51,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
   // New job form state
   const [newJobTitle, setNewJobTitle] = useState('');
-  const [newJobClientId, setNewJobClientId] = useState(scopedClients[0]?.id || '');
+  const [newJobClientId, setNewJobClientId] = useState(scopedClients.find(client => client.id === scopedEngagements.find(engagement => engagement.id === state.selectedEngagement)?.client)?.id || scopedClients[0]?.id || '');
   const [newJobEngId, setNewJobEngId] = useState(scopedEngagements.find(e => e.id === state.selectedEngagement)?.id || scopedEngagements[0]?.id || '');
   const [newJobOwner, setNewJobOwner] = useState(state.currentPerson || 'Adam Khan');
   const [newJobDueDate, setNewJobDueDate] = useState('2026-10-31');

@@ -420,6 +420,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const foldersAfterRetry = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
     assert.equal(foldersAfterRetry, foldersAfter, 'retry remains idempotent');
 
+    const searchTarget = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id!==s.selectedEngagement);return {id:e.id,client:e.client,engagement:s.selectedEngagement,activeClient:s.engagements.find(x=>x.id===s.selectedEngagement)?.client};})()`);
+    assert.ok(searchTarget?.id && searchTarget.id !== searchTarget.engagement, 'fixture must have a second engagement for context switching');
+    const beforeSearch = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {engagement:s.selectedEngagement,tenant:s.m365Config.tenantId};})()`);
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Search draft');i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.search-trigger').click();})()`);
+    assert.equal(await waitForBrowser('!!document.querySelector(\'.modal-backdrop input[placeholder^="Type to search"]\')'), true, 'global search opened from a dirty form');
+    await browserTab!.evaluate(`(() => {const i=document.querySelector('.modal-backdrop input[placeholder^="Type to search"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,${JSON.stringify(searchTarget.id)});i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('.modal-backdrop button')].some(x=>x.innerText.includes(${JSON.stringify(searchTarget.id)}))`), true, `second engagement ${searchTarget.id} is available in scoped search`);
+    const chooseSearchTarget = async () => {
+      const found = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('.modal-backdrop button')].find(x=>x.innerText.includes(${JSON.stringify(searchTarget.id)}));if(!b)return false;b.click();return true;})()`);
+      assert.equal(found, true, 'search target button is available');
+    };
+    await chooseSearchTarget();
+    assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'search context selection asks about the dirty form');
+    assert.deepEqual(await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {engagement:s.selectedEngagement,tenant:s.m365Config.tenantId};})()`), beforeSearch, 'search selection must not change context or persist the dirty draft before a decision');
+    await clickButton('Stay');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement`), searchTarget.engagement, 'Stay leaves the search context unchanged');
+    await chooseSearchTarget();
+    await clickButton('Discard and continue');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement===${JSON.stringify(searchTarget.id)}`), true, 'Discard applies the searched engagement after clearing the draft');
+    await clickButton('Microsoft 365 Setup');
+
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Discarded tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     const beforeDisconnect = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config`);
     await clickButton('Simulate disconnect');
