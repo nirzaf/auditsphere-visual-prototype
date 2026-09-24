@@ -2757,7 +2757,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(file('replacement.csv', 'code,name,balance\n1000,Cash,100\n2000,Payables,-100\n'));
     assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: replacement.csv")'), true);
     await clickButton('Preview & validate');
-    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true, await browserTab!.evaluate<string>('document.body.innerText'));
     await clickButton('Commit as new source revision');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').sourceVersion === ${before.version + 1}`), true);
     const after = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,history:e.sourceHistory};})()`);
@@ -2788,7 +2788,56 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(xlsxRevision.predecessorVersion, before.version + 1);
     assert.match(xlsxRevision.sha256, /^[0-9a-f]{64}$/);
     assert.deepEqual(xlsxRevision.rows.map((row: any) => row.balance), [-50, 50]);
-    const acceptedAfterXlsx = { version: before.version + 2, rows: xlsxRevision.rows };
+    await browserTab!.evaluate(file('missing-header.csv', ',Name,Balance\n1000,Cash,50\n2000,Payables,-50'));
+    await waitForBrowser('document.body.innerText.includes("Selected: missing-header.csv")');
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Missing required headers or ambiguous column mapping")'), true);
+    assert.equal((await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').sourceVersion`)), xlsxRevision.version);
+    await browserTab!.evaluate(`(() => {const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const profile=state.clients.find(item=>item.id==='CL-002').accountingProfile;profile.dimensions[0].values=['Finance','Operations'];localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
+    await browserTab!.command('Page.reload');
+    await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    await clickButton('Accounting Workbench');
+    const setLabeledSelect = async (label: string, value: string) => browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('label')].find(item=>item.textContent.trim()===${JSON.stringify(label)});const select=label?.nextElementSibling;if(!(select instanceof HTMLSelectElement))throw Error('Missing select: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(value)});select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(file('signed-net-dimensions.csv', 'Code,Department,Balance,Name\n1000,Finance,50,Cash\n2000,Operations,-50,Payables'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: signed-net-dimensions.csv")'), true);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Department · 1: Department")'), true, 'header mapping waits for asynchronous file parsing');
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true);
+    await clickButton('Commit as new source revision');
+    const signedRevision = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows,source:e.sourceHistory.find(x=>x.version===e.sourceVersion)}})()`);
+    assert.deepEqual(signedRevision.rows.map((row: any) => row.dimensions), [{ 'DIM-DEPT-CL-002': 'Finance' }, { 'DIM-DEPT-CL-002': 'Operations' }]);
+    assert.equal(signedRevision.source.mapping.convention, 'signed-net');
+    assert.equal(signedRevision.source.mapping.dimension.id, 'DIM-DEPT-CL-002');
+    assert.equal(signedRevision.source.mapping.dimension.index, 1);
+    assert.equal(signedRevision.source.accountingProfileRevision, 1);
+    assert.equal(signedRevision.source.accountingChartRevision, 1);
+    assert.equal(signedRevision.source.periodBookId, 'PB-ENG-26002');
+
+    await browserTab!.evaluate(file('unknown-dimension.csv', 'Code,Department,Balance,Name\n1000,Unknown,50,Cash\n2000,Operations,-50,Payables'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: unknown-dimension.csv")'), true);
+    await waitForBrowser('document.body.innerText.includes("Department · 1: Department")');
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("unknown or missing Department value")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true);
+    assert.equal((await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').sourceVersion`)), signedRevision.version, 'unknown dimensions preserve the accepted revision');
+
+    await browserTab!.evaluate(file('debit-credit-reordered.csv', 'Account Name,Account Code,Department,Credit,Debit\nCash,1000,Finance,0,75\nPayables,2000,Operations,75,0'));
+    await waitForBrowser('document.body.innerText.includes("Selected: debit-credit-reordered.csv")');
+    await setLabeledSelect('Amount convention', 'debit-credit');
+    await setLabeledSelect('Code column', '1');
+    await setLabeledSelect('Name column', '0');
+    await setLabeledSelect('Debit column', '4');
+    await setLabeledSelect('Credit column', '3');
+    await clickButton('Preview & validate');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready: 2 rows, net 0.00")'), true);
+    await clickButton('Commit as new source revision');
+    const debitCreditRevision = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {rows:e.rows,source:e.sourceHistory.find(x=>x.version===e.sourceVersion)}})()`);
+    assert.deepEqual(debitCreditRevision.rows.map((row: any) => row.balance), [75, -75]);
+    assert.equal(debitCreditRevision.source.mapping.convention, 'debit-credit');
+    assert.deepEqual(debitCreditRevision.source.mapping.dimension, { id: 'DIM-DEPT-CL-002', index: 2 });
+    assert.equal(debitCreditRevision.source.predecessorVersion, signedRevision.version);
+
+    await setLabeledSelect('Amount convention', 'signed-net');
     const overLimit = `code,name,balance\n${Array.from({ length: 2001 }, (_, index) => `${6000 + index},Account ${index},${index % 2 ? '1' : '-1'}`).join('\n')}`;
     await browserTab!.evaluate(file('row-limit.csv', overLimit));
     assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: row-limit.csv")'), true);
@@ -2796,7 +2845,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Row limit exceeded: 2001 data rows (limit 2000)")'), true);
     assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'row-limit failure cannot be committed');
     const afterRowLimit = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
-    assert.deepEqual(afterRowLimit, acceptedAfterXlsx, 'row-limit failure preserves the latest accepted revision');
+    assert.deepEqual(afterRowLimit, { version: debitCreditRevision.source.version, rows: debitCreditRevision.rows }, 'row-limit failure preserves the latest accepted revision');
 
     await browserTab!.evaluate(file('wrong-chart.csv', 'code,name,balance\n9998,Unmapped A,-50\n9999,Unmapped B,50\n'));
     assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: wrong-chart.csv")'), true);
@@ -2804,7 +2853,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Imported accounts must exist as active posting accounts in the selected chart")'), true);
     assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'wrong-chart preview cannot be committed');
     const afterWrongChart = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
-    assert.deepEqual(afterWrongChart, acceptedAfterXlsx, 'wrong-chart failure preserves the latest accepted revision');
+    assert.deepEqual(afterWrongChart, { version: debitCreditRevision.source.version, rows: debitCreditRevision.rows }, 'wrong-chart failure preserves the latest accepted revision');
 
     await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));const engagement=state.engagements.find(item=>item.id==='ENG-26002');engagement.accountingChartRevision+=1;localStorage.setItem(key,JSON.stringify(state));})()`);
     await browserTab!.command('Page.reload');
@@ -2817,7 +2866,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Complete or reload the client accounting setup and select this engagement’s period book before importing")'), true);
     assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].find(button=>button.innerText.includes('Commit as new source revision'))?.disabled`), true, 'stale context preview cannot be committed');
     const afterWrongContext = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
-    assert.deepEqual(afterWrongContext, acceptedAfterXlsx, 'wrong-context failure preserves the latest accepted revision');
+    assert.deepEqual(afterWrongContext, { version: debitCreditRevision.source.version, rows: debitCreditRevision.rows }, 'wrong-context failure preserves the latest accepted revision');
     assert.deepEqual(browserTab!.exceptions, []);
     await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
     await browserTab!.command('Page.reload');

@@ -1861,7 +1861,7 @@ class PrototypeStore {
   public updateTrialBalanceRows(
     engId: string,
     rows: PrototypeState['engagements'][0]['rows'],
-    source?: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; mapping: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit' } }
+    source?: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; mapping: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit'; dimension?: { id: string; index: number } } }
   ) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'replace trial balance rows');
@@ -1873,6 +1873,7 @@ class PrototypeStore {
     const periodBook = profile?.periodBooks.find(book => book.id === eng.accountingPeriodBookId && book.ownerEngagementId === engId);
     if (source && (!profile || profile.reportingBasis === 'Not selected' || !periodBook || eng.accountingProfileRevision !== profile.revision || eng.accountingChartRevision !== profile.chartRevision)) throw new GuardError('INVALID_STATE', 'Complete or reload the client accounting setup and select this engagement’s period book before importing a trial balance.');
     if (source && rows.some(row => !profile?.accounts.some(account => account.code === row.code && account.active && account.posting))) throw new GuardError('INVALID_STATE', 'Imported accounts must exist as active posting accounts in the selected chart.');
+    if (source && rows.some(row => source.mapping.dimension && !row.dimensions?.[source.mapping.dimension.id] || Object.entries(row.dimensions || {}).some(([id, value]) => !profile?.dimensions.some(dimension => dimension.id === id && dimension.active && dimension.values.includes(value))))) throw new GuardError('INVALID_STATE', 'Imported dimension values must exist in an active dimension in the selected accounting profile.');
     if (!Array.isArray(rows) || rows.some(r => !r.code.trim() || !r.name.trim() || !Number.isFinite(r.balance)) || new Set(rows.map(r => r.code.trim())).size !== rows.length) throw new GuardError('INVALID_STATE', 'Trial balance rows require unique account codes, names, and finite balances.');
     if (source && (!source.fileName.trim() || !/^[0-9a-f]{64}$/i.test(source.sha256))) throw new GuardError('INVALID_STATE', 'Imported source requires a file name and SHA-256 digest.');
     if (!eng.sourceHistory) eng.sourceHistory = eng.rows.length ? [{ version: eng.sourceVersion || 1, rows: structuredClone(eng.rows), importedAt: this.state.asOfDate, importedBy: 'Legacy source; import metadata unavailable', format: 'Legacy' }] : [];

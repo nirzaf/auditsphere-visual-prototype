@@ -87,6 +87,7 @@ describe('accounting setup guards (AT-34)', () => {
     const client = current.clients.find(item => item.id === engagement.client)!;
     const profile = structuredClone(client.accountingProfile!);
     profile.legalEntityName = `${client.name} Holdings`;
+    profile.dimensions = [{ id: 'dept', name: 'Department', values: ['Sales'], active: true }];
     profile.accounts.push({ code: '9900', name: 'New account', type: 'asset', posting: true, active: true });
     const book = profile.periodBooks.find(item => item.id === engagement.accountingPeriodBookId)!;
     const previousGeneration = engagement.generation;
@@ -112,6 +113,10 @@ describe('accounting setup guards (AT-34)', () => {
     const before = engagement.sourceVersion;
     assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, [{ ...engagement.rows[0], code: '8888' }], { fileName: 'bad.csv', format: 'CSV', sha256: 'b'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net' } }), /active posting accounts/);
     assert.equal(engagement.sourceVersion, before);
+    const priorRows = structuredClone(engagement.rows);
+    assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, [{ ...engagement.rows[0], dimensions: { dept: 'Unknown' } }], { fileName: 'unknown-dimension.csv', format: 'CSV', sha256: 'c'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net', dimension: { id: 'dept', index: 4 } } }), /dimension values/);
+    assert.equal(engagement.sourceVersion, before);
+    assert.deepEqual(engagement.rows, priorRows, 'invalid dimension values leave the accepted trial balance unchanged');
   });
 });
 

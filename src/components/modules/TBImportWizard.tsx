@@ -28,8 +28,9 @@ const isZipOfficeWorkbook = (bytes: ArrayBuffer) => {
 export function parseTBWorkbook(
   fileName: string,
   bytes: ArrayBuffer,
-  mapping: { code: number; name: number; debit: number; credit: number; signed: number },
-  convention: Convention
+  mapping: { code: number; name: number; debit: number; credit: number; signed: number; dimension?: { id: string; index: number } },
+  convention: Convention,
+  dimension?: { id: string; name: string; values: string[] }
 ): { rows: TrialBalanceRow[]; errors: string[]; format: 'XLSX' | 'CSV' } {
   const errors: string[] = [];
   const rows: TrialBalanceRow[] = [];
@@ -66,6 +67,14 @@ export function parseTBWorkbook(
     errors.push(`Row limit exceeded: ${grid.length - 1} data rows (limit ${TB_ROW_LIMIT}). Nothing was committed.`);
     return { rows, errors, format: isXlsx ? 'XLSX' : 'CSV' };
   }
+  const headers = grid[0].map(value => String(value ?? '').trim());
+  const requiredColumns = convention === 'signed-net' ? [mapping.code, mapping.name, mapping.signed] : [mapping.code, mapping.name, mapping.debit, mapping.credit];
+  if (new Set(requiredColumns).size !== requiredColumns.length || requiredColumns.some(index => !headers[index])) {
+    return { rows, errors: ['Missing required headers or ambiguous column mapping. Map account code, account name, and the selected amount columns to distinct named headers.'], format: isXlsx ? 'XLSX' : 'CSV' };
+  }
+  if (mapping.dimension && (!headers[mapping.dimension.index] || requiredColumns.includes(mapping.dimension.index))) {
+    return { rows, errors: ['The optional dimension must map to a distinct named header.'], format: isXlsx ? 'XLSX' : 'CSV' };
+  }
 
   const dataRows = grid.slice(1);
   const seenCodes = new Set<string>();
@@ -78,6 +87,12 @@ export function parseTBWorkbook(
     if (!name) { errors.push(`Row ${lineNo}: missing account name.`); return; }
     if (seenCodes.has(code)) { errors.push(`Row ${lineNo}: duplicate account code "${code}".`); return; }
     seenCodes.add(code);
+
+    const dimensionValue = mapping.dimension ? String(cells[mapping.dimension.index] ?? '').trim() : '';
+    if (mapping.dimension && (!dimension || dimension.id !== mapping.dimension.id || !dimension.values.includes(dimensionValue))) {
+      errors.push(`Row ${lineNo} (${code}): unknown or missing ${dimension?.name || 'dimension'} value "${dimensionValue}".`);
+      return;
+    }
 
     const num = (v: unknown): number | null => {
       if (typeof v === 'number') return Number.isFinite(v) ? v : null;
@@ -103,7 +118,7 @@ export function parseTBWorkbook(
     const type: TrialBalanceRow['type'] =
       prefix === '1' ? 'asset' : prefix === '2' ? 'liability' : prefix === '3' ? 'equity' :
       prefix === '4' ? 'revenue' : prefix === '5' ? 'expense' : 'asset';
-    rows.push({ code, name, type, balance });
+    rows.push({ code, name, type, balance, ...(mapping.dimension ? { dimensions: { [mapping.dimension.id]: dimensionValue }, ...(dimension?.name === 'Department' ? { dimensionDept: dimensionValue } : {}) } : {}) });
   });
 
   const net = rows.reduce((s, r) => s + r.balance, 0);
@@ -117,7 +132,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const [fileName, setFileName] = useState('');
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [mapping, setMapping] = useState({ code: 0, name: 1, debit: 2, credit: 3, signed: 2 });
+  const [mapping, setMapping] = useState<{ code: number; name: number; debit: number; credit: number; signed: number; dimension?: { id: string; index: number } }>({ code: 0, name: 1, debit: 2, credit: 3, signed: 2 });
   const [convention, setConvention] = useState<Convention>('signed-net');
   const [preview, setPreview] = useState<TrialBalanceRow[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -128,6 +143,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
   const sourceHistory = currentEngagement?.sourceHistory || [];
   const accountingProfile = storeSnapshot.clients.find(c => c.id === currentEngagement?.client)?.accountingProfile;
   const accountingBook = accountingProfile?.periodBooks.find(book => book.id === currentEngagement?.accountingPeriodBookId);
+  const activeDimensions = accountingProfile?.dimensions.filter(dimension => dimension.active) || [];
 
   const handleFile = async (f: File | undefined) => {
     setPreview(null); setErrors([]); setFormat(null); setFileError(null);
@@ -163,12 +179,15 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
         }
         return 0;
       };
+      const dimension = activeDimensions.find(item => headerRow.some(header => header.toLowerCase().includes(item.name.toLowerCase())));
+      const dimensionIndex = dimension ? headerRow.findIndex(header => header.toLowerCase().includes(dimension.name.toLowerCase())) : -1;
       setMapping({
         code: idx(['code', 'gl', 'account']),
         name: idx(['name', 'description', 'account']) === 0 ? 1 : idx(['name', 'description']),
         debit: idx(['debit']),
         credit: idx(['credit']),
-        signed: idx(['balance', 'amount', 'net', 'signed'])
+        signed: idx(['balance', 'amount', 'net', 'signed']),
+        ...(dimension && dimensionIndex >= 0 ? { dimension: { id: dimension.id, index: dimensionIndex } } : {})
       });
     } catch (e) {
       setFileError(`Could not parse "${f.name}" as its stated format (a CSV renamed to .xlsx is rejected). ${(e as Error).message}`);
@@ -177,7 +196,8 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
 
   const runPreview = () => {
     if (!bytes) return;
-    const result = parseTBWorkbook(fileName, bytes, mapping, convention);
+    const selectedDimension = mapping.dimension && activeDimensions.find(item => item.id === mapping.dimension!.id);
+    const result = parseTBWorkbook(fileName, bytes, mapping, convention, selectedDimension);
     if (result.errors.length === 0) {
       if (!currentEngagement || !accountingProfile || accountingProfile.reportingBasis === 'Not selected' || !accountingBook || currentEngagement.accountingProfileRevision !== accountingProfile.revision || currentEngagement.accountingChartRevision !== accountingProfile.chartRevision) {
         result.errors.push('Complete or reload the client accounting setup and select this engagement’s period book before importing.');
@@ -267,6 +287,16 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
               {headers.map((h, i) => <option key={i} value={i}>{i}: {h || '(blank)'}</option>)}
             </select>
           </div>
+          {activeDimensions.length > 0 && <div>
+            <label className="caption">Optional dimension column</label>
+            <select className="input" value={mapping.dimension ? `${mapping.dimension.id}:${mapping.dimension.index}` : ''} onChange={e => {
+              const [id, index] = e.target.value.split(':');
+              setMapping({ ...mapping, dimension: id ? { id, index: Number(index) } : undefined });
+            }}>
+              <option value="">None</option>
+              {activeDimensions.flatMap(dimension => headers.map((header, index) => <option key={`${dimension.id}:${index}`} value={`${dimension.id}:${index}`}>{dimension.name} · {index}: {header || '(blank)'}</option>))}
+            </select>
+          </div>}
           <div>
             <label className="caption">Name column</label>
             <select className="input" value={mapping.name} onChange={e => setMapping({ ...mapping, name: Number(e.target.value) })}>

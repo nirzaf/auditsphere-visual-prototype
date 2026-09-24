@@ -405,7 +405,7 @@ export interface EngagementRecord {
     fileName?: string;
     format?: 'CSV' | 'XLSX' | 'Legacy' | 'Manual';
     sha256?: string;
-    mapping?: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit' };
+    mapping?: { code: number; name: number; debit: number; credit: number; signed: number; convention: 'signed-net' | 'debit-credit'; dimension?: { id: string; index: number } };
     predecessorVersion?: number;
     accountingProfileRevision?: number;
     accountingChartRevision?: number;
@@ -810,6 +810,7 @@ export interface TrialBalanceRow {
   type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
   balance: number; // QAR
   dimensionDept?: string;
+  dimensions?: Record<string, string>;
   mappedStatementLine?: string;
   mappedNoteRef?: string;
 }
