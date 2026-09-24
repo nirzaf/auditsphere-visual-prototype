@@ -2995,6 +2995,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('VP-045-AC03: leaves the explained unmatched intercompany amount visible in group detail', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {
+        const state=${JSON.stringify(createInitialState())};
+        const group=state.consolidationGroups[0];
+        const parent=state.engagements.find(e=>e.id===group.components[0].componentId);
+        const sub=state.engagements.find(e=>e.id===group.components[1].componentId);
+        parent.rows=[{code:'IC-AR',name:'Intercompany receivable',type:'asset',balance:1000}];
+        sub.rows=[{code:'IC-AP',name:'Intercompany payable',type:'liability',balance:-900}];
+        for(const [component,engagement] of [[group.components[0],parent],[group.components[1],sub]]){component.packageRows=structuredClone(engagement.rows);component.packageReview.sourceVersion=engagement.sourceVersion;component.packageReview.packageRevision=engagement.packageRevision;}
+        group.eliminations=[{id:'ELIM-IC-900',title:'Matched intercompany balance',counterpartyA:parent.id,counterpartyB:sub.id,amount:900,currency:group.currency,status:'Approved',explanation:'Only the confirmed reciprocal amount is eliminated; the 100 difference remains for manual resolution.',evidenceRef:'AT42-UNMATCHED-100',preparedByUserId:'manager',submittedByUserId:'manager',submittedAt:state.asOfDate,revision:1,approvedPerimeterRevision:group.perimeterRevision||1,approvedComponentPins:group.components.map(c=>({componentId:c.componentId,packageRevision:c.packageRevisionPinned,sourceVersion:state.engagements.find(e=>e.id===c.componentId).sourceVersion})),approvedFxRates:{[group.components[0].currency]:{rate:1,revision:0},[group.components[1].currency]:{rate:1,revision:0}},approvalEvidenceRef:'AT42-UNMATCHED-REVIEW',reviewHistory:[],lines:[{account:'IC-AR',type:'credit',amount:900},{account:'IC-AP',type:'debit',amount:900}]}];
+        localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));
+      })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      const detail=await browserTab!.evaluate<string>(`Array.from(document.querySelectorAll('tr')).find(row=>row.innerText.includes('Intercompany receivable (IC-AR)'))?.innerText||''`);
+      assert.match(detail,/100\.00/,'the unmatched 100 receivable remains on the consolidated line');
+      assert.deepEqual(browserTab!.exceptions,[]);
+    } finally {
+      if(original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-43: projects only granted consolidation components under a narrow group grant', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {

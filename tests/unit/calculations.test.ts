@@ -211,6 +211,19 @@ describe('consolidation fixed example (AT-42)', () => {
     assert.equal(sub[0].balance, 1000);
   });
 
+  it('keeps a 100 receivable difference visible after eliminating only the matched 900', () => {
+    const parent: TrialBalanceRow[] = [{ code: 'IC-AR', name: 'Intercompany receivable', type: 'asset', balance: 1000 }];
+    const sub: TrialBalanceRow[] = [{ code: 'IC-AP', name: 'Intercompany payable', type: 'liability', balance: -900 }];
+    const out = calculateConsolidatedBalanceSheet(parent, sub, [{ id: 'ELIM-IC-900', lines: [
+      { account: 'IC-AR', type: 'credit', amount: 900 },
+      { account: 'IC-AP', type: 'debit', amount: 900 }
+    ] }]);
+    assert.equal(out.lines.find(line => line.code === 'IC-AR')?.consolidatedBalance, 100);
+    assert.equal(out.lines.find(line => line.code === 'IC-AP')?.consolidatedBalance, 0);
+    assert.equal(parent[0].balance, 1000);
+    assert.equal(sub[0].balance, -900);
+  });
+
   it('includes component current-period results in consolidated equity without changing source rows', () => {
     const parent: TrialBalanceRow[] = [
       { code: '1000', name: 'Cash', type: 'asset', balance: 1000 },
