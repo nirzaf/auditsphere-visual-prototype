@@ -960,11 +960,21 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'update jobs');
     const index = this.state.jobs.findIndex(j => j.id === job.id);
     if (index >= 0) {
+      const current = this.state.jobs[index];
       requireEngagementScope(this.state, job.engagementId);
-      if (job.clientId !== this.state.jobs[index].clientId || job.engagementId !== this.state.jobs[index].engagementId) throw new GuardError('INVALID_STATE', 'A job cannot be moved to a different client or engagement.');
+      if (job.clientId !== current.clientId || job.engagementId !== current.engagementId) throw new GuardError('INVALID_STATE', 'A job cannot be moved to a different client or engagement.');
+      if (current.status === 'Cancelled' && job.status !== 'Cancelled') throw new GuardError('INVALID_STATE', 'A cancelled job cannot be reopened. Its history remains available.');
       const children = this.state.jobTasks.filter(t => t.jobId === job.id && t.status !== 'Cancelled');
       if (job.status === 'Completed' && children.some(t => t.status !== 'Completed')) throw new GuardError('INVALID_STATE', 'Job cannot complete while required tasks are unfinished.');
       if (job.status === 'Blocked' && !job.blockedReason?.trim()) throw new GuardError('INVALID_STATE', 'Blocked status requires a reason.');
+      if (job.status === 'Cancelled' && current.status !== 'Cancelled') {
+        if (!job.cancellationReason?.trim()) throw new GuardError('INVALID_STATE', 'Cancelling a job requires a reason.');
+        job.cancelledAt = new Date().toISOString();
+        job.cancelledByUserId = this.state.currentUserId;
+        this.logEvent(`Job ${job.id} cancelled: ${job.cancellationReason.trim()}`, job.id, 'history');
+      } else if (job.status !== current.status) {
+        this.logEvent(`Job ${job.id} status changed: ${current.status} → ${job.status}${job.status === 'Blocked' ? ` — ${job.blockedReason!.trim()}` : ''}`, job.id, 'history');
+      }
       this.state.jobs[index] = job;
       this.notify();
     }
@@ -976,6 +986,7 @@ class PrototypeStore {
     const job = this.state.jobs.find(j => j.id === task.jobId);
     if (!job) throw new GuardError('INVALID_STATE', `Referenced job "${task.jobId}" does not exist.`);
     requireEngagementScope(this.state, job.engagementId);
+    if (job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Tasks cannot be added to a cancelled job.');
     this.assertTaskHierarchy(task);
     this.state.jobTasks.push(task);
     this.notify();
@@ -987,6 +998,7 @@ class PrototypeStore {
     const job = this.state.jobs.find(j => j.id === task.jobId);
     if (!job) throw new GuardError('INVALID_STATE', `Referenced job "${task.jobId}" does not exist.`);
     requireEngagementScope(this.state, job.engagementId);
+    if (job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Tasks in a cancelled job are retained and cannot be changed.');
     this.assertTaskHierarchy(task, task.id);
     const index = this.state.jobTasks.findIndex(t => t.id === task.id);
     if (index >= 0) {
@@ -1032,6 +1044,7 @@ class PrototypeStore {
     const job = this.state.jobs.find(j => j.id === task.jobId);
     if (!job) throw new GuardError('INVALID_STATE', 'Task job was not found.');
     requireEngagementScope(this.state, job.engagementId);
+    if (job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Tasks in a cancelled job are retained and cannot be reassigned.');
     if (!reason.trim()) throw new GuardError('INVALID_STATE', 'Task reassignment requires a reason.');
     if (!this.state.users.some(u => u.status === 'Active' && u.name === newAssignee)) throw new GuardError('INVALID_STATE', 'Task assignee must be an active persona.');
     if (task.assignee === newAssignee) throw new GuardError('INVALID_STATE', 'Choose a different assignee.');
@@ -1357,6 +1370,10 @@ class PrototypeStore {
   public addTimeEntry(entry: TimeEntryItem) {
     requireActiveIdentity(this.state);
     requireEngagementScope(this.state, entry.engagementId);
+    if (entry.jobId) {
+      const job = this.state.jobs.find(item => item.id === entry.jobId && item.engagementId === entry.engagementId);
+      if (!job || job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Time must reference an active job in the same engagement.');
+    }
     if (!Number.isInteger(entry.durationMinutes) || entry.durationMinutes <= 0 || !entry.activity.trim() || !entry.taskTitle.trim()) throw new GuardError('INVALID_STATE', 'Time entry needs an activity, task, and positive whole-minute duration.');
     if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'A persona can record time only for itself.');
     this.state.times.unshift(entry);

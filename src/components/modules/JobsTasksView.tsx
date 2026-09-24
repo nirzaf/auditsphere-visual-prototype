@@ -18,6 +18,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const scopedClients = state.clients.filter(c => scopedEngagements.some(e => e.client === c.id));
   const scopedJobs = state.jobs.filter(job => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(job.engagementId));
   const scopedJobIds = new Set(scopedJobs.map(job => job.id));
+  const [clientFilter, setClientFilter] = useState('ALL');
+  const [engagementFilter, setEngagementFilter] = useState('ALL');
+  const [ownerFilter, setOwnerFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>(() => scopedJobs.find(job => job.engagementId === state.selectedEngagement)?.id || scopedJobs[0]?.id || '');
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -49,7 +54,14 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
     setTimeout(() => setNotice(null), 6000);
   };
 
-  const selectedJob = scopedJobs.find(j => j.id === selectedJobId) || scopedJobs[0];
+  const filteredJobs = scopedJobs.filter(job =>
+    (clientFilter === 'ALL' || job.clientId === clientFilter) &&
+    (engagementFilter === 'ALL' || job.engagementId === engagementFilter) &&
+    (ownerFilter === 'ALL' || job.owner === ownerFilter) &&
+    (statusFilter === 'ALL' || job.status === statusFilter) &&
+    (!overdueOnly || job.dueDate < state.asOfDate && !['Completed', 'Cancelled'].includes(job.status))
+  );
+  const selectedJob = filteredJobs.find(j => j.id === selectedJobId) || filteredJobs[0];
   const client = scopedClients.find(c => c.id === selectedJob?.clientId);
 
   // Filter tasks for selected job
@@ -167,6 +179,25 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleUpdateJobStatus = (job: JobRecord, status: JobRecord['status']) => {
+    let blockedReason = job.blockedReason;
+    let cancellationReason = job.cancellationReason;
+    if (status === 'Blocked') {
+      blockedReason = window.prompt('Why is this job blocked?')?.trim();
+      if (!blockedReason) return;
+    }
+    if (status === 'Cancelled') {
+      cancellationReason = window.prompt('Why is this job being cancelled? Its tasks, time and linked document history will be retained.')?.trim();
+      if (!cancellationReason) return;
+    }
+    try {
+      prototypeStore.updateJob({ ...job, status, blockedReason, cancellationReason });
+      triggerNotice('success', status === 'Cancelled' ? 'Job cancelled; linked tasks and records were retained.' : `Job status changed to ${status}.`);
+    } catch (error) {
+      triggerNotice('error', error instanceof Error ? error.message : 'Job status could not be changed.');
+    }
+  };
+
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="pagehead">
@@ -221,7 +252,15 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
           <div className="stack" style={{ gap: 16 }}>
             <div className="panel">
               <div className="panel-head">
-                <h3>Practice Jobs Register ({scopedJobs.length})</h3>
+                <h3>Practice Jobs Register ({filteredJobs.length} of {scopedJobs.length})</h3>
+              </div>
+              <div className="grid grid-3 panel-pad" style={{ paddingTop: 0 }}>
+                <label>Client<select aria-label="Jobs client filter" value={clientFilter} onChange={e => setClientFilter(e.target.value)}><option value="ALL">All permitted clients</option>{scopedClients.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                <label>Engagement<select aria-label="Jobs engagement filter" value={engagementFilter} onChange={e => setEngagementFilter(e.target.value)}><option value="ALL">All permitted engagements</option>{scopedEngagements.filter(item => clientFilter === 'ALL' || item.client === clientFilter).map(item => <option key={item.id} value={item.id}>{item.id} · FY{item.year}</option>)}</select></label>
+                <label>Owner<select aria-label="Jobs owner filter" value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}><option value="ALL">All owners</option>{[...new Set(scopedJobs.map(job => job.owner))].sort().map(owner => <option key={owner}>{owner}</option>)}</select></label>
+                <label>Status<select aria-label="Jobs status filter" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
+                <label className="row" style={{ alignItems: 'center', gap: 8 }}><input aria-label="Overdue jobs only" type="checkbox" checked={overdueOnly} onChange={e => setOverdueOnly(e.target.checked)} /> Overdue only</label>
+                <button className="btn sm ghost" onClick={() => { setClientFilter('ALL'); setEngagementFilter('ALL'); setOwnerFilter('ALL'); setStatusFilter('ALL'); setOverdueOnly(false); }}>Clear filters</button>
               </div>
               <div className="tablewrap">
                 <table>
@@ -232,7 +271,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {scopedJobs.map(job => (
+                    {filteredJobs.map(job => (
                       <tr
                         key={job.id}
                         className={job.id === selectedJob?.id ? 'selected-row' : ''}
@@ -250,6 +289,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                         </td>
                       </tr>
                     ))}
+                    {filteredJobs.length === 0 && <tr><td colSpan={2} className="sub">No jobs match these filters.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -265,6 +305,9 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     <span className="eyebrow">JOB WORKSPACE · {selectedJob.id}</span>
                     <h2>{selectedJob.title}</h2>
                     <p className="sub">{client?.name || selectedJob.clientId} · Due: {selectedJob.dueDate} · Owner: {selectedJob.owner}</p>
+                    <label className="caption block mt8">Manual job status<select aria-label="Selected job status" value={selectedJob.status} disabled={!['manager', 'partner'].includes(state.currentRole) || selectedJob.status === 'Cancelled'} onChange={e => handleUpdateJobStatus(selectedJob, e.target.value as JobRecord['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
+                    {selectedJob.status === 'Blocked' && <p className="caption mt4">Blocked: {selectedJob.blockedReason}</p>}
+                    {selectedJob.status === 'Cancelled' && <p className="caption mt4" role="status">Cancelled by {selectedJob.cancelledByUserId || 'recorded user'} on {selectedJob.cancelledAt || 'date unavailable'} · {selectedJob.cancellationReason || 'No reason recorded'}. Tasks and linked records are retained.</p>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span className="caption">Leaf Task Progress</span>
@@ -280,6 +323,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                   <h4>Ordered Substantive Tasks</h4>
                   <button
                     className="btn sm primary"
+                    disabled={selectedJob.status === 'Cancelled'}
                     onClick={() => {
                       setParentTaskIdForSubtask(undefined);
                       setShowAddTaskModal(true);
@@ -302,6 +346,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                               <input
                                 type="checkbox"
                                 checked={parent.status === 'Completed'}
+                                disabled={selectedJob.status === 'Cancelled'}
                                 onChange={e => handleUpdateTaskStatus(parent, e.target.checked)}
                               />
                               <div>
@@ -316,6 +361,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                             <div className="row" style={{ gap: 6 }}>
                               <button
                                 className="btn sm ghost"
+                                disabled={selectedJob.status === 'Cancelled'}
                                 onClick={() => {
                                   setTaskToReassign(parent);
                                   setShowReassignModal(true);
@@ -325,6 +371,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                               </button>
                               <button
                                 className="btn sm ghost"
+                                disabled={selectedJob.status === 'Cancelled'}
                                 onClick={() => {
                                   setParentTaskIdForSubtask(parent.id);
                                   setShowAddTaskModal(true);
@@ -344,6 +391,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                                     <input
                                       type="checkbox"
                                       checked={sub.status === 'Completed'}
+                                      disabled={selectedJob.status === 'Cancelled'}
                                       onChange={e => handleUpdateTaskStatus(sub, e.target.checked)}
                                     />
                                     <div>
@@ -355,6 +403,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                                   </div>
                                   <button
                                     className="btn sm ghost"
+                                    disabled={selectedJob.status === 'Cancelled'}
                                     onClick={() => {
                                       setTaskToReassign(sub);
                                       setShowReassignModal(true);

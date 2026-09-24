@@ -952,6 +952,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
   it('AT-11/AT-12: blocks parent completion until subtasks finish and records an actual task reassignment', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k));s.selectedEngagement='ENG-26001';s.jobs.push({id:'JOB-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Safe Cancellation Fixture',owner:'Layla Rahman',dueDate:'2026-09-20',status:'In progress',createdAt:'2026-09-01T00:00:00.000Z'});s.jobTasks.push({id:'TSK-AT11-CANCEL',jobId:'JOB-AT11-CANCEL',title:'Retained task',assignee:'Layla Rahman',status:'In progress',order:1});s.documents.push({id:'DOC-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',name:'Retained job document.pdf',folderPath:'/Engagements/2026/Audit/',version:1,size:100,classification:'Client provided',visibility:'Internal',source:'SharePoint',linkedJobId:'JOB-AT11-CANCEL',uploadedBy:'Layla Rahman',uploadedAt:'2026-09-22T10:00:00.000Z'});s.times.push({id:'TIME-AT11-CANCEL',person:'Layla Rahman',clientId:'CL-001',engagementId:'ENG-26001',jobId:'JOB-AT11-CANCEL',taskId:'TSK-AT11-CANCEL',taskTitle:'Retained task',date:'2026-09-20',durationMinutes:60,billable:true,activity:'Testing',status:'Draft'});localStorage.setItem(k,JSON.stringify(s));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
     const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {task:s.jobTasks.find(t=>t.id==='TSK-103').status,grants:s.roleGrants};})()`);
     await browserTab!.evaluate(`(() => {const box=[...document.querySelectorAll('.borderbox')].find(x=>x.innerText.includes('Fixed assets register verification and depreciation recalculation'));const check=box?.querySelector('input[type=checkbox]');if(!check)throw Error('Fixed asset parent task checkbox missing');check.click();})()`);
@@ -966,6 +969,36 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(after.history.at(-1).to, 'Adam Khan');
     assert.equal(after.history.at(-1).reason, 'Capacity balancing for the reporting deadline.');
     assert.deepEqual(after.grants, before.grants, 'general task assignment does not grant professional approval authority');
+    const setJobFilter = async (label: string, value: string) => browserTab!.evaluate(`(() => {const el=document.querySelector('[aria-label="${label}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setJobFilter('Jobs client filter', 'CL-001');
+    await setJobFilter('Jobs engagement filter', 'ENG-26001');
+    await setJobFilter('Jobs owner filter', 'Layla Rahman');
+    await setJobFilter('Jobs status filter', 'In progress');
+    await browserTab!.evaluate(`document.querySelector('[aria-label="Overdue jobs only"]').click()`);
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr')].some(r=>r.innerText.includes('JOB-AT11-CANCEL'))`), true, 'register filters combine client, engagement, owner, status and overdue state');
+    await setJobFilter('Jobs status filter', 'ALL');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-CANCEL'));row.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.eyebrow')?.innerText.includes('JOB-AT11-CANCEL')`), true, 'selected job workspace follows the clicked register row');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Awaiting client approval.';const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Blocked');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id==='JOB-AT11-CANCEL').blockedReason==='Awaiting client approval.'`), true, 'blocked status persists its required reason');
+    await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'In progress');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id==='JOB-AT11-CANCEL').status==='In progress'`);
+    await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Selected job status"]');window.prompt=()=> 'Scope was cancelled by the client.';Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Cancelled');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const cancelled = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {job:s.jobs.find(j=>j.id==='JOB-AT11-CANCEL'),task:s.jobTasks.find(t=>t.id==='TSK-AT11-CANCEL'),document:s.documents.find(d=>d.id==='DOC-AT11-CANCEL'),time:s.times.find(t=>t.id==='TIME-AT11-CANCEL'),event:s.events.find(e=>e.ref==='JOB-AT11-CANCEL')}})()`);
+    assert.equal(cancelled.job.status, 'Cancelled');
+    assert.equal(cancelled.job.cancellationReason, 'Scope was cancelled by the client.');
+    assert.equal(cancelled.job.cancelledByUserId, 'manager');
+    assert.ok(cancelled.job.cancelledAt);
+    assert.equal(cancelled.task.id, 'TSK-AT11-CANCEL', 'job cancellation retains task history');
+    assert.equal(cancelled.document.linkedJobId, 'JOB-AT11-CANCEL', 'job cancellation retains linked document history');
+    assert.equal(cancelled.time.jobId, 'JOB-AT11-CANCEL', 'job cancellation retains linked time history');
+    assert.match(cancelled.event.text, /Scope was cancelled by the client/);
+    await browserTab!.evaluate(`document.querySelector('[aria-label="Overdue jobs only"]').click()`);
+    await setJobFilter('Jobs status filter', 'Cancelled');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-CANCEL'));if(!row)throw Error('Cancelled job is missing from its status-filtered register');row.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.eyebrow')?.innerText.includes('JOB-AT11-CANCEL')`), true);
+    const cancelledControls = await browserTab!.evaluate<boolean>(`(() => document.querySelector('[aria-label="Selected job status"]')?.disabled&&[...document.querySelectorAll('.borderbox input[type=checkbox]')].every(e=>e.disabled)&&[...document.querySelectorAll('.borderbox button')].every(e=>e.disabled))()`);
+    assert.equal(cancelledControls, true, 'cancelled work remains visible and read-only');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

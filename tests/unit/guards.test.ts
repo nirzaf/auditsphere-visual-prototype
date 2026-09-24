@@ -52,6 +52,31 @@ describe('scope guards (AT-18)', () => {
   });
 });
 
+describe('safe job cancellation (VP-013)', () => {
+  it('requires a reason, retains linked work and prevents reopening', () => {
+    state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    state.currentRole = 'manager';
+    const job = state.jobs[0];
+    const tasks = structuredClone(state.jobTasks.filter(task => task.jobId === job.id));
+    assert.throws(() => prototypeStore.updateJob({ ...job, status: 'Cancelled' }), /requires a reason/);
+    prototypeStore.updateJob({ ...job, status: 'Cancelled', cancellationReason: 'Client cancelled the scope.' });
+    const cancelled = state.jobs.find(item => item.id === job.id)!;
+    assert.equal(cancelled.cancelledByUserId, state.currentUserId);
+    assert.ok(cancelled.cancelledAt);
+    assert.equal(cancelled.cancellationReason, 'Client cancelled the scope.');
+    assert.deepEqual(state.jobTasks.filter(task => task.jobId === job.id), tasks);
+    assert.ok(state.events.some(event => event.ref === job.id && event.text.includes('Client cancelled the scope.')));
+    assert.throws(() => prototypeStore.updateJob({ ...cancelled, status: 'In progress' }), /cannot be reopened/);
+    const retainedTask = tasks[0];
+    assert.throws(() => prototypeStore.addTask({ id: 'TASK-AFTER-CANCEL', jobId: job.id, title: 'Late work', assignee: 'Layla Rahman', status: 'Not started', order: 99 }), /cannot be added/);
+    assert.throws(() => prototypeStore.updateTask({ ...retainedTask, status: 'Completed' }), /retained and cannot be changed/);
+    assert.throws(() => prototypeStore.reassignTask(retainedTask.id, 'Sara Malik', 'Capacity balancing'), /retained and cannot be reassigned/);
+    assert.throws(() => prototypeStore.addTimeEntry({ id: 'TIME-AFTER-CANCEL', person: 'Layla Rahman', clientId: job.clientId, engagementId: job.engagementId, jobId: job.id, taskId: retainedTask.id, taskTitle: retainedTask.title, date: state.asOfDate, durationMinutes: 60, billable: true, activity: 'Testing', status: 'Draft' }), /active job/);
+  });
+});
+
 describe('accounting setup guards (AT-34)', () => {
   it('versions setup, pins engagement context, and rejects invalid hierarchy and period ranges', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');

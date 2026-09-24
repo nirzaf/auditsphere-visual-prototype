@@ -483,6 +483,9 @@ export interface JobRecord {
   budgetHours?: number;
   status: 'Not started' | 'In progress' | 'Blocked' | 'Completed' | 'Cancelled';
   blockedReason?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
+  cancelledByUserId?: string;
   fromTemplateId?: string;
   fromTemplateRevision?: number;
   templateOperationId?: string;

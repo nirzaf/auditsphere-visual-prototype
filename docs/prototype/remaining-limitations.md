@@ -91,10 +91,14 @@ Automated sources explicitly trace AT-01 through AT-55. See
   import under the SharePoint canonical hierarchy. Real file transfer and
   version freshness remain outside the prototype.
 
-- **AT-11/12 — jobs and tasks:** Chrome verifies that open subtasks block parent
+- **AT-11/12 — jobs and tasks:** Chrome verifies combined client, engagement,
+  owner, status and overdue job filters; manual status changes; reasoned job
+  cancellation; and retained task, linked document and time records with an
+  attributable cancellation event. Unit guards require a reason and prevent
+  reopening a cancelled job. Chrome also verifies that open subtasks block parent
   completion and that reassignment changes the real assignee with a retained
-  reason and no authority grant. Job cancellation and the full edit/status/filter
-  matrix remain unverified.
+  reason and no authority grant. Job field editing, task edit/status/reorder
+  controls and job detail tabs for files/time remain incomplete.
 - **AT-13 — job templates:** Chrome authors and publishes a Draft, applies it
   to a fresh job/tree, then creates and publishes a separate edited revision.
   The existing job and prior published template remain unchanged, and jobs pin
@@ -259,7 +263,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded run: 144/144 unit checks and 63/63 E2E checks passed. E2E
+Latest recorded full run: 145/145 unit checks and 63/63 E2E checks passed; the
+AT-11/12 journey also passes alone with its final read-only assertion. E2E
 includes five static checks and 58 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
