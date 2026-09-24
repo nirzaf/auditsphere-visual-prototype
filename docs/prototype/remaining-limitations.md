@@ -20,6 +20,13 @@ Automated sources explicitly trace AT-01 through AT-55. See
   account's original amount, selected closing-rate revision/date, translated
   amount and rounding difference. Unit and Chrome checks exercise reporting-basis/period compatibility, pending-review output blocking, and exact revision/source matching. AT-44 now isolates a QAR 0.01 per-line translation-rounding residual from balanced component sources; generated group-package artifact lineage remains open.
 
+- **VP-045 — manual group eliminations (Partial):** The lifecycle now enforces
+  draft → submit → independent approve/return; submitted content is locked,
+  returned content can be amended into a new draft revision, and approval still
+  binds to current perimeter/package/rate pins. AT-45 covers the full lifecycle.
+  Unmatched-item display, duplicate/mixed-source and replacement edge matrices
+  remain open.
+
 ## Known acceptance gaps
 
 - **VP-035 — trial-balance import (Verified):** AT-35 covers signed-net and

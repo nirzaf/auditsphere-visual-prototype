@@ -2847,7 +2847,7 @@ Manual elimination journals now support saving and amending a draft with named i
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-045-R01 — Requirement/scope reconciliation:** Manual draft, amendment, independent return/approval, counterparty and evidence-reference controls are implemented. Reconcile remaining original-contract details for submission state, unmatched-item handling and complete counterparty/evidence semantics.
+- [ ] **VP-045-R01 — Requirement/scope reconciliation:** Manual draft, explicit submit, independent return/approval, amendment-after-return, counterparty and evidence-reference controls are implemented. 2026-09-24 Chrome/unit verification now confirms only submitted entries can be reviewed and submitted content cannot be amended; reconcile unmatched-item handling and complete counterparty/evidence semantics.
 
 - [ ] **VP-045-E02 — Verification/evidence pending:** Extend evidence to unmatched amount visibility, duplicate source inclusion, unsupported counterparty and mixed-context rejection; verify component-package replacement staleness and preserved journal revisions. Perimeter and FX-rate invalidation, unbalanced lines, unsupported accounts and self-review denial have targeted coverage.
 
@@ -2863,7 +2863,7 @@ Add elimination register with component counterparties, account/line references,
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | Verified subcase: AT-45 independently approves the $125 journal, includes it once in group output and confirms source books unchanged; full criterion remains open pending replacement/mixed-source edge coverage |
+| VP-045-AC01 | Given a balanced supported elimination, when independently approved, then it affects group output once and neither component book/package is modified. | Verified subcase: AT-45 creates, submits, returns, amends, resubmits and independently approves the $125 journal, includes it once in group output and confirms source books unchanged; full criterion remains open pending replacement/mixed-source edge coverage |
 | VP-045-AC02 | Unbalanced lines, unsupported counterparties, mixed contexts and duplicate source inclusion are rejected. | Verified subcases: unit checks reject unbalanced lines, unknown accounts and self-review; unsupported counterparty, mixed-context and duplicate-inclusion matrix remains open |
 | VP-045-AC03 | Unmatched intercompany amounts remain visible for human resolution; approval does not hide the difference by netting an unexplained plug. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-045-AC04 | A component/rate/perimeter change stales dependent elimination approval and preserves the previous decision and journal revision. | Verified subcases: perimeter revisions and FX-rate changes invalidate approval and preserve return history; component replacement and explicit immutable journal-revision evidence remain open |
@@ -4096,7 +4096,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-042-R03 | [VP-042](#vp-042) | Package inclusion requires a current independently reviewed cash-flow schedule; without one, output remains unavailable. | Complete / verified 2026-09-24 |
 | VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Complete / acceptance scope reconciled 2026-09-24 |
 | VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Complete / scope disclosure and `FxRateEditor`, 2026-09-24 |
-| VP-045-R01 | [VP-045](#vp-045) | Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria. | Open / — |
+| VP-045-R01 | [VP-045](#vp-045) | Reconcile manual elimination lifecycle, unmatched differences and counterparty/evidence semantics against the four original criteria. | Partial — draft/submit/return/amend/review controls verified in Chrome/unit on 2026-09-24; remaining criteria open |
 | VP-046-R01 | [VP-046](#vp-046) | Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey. | Complete / AT-45 Chrome + group output package tests, 2026-09-24 |
 | VP-048-R02 | [VP-048](#vp-048) | Check any remaining hard-coded threshold/team/timing assumption against the contract; implement editable bounded fixture inputs where required, without asserting professional recommended rates. | Open / — |
 | VP-050-R02 | [VP-050](#vp-050) | Reconcile any remaining template-administration note with VP-049, where template functionality now exists, rather than implementing a duplicate template system. | Open / — |
