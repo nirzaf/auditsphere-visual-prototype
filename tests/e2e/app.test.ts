@@ -2603,6 +2603,41 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('AT-55: shows a scope-filtered cross-engagement review queue', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      if (!original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.evaluate(`(() => {
+        const key='ste-auditsphere-role-portals-v2';
+        const s=JSON.parse(localStorage.getItem(key));
+        const selected=s.engagements.find(e=>e.id===s.selectedEngagement);
+        const other=s.engagements.find(e=>e.id!==selected.id);
+        if(!other) throw Error('second engagement fixture missing');
+        const crossWorkpaper={...structuredClone(selected.workpapers[0]),id:'AT55-WP-CROSS',title:'Cross engagement queue fixture',version:1};
+        other.workpapers=[crossWorkpaper];
+        other.reviews ||= [];
+        other.reviews.push({id:'AT55-QUEUE',wp:crossWorkpaper.id,title:'Cross engagement queue fixture',body:'Queue scope check',author:'Reviewer',raisedBy:'reviewer',assigned:s.currentPerson,assignee:s.currentPerson,due:s.asOfDate,response:'',severity:'Low',version:1,text:'Cross engagement queue fixture',status:'Open',history:[]});
+        localStorage.setItem(key,JSON.stringify(s));
+      })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButtonStartingWith('Review Desk');
+      const scope = await browserTab!.evaluate<any>(`(() => {const s=document.querySelector('[aria-label="Review queue scope"]');if(!s)throw Error('review queue filter missing: '+document.body.innerText.slice(0,400));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'scoped');s.dispatchEvent(new Event('change',{bubbles:true}));return s.value;})()`);
+      assert.equal(scope, 'scoped');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("AT55-QUEUE")'), true, 'all-permitted queue includes assigned note from another engagement');
+      const context = await browserTab!.evaluate<string>(`[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('AT55-QUEUE'))?.innerText || ''`);
+      assert.match(context, /ENG-2600[2-9]/, 'cross-engagement row identifies its engagement and workpaper');
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Review queue scope"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'engagement');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('!document.body.innerText.includes("AT55-QUEUE")'), true, 'selected-engagement filter excludes other engagements');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-47: opens the sign-offs and EQR workspace', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { RouteKey, ReviewNoteItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { visibleEngagementIds } from '../../services/guards';
 
 interface ReviewDeskViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -30,6 +31,8 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   const reviews = selectedEng.reviews;
 
   const [selectedNote, setSelectedNote] = useState<ReviewNoteItem | null>(null);
+  const [selectedNoteEngagementId, setSelectedNoteEngagementId] = useState(selectedEng.id);
+  const [queueFilter, setQueueFilter] = useState<'engagement' | 'assigned' | 'scoped'>('engagement');
   const [showRaiseModal, setShowRaiseModal] = useState(false);
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -80,15 +83,15 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     e.preventDefault();
     if (!selectedNote || !responseText.trim()) return;
 
-    prototypeStore.respondReviewNote(selectedEng.id, selectedNote.id, responseText, evidenceDoc);
+    prototypeStore.respondReviewNote(selectedNoteEngagementId, selectedNote.id, responseText, evidenceDoc);
     setShowRespondModal(false);
     setSelectedNote(null);
     setResponseText('');
   };
 
-  const handleClearNote = (noteId: string) => {
+  const handleClearNote = (engagementId: string, noteId: string) => {
     try {
-      prototypeStore.clearReviewNote(selectedEng.id, noteId);
+      prototypeStore.clearReviewNote(engagementId, noteId);
       setNotice({ type: 'success', text: `Review note ${noteId} cleared successfully.` });
       setTimeout(() => setNotice(null), 4000);
     } catch (err: any) {
@@ -96,6 +99,12 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
       setTimeout(() => setNotice(null), 6000);
     }
   };
+
+  const allowedEngagementIds = visibleEngagementIds(state);
+  const queueRows = state.engagements
+    .filter(engagement => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(engagement.id))
+    .flatMap(engagement => engagement.reviews.map(note => ({ engagementId: engagement.id, note })))
+    .filter(row => queueFilter === 'scoped' || queueFilter === 'assigned' && (row.note.assignee || row.note.assigned) === state.currentPerson || queueFilter === 'engagement' && row.engagementId === selectedEng.id);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -119,8 +128,17 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
 
       <div className="panel">
         <div className="panel-head">
-          <h3>Review Notes for {selectedEng.id} ({reviews.length})</h3>
-          <span className="caption">Separation of duties: Responder cannot clear their own query</span>
+          <div className="between" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <h3>Review Queue ({queueRows.length})</h3>
+            <label className="caption">Queue scope
+              <select aria-label="Review queue scope" className="input" value={queueFilter} onChange={e => setQueueFilter(e.target.value as typeof queueFilter)}>
+                <option value="engagement">Selected engagement</option>
+                <option value="assigned">Assigned to me</option>
+                <option value="scoped">All permitted engagements</option>
+              </select>
+            </label>
+          </div>
+          <span className="caption">Only notes in your granted engagement scope appear. Responders cannot clear their own query.</span>
         </div>
         <div className="tablewrap">
           <table>
@@ -136,10 +154,10 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
               </tr>
             </thead>
             <tbody>
-              {reviews.map(r => (
-                <tr key={r.id}>
+              {queueRows.map(({ engagementId, note: r }) => (
+                <tr key={`${engagementId}:${r.id}`}>
                   <td><b>{r.id}</b></td>
-                  <td><span className="mono">{r.wp}</span></td>
+                  <td><span className="mono">{engagementId} · {r.wp}</span></td>
                   <td>{r.author}</td>
                   <td><b>{r.assignee}</b></td>
                   <td>
@@ -163,6 +181,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                           className="btn sm"
                           onClick={() => {
                             setSelectedNote(r);
+                            setSelectedNoteEngagementId(engagementId);
                             setShowRespondModal(true);
                           }}
                         >
@@ -172,7 +191,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                       {r.status === 'Responded' && (
                         <button
                           className="btn sm primary"
-                          onClick={() => handleClearNote(r.id)}
+                          onClick={() => handleClearNote(engagementId, r.id)}
                         >
                           Clear Note
                         </button>
