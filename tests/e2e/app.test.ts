@@ -698,7 +698,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(changed, true, 'client persona option should exist');
     assert.equal(await waitForBrowser('document.querySelector("nav button")?.innerText.includes("Client Experience Portal")'), true);
     const nav = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("nav button")].map(x => x.innerText.trim())');
-    assert.deepEqual(nav, ['Client Experience Portal', 'Specifications & PRD']);
+    // DEMO-001: the read-only Module Guide is client-visible; it holds no business records.
+    assert.deepEqual(nav, ['Client Experience Portal', 'Module Guide', 'Specifications & PRD']);
     await clickButton('Client Experience Portal');
     const entityContext = await browserTab!.evaluate<any>(`(() => {const select=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='CL-003'));return select&&{values:[...select.options].map(o=>o.value)};})()`);
     assert.deepEqual(entityContext.values, ['CL-001', 'CL-003'], 'multi-entity client receives only the two explicitly granted entities');
