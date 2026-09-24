@@ -7,6 +7,8 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
 import { TBImportWizard } from './TBImportWizard';
+import { GL_FILE_BYTES_LIMIT, parseGLWorkbook, ParsedGLSource } from '../../services/glImport';
+import { exportService } from '../../services/exportService';
 
 const AccountingSetup: React.FC<{ clientId: string; engagementId: string; profile?: ClientAccountingProfile }> = ({ clientId, engagementId, profile }) => {
   const seed: ClientAccountingProfile = profile || { legalEntityName: '', reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
@@ -40,6 +42,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
   const [recDraft, setRecDraft] = useState<ReconciliationSchedule | null>(null);
   const [recNotice, setRecNotice] = useState('');
+  const [glFileName, setGLFileName] = useState('');
+  const [glBytes, setGLBytes] = useState<ArrayBuffer | null>(null);
+  const [glPreview, setGLPreview] = useState<ParsedGLSource | null>(null);
+  const [glNotice, setGLNotice] = useState('');
+  const [glAccountFilter, setGLAccountFilter] = useState('');
+  const [glJournalFilter, setGLJournalFilter] = useState('');
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -78,7 +86,11 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [adjRationale, setAdjRationale] = useState('Record unbilled professional audit and consulting fees.');
 
   const tbTotals = calculateTrialBalanceTotals(selectedEng.rows);
-  const glVerify = verifyGLCompleteness(state.glTransactions, selectedEng.rows);
+  const glSource = selectedEng.glSourceHistory?.at(-1);
+  const glTransactions = glSource?.transactions || state.glTransactions.filter(line => line.engagementId === selectedEng.id);
+  const glVerify = verifyGLCompleteness(glTransactions, selectedEng.rows, glSource?.openingBalances);
+  const visibleGLTransactions = glTransactions.filter(line => (!glAccountFilter || line.accountCode.toLowerCase().includes(glAccountFilter.toLowerCase())) && (!glJournalFilter || line.journalId.toLowerCase().includes(glJournalFilter.toLowerCase())));
+  const safeCSVText = (value: string) => /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
   const activeMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
   const activeMappings = activeMapping?.mappings || [];
@@ -256,6 +268,34 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
       {activeTab === 'gl' && (
         <div className="stack" style={{ gap: 16 }}>
           <div className="panel panel-pad">
+            <div className="between"><div><h3>Import engagement GL source</h3><p className="sub">CSV or genuine XLSX · {selectedEng.currency} · selected accounting period only · maximum 5,000 lines / 5 MB</p></div><span className="tag blue">Source revisions: {selectedEng.glSourceHistory?.length || 0}</span></div>
+            <p className="caption mt8">Required headers: Journal ID, Line ID, Date, Account Code, Account Name, Debit, Credit, Currency, Description. Optional Opening Balance supplies an explicit prior closing balance per account.</p>
+            <div className="row mt12" style={{ gap: 10 }}>
+              <input aria-label="General ledger source file" type="file" accept=".csv,.xlsx" onChange={async event => {
+                const file = event.target.files?.[0]; setGLPreview(null); setGLNotice(''); setGLBytes(null); setGLFileName('');
+                if (!file) return;
+                if (file.size > GL_FILE_BYTES_LIMIT) { setGLNotice('File exceeds 5 MB; nothing was imported.'); return; }
+                const bytes = await file.arrayBuffer(); setGLBytes(bytes); setGLFileName(file.name);
+                const profile = state.clients.find(item => item.id === selectedEng.client)?.accountingProfile;
+                const book = profile?.periodBooks.find(item => item.id === selectedEng.accountingPeriodBookId);
+                if (!book) { setGLNotice('Select a current accounting period book before previewing GL files.'); return; }
+                setGLPreview(parseGLWorkbook(file.name, bytes, selectedEng.currency, book.startDate, book.endDate));
+              }} />
+              <button className="btn sm" disabled={!glBytes || !glPreview || glPreview.errors.length > 0} onClick={async () => {
+                if (!glBytes || !glPreview || !globalThis.crypto?.subtle) { setGLNotice('This browser cannot verify the source SHA-256; nothing was imported.'); return; }
+                const digest = await crypto.subtle.digest('SHA-256', glBytes);
+                const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+                try {
+                  const revision = prototypeStore.importGeneralLedgerSource(selectedEng.id, { fileName: glFileName, format: glPreview.format, sha256, openingBalances: glPreview.openingBalances, transactions: glPreview.transactions });
+                  setGLNotice(`GL source revision ${revision} saved with ${glPreview.transactions.length} lines. Prior revisions and dependent review history remain retained.`); setGLPreview(null); setGLBytes(null);
+                } catch (error) { setGLNotice(error instanceof Error ? error.message : 'GL source was not imported.'); }
+              }}>Import new revision</button>
+              <button className="btn sm ghost" disabled={!visibleGLTransactions.length} onClick={() => exportService.exportCSV(`GL_${selectedEng.id}_v${glSource?.revision || 0}.csv`, [['Journal ID','Line ID','Date','Account Code','Account Name','Debit','Credit','Currency','Description'], ...visibleGLTransactions.map(line => [line.journalId,line.lineId,safeCSVText(line.date),safeCSVText(line.accountCode),safeCSVText(line.accountName),String(line.debit),String(line.credit),safeCSVText(line.currency),safeCSVText(line.description)])])}>Export filtered CSV</button>
+            </div>
+            {glNotice && <p role="status" className="mt8">{glNotice}</p>}
+            {glPreview && <div className="borderbox mt12 panel-pad"><b>Preview: {glFileName}</b><p>{glPreview.transactions.length} lines · {Object.keys(glPreview.openingBalances).length} explicit opening balances · {glPreview.errors.length} validation errors</p>{glPreview.errors.map(error => <p className="text-danger" key={error}>{error}</p>)}{!glPreview.errors.length && <p className="caption">Journal balance, date/currency consistency, and period checks passed. Unmatched account codes remain visible in completeness results.</p>}</div>}
+          </div>
+          <div className="panel panel-pad">
             <div className="between">
               <div>
                 <h3>General Ledger Completeness Verification</h3>
@@ -264,7 +304,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 </p>
               </div>
               <span className={`badge ${glVerify.isComplete ? 'green' : 'amber'}`}>
-                {glVerify.isComplete ? 'GL Fully Reconciled to TB' : `${glVerify.discrepancies.length} Discrepancies`}
+                {glVerify.isComplete ? 'GL Fully Reconciled to TB' : `${glVerify.discrepancies.length} Open completeness items`}
               </span>
             </div>
             {glVerify.discrepancies.length > 0 && (
@@ -272,17 +312,21 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 <b>Discrepancies found:</b>
                 {glVerify.discrepancies.map(d => (
                   <div key={d.accountCode} className="cell-sub" style={{ color: '#b45309' }}>
-                    Account {d.accountCode} ({d.accountName}): GL Sum = {formatCurrency(d.glSum)}, TB Balance = {formatCurrency(d.tbBalance)}, Diff = {formatCurrency(d.difference)}
+                    Account {d.accountCode} ({d.accountName}){d.missingOpening ? ' · opening balance missing' : ''}{d.unmatchedAccount ? ' · not in closing TB' : ''}: Calculated close = {d.missingOpening ? 'Unknown' : formatCurrency(d.calculatedClosing, selectedEng.currency)}, TB close = {formatCurrency(d.tbBalance, selectedEng.currency)}, Residual = {d.missingOpening ? 'Unknown' : formatCurrency(d.residual, selectedEng.currency)}
                   </div>
                 ))}
               </div>
             )}
+            <div className="tablewrap mt12"><table><thead><tr><th>Account</th><th>Opening</th><th>GL movement</th><th>Calculated close</th><th>TB close</th><th>Residual</th><th>Source journals</th><th>Status</th></tr></thead><tbody>
+              {glVerify.checks.map(check => <tr key={check.accountCode}><td><span className="mono">{check.accountCode}</span> · {check.accountName}</td><td>{check.missingOpening ? 'Unknown' : formatCurrency(check.openingBalance, selectedEng.currency)}</td><td>{formatCurrency(check.netMovement, selectedEng.currency)}</td><td>{check.missingOpening ? 'Unknown' : formatCurrency(check.calculatedClosing, selectedEng.currency)}</td><td>{formatCurrency(check.tbBalance, selectedEng.currency)}</td><td>{check.missingOpening ? 'Unknown' : formatCurrency(check.residual, selectedEng.currency)}</td><td>{[...new Set(glTransactions.filter(line => line.accountCode === check.accountCode).map(line => line.journalId))].join(', ') || '—'}</td><td>{check.isComplete ? 'Reconciled' : check.missingOpening ? 'Missing opening' : check.unmatchedAccount ? 'Unmatched account' : 'Residual'}</td></tr>)}
+            </tbody></table></div>
           </div>
 
           <div className="panel">
             <div className="panel-head">
-              <h3>GL Detailed Transactions ({state.glTransactions.length})</h3>
+              <h3>GL Detailed Transactions ({visibleGLTransactions.length}) · {glSource ? `Source v${glSource.revision}` : 'No imported engagement source'}</h3>
             </div>
+            <div className="row panel-pad" style={{ gap: 8 }}><input className="input" aria-label="Filter GL account" placeholder="Filter account code" value={glAccountFilter} onChange={event => setGLAccountFilter(event.target.value)} /><input className="input" aria-label="Filter GL journal" placeholder="Filter journal ID" value={glJournalFilter} onChange={event => setGLJournalFilter(event.target.value)} /></div>
             <div className="tablewrap">
               <table>
                 <thead>
@@ -296,7 +340,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                   </tr>
                 </thead>
                 <tbody>
-                  {state.glTransactions.map(tx => (
+                  {visibleGLTransactions.map(tx => (
                     <tr key={tx.id}>
                       <td>{tx.date}</td>
                       <td><span className="mono">{tx.accountCode}</span></td>

@@ -54,6 +54,29 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
       cashFlowIds.add(revision.id);
       cashFlowNumbers.add(revision.revision);
     }
+    const glRevisions = list<NonNullable<PrototypeState['engagements'][number]['glSourceHistory']>[number]>(e.glSourceHistory);
+    const glRevisionNumbers = new Set<number>();
+    for (const [index, revision] of glRevisions.entries()) {
+      const lines = list<NonNullable<typeof revision>['transactions'][number]>(revision?.transactions);
+      const client = clients.find(item => item.id === e.client);
+      const book = (Array.isArray(client?.accountingProfile?.periodBooks) ? client.accountingProfile.periodBooks : []).find(item => item.id === revision?.periodBookId && item.ownerEngagementId === e.id);
+      const keys = new Set<string>();
+      const journals = new Map<string, { debit: number; credit: number; date: string; currency: string }>();
+      for (const line of lines) {
+        if (!line || line.engagementId !== e.id || typeof line.journalId !== 'string' || !line.journalId || typeof line.lineId !== 'string' || !line.lineId || !validDate(line.date) || book && (line.date < book.startDate || line.date > book.endDate) || client?.accountingProfile?.baseCurrency && line.currency !== client.accountingProfile.baseCurrency || typeof line.accountCode !== 'string' || !line.accountCode || typeof line.accountName !== 'string' || !line.accountName || typeof line.description !== 'string' || !line.description || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || Math.abs(line.debit * 100 - Math.round(line.debit * 100)) > 1e-7 || Math.abs(line.credit * 100 - Math.round(line.credit * 100)) > 1e-7 || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || keys.has(`${line.journalId}\u0000${line.lineId}`)) {
+          issues.push({ code: 'GL_SOURCE_LINE', message: `GL revision ${revision?.revision ?? '?'} on ${e.id} contains an invalid or duplicate transaction line.` });
+          continue;
+        }
+        keys.add(`${line.journalId}\u0000${line.lineId}`);
+        const totals = journals.get(line.journalId) || { debit: 0, credit: 0, date: line.date, currency: line.currency };
+        if (totals.date !== line.date || totals.currency !== line.currency) issues.push({ code: 'GL_SOURCE_JOURNAL', message: `GL journal ${line.journalId} on ${e.id} mixes dates or currencies.` });
+        totals.debit += line.debit; totals.credit += line.credit; journals.set(line.journalId, totals);
+      }
+      if (!revision || revision.revision !== index + 1 || !Number.isInteger(revision.revision) || revision.revision < 1 || glRevisionNumbers.has(revision.revision) || revision.predecessorRevision !== (revision.revision > 1 ? revision.revision - 1 : undefined) || typeof revision.fileName !== 'string' || !revision.fileName.trim() || !['CSV', 'XLSX', 'Legacy'].includes(revision.format) || revision.format !== 'Legacy' && !/^[a-f0-9]{64}$/i.test(revision.sha256 || '') || typeof revision.importedAt !== 'string' || !validDate(revision.importedAt.slice(0, 10)) || !userIds.has(revision.importedByUserId) || !book || !lines.length || !revision.openingBalances || typeof revision.openingBalances !== 'object' || Array.isArray(revision.openingBalances) || Object.values(revision.openingBalances).some(value => !Number.isFinite(value) || Math.abs(value * 100 - Math.round(value * 100)) > 1e-7) || [...journals.values()].some(totals => Math.abs(totals.debit - totals.credit) > 0.005)) {
+        issues.push({ code: 'GL_SOURCE_REVISION', message: `GL revision ${revision?.revision ?? '(missing revision)'} on ${e.id} contains invalid source metadata, period, opening balances or journal totals.` });
+      }
+      if (revision && Number.isInteger(revision.revision)) glRevisionNumbers.add(revision.revision);
+    }
   }
   for (const j of jobs) {
     if (j.dueDate) dateIssue(`Job ${j.id}`, 'due', j.dueDate);

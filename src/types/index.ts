@@ -365,6 +365,19 @@ export interface CashFlowScheduleRevision {
   reviewedAt?: string;
 }
 
+export interface GLSourceRevision {
+  revision: number;
+  predecessorRevision?: number;
+  fileName: string;
+  format: 'CSV' | 'XLSX' | 'Legacy';
+  sha256?: string;
+  periodBookId?: string;
+  importedAt: string;
+  importedByUserId: string;
+  openingBalances: Record<string, number>;
+  transactions: GLTransactionItem[];
+}
+
 export interface EngagementRecord {
   id: string;
   continuanceFromEngagementId?: string;
@@ -397,6 +410,7 @@ export interface EngagementRecord {
   packageRevision: number;
   builtGeneration: number;
   sourceVersion: number;
+  glSourceHistory?: GLSourceRevision[];
   sourceHistory?: Array<{
     version: number;
     rows: TrialBalanceRow[];
@@ -826,6 +840,7 @@ export interface AccountMappingRevision {
 
 export interface GLTransactionItem {
   id: string;
+  engagementId?: string;
   journalId: string;
   lineId: string;
   date: string;

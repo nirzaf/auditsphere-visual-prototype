@@ -3660,14 +3660,33 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
-  it('AT-36: renders general ledger completeness status', async () => {
+  it('AT-36: imports a period-bound GL source, reconciles opening plus movement to TB, and retains replacement history', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
+      const fixture = createInitialState();
+      const fixtureEngagement = fixture.engagements.find(e => e.id === 'ENG-26001')!;
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(fixture))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
       await clickButton('Accounting Workbench');
-      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('General Ledger & Completeness'));if(!b)return false;b.click();return true;})()`), true);
-      const text = await browserTab!.evaluate<string>('document.body.innerText');
-      assert.match(text, /General Ledger Completeness Verification/);
-      assert.match(text, /GL Fully Reconciled to TB|Discrepancies/);
+      await clickButtonStartingWith('General Ledger & Completeness');
+      assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="General ledger source file"]')`), true, await browserTab!.evaluate<string>('document.body.innerText.slice(-1800)'));
+      const header='Journal ID,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance';
+      const csvCell=(value:unknown)=>`"${String(value).replaceAll('"','""')}"`;
+      const lines=fixtureEngagement.rows.flatMap((row,index)=>row.balance===0?[`J1,L${index+1}a,2026-09-23,${row.code},${csvCell(row.name)},1,0,QAR,Zero-balance control,0`,`J1,L${index+1}b,2026-09-23,${row.code},${csvCell(row.name)},0,1,QAR,Zero-balance control,0`]:[`J1,L${index+1},2026-09-23,${row.code},${csvCell(row.name)},${Math.max(row.balance,0)},${Math.max(-row.balance,0)},QAR,GL closing movement,0`]);
+      const csv=[header,...lines].join('\n');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="General ledger source file"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(csv)}],'gl-source.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('document.body.innerText.includes("0 validation errors")'), true, await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(p=>p.innerText.includes('Import engagement GL source'))?.innerText||'panel not found'`));
+      await clickButton('Import new revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Accounting Workbench'); await clickButtonStartingWith('General Ledger & Completeness');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true, await browserTab!.evaluate<string>(`document.body.innerText.slice(-800)`));
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.glSourceHistory?.[0];return r?.revision===1&&r.transactions.length===8&&r.transactions.every(t=>t.engagementId===e.id)&&r.openingBalances['1000']===0&&/^[a-f0-9]{64}$/.test(r.sha256);})()`), true, 'source rows, engagement identity and file digest persist');
+      assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""'), /Reconciled/);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Filter GL account"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'1000');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('[...document.querySelectorAll(".panel")].find(p=>p.querySelector("h3")?.innerText.includes("GL Detailed Transactions"))?.querySelectorAll("tbody tr").length===1'), true, 'account filter narrows the source-bound drill-down');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

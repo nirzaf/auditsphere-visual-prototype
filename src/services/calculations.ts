@@ -435,7 +435,7 @@ export function verifyGLCompleteness(
 
     if (!isNaN(residual)) totalResidual += residual;
 
-    const complete = !isUnmatched && isOpeningKnown && residual === 0;
+    const complete = !isUnmatched && isOpeningKnown && residual <= 0.005;
 
     checks.push({
       accountCode: code,

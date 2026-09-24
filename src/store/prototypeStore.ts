@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -1907,6 +1907,40 @@ class PrototypeStore {
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Trial balance updated for ${eng.id} (Source v${eng.sourceVersion})`, eng.id);
     this.notify();
+  }
+
+  public importGeneralLedgerSource(engagementId: string, input: { fileName: string; format: 'CSV' | 'XLSX'; sha256: string; openingBalances: Record<string, number>; transactions: GLSourceRevision['transactions'] }) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'import a general ledger source');
+    requireEngagementScope(this.state, engagementId);
+    if (this.isSessionOnly) throw new GuardError('INVALID_STATE', 'Browser storage is session-only; a durable GL source revision cannot be recorded.');
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    const client = this.state.clients.find(item => item.id === engagement?.client);
+    const profile = client?.accountingProfile;
+    const book = profile?.periodBooks.find(item => item.id === engagement?.accountingPeriodBookId && item.ownerEngagementId === engagementId);
+    if (!engagement || !book || !profile || profile.reportingBasis === 'Not selected' || engagement.accountingProfileRevision !== profile.revision || engagement.accountingChartRevision !== profile.chartRevision) throw new GuardError('INVALID_STATE', 'Select this engagement’s current accounting period book before importing its general ledger.');
+    const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+    const cents = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
+    const journalTotals = new Map<string, { debit: number; credit: number; date: string; currency: string }>();
+    const keys = new Set<string>();
+    if (!input || typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 255 || !['CSV', 'XLSX'].includes(input.format) || typeof input.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(input.sha256) || !Array.isArray(input.transactions) || !input.transactions.length || input.transactions.length > 5000 || !input.openingBalances || typeof input.openingBalances !== 'object' || Array.isArray(input.openingBalances) || Object.values(input.openingBalances).some(value => !Number.isFinite(value) || !cents(value))) throw new GuardError('INVALID_STATE', 'GL import requires a named bounded source, SHA-256, transactions, and cent-accurate opening balances.');
+    for (const line of input.transactions) {
+      if (!line || typeof line.journalId !== 'string' || !line.journalId.trim() || line.journalId.length > 128 || typeof line.lineId !== 'string' || !line.lineId.trim() || line.lineId.length > 128 || typeof line.accountCode !== 'string' || !line.accountCode.trim() || line.accountCode.length > 128 || typeof line.accountName !== 'string' || !line.accountName.trim() || line.accountName.length > 255 || typeof line.description !== 'string' || !line.description.trim() || line.description.length > 2048 || typeof line.date !== 'string' || !validDate(line.date) || line.date < book.startDate || line.date > book.endDate || line.currency !== profile.baseCurrency || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || !cents(line.debit) || !cents(line.credit) || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || keys.has(`${line.journalId}\u0000${line.lineId}`)) throw new GuardError('INVALID_STATE', 'GL lines must have unique keys, valid in-period dates, matching currency and exactly one cent-accurate non-negative debit or credit.');
+      keys.add(`${line.journalId}\u0000${line.lineId}`);
+      const totals = journalTotals.get(line.journalId) || { debit: 0, credit: 0, date: line.date, currency: line.currency };
+      if (totals.date !== line.date || totals.currency !== line.currency) throw new GuardError('INVALID_STATE', `Journal ${line.journalId} mixes dates or currencies.`);
+      totals.debit += line.debit; totals.credit += line.credit; journalTotals.set(line.journalId, totals);
+    }
+    for (const [journal, totals] of journalTotals) if (Math.abs(totals.debit - totals.credit) > 0.005) throw new GuardError('INVALID_STATE', `Journal ${journal} is not balanced.`);
+    const history = engagement.glSourceHistory ||= [];
+    const revision: GLSourceRevision = { revision: (history.at(-1)?.revision || 0) + 1, predecessorRevision: history.at(-1)?.revision, fileName: input.fileName.trim(), format: input.format, sha256: input.sha256.toLowerCase(), periodBookId: book.id, importedAt: new Date().toISOString(), importedByUserId: this.state.currentUserId, openingBalances: structuredClone(input.openingBalances), transactions: input.transactions.map(line => ({ ...structuredClone(line), engagementId })) };
+    history.push(revision);
+    for (const reconciliation of engagement.reconciliations || []) this.staleReconciliation(reconciliation);
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`General ledger source revision ${revision.revision} imported for ${engagementId}`, engagementId);
+    this.notify();
+    if (this.isSessionOnly) throw new GuardError('INVALID_STATE', 'Browser storage could not persist the GL source revision; it remains available only for this session.');
+    return revision.revision;
   }
 
   public saveReconciliationSchedule(engagementId: string, input: ReconciliationSchedule) {
