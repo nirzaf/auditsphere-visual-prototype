@@ -105,9 +105,10 @@ sources explicitly trace AT-01 through AT-54. See
   net amounts from gross absolute totals by currency. Dispositions keep actor,
   rationale and time; “Corrected in TB” requires a linked reviewed journal that
   is reflected. Significant unresolved findings block release readiness. Chrome
-  verifies a sourced qualitative finding and durable disposition; sampled
-  exception promotion, financial aggregation and the complete reopen/waiver
-  matrix still need direct browser evidence.
+  verifies a sourced qualitative finding and durable disposition, plus promotion
+  of a sampled monetary exception with its population/item link. Financial
+  aggregation remains unit-backed; reporting and the full reopen/waiver matrix
+  still need browser evidence.
 
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
