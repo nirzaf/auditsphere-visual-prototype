@@ -53,7 +53,7 @@
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
 | Unit checks passing in this review | 168 / 168 | Fresh full run at `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc`; includes reflected-evidence guards, amendment history, disclosures, cash-flow staleness and reporting-rate checks. |
-| E2E checks passing in this review | 71 / 71 | Fresh full run at `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc`: 5 static checks + 66 actual Chrome checks, including all 16 report exports and adjustment-reflection/amendment gates. |
+| E2E checks passing in this review | 71 / 71 | Fresh full run at `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc`: 5 static checks + 66 actual Chrome checks, including all 16 report exports, adjustment-reflection/amendment gates and VP-039 timing/residual/rework subcases. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -458,7 +458,7 @@ Each record includes the exact original user story, required scope, four accepta
 **Owner:** Unassigned  
 **Issue / PR:** Not linked in this tracker  
 **Target date:** Not set  
-**Status snapshot:** 2026-09-24, `eaaa7cf`
+**Status snapshot:** 2026-09-24, VP-039 Chrome subcases run on working tree after `20213179`
 
 - [ ] **Story acceptance recorded as complete in the repository.**
 
@@ -2510,12 +2510,12 @@ Create journal header/context and arbitrary debit/credit lines; support draft, s
 **Original journey links:** [AT-39](#at-39); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Manual source-pinned reconciliation drafts, dated typed items, scoped evidence, independent review, reasoned return and new rework revisions are demonstrated. Nonzero unexplained residuals/missing evidence/unlinked corrections block approval; replacements stale old reviews.
+Manual source-pinned reconciliation drafts, dated typed items, scoped evidence, independent review, reasoned return and new rework revisions are demonstrated. AT-39 now proves a dated $100 timing item plus $999,900 statement balance reproduces the $1,000,000 source balance; a $100 unexplained residual blocks reviewer approval, then a corrected schedule can be independently approved. The same browser run confirms return rationale survives rework history. Unit coverage still covers missing/out-of-scope evidence, invalid currency/date, unlinked proposed corrections and source replacement staleness.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-039-E01 — Verification/evidence pending:** Close the original residual, timing-versus-correction, currency/date/scope and independent-review criteria with exact test references.
+- [ ] **VP-039-E01 — Verification/evidence pending:** Passed subcases: timing arithmetic, nonzero residual approval block, independent approval after correction, returned-reason history across rework. Exact test: `tests/e2e/app.test.ts::AT-39`; full suite 71/71 on 2026-09-24. Remaining: missing-evidence and proposed-correction browser paths, replacement-stale history in Chrome, and criterion-level review/sign-off.
 
 - [ ] **VP-039-R02 — Requirement/scope reconciliation:** The record still labels this Partial, but its named external statement/bank-system limits are excluded. Identify the remaining in-scope criterion before assigning new implementation work.
 
@@ -2531,10 +2531,10 @@ Add schedule header with account, period/as-of date, source TB/GL balance and st
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-039-AC01 | Given valid schedule items, when recalculated, then opening/source/supporting totals and unexplained residual are reproducible from displayed inputs. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC02 | An unexplained nonzero residual or missing required evidence blocks approval; proposed corrections cannot masquerade as already cleared timing items. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC03 | An accepted source/evidence replacement makes current reconciliation review stale; the previous approved snapshot remains viewable. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-039-AC04 | Item currency/date/scope validation and independent reviewer checks work; no bank feed, automated matching, payment initiation or tax integration is introduced. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-039-AC01 | Given valid schedule items, when recalculated, then opening/source/supporting totals and unexplained residual are reproducible from displayed inputs. | PARTIAL EVIDENCE: AT-39 asserts $999,900 statement + $100 dated timing item = $1,000,000 GL; broader source/opening and displayed residual cases remain open |
+| VP-039-AC02 | An unexplained nonzero residual or missing required evidence blocks approval; proposed corrections cannot masquerade as already cleared timing items. | PARTIAL EVIDENCE: AT-39 proves a $100 unexplained residual blocks independent approval; missing evidence and proposed-correction browser cases remain open |
+| VP-039-AC03 | An accepted source/evidence replacement makes current reconciliation review stale; the previous approved snapshot remains viewable. | PARTIAL EVIDENCE: unit coverage proves source/document replacement stales approval and retains history; replacement journey and snapshot visibility remain open in Chrome |
+| VP-039-AC04 | Item currency/date/scope validation and independent reviewer checks work; no bank feed, automated matching, payment initiation or tax integration is introduced. | PARTIAL EVIDENCE: unit validation and AT-39 reviewer/self-review, reasoned return, rework and approval pass; full currency/date/scope matrix remains open |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L946).
 
