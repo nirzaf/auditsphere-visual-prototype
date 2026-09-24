@@ -632,16 +632,16 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 **Original journey links:** [AT-01](#at-01), [AT-02](#at-02), [AT-22](#at-22), [AT-54](#at-54); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Schema migrations, integrity checks, presenter scenarios, concurrent-save detection, quota/session-only handling and malformed-JSON backup/recovery exist. The current records report migration unit checks for versions 0–21.
+Schema migrations, integrity checks, presenter scenarios, concurrent-save detection, quota/session-only handling and malformed-JSON backup/recovery exist. Migration unit checks exercise each persisted revision 0–21 to current schema 22. The 2026-09-24 recovery journey also verifies exact preservation of a future-schema payload, rejection of ambiguous import without overwriting that payload, and successful validated v22 import. Date and fixture-integrity guards reject impossible dates, reversed periods, broken foreign references, real-person email, and monetary imbalance.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-004-E01 — Verification/evidence pending:** Complete future-schema, ambiguous-reference, corrupt-but-valid-JSON, storage-denial and recovery/export/import journeys against actual historical fixtures.
+- [ ] **VP-004-E01 — Verification/evidence pending:** Extend recovery/export/import coverage across actual historical fixtures, corrupt-but-valid JSON, every recovery choice, and byte-verified downloaded exports. Future-schema preservation and ambiguous-import rejection now have Chrome coverage.
 
-- [ ] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata.
+- [ ] **VP-004-E02 — Verification/evidence pending:** Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata; current unit checks cover the binary-payload guard and Chrome verifies future-schema backup preservation.
 
-- [ ] **VP-004-R03 — Requirement/scope reconciliation:** Confirm schema coverage against the pinned current migration version; do not treat a version-number range alone as evidence for every historical shape.
+- [x] **VP-004-R03 — Requirement/scope reconciliation:** Unit coverage exercises each persisted schema revision 0–21 through pinned current schema 22, including legacy-field shapes and retained IDs/history. Evidence: `npm run test:unit`, 161/161 passing, 2026-09-24.
 
 #### Original user story and dependencies
 **Target modules:** Cross-cutting foundation  
@@ -656,9 +656,9 @@ Add schema-versioned migrations and named synthetic scenarios: full practice lif
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
 | VP-004-AC01 | Given a valid old storage payload, when upgraded, then existing workpaper/PBC/release history is retained and unambiguous links are migrated deterministically. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-004-AC02 | Given malformed, future-version or ambiguous state, when loaded/imported, then recovery guidance appears without silent deletion or invented scope; the prior payload can be preserved. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-004-AC03 | Storage denial/quota failure shows session-only mode; a stale second tab cannot silently overwrite a newer revision. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-004-AC04 | Fixture integrity tests reject broken foreign references, incoherent dates, real personal data, uploaded binary payloads and inconsistent monetary control totals. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-004-AC02 | Given malformed, future-version or ambiguous state, when loaded/imported, then recovery guidance appears without silent deletion or invented scope; the prior payload can be preserved. | SUBCASES VERIFIED 2026-09-24: malformed and future-schema payloads remain preserved; ambiguous import is rejected without overwrite; validated v22 import clears recovery state. Full historical-shape coverage remains open. |
+| VP-004-AC03 | Storage denial/quota failure shows session-only mode; a stale second tab cannot silently overwrite a newer revision. | SUBCASES VERIFIED 2026-09-24 by AT-02/AT-54 Chrome conflict and storage-failure journeys; criterion breadth remains open. |
+| VP-004-AC04 | Fixture integrity tests reject broken foreign references, incoherent dates, real personal data, uploaded binary payloads and inconsistent monetary control totals. | SUBCASES VERIFIED 2026-09-24: FK, impossible date, reversed accounting period, real email, binary payload and monetary control checks pass in 161/161 unit tests; full fixture inventory sign-off remains open. |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L339).
 
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **118 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **117 open planning actions** attached to the 50 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4063,7 +4063,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-001-R02 | [VP-001](#vp-001) | Retain historical imported tax/salary account labels; do not turn a non-feature keyword match into a requirement to destroy accounting data. | Open / — |
 | VP-002-R02 | [VP-002](#vp-002) | Reconcile the original legacy-adapter/hash-route criteria with the completed React migration. Document compatibility or intentional retirement; do not rebuild an unused legacy runtime solely to satisfy obsolete implementation wording. | Open / — |
 | VP-003-R03 | [VP-003](#vp-003) | Where a dirty-form or unavailable-target path is absent, implement the smallest shared control and then add its test. | Open / — |
-| VP-004-R03 | [VP-004](#vp-004) | Confirm schema coverage against the pinned current migration version; do not treat a version-number range alone as evidence for every historical shape. | Open / — |
+| VP-004-R03 | [VP-004](#vp-004) | Confirm schema coverage against the pinned current migration version; do not treat a version-number range alone as evidence for every historical shape. | Complete / 2026-09-24 unit evidence |
 | VP-006-R02 | [VP-006](#vp-006) | Check every original required and optional profile field and implement only missing contractual fields/lifecycle controls before final sign-off. | Open / — |
 | VP-008-R02 | [VP-008](#vp-008) | Complete any missing shared activity projections rather than duplicating client/job/communication records in the workspace. | Open / — |
 | VP-010-R03 | [VP-010](#vp-010) | Reconcile service-catalogue and reusable-content-template editor coverage before adding any additional proposal feature. | Open / — |

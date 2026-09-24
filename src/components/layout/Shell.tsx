@@ -1,7 +1,7 @@
 // AuditSphere Layout Shell
 // Sidebar, Topbar, Scenario Switcher, Search Modal, and Notifications
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { RouteKey, RoleKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { canOpenRoute, visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
@@ -24,6 +24,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const [searchContext, setSearchContext] = useState('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
+  const importInput = useRef<HTMLInputElement>(null);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
 
   const allowedClientIds = visibleClientIds(state);
@@ -144,6 +145,30 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     triggerToast(`Loaded scenario preset: ${scenId}`, 'success');
   };
 
+  const downloadJSON = (filename: string, json: string) => {
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const handleImportState = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { triggerToast('State file exceeds the 10 MB import limit.', 'error'); return; }
+    try {
+      prototypeStore.importStateJSON(await file.text());
+      triggerToast(prototypeStore.isSessionOnlyMode() ? 'Validated state imported for this session; browser storage is unavailable.' : 'Validated state imported and saved locally.', 'success');
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : 'State import failed; the existing payload was preserved.', 'error');
+    }
+  };
+
+  const importStateButton = <button className="btn sm" onClick={() => importInput.current?.click()}>Import validated JSON</button>;
+
   // Global search filtering — VP-061: deterministic local metadata search, scoped by
   // grants. Unauthorized records contribute no title, snippet, count or ordering.
   // Historical requirements text is NOT indexed here (separate Requirements view).
@@ -206,9 +231,16 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
 
   return (
     <div id="app-root">
+      <input ref={importInput} type="file" accept="application/json,.json" aria-label="Import validated state JSON" onChange={handleImportState} style={{ display: 'none' }} />
       {(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode()) && (
         <div role="status" className="panel panel-pad" style={{ background: '#fff7ed', color: '#9a3412', margin: 12 }}>
           {prototypeStore.getLoadError() || 'Browser storage is unavailable; changes last only for this session.'}
+          <div className="row mt8" style={{ gap: 8 }}>
+            <button className="btn sm" onClick={() => downloadJSON(`auditsphere-state-${state.asOfDate}.json`, prototypeStore.exportStateJSON())}>Export current state</button>
+            {prototypeStore.getPreservedStateJSON() && <button className="btn sm" onClick={() => downloadJSON(`auditsphere-preserved-${state.asOfDate}.json`, prototypeStore.getPreservedStateJSON()!)}>Export preserved payload</button>}
+            {importStateButton}
+            <button className="btn sm ghost" onClick={() => { if (window.confirm('Reset local demo data to the default baseline? The current payload remains available as a recovery backup.')) prototypeStore.resetState(); }}>Reset to default</button>
+          </div>
         </div>
       )}
       {prototypeStore.hasStorageConflict() && (
@@ -436,12 +468,16 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             </div>
             <div className="modal-foot">
               <button className="btn ghost sm" onClick={() => setShowScenarioModal(false)}>Cancel</button>
+              <button className="btn sm" onClick={() => downloadJSON(`auditsphere-state-${state.asOfDate}.json`, prototypeStore.exportStateJSON())}>Export state JSON</button>
+              {importStateButton}
               <button
                 className="btn sm"
                 onClick={() => {
-                  prototypeStore.resetState();
-                  setShowScenarioModal(false);
-                  triggerToast('Reset to default initial baseline');
+                  if (window.confirm('Reset local demo data to the default baseline? The current payload remains available as a recovery backup.')) {
+                    prototypeStore.resetState();
+                    setShowScenarioModal(false);
+                    triggerToast('Reset to default initial baseline');
+                  }
                 }}
               >
                 Reset Default

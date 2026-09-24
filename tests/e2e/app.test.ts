@@ -2450,9 +2450,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Accounting Workbench');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Trial-Balance Intake")'), true);
     const file = (name: string, contents: string) => `(() => {
-      const input=document.querySelector('input[type=file]'); const transfer=new DataTransfer();
+      const input=document.querySelector('input[type=file][accept*=".csv"]'); const transfer=new DataTransfer();
       transfer.items.add(new File([${JSON.stringify(contents)}],${JSON.stringify(name)},{type:'text/csv'}));
-      input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'files').set.call(input,transfer.files); input.dispatchEvent(new Event('change',{bubbles:true}));
     })()`;
     const assertSourceUnchanged = async (message: string) => {
       const current = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26002');return {version:e.sourceVersion,rows:e.rows};})()`);
@@ -2473,7 +2473,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: renamed.csv.xlsx")'), true);
     assert.equal(await waitForBrowser('document.body.innerText.includes("CSV or text renamed to .xlsx is rejected")'), true);
     await assertSourceUnchanged('a CSV with an XLSX extension is rejected before preview');
-    await browserTab!.evaluate(`(() => {const input=document.querySelector('input[type=file]');const transfer=new DataTransfer();transfer.items.add(new File([new Uint8Array(2*1024*1024+1)],'too-large.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('input[type=file][accept*=".csv"]');const transfer=new DataTransfer();transfer.items.add(new File([new Uint8Array(2*1024*1024+1)],'too-large.csv',{type:'text/csv'}));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'files').set.call(input,transfer.files);input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser('document.body.innerText.includes("File exceeds the 2 MB demo limit")'), true);
     await assertSourceUnchanged('oversized sources cannot replace an accepted source');
     await browserTab!.evaluate(file('unbalanced.csv', 'code,name,balance\n1000,Cash,100\n2000,Payables,-50\n'));
@@ -2503,7 +2503,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
     await browserTab!.evaluate(`(() => {
       const raw=atob(${JSON.stringify(base64)}); const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
-      const input=document.querySelector('input[type=file]'); const transfer=new DataTransfer();
+      const input=document.querySelector('input[type=file][accept*=".csv"]'); const transfer=new DataTransfer();
       transfer.items.add(new File([bytes], 'replacement.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
       input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
     })()`);
@@ -2804,6 +2804,39 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});
         if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});
       })()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-004: preserves a future-schema payload and restores a validated import', async () => {
+    const key = 'ste-auditsphere-role-portals-v2';
+    const backupKey = `${key}.backup`;
+    const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
+    const futureState = createInitialState() as any;
+    futureState.schema = 23;
+    const futurePayload = JSON.stringify(futureState);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v23, newer than supported v22/);
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
+      assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File(['{"schema":22}'],'ambiguous-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`document.body.innerText.includes('Imported state is ambiguous: missing engagements')`), true, 'ambiguous imports report why they were rejected');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'rejected import does not overwrite the unsupported prior payload');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'rejected import keeps the preserved backup unchanged');
+      const validPayload = JSON.stringify(createInitialState());
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(validPayload)}],'recovered-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v22')`), true, 'successful import clears the recovery error');
+      const restored = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
+      assert.equal(restored.schema, 22);
+      assert.ok(restored.engagements > 0);
+      assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      await browserTab!.evaluate(`(() => {const key=${JSON.stringify(key)},backupKey=${JSON.stringify(backupKey)};if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});})()`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }

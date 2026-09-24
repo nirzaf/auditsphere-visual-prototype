@@ -265,10 +265,14 @@ Automated sources explicitly trace AT-01 through AT-55. See
   cross-group revision changes are rejected without touching state. Broader
   elimination and ownership cases remain incomplete.
 - **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
-  integrity checks. Chrome verifies concurrent-save and quota failures, and now
-  injects malformed saved JSON to confirm the exact raw value is retained as a
-  recovery backup while a usable simulated demo session opens. Other corrupted-
-  storage and recovery paths remain unverified.
+  integrity checks. Chrome verifies concurrent-save and quota failures,
+  malformed-payload preservation, exact future-schema backup preservation,
+  ambiguous-import rejection without overwriting the backup, and validated v22
+  import recovery. Recovery UI now offers validated import, current-state and
+  preserved-payload export, and confirmed reset. Fixture guards cover impossible
+  dates, reversed periods, broken references, personal email, binary payloads
+  and monetary control totals. Historical recovery choices and downloaded-byte
+  verification remain unverified.
 - **R12 — acceptance breadth:** Chrome now executes annual continuance, generated
   package persistence/release/amendment/archive, the full report catalogue and
   storage recovery journeys, CSV/XLSX TB replacement, and the complete PBC

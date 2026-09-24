@@ -21,6 +21,10 @@ export interface IntegrityIssue {
 export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   const list = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
+  const validDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  const dateIssue = (record: string, field: string, value: unknown) => {
+    if (!validDate(value)) issues.push({ code: 'FIXTURE_DATE', message: `${record} has an invalid ${field} date.` });
+  };
   const clients = list<PrototypeState['clients'][number]>(state?.clients);
   const engagements = list<PrototypeState['engagements'][number]>(state?.engagements);
   const jobs = list<PrototypeState['jobs'][number]>(state?.jobs);
@@ -32,7 +36,10 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
   const taskIds = new Set(tasks.map(t => t.id));
   const userIds = new Set(users.map(u => u.id));
 
+  dateIssue('Saved state', 'as-of', state?.asOfDate);
+
   for (const e of engagements) {
+    dateIssue(`Engagement ${e.id}`, 'due', e.due);
     if (!clientIds.has(e.client)) {
       issues.push({ code: 'FK_ENGAGEMENT_CLIENT', message: `Engagement ${e.id} references unknown client ${e.client}` });
     }
@@ -49,6 +56,7 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
     }
   }
   for (const j of jobs) {
+    if (j.dueDate) dateIssue(`Job ${j.id}`, 'due', j.dueDate);
     if (!clientIds.has(j.clientId)) issues.push({ code: 'FK_JOB_CLIENT', message: `Job ${j.id} references unknown client ${j.clientId}` });
     if (!engIds.has(j.engagementId)) issues.push({ code: 'FK_JOB_ENGAGEMENT', message: `Job ${j.id} references unknown engagement ${j.engagementId}` });
   }
@@ -65,6 +73,11 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
     }
   }
   for (const inv of list<PrototypeState['invoices'][number]>(state?.invoices)) {
+    dateIssue(`Invoice ${inv.id}`, 'due', inv.due);
+    if (inv.issueDate) {
+      dateIssue(`Invoice ${inv.id}`, 'issue', inv.issueDate);
+      if (validDate(inv.due) && validDate(inv.issueDate) && inv.due < inv.issueDate) issues.push({ code: 'FIXTURE_DATE_ORDER', message: `Invoice ${inv.id} is due before its issue date.` });
+    }
     if (!clientIds.has(inv.clientId)) issues.push({ code: 'FK_INVOICE_CLIENT', message: `Invoice ${inv.id} references unknown client ${inv.clientId}` });
     if (!Array.isArray(inv.lines)) {
       issues.push({ code: 'INVOICE_LINES', message: `Invoice ${inv.id} has no valid line collection` });
@@ -75,6 +88,17 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
       issues.push({ code: 'MONEY_INVOICE_TOTAL', message: `Invoice ${inv.id} total ${inv.amount} != sum of lines ${lineSum}` });
     }
   }
+  for (const engagement of engagements) {
+    for (const request of engagement.pbc || []) dateIssue(`PBC request ${request.id}`, 'due', request.due);
+    const books = engagement.client && state.clients.find(client => client.id === engagement.client)?.accountingProfile?.periodBooks || [];
+    for (const book of books) {
+      dateIssue(`Accounting period ${book.id}`, 'start', book.startDate);
+      dateIssue(`Accounting period ${book.id}`, 'end', book.endDate);
+      if (validDate(book.startDate) && validDate(book.endDate) && book.startDate > book.endDate) issues.push({ code: 'FIXTURE_DATE_ORDER', message: `Accounting period ${book.id} ends before it starts.` });
+    }
+  }
+  for (const receipt of list<PrototypeState['receipts'][number]>(state?.receipts)) dateIssue(`Receipt ${receipt.id}`, 'effective', receipt.date);
+  for (const credit of list<PrototypeState['creditNotes'][number]>(state?.creditNotes)) dateIssue(`Credit note ${credit.id}`, 'issue', credit.issueDate);
   // Monetary control total: 8-account demo TB must net to zero per engagement where applicable
   // (only warn when engagement carries the canonical 8 demo rows)
   for (const e of engagements) {

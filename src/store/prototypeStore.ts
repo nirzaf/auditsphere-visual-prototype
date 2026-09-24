@@ -138,6 +138,10 @@ class PrototypeStore {
     return structuredClone(this.state);
   };
 
+  public getPreservedStateJSON(): string | null {
+    try { return localStorage.getItem(STORAGE_BACKUP_KEY); } catch { return null; }
+  }
+
   private invalidateReleaseBasis(eng: EngagementRecord) {
     eng.generation++;
     eng.candidate = null;
@@ -4125,6 +4129,8 @@ class PrototypeStore {
 
   public resetState() {
     this.state = createInitialState();
+    this.loadError = null;
+    this.storageConflict = false;
     this.logEvent('Local prototype state reset to initial baseline', 'SYS');
     this.notify();
   }
@@ -4157,6 +4163,7 @@ class PrototypeStore {
       throw new Error(`Imported state failed integrity: ${issues[0].message} (${issues.length} issue(s)). Prior payload preserved.`);
     }
     this.state = state;
+    this.loadError = null;
     warnings.forEach(w => this.logEvent(w, 'SYS'));
     this.logEvent('Validated synthetic state imported successfully', 'SYS');
     this.notify();

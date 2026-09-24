@@ -182,6 +182,32 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(issues.some(i => i.code === 'PERSISTENCE_BINARY'), true);
   });
 
+  it('rejects broken references, invalid dates, real user emails and inconsistent control totals', () => {
+    const brokenReference = structuredClone(state);
+    brokenReference.engagements[0].client = 'CL-MISSING';
+    assert.ok(validateFixtures(brokenReference).some(issue => issue.code === 'FK_ENGAGEMENT_CLIENT'));
+
+    const badDate = structuredClone(state);
+    badDate.asOfDate = '2026-02-30';
+    assert.ok(validateFixtures(badDate).some(issue => issue.code === 'FIXTURE_DATE'));
+
+    const realEmail = structuredClone(state);
+    realEmail.users[0].email = 'person@example.com';
+    assert.ok(validateFixtures(realEmail).some(issue => issue.code === 'FIXTURE_PII'));
+
+    const unbalanced = structuredClone(state);
+    unbalanced.engagements[0].rows[0].balance += 1;
+    assert.ok(validateFixtures(unbalanced).some(issue => issue.code === 'MONEY_TB_IMBALANCE'));
+  });
+
+  it('rejects reversed accounting period dates', () => {
+    const invalid = structuredClone(state);
+    const book = invalid.clients[0].accountingProfile!.periodBooks[0];
+    book.startDate = '2027-01-01';
+    book.endDate = '2026-12-31';
+    assert.ok(validateFixtures(invalid).some(issue => issue.code === 'FIXTURE_DATE_ORDER'));
+  });
+
   it('migrates legacy payloads deterministically and preserves history', () => {
     const legacy = { schema: 2, engagements: state.engagements, asOfDate: '2026-09-23' };
     const { state: migrated, migratedFrom, warnings } = migratePersistedState(legacy, createInitialState());
