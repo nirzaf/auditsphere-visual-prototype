@@ -329,7 +329,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
   history. A narrow ENG-26001 grant sees a redacted perimeter with no figures,
   editor or history; self-loop and cross-group revision changes are rejected.
   Unmatched amounts, duplicate inclusion, mixed-context/counterparty cases and
-  component-replacement staleness remain incomplete.
+  component-replacement staleness remain incomplete. Group output can now be saved
+  as a digest-verified, watermarked JSON artifact containing only its pinned rows,
+  rates, elimination decisions and reconciled totals. A separate Partner decision
+  binds the output to its current input fingerprint; stale output cannot be approved
+  or downloaded. Broader same-currency/FX export lineage evidence remains open.
 - **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
   integrity checks. Chrome verifies concurrent-save and quota failures,
   malformed-payload preservation, exact future-schema backup preservation,
@@ -384,7 +388,7 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 169/169 unit checks and 73/73 E2E checks passed.
+Latest recorded full run: 170/170 unit checks and 73/73 E2E checks passed.
 E2E includes five static checks and 68 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin

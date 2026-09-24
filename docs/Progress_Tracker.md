@@ -52,10 +52,10 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 169 / 169 | Fresh full run on 2026-09-24 at `8c942ff`; includes independent consolidation-elimination review and staleness guards. |
-| E2E checks passing in this review | 73 / 73 | Fresh full run at `8c942ff`: 5 static checks + 68 actual Chrome checks, including AT-45 independent elimination draft/return/amend/approve review. |
+| Unit checks passing in this review | 170 / 170 | Fresh full run on 2026-09-24 at `a114e7b`; includes group-output package identity, independent approval, stale-input and tamper guards. |
+| E2E checks passing in this review | 73 / 73 | Fresh full run at `a114e7b`: 5 static checks + 68 actual Chrome checks, including AT-45 elimination review and VP-046 group-output preparation, independent approval, persisted digest and scoped export. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Open acceptance actions in Section 9.3 | 112 | 79 evidence/verification actions and 33 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, independently reviewed cash-flow and per-note disclosure records, and VP-043 perimeter acceptance. The current story totals are 16 verified / 48 partial; module totals remain 10 verified / 29 partial because other stories in the consolidation module are still open. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported completion estimate is used.
 
@@ -2900,7 +2900,7 @@ The supported pinned-group calculation balances including current-period result 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-046-R01 — Requirement/scope reconciliation:** Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey.
+- [x] **VP-046-R01 — Requirement/scope reconciliation complete (2026-09-24):** A separate persisted group-output package now captures the exact group, component, rate and approved-elimination lineage; an independent partner approves/returns the revision; current approved artifacts can be integrity-verified and downloaded.
 
 - [ ] **VP-046-E02 — Verification/evidence pending:** Run full same-currency and documented FX scenarios with group totals, drill-downs and exported source/perimeter/rate/elimination lineage.
 
@@ -2916,14 +2916,14 @@ Display component columns, translated totals, eliminations, group adjustments an
 
 | Criterion ID | Exact original acceptance criterion | Current criterion sign-off |
 |---|---|---|
-| VP-046-AC01 | Given compatible reviewed components and approved adjustments, when the supported fixture is consolidated, then consolidated = translated components + approved group adjustments/eliminations. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC02 | Statement equations and reconciliation columns agree with fixed expected fixture values; unresolved required inputs prevent a ready-for-review state. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC03 | Group output review binds to the exact perimeter/component/rate/elimination revisions; edits require fresh review. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-046-AC04 | Exported group demo artifacts preserve these references and exclude unrelated client information; no group action posts into component or firm ledgers. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-046-AC01 | Given compatible reviewed components and approved adjustments, when the supported fixture is consolidated, then consolidated = translated components + approved group adjustments/eliminations. | Verified subcase: AT-42 fixed fixture and AT-45 approved elimination reconcile the supported output; broader same-currency/FX expected-value matrix remains open |
+| VP-046-AC02 | Statement equations and reconciliation columns agree with fixed expected fixture values; unresolved required inputs prevent a ready-for-review state. | Verified subcases: AT-42 statement equation and unresolved component/rate/review gates; complete fixed-value and FX matrix remains open |
+| VP-046-AC03 | Group output review binds to the exact perimeter/component/rate/elimination revisions; edits require fresh review. | Verified subcase: group-output fingerprint binds perimeter, package/source/review, rate and elimination approvals; store checks reject stale or directly tampered review records; full edit/re-review matrix remains open |
+| VP-046-AC04 | Exported group demo artifacts preserve these references and exclude unrelated client information; no group action posts into component or firm ledgers. | Verified subcase: Chrome confirms persisted JSON digest, watermark, exactly the two scoped group components and unchanged source books; broader lineage/export checks remain open |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1067).
 
-**Next evidence update:** Exact tested commit: `—`; fixture: `—`; criterion → test/run link: `—`; reviewer/date: `—`. These unfilled fields are for the next acceptance update, not an assertion that no tests exist.
+**Next evidence update:** Tested source commit `a114e7b58af85d615d48f01a030e22be92922069`; fixture `GRP-01` / `ENG-26001` / `ENG-26002`; criteria AC01–AC04 verified subcases map to `tests/e2e/app.test.ts` AT-42/AT-43/AT-45 and `tests/unit/guards.test.ts` group-output fingerprint/immutability guard. Full run: lint, 170/170 unit, 73/73 E2E. Cloudflare Pages deployment `ebcce409-2eb9-4bec-a84e-9ea41a62b22b` on Production/`production`, source `a114e7b`, 2026-09-24. Full story acceptance remains open pending broader same-currency/FX and export lineage matrix.
 
 
 <a id="vp-047"></a>
@@ -3939,7 +3939,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **113 open planning actions** attached to the 48 Partial stories. Each remaining action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **112 open planning actions** attached to the 48 Partial stories. Open actions remain unchecked; completed actions are checked or marked complete in the evidence ledger. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -4097,7 +4097,7 @@ Resolve these before creating new feature tasks. Some will close by documenting 
 | VP-043-R03 | [VP-043](#vp-043) | Associate, minority and advanced consolidation methods remain explicitly unsupported; expanding them is not needed for this backlog. | Complete / acceptance scope reconciled 2026-09-24 |
 | VP-044-R03 | [VP-044](#vp-044) | Do not add live exchange-rate feeds or unsupported complex translation methods. | Open / — |
 | VP-045-R01 | [VP-045](#vp-045) | Reconcile and finish any missing manual elimination draft/submit/return/amend/review controls and counterparties/evidence fields against the four original criteria. | Open / — |
-| VP-046-R01 | [VP-046](#vp-046) | Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey. | Open / — |
+| VP-046-R01 | [VP-046](#vp-046) | Complete or demonstrate the separate group-package exact-revision review/export journey using shared artifact/approval components; the group calculation alone is not that journey. | Complete / AT-45 Chrome + group output package tests, 2026-09-24 |
 | VP-048-R02 | [VP-048](#vp-048) | Check any remaining hard-coded threshold/team/timing assumption against the contract; implement editable bounded fixture inputs where required, without asserting professional recommended rates. | Open / — |
 | VP-050-R02 | [VP-050](#vp-050) | Reconcile any remaining template-administration note with VP-049, where template functionality now exists, rather than implementing a duplicate template system. | Open / — |
 | VP-061-R03 | [VP-061](#vp-061) | Retain ordinary deterministic metadata/text search; no AI, embeddings or external search provider. | Open / — |
