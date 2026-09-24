@@ -529,4 +529,11 @@ communications, findings, workpapers and PBC requests while retaining the
 existing grant filters. Chrome searches `JOB-2601` and `INV-26002`, opens their
 respective workspaces and confirms both retain `ENG-26001` context. `npm run
 lint` passed, unit tests passed 144/144, and full build/Chrome E2E passed 63/63.
-The existing >500 kB bundle advisory remains. Deployment evidence follows.
+The existing >500 kB bundle advisory remains. Commit `eac4cac` was pushed to
+`main` and deployed to the existing `steaudit-prototype` production Pages
+project as deployment `aa5a2fab-1a3f-4231-b186-5797caa6b405`
+([release](https://aa5a2fab.steaudit-prototype.pages.dev)). The release URL and
+`https://prototype.steaudit.com` both returned HTTP 200 and served
+`assets/index-BuBX9Ebz.js` (2,226,463 bytes; SHA-256
+`fa03ca426d17275eabd011f0a01b8cbc158602b27a501e9be6a6d4635b007336`), matching
+the local build. Wrangler reports production source `eac4cac`.
