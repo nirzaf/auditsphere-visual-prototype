@@ -32,12 +32,23 @@ class CdpTab {
   private seq = 0;
   private pending = new Map<number, (message: any) => void>();
   readonly requests: string[] = [];
+  readonly blockedExternalRequests: string[] = [];
   readonly exceptions: string[] = [];
 
-  constructor(private ws: WebSocket) {
+  constructor(private ws: WebSocket, private allowedOrigin: string) {
     ws.addEventListener('message', event => {
       const message = JSON.parse(String(event.data));
       if (message.method === 'Network.requestWillBeSent') this.requests.push(message.params.request.url);
+      if (message.method === 'Fetch.requestPaused') {
+        const url = message.params.request.url as string;
+        let sameOrigin = false;
+        try { sameOrigin = new URL(url).origin === this.allowedOrigin; } catch {}
+        if (!sameOrigin) this.blockedExternalRequests.push(url);
+        void this.command(sameOrigin ? 'Fetch.continueRequest' : 'Fetch.failRequest', sameOrigin
+          ? { requestId: message.params.requestId }
+          : { requestId: message.params.requestId, errorReason: 'BlockedByClient' })
+          .catch(error => this.exceptions.push(String(error)));
+      }
       if (message.method === 'Runtime.exceptionThrown') this.exceptions.push(message.params.exceptionDetails.text || 'browser exception');
       if (message.id) this.pending.get(message.id)?.(message);
       if (message.id) this.pending.delete(message.id);
@@ -59,6 +70,10 @@ class CdpTab {
     });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'JavaScript evaluation failed');
     return result.result.value as T;
+  }
+
+  async blockExternalHttp(): Promise<void> {
+    await this.command('Fetch.enable', { patterns: [{ urlPattern: 'http://*/*' }, { urlPattern: 'https://*/*' }] });
   }
 
   close() { this.ws.close(); }
@@ -119,10 +134,11 @@ before(async () => {
     ws.addEventListener('open', () => resolve(), { once: true });
     ws.addEventListener('error', () => reject(new Error('Could not connect to Chrome DevTools')), { once: true });
   });
-  browserTab = new CdpTab(ws);
+  browserTab = new CdpTab(ws, new URL(baseUrl).origin);
   await browserTab.command('Page.enable');
   await browserTab.command('Runtime.enable');
   await browserTab.command('Network.enable');
+  await browserTab.blockExternalHttp();
   await browserTab.command('Page.navigate', { url: baseUrl });
   const ready = await waitForBrowser('document.querySelector("#app-root .brandname")?.innerText.includes("Audit")');
   assert.equal(ready, true, 'React shell did not render in Chrome');
@@ -2913,5 +2929,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+  });
+
+  it('AT-03/VP-063: blocks external HTTP requests across the Chrome acceptance journeys', () => {
+    assert.deepEqual(browserTab!.blockedExternalRequests, [], 'the active app must not attempt requests to external providers');
+    const remoteRequests = browserTab!.requests.filter(url => /^https?:/i.test(url) && new URL(url).origin !== baseUrl);
+    assert.deepEqual(remoteRequests, [], 'no external HTTP request should reach the browser network layer');
   });
 });

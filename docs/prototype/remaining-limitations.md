@@ -247,8 +247,10 @@ sources explicitly trace AT-01 through AT-54. See
 
 ## Verification snapshot
 
-Latest recorded run: 144/144 unit checks and 61/61 E2E checks passed. E2E
-includes five static checks and 56 Chrome journeys. VP-009, VP-018, VP-037,
+Latest recorded run: 144/144 unit checks and 62/62 E2E checks passed. E2E
+includes five static checks and 57 Chrome journeys. The Chrome suite blocks
+non-local HTTP(S) requests with CDP Fetch and asserts no external request was
+attempted by the exercised flows. VP-009, VP-018, VP-037,
 VP-051, VP-052, VP-053, VP-055 and VP-056 are Verified; 57 of 64 stories and 33 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
