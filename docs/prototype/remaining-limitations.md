@@ -20,10 +20,12 @@ Automated sources explicitly trace AT-01 through AT-55. See
   and invalid import accounts. The full mapping, unmapped-account, comparative statement
   lineage workflow is covered by the separately verified VP-037 story. AT-34
   now confirms an accounting-context edit stales reviewed statements and marks
-  the prior package generation stale. Module 20 remains Partial until the wider
-  client/period/chart change and rework combinations have direct acceptance
-  evidence. Migrated legacy records keep reporting basis unselected until an
-  authorized person configures it.
+  the prior package generation stale. A chart edit also downgrades an approved
+  mapping and stales a reviewed statement set in a same-client sibling
+  engagement, retaining the mapping as a draft. Module 20 remains Partial until
+  the wider client/period/chart change and rework combinations have direct
+  acceptance evidence. Migrated legacy records keep reporting basis unselected
+  until an authorized person configures it.
 - **VP-039 — manual reconciliation:** preparers can save source-version-pinned
   schedules with dated, typed items; reviewers must be independent, return
   decisions need a reason, and approval blocks unexplained residuals, missing

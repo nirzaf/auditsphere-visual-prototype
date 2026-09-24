@@ -2572,7 +2572,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-34: configures and persists the selected accounting context', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
-      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k));const e=s.engagements.find(x=>x.id===s.selectedEngagement);e.packageHistory=[{id:'AT34-OLD-PACKAGE',engagementId:e.id,revision:e.packageRevision,generation:e.generation,sourceVersion:e.sourceVersion,mappingRevision:0,notes:'',noteRevision:e.packageRevision,sections:[],validation:{passed:true},artifacts:[],createdAt:new Date().toISOString(),createdBy:s.currentPerson}];s.statementSetRevisions=[{id:'AT34-OLD-STATEMENT',engagementId:e.id,status:'Reviewed'}];localStorage.setItem(k,JSON.stringify(s));})()`);
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k)||${JSON.stringify(JSON.stringify(createInitialState()))});const e=s.engagements.find(x=>x.id===s.selectedEngagement);e.packageHistory=[{id:'AT34-OLD-PACKAGE',engagementId:e.id,revision:e.packageRevision,generation:e.generation,sourceVersion:e.sourceVersion,mappingRevision:0,notes:'',noteRevision:e.packageRevision,sections:[],validation:{passed:true},artifacts:[],createdAt:new Date().toISOString(),createdBy:s.currentPerson}];s.statementSetRevisions=[{id:'AT34-OLD-STATEMENT',engagementId:e.id,status:'Reviewed'}];const sibling=s.engagements.find(x=>x.client===e.client&&x.id!==e.id);if(sibling){sibling.mappingApproved=true;s.accountMappingRevisions.push({engagementId:sibling.id,revision:1,mappings:[],status:'Approved',preparedBy:'preparer',reviewedBy:'reviewer'});s.statementSetRevisions.push({id:'AT34-SIBLING-STATEMENT',engagementId:sibling.id,status:'Reviewed'});}localStorage.setItem(k,JSON.stringify(s));})()`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButton('Accounting Workbench');
@@ -2583,9 +2583,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.match(text, /Periods and books/);
       assert.match(text, /Department/);
       const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);return {profile:s.clients.find(c=>c.id===e.client).accountingProfile.revision,generation:e.generation}})()`);
-      await browserTab!.evaluate(`(() => {const input=document.querySelector('form input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(input,input.value+' AT34');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await browserTab!.evaluate(`(() => {const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const input=document.querySelector('form input');setter.call(input,input.value+' AT34');input.dispatchEvent(new Event('input',{bubbles:true}));const account=document.querySelector('[aria-label="Account name"]');setter.call(account,account.value+' revised');account.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Save Accounting Setup');
-      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);const c=s.clients.find(c=>c.id===e.client);return {profile:c.accountingProfile,engagement:e,statement:s.statementSetRevisions.find(r=>r.id==='AT34-OLD-STATEMENT')}})()`);
+      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===s.selectedEngagement);const c=s.clients.find(c=>c.id===e.client);const sibling=s.engagements.find(x=>x.client===e.client&&x.id!==e.id);return {profile:c.accountingProfile,engagement:e,statement:s.statementSetRevisions.find(r=>r.id==='AT34-OLD-STATEMENT'),sibling,siblingMapping:s.accountMappingRevisions.find(r=>r.engagementId===sibling?.id),siblingStatement:s.statementSetRevisions.find(r=>r.id==='AT34-SIBLING-STATEMENT')}})()`);
       assert.equal(saved.profile.revision, before.profile + 1);
       assert.equal(saved.profile.history.at(-1).revision, before.profile);
       assert.match(saved.profile.legalEntityName, /AT34$/);
@@ -2594,6 +2594,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(saved.engagement.generation, before.generation + 1);
       assert.equal(saved.engagement.packageHistory[0].generation, before.generation, 'the old package remains pinned to its prior context generation');
       assert.equal(saved.statement.status, 'Stale', 'setup changes stale a reviewed statement set');
+      assert.ok(saved.sibling, 'fixture includes a second engagement for the same client');
+      assert.equal(saved.sibling.mappingApproved, false, 'a chart edit invalidates approved mappings for other engagements of the same client');
+      assert.equal(saved.siblingMapping.status, 'Draft', 'the sibling approval is retained as a draft instead of deleted');
+      assert.equal(saved.siblingStatement.status, 'Stale', 'a chart edit stales sibling statement output');
       await clickButton('Financial Packages');
       text = await browserTab!.evaluate<string>('document.body.innerText');
       assert.match(text, /Saved Revision .*?Stale/);
