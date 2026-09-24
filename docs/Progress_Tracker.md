@@ -1164,12 +1164,12 @@ Required: title, client, engagement and owner. Optional: description, start/due 
 **Original journey links:** [AT-11](#at-11), [AT-12](#at-12); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Tasks support one-level subtasks, hierarchy/cycle/cross-job guards, parent-completion blocking, qualified-person reassignment, detail/history edits, manual status, blocked reasons and sibling order persistence.
+Tasks support one-level subtasks, hierarchy/cycle/cross-job guards, parent-completion blocking, qualified-person reassignment, detail/history edits, manual status, blocked reasons, sibling order persistence and staff-only task-linked notes. Task-specific file attachments remain incomplete.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-014-I01 — Implementation pending:** Complete task-level comment/attachment surfaces recorded as missing where needed for the shared collaboration/linked-file contract.
+- [ ] **VP-014-I01 — Partially implemented:** Staff-only notes are now linked to individual tasks and exercised in Chrome; complete task-specific file attachment/link surfaces required by the shared collaboration contract.
 
 - [ ] **VP-014-E02 — Verification/evidence pending:** Complete leaf-only progress counts, cross-client assignees, empty-work counts, task cancel/reopen and all ownership/order reload cases.
 
@@ -3951,7 +3951,7 @@ This queue contains **123 open planning actions** attached to the 51 Partial sto
 
 - [x] **VP-007-I01** (P2; [VP-007](#vp-007)): Implemented responsibility and effective-period fields with date-range guards. Evidence: AT-05/AT-06 Chrome + unit regression, 2026-09-24. Owner: `—`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-014-I01** (P2; [VP-014](#vp-014)): Complete task-level comment/attachment surfaces recorded as missing where needed for the shared collaboration/linked-file contract. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [ ] **VP-014-I01** (P2; [VP-014](#vp-014)): Staff-only task-linked notes implemented and exercised; task-specific file attachment/link surfaces remain. Evidence: AT-14 Chrome, 155/155 unit + 68/68 E2E checks, 2026-09-24. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
 - [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 155/155 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
 

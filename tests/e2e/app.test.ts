@@ -1149,6 +1149,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(editedComment.editedBy, comment.author);
     assert.ok(editedComment.editedAt);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 revised staff-only coordination note/);
+    await clickButton('Add task note');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 internal task note.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Internal Note');
+    const taskNote = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.text==='AT14 internal task note.')`);
+    assert.equal(taskNote.subjectType, 'task');
+    assert.ok(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('AT14 internal task note.')`));
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement partner')&&x.textContent.includes('Daniel James'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();})()`);
     assert.equal(await waitForBrowser(`document.body.innerText.includes('My Local Notices')&&document.body.innerText.includes('Layla Rahman mentioned you on job')`), true, 'recipient sees a local notice without the comment text in the notice preview');
     await clickButton('Mark read');
@@ -1162,6 +1168,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const clientView = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(clientView, /CLIENT SECURE PORTAL/);
     assert.doesNotMatch(clientView, /AT14 revised staff-only coordination note/);
+    assert.doesNotMatch(clientView, /AT14 internal task note/);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
