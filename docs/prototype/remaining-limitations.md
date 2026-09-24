@@ -18,7 +18,7 @@ Automated sources explicitly trace AT-01 through AT-55. See
   warns when the component source moves past its pinned revision, preserves the
   old rows, and requires an attributable explicit re-pin. FX detail exposes each
   account's original amount, selected closing-rate revision/date, translated
-  amount and rounding difference. Unit and Chrome checks exercise reporting-basis/period compatibility, pending-review output blocking, and exact revision/source matching. Generated-package artifact lineage and a balanced source fixture that isolates the translation difference remain open.
+  amount and rounding difference. Unit and Chrome checks exercise reporting-basis/period compatibility, pending-review output blocking, and exact revision/source matching. AT-44 now isolates a QAR 0.01 per-line translation-rounding residual from balanced component sources; generated group-package artifact lineage remains open.
 
 ## Known acceptance gaps
 

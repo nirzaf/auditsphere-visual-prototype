@@ -52,8 +52,8 @@
 | Stories explicitly reported wholly not started | 0 | No entire story is labelled Not started in the source records; this does not mean there are no pending features. |
 | Original detailed acceptance criteria | 256 | Four original criteria per story, all reproduced below. |
 | Original cross-module journeys | 54 | AT-01–AT-54, retained verbatim with primary-story mapping. |
-| Unit checks passing in this review | 168 / 168 | Fresh full run at `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc`; includes reflected-evidence guards, amendment history, disclosures, cash-flow staleness and reporting-rate checks. |
-| E2E checks passing in this review | 71 / 71 | Fresh full run at `287e0ec5e9ec915064b4f4c24d3501516eb7b4fc`: 5 static checks + 66 actual Chrome checks, including all 16 report exports, adjustment-reflection/amendment gates and VP-039 timing/residual/rework subcases. |
+| Unit checks passing in this review | 168 / 168 | Fresh full run on 2026-09-24; includes reflected-evidence guards, amendment history, disclosures, cash-flow staleness and reporting-rate checks. |
+| E2E checks passing in this review | 72 / 72 | Fresh full run at `0e34c58`: 5 static checks + 67 actual Chrome checks, including a balanced-source VP-044 FX translation-rounding case, all 16 report exports, adjustment-reflection/amendment gates and VP-039 timing/residual/rework subcases. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
 | Open acceptance actions in Section 9.3 | 113 | 79 evidence/verification actions and 34 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
@@ -2794,7 +2794,7 @@ The distinction between implementation, evidence and scope reconciliation is int
 
 - [ ] **VP-044-E01 — Verification/evidence pending:** Stale-pin warning, immutable old snapshot, and explicit current-source re-pin now pass AT-44 on `5ee4128`. Unit guards reject mixed basis and period-book ownership; AT-44 proves a re-pinned package stays blocked until an attributable review records its exact source revision, basis, period and evidence. The full generated-package artifact linkage remains open.
 
-- [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 now shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. The FX browser fixture shows the translated pre-elimination residual and explicitly states that the difference remains unallocated with no plug; a balanced source fixture that isolates the translation delta remains open.
+- [ ] **VP-044-E02 — Verification/evidence pending:** AT-44 shows each source amount, selected rate revision/date, translated cents and per-line rounding difference; `100.01 × 3.64 = 364.04` with a `0.0036` rounding difference passes. New 2026-09-24 balanced-source Chrome fixture (`tests/e2e/app.test.ts`, commit `0e34c58`) isolates a QAR 0.01 per-line translation-rounding residual while both component source balances remain zero and unchanged. Broader criterion coverage remains open.
 
 - [ ] **VP-044-R03 — Requirement/scope reconciliation:** Do not add live exchange-rate feeds or unsupported complex translation methods.
 
@@ -2812,7 +2812,7 @@ Create component intake grid with readiness, period, basis, currency, package re
 |---|---|---|
 | VP-044-AC01 | Given eligible component packages, when selected, then exact revisions are pinned and a subsequent replacement produces a stale-component warning rather than silent refresh. | SUBCASES VERIFIED 2026-09-24 — AT-44 retains the old snapshot, warns on source replacement, then re-pins the exact current source only after an attributable user action; full package eligibility remains open. |
 | VP-044-AC02 | Missing rates, incompatible basis/period or unreviewed component packages block group output; missing amounts never default to zero. | SUBCASES VERIFIED 2026-09-24 — unit basis and period-book guards plus AT-44 pending-review output block; review must match exact component, revision, source version, basis and period. Generated-package lineage remains open. |
-| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | SUBCASES VERIFIED 2026-09-24 — FX trace lists source, rate revision/date, translated cents and per-line rounding; deterministic `100.01 × 3.64 = 364.04` example yields `0.0036`. The rendered pre-elimination residual is explicit and no plug is added; a balanced source fixture isolating the translation-only residual remains open. |
+| VP-044-AC03 | The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable. | SUBCASES VERIFIED 2026-09-24 — FX trace lists source, rate revision/date, translated cents and per-line rounding; deterministic `100.01 × 3.64 = 364.04` example yields `0.0036`. A second balanced-source fixture confirms the QAR 0.01 residual comes only from per-line rounding; both original sources remain balanced and unchanged, and no plug is added. Broader per-line rate methods remain unsupported. |
 | VP-044-AC04 | An unapproved/unsupported translation rule shows a limitation and no fabricated consolidation result; component client packages remain unchanged. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L1033).
