@@ -575,6 +575,28 @@ describe('review-note assignment (VP-055)', () => {
       ['preparer', 'manager', 'Initial assignment'], ['preparer-2', 'manager', 'Workload balancing']
     ]);
   });
+
+  it('pins a finding query to its revision and reopens it when the finding changes', () => {
+    (prototypeStore as any).state = createInitialState();
+    const current = (prototypeStore as any).state as PrototypeState;
+    setPersona(current, 'Layla Rahman');
+    const note = {
+      id: 'RN-FINDING', wp: 'FND-01', subjectType: 'finding' as const, title: 'Finding query', body: 'Check disposition',
+      author: 'Layla Rahman', raisedBy: 'Layla Rahman', assigned: 'Adam Khan', due: current.asOfDate, response: '',
+      severity: 'Medium' as const, version: 1, text: 'Check disposition', status: 'Open' as const, history: []
+    };
+    prototypeStore.addReviewNote('ENG-26001', note);
+    assert.equal(note.subjectVersion, 1);
+    setPersona(current, 'Adam Khan');
+    prototypeStore.respondReviewNote('ENG-26001', note.id, 'Reviewed the finding basis.');
+    setPersona(current, 'Layla Rahman');
+    prototypeStore.clearReviewNote('ENG-26001', note.id);
+    prototypeStore.setFindingDisposition('FND-01', 'Uncorrected', 'Management retains the proposed adjustment.');
+    assert.equal(note.status, 'Reopened');
+    assert.equal(note.subjectVersion, 1, 'previous response remains pinned to its finding revision');
+    assert.equal(note.response, 'Reviewed the finding basis.');
+    assert.ok(note.history.some(event => event.action === 'Reopened after finding revision'));
+  });
 });
 
 describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {

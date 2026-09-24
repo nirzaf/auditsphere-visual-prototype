@@ -2645,6 +2645,35 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('VP-055: raises a revision-pinned review note on a finding', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const seeded = createInitialState();
+      seeded.currentUserId = 'manager';
+      seeded.currentPerson = 'Layla Rahman';
+      seeded.currentRole = 'manager';
+      seeded.selectedEngagement = 'ENG-26001';
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(seeded))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButtonStartingWith('Review Desk');
+      await clickButton('Raise Review Note');
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Review subject type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'finding');s.dispatchEvent(new Event('change',{bubbles:true}));const target=document.querySelector('[aria-label="Review subject"]');if(!target.value)throw Error('no eligible finding selected');})()`);
+      await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'Review the disposition basis for FND-01.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Raise Query');
+      const saved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id==='ENG-26001').reviews.find(r=>r.text==='Review the disposition basis for FND-01.')})()`);
+      assert.equal(saved.subjectType, 'finding');
+      assert.equal(saved.wp, 'FND-01');
+      assert.equal(saved.subjectVersion, 1);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-47: opens the sign-offs and EQR workspace', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {

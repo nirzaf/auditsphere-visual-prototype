@@ -40,8 +40,9 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New review point form
+  const [subjectType, setSubjectType] = useState<'workpaper' | 'finding'>('workpaper');
   const [targetWp, setTargetWp] = useState('WP-A1');
-  const [assignee, setAssignee] = useState(eligibleAssignees[0]?.name || '');
+  const [assignee, setAssignee] = useState(eligibleAssignees.find(user => user.role === 'preparer')?.name || eligibleAssignees[0]?.name || '');
   const [queryText, setQueryText] = useState('');
 
   // Response form
@@ -55,6 +56,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     const newNote: ReviewNoteItem = {
       id: `RN-0${reviews.length + 1}`,
       wp: targetWp,
+      subjectType,
       title: queryText.slice(0, 40),
       body: queryText,
       author: state.currentPerson,
@@ -165,7 +167,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
             <thead>
               <tr>
                 <th>Note ID</th>
-                <th>Workpaper</th>
+                <th>Subject</th>
                 <th>Author</th>
                 <th>Assignee</th>
                 <th>Review Query</th>
@@ -177,7 +179,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
               {queueRows.map(({ engagementId, note: r }) => (
                 <tr key={`${engagementId}:${r.id}`}>
                   <td><b>{r.id}</b></td>
-                  <td><span className="mono">{engagementId} · {r.wp}</span></td>
+                  <td><span className="mono">{engagementId} · {r.subjectType === 'finding' ? 'Finding' : 'Workpaper'} {r.wp}</span></td>
                   <td>{r.author}</td>
                   <td><b>{r.assignee || r.assigned}</b>{r.assignmentHistory && r.assignmentHistory.length > 1 && <div className="caption">{r.assignmentHistory.length} assignment events</div>}</td>
                   <td>
@@ -242,15 +244,22 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div className="grid2">
                   <div>
-                    <label className="caption">Target Workpaper</label>
+                    <label className="caption">Review Subject Type</label>
+                    <select aria-label="Review subject type" className="input" value={subjectType} onChange={e => { const next = e.target.value as typeof subjectType; setSubjectType(next); setTargetWp(next === 'finding' ? state.findings.find(finding => finding.engagementId === selectedEng.id)?.id || '' : selectedEng.workpapers[0]?.id || ''); }}>
+                      <option value="workpaper">Workpaper</option>
+                      <option value="finding">Finding</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="caption">Target {subjectType === 'finding' ? 'Finding' : 'Workpaper'}</label>
                     <select
                       className="input"
+                      aria-label="Review subject"
                       value={targetWp}
                       onChange={e => setTargetWp(e.target.value)}
                     >
-                      {selectedEng.workpapers.map(w => (
-                        <option key={w.id} value={w.id}>{w.id} - {w.title}</option>
-                      ))}
+                      {subjectType === 'finding' && !state.findings.some(finding => finding.engagementId === selectedEng.id) && <option value="">No findings in this engagement</option>}
+                      {subjectType === 'finding' ? state.findings.filter(finding => finding.engagementId === selectedEng.id).map(finding => <option key={finding.id} value={finding.id}>{finding.id} - {finding.title}</option>) : selectedEng.workpapers.map(workpaper => <option key={workpaper.id} value={workpaper.id}>{workpaper.id} - {workpaper.title}</option>)}
                     </select>
                   </div>
                   <div>
@@ -280,7 +289,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowRaiseModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Raise Query</button>
+                <button type="submit" className="btn primary sm" disabled={!targetWp}>Raise Query</button>
               </div>
             </form>
           </div>
@@ -292,7 +301,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
         <div className="modal-backdrop" onClick={() => setShowRespondModal(false)}>
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Respond to {selectedNote.id} ({selectedNote.wp})</h2>
+            <h2>Respond to {selectedNote.id} ({selectedNote.subjectType === 'finding' ? 'Finding' : 'Workpaper'} {selectedNote.wp})</h2>
               <button className="icon-btn" onClick={() => setShowRespondModal(false)}>✕</button>
             </div>
             <form onSubmit={handleRespondSubmit}>

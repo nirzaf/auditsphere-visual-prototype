@@ -154,6 +154,24 @@ class PrototypeStore {
     }
   }
 
+  private reopenFindingReviewNotes(eng: EngagementRecord, finding: PrototypeState['findings'][number]) {
+    for (const note of eng.reviews.filter(item => item.subjectType === 'finding' && item.wp === finding.id && ['Responded', 'Cleared'].includes(item.status))) {
+      note.status = 'Reopened';
+      note.history.push({ actor: this.state.currentPerson, action: 'Reopened after finding revision', time: new Date().toISOString(), text: `Finding revision changed to v${finding.revision || 1}; previous response remains historical.` });
+    }
+  }
+
+  private reviewSubjectRevision(eng: EngagementRecord, note: ReviewNoteItem) {
+    if (note.subjectType === 'finding') {
+      const finding = this.state.findings.find(item => item.id === note.wp && item.engagementId === eng.id);
+      if (!finding) throw new GuardError('INVALID_STATE', `Review finding "${note.wp}" was not found in this engagement.`);
+      return finding.revision || 1;
+    }
+    const workpaper = eng.workpapers.find(item => item.id === note.wp);
+    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    return workpaper.version;
+  }
+
   private assignAccountingPeriod(engagement: EngagementRecord) {
     const client = this.state.clients.find(item => item.id === engagement.client);
     if (!client) return;
@@ -2208,8 +2226,10 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
-    const workpaper = eng.workpapers.find(item => item.id === note.wp);
-    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    const subjectType = note.subjectType || 'workpaper';
+    if (!['workpaper', 'finding'].includes(subjectType)) throw new GuardError('INVALID_STATE', 'Choose a supported review subject.');
+    note.subjectType = subjectType;
+    const subjectVersion = this.reviewSubjectRevision(eng, note);
     const assignee = eligibleReviewAssignees(this.state, engId).find(user => user.id === note.assignedUserId)
       || eligibleReviewAssignees(this.state, engId).find(user => user.name === (note.assignee || note.assigned));
     if (!assignee) throw new GuardError('FORBIDDEN_SCOPE', 'Assign the review point to an active, engagement-scoped preparer or manager.');
@@ -2218,7 +2238,7 @@ class PrototypeStore {
     note.assignee = assignee.name;
     note.assignmentHistory ||= [];
     note.assignmentHistory.push({ assignedUserId: assignee.id, assignedTo: assignee.name, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: 'Initial assignment' });
-    note.subjectVersion = workpaper.version;
+    note.subjectVersion = subjectVersion;
     eng.reviews.unshift(note);
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Review note ${note.id} raised on ${note.wp}`, note.id);
@@ -2253,8 +2273,7 @@ class PrototypeStore {
     const note = eng.reviews.find(r => r.id === noteId);
     if (!note) throw new GuardError('INVALID_STATE', `Review point "${noteId}" was not found.`);
     if (!response.trim()) throw new GuardError('INVALID_STATE', 'A response is required.');
-    const workpaper = eng.workpapers.find(item => item.id === note.wp);
-    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    const subjectVersion = this.reviewSubjectRevision(eng, note);
     if (evidenceDoc) {
       const document = this.state.documents.find(d => d.id === evidenceDoc && d.engagementId === engId);
       if (!document) throw new GuardError('FORBIDDEN_SCOPE', 'Review evidence must be a document in this engagement.');
@@ -2262,7 +2281,7 @@ class PrototypeStore {
     note.response = response;
     note.responseEvidence = evidenceDoc;
     note.status = 'Responded';
-    note.subjectVersion = workpaper.version;
+    note.subjectVersion = subjectVersion;
     this.invalidateReleaseBasis(eng);
     note.history.push({
       actor: this.state.currentPerson,
@@ -2282,13 +2301,13 @@ class PrototypeStore {
     if (!eng) return;
     const note = eng.reviews.find(r => r.id === noteId);
     if (!note) return;
-    const workpaper = eng.workpapers.find(item => item.id === note.wp);
-    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
-    if (note.status === 'Reopened' || (note.subjectVersion !== undefined && note.subjectVersion !== workpaper.version)) {
+    const subjectVersion = this.reviewSubjectRevision(eng, note);
+    const subjectName = note.subjectType === 'finding' ? 'finding' : 'workpaper';
+    if (note.status === 'Reopened' || (note.subjectVersion !== undefined && note.subjectVersion !== subjectVersion)) {
       note.status = 'Reopened';
-      note.history.push({ actor: this.state.currentPerson, action: 'Stale response rejected', time: new Date().toISOString(), text: `Response refers to workpaper v${note.subjectVersion ?? 'unknown'}; current revision is v${workpaper.version}.` });
+      note.history.push({ actor: this.state.currentPerson, action: 'Stale response rejected', time: new Date().toISOString(), text: `Response refers to ${subjectName} v${note.subjectVersion ?? 'unknown'}; current revision is v${subjectVersion}.` });
       this.notify();
-      throw new GuardError('STALE_REVISION', 'Review point was reopened by a workpaper change; assess the current revision before clearing.');
+      throw new GuardError('STALE_REVISION', `Review point was reopened by a ${subjectName} change; assess the current revision before clearing.`);
     }
 
     // Responder cannot clear their own query!
@@ -3180,8 +3199,9 @@ class PrototypeStore {
     f.dispositionHistory ||= [];
     f.dispositionHistory.push({ disposition, from: f.disposition, actorId: this.state.currentUserId, rationale: rationale.trim(), at: new Date().toISOString() });
     f.disposition = disposition;
+    f.revision = (f.revision || 1) + 1;
     const eng = this.state.engagements.find(e => e.id === f.engagementId);
-    if (eng) this.invalidateReleaseBasis(eng);
+    if (eng) { this.reopenFindingReviewNotes(eng, f); this.invalidateReleaseBasis(eng); }
     this.logEvent(`Finding ${findingId} disposition: ${disposition}`, findingId);
     this.notify();
   }

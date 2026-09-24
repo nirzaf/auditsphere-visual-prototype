@@ -1136,6 +1136,7 @@ export interface FindingItem {
   recommendation?: string;
   currency?: string;
   disposition: 'Uncorrected' | 'Management agreed' | 'Corrected in TB' | 'Waived as immaterial' | 'Proposed for correction' | 'Corrected by client' | 'Uncorrected waived';
+  revision?: number;
   proposedCorrection?: string;
   managementResponse?: string;
   owner?: string;
@@ -1154,6 +1155,7 @@ export type AuditFindingItem = FindingItem;
 export interface ReviewNoteItem {
   id: string;
   wp: string;
+  subjectType?: 'workpaper' | 'finding';
   title: string;
   body: string;
   author?: string;

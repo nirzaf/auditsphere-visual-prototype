@@ -116,7 +116,9 @@ sources explicitly trace AT-01 through AT-54. See
   engagement queue now filters assigned-to-me and selected-engagement views, applies
   responses to the row's engagement, and allows only active in-scope preparers or
   managers to be assigned. Reasoned reassignment history records person, actor and
-  time. Non-workpaper subjects, additional queue filters and exports remain incomplete.
+  time. Finding subjects now pin to finding revisions and reopen on disposition
+  changes without changing finding state; non-workpaper subjects beyond findings,
+  additional queue filters and exports remain incomplete.
 
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
@@ -255,8 +257,8 @@ sources explicitly trace AT-01 through AT-54. See
 
 ## Verification snapshot
 
-Latest recorded run: 142/142 unit checks and 60/60 E2E checks passed. E2E
-includes five static checks and 55 Chrome journeys. VP-009, VP-018, VP-037,
+Latest recorded run: 143/143 unit checks and 61/61 E2E checks passed. E2E
+includes five static checks and 56 Chrome journeys. VP-009, VP-018, VP-037,
 VP-051 and VP-052 are Verified; 59 of 64 stories and 36 of 39 modules remain Partial because full
 criterion-by-criterion acceptance evidence is not complete. See
 `verification.md`; earlier counts in this repository are historical.
