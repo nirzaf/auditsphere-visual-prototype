@@ -386,6 +386,28 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+    const emptyState = createInitialState() as any;
+    emptyState.roleGrants = emptyState.roleGrants.filter((grant: any) => grant.userId !== 'manager');
+    emptyState.roleGrants.push({ userId: 'manager', role: 'manager', scopeKind: 'Client', scopeId: 'CL-003' });
+    emptyState.selectedEngagement = 'ENG-26001';
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(emptyState))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      const emptyDashboard = await browserTab!.evaluate<any>(`(() => ({body:document.querySelector('main#main')?.innerText||'',metrics:[...document.querySelectorAll('.metric')].map(x=>({name:x.querySelector('.metric-top')?.innerText,value:x.querySelector('.metric-value')?.innerText,aria:x.getAttribute('aria-label')}))}))()`);
+      assert.equal(emptyDashboard.metrics.length, 6);
+      assert.ok(emptyDashboard.metrics.every((item: any) => item.value === '0'), `empty scope reports zero for all six metrics: ${JSON.stringify(emptyDashboard.metrics)}`);
+      assert.equal(emptyDashboard.body.includes('ENG-26001'), false, 'stale out-of-scope engagement selection is not exposed');
+      assert.match(emptyDashboard.body, /No open tasks assigned to you in this scope/);
+      assert.match(emptyDashboard.body, /No jobs in this scope/);
+      assert.match(emptyDashboard.body, /No recent client activity in this scope/);
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="Active Engagements"]')?.click()`);
+      assert.equal(await waitForBrowser(`[...document.querySelectorAll('.panel')].some(panel=>panel.innerText.includes('Filtered work list')&&panel.innerText.includes('0 record(s)')&&panel.innerText.includes('No matching records.'))`), true, 'zero-count drill-down remains an explicit empty list');
+    } finally {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(roleViewState)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
