@@ -504,6 +504,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'skipping M365 setup leaves fixture jobs usable');
     await clickButton('Microsoft 365 Setup');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Microsoft 365 Setup (Simulated)")'), true);
+    const authBoundary = await browserTab!.evaluate<any>(`(() => ({passwordFields:document.querySelectorAll('input[type="password"],input[autocomplete="current-password"],input[autocomplete="new-password"]').length, microsoftSignInLinks:[...document.querySelectorAll('a[href]')].filter(a=>/microsoftonline|login\.microsoft/i.test(a.href)).length, liveConnected:document.querySelector('main#main')?.innerText.includes('liveConnected: false')}))()`);
+    assert.deepEqual(authBoundary, { passwordFields: 0, microsoftSignInLinks: 0, liveConnected: true }, 'setup has no credential or sign-in surface and stays disconnected');
     const clicked = await browserTab!.evaluate<boolean>(`(() => {
       const b = [...document.querySelectorAll("button")].find(x => x.innerText.trim() === "Simulate: Success (simulated)");
       if (!b) return false; b.click(); return true;
@@ -517,6 +519,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const afterReload = await browserTab!.evaluate<string>('JSON.stringify({ route: document.querySelector(".crumb")?.innerText, text: document.body?.innerText.slice(-1800), result: JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2") || "{}").m365Config?.verificationResults })');
     assert.match(persistedText, /Identity — Simulated Test\s+success ·/, `saved result should remain visible after reload: ${afterReload}`);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /liveConnected: false/);
+    assert.deepEqual(browserTab!.requests.filter(url => /^https?:/i.test(url) && !url.startsWith(baseUrl)), [], 'M365 setup interactions make no external HTTP requests');
 
     await clickPanelButton('sharepoint — simulated test', 'Simulate: Success (simulated)');
     const beforeConfig = await browserTab!.evaluate<any>(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {revision:s.m365Config.configRevision, grants:s.roleGrants.length, identity:s.m365Config.verificationResults.identity.configRevision, sharepoint:s.m365Config.verificationResults.sharepoint.configRevision}; })()`);
