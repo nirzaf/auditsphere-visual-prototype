@@ -3200,6 +3200,31 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       })()`);
       assert.equal(await waitForBrowser('document.querySelector("[role=status]")?.innerText.includes("Browser storage is unavailable; changes last only for this session")'), true);
       await browserTab!.evaluate('Storage.prototype.setItem = window.__nativeSetItem');
+
+      await clickButton('Add Client Profile');
+      await browserTab!.evaluate(`(() => {
+        const input = [...document.querySelectorAll('.modal input')].find(x => x.placeholder.includes('Al-Doha'));
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Blocked expired-scope client');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await secondTab.evaluate(`(() => {
+        const key = 'ste-auditsphere-role-portals-v2';
+        const newer = JSON.parse(localStorage.getItem(key));
+        newer.asOfDate = '2026-09-24';
+        const grant = newer.roleGrants.find(g => g.userId === 'relationship' && g.scopeKind === 'Global');
+        if (!grant) throw Error('fixture must contain the current relationship Global grant');
+        grant.expiresAt = '2026-09-23';
+        localStorage.setItem(key, JSON.stringify(newer)); return true;
+      })()`);
+      assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector(".modal") && !document.querySelector("nav") && !document.querySelector("main#main") && document.querySelectorAll("#app-root button").length === 2'), true, 'expiry update also removes stale dialogs and projections');
+      await clickButton('Reload newer state');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      const expiredScopeView = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText || ""');
+      assert.match(expiredScopeView, /0 clients registered/);
+      assert.equal(expiredScopeView.includes('Example Trading Entity') || expiredScopeView.includes('CL-001'), false, 'expired grant does not expose client records after reload');
+      assert.equal(await browserTab!.evaluate<boolean>('[...document.querySelectorAll("button")].some(b=>b.innerText.trim()==="Add Client Profile")'), false, 'expired grant cannot open the client creation action');
     } finally { secondTab.close(); }
   });
 

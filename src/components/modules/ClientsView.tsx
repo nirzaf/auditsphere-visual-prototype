@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ClientRecord, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { visibleClientIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface ClientsViewProps {
@@ -50,9 +51,12 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
   const [jurisdiction, setJurisdiction] = useState('State of Qatar');
   const [risk, setRisk] = useState<'Low' | 'Moderate' | 'High'>('Moderate');
 
+  const allowedClientIds = visibleClientIds(state);
+  const canCreateClient = ['relationship', 'manager', 'partner'].includes(state.currentRole) && allowedClientIds === 'ALL';
   const filteredClients = state.clients.filter(c => {
     const q = filterText.toLowerCase();
-    return c.name.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+    return (allowedClientIds === 'ALL' || allowedClientIds.includes(c.id))
+      && (c.name.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
   });
 
   const handleAddClient = (e: React.FormEvent) => {
@@ -90,10 +94,12 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
           <h1>Client Portfolio</h1>
           <p>Separate legal relationships, entities, and multi-service engagement scopes.</p>
         </div>
-        <button ref={addClientButton} className="btn primary sm" onClick={() => setShowAddModal(true)}>
-          <Icon name="plus" />
-          Add Client Profile
-        </button>
+        {canCreateClient && (
+          <button ref={addClientButton} className="btn primary sm" onClick={() => setShowAddModal(true)}>
+            <Icon name="plus" />
+            Add Client Profile
+          </button>
+        )}
       </div>
 
       <div className="toolbar">
@@ -173,6 +179,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
             </div>
           );
         })}
+        {!filteredClients.length && <p className="caption">No client profiles are available under the current access scope.</p>}
       </div>
 
       {/* Add Client Modal */}

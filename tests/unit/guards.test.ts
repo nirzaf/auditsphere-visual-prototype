@@ -547,6 +547,22 @@ describe('client rules (AT-05)', () => {
     );
   });
 
+  it('client list and create commands require the active Global client grant', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const state = createInitialState();
+    state.roleGrants = state.roleGrants.filter(grant => grant.userId !== 'relationship');
+    state.roleGrants.push({ userId: 'relationship', role: 'relationship', scopeKind: 'Client', scopeId: 'CL-001', expiresAt: '2026-09-23' });
+    state.asOfDate = '2026-09-24';
+    setPersona(state, 'Amira Qasim');
+    (prototypeStore as any).state = state;
+    assert.deepEqual(visibleClientIds(state), []);
+    assert.throws(
+      () => prototypeStore.addClient({ id: 'CL-X', code: 'NEW', name: 'Out of scope', initials: 'OS', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
+      /active Global client grant/
+    );
+    assert.equal(prototypeStore.getSnapshot().clients.some(client => client.id === 'CL-X'), false);
+  });
+
   it('validates custom values, keeps contacts non-authorizing and relationship groups outside access grants', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const state = createInitialState();

@@ -5,7 +5,7 @@ import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, Job
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
 import { calculateReconciliationVariance } from '../services/calculations';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
@@ -280,6 +280,8 @@ class PrototypeStore {
   // --- Client Actions (VP-006, VP-007) ---
   public addClient(client: ClientRecord) {
     requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'create client profiles');
+    if (visibleClientIds(this.state) !== 'ALL') throw new GuardError('FORBIDDEN_SCOPE', 'Creating a client profile requires an active Global client grant.');
     if (!client.name || !client.name.trim()) {
       throw new GuardError('INVALID_STATE', 'Client legal name is required.');
     }
