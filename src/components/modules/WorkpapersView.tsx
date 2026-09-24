@@ -10,13 +10,14 @@ import { sha256OfFile } from '../../services/fileMetadata';
 
 interface WorkpapersViewProps {
   onNavigate: (route: RouteKey) => void;
+  searchTargetId?: string;
 }
 
-export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate }) => {
+export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, searchTargetId }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const workpapers = selectedEng?.workpapers || [];
-  const [selectedWpId, setSelectedWpId] = useState<string>(workpapers[0]?.id || '');
+  const [selectedWpId, setSelectedWpId] = useState<string>(workpapers.some(workpaper => workpaper.id === searchTargetId) ? searchTargetId! : workpapers[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'overview' | 'guidelines' | 'template' | 'preview' | 'evidence' | 'clearance'>('overview');
   const [clearanceNotes, setClearanceNotes] = useState('Satisfactory completion of all testing procedures and evidence tie-out.');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

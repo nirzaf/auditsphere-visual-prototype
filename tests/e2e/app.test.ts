@@ -1487,6 +1487,16 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Invoice · 200000 QAR'));if(!result)throw Error('Invoice result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('BILLING')`), true, 'invoice result opens Billing');
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'invoice result selects its engagement');
+    const taskId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTasks.find(task=>!task.parentTaskId).id`);
+    await search(taskId);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Task · ' + taskId)}));if(!result)throw Error('Task result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('JOBS')`), true, 'task result opens Jobs');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')!==null`), true, 'task result selects and highlights its parent job task');
+    const workpaperId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(engagement=>engagement.id==='ENG-26001').workpapers[0].id`);
+    await search(workpaperId);
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Workpaper · ' + workpaperId)}));if(!result)throw Error('Workpaper result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('AUDIT')`), true, 'workpaper result opens Audit');
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr.selected-row')].some(row=>row.innerText.includes(${JSON.stringify(workpaperId)}))`), true, 'workpaper result selects the matching workpaper');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

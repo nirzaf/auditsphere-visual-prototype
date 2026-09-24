@@ -10,7 +10,7 @@ import { Icon } from '../common/Icons';
 
 interface ShellProps {
   currentRoute: RouteKey;
-  onRouteChange: (route: RouteKey) => void;
+  onRouteChange: (route: RouteKey, targetId?: string) => void;
   onSelectClient: (clientId: string) => void;
   children: React.ReactNode;
 }
@@ -500,7 +500,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                         onClick={() => {
                           if (item.clientId) onSelectClient(item.clientId);
                           if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
-                          onRouteChange(item.route);
+                          onRouteChange(item.route, item.objectId);
                           setShowSearchModal(false);
                         }}
                       >

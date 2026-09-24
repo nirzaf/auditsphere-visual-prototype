@@ -56,6 +56,7 @@ import { RequirementsView } from './components/modules/RequirementsView';
 export const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<RouteKey>('overview');
   const [selectedClientId, setSelectedClientId] = useState<string>('CLI-001');
+  const [searchTargetId, setSearchTargetId] = useState<string | undefined>();
   const [, setTick] = useState(0);
 
   // Subscribe to store updates
@@ -69,9 +70,10 @@ export const App: React.FC = () => {
   const state = prototypeStore.getSnapshot();
   const isClient = isClientRole(state.currentRole);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
-  const navigate = (route: RouteKey) => {
+  const navigate = (route: RouteKey, targetId?: string) => {
     const current = prototypeStore.getSnapshot();
     const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
+    setSearchTargetId(targetId);
     setCurrentRoute(canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements');
   };
   const effectiveRoute: RouteKey = !activeIdentity
@@ -116,7 +118,7 @@ export const App: React.FC = () => {
 
       // Work & Collaboration
       case 'jobs':
-        return <JobsTasksView onNavigate={navigate} />;
+        return <JobsTasksView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
       case 'job-templates':
         return <JobTemplatesView onNavigate={navigate} />;
       case 'documents':
@@ -160,7 +162,7 @@ export const App: React.FC = () => {
       case 'sampling':
         return <SamplingView onNavigate={navigate} />;
       case 'audit':
-        return <WorkpapersView onNavigate={navigate} />;
+        return <WorkpapersView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
       case 'evidence':
         return <EvidenceCatalogueView onNavigate={navigate} />;
       case 'findings':

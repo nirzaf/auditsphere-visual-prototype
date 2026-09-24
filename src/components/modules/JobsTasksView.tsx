@@ -9,9 +9,10 @@ import { visibleEngagementIds, isClientRole, canOpenRoute } from '../../services
 
 interface JobsTasksViewProps {
   onNavigate: (route: RouteKey) => void;
+  searchTargetId?: string;
 }
 
-export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
+export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, searchTargetId }) => {
   const state = prototypeStore.getSnapshot();
   const allowedEngagementIds = visibleEngagementIds(state);
   const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
@@ -23,7 +24,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
   const [ownerFilter, setOwnerFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [overdueOnly, setOverdueOnly] = useState(false);
-  const [selectedJobId, setSelectedJobId] = useState<string>(() => scopedJobs.find(job => job.engagementId === state.selectedEngagement)?.id || scopedJobs[0]?.id || '');
+  const [selectedJobId, setSelectedJobId] = useState<string>(() => state.jobs.find(job => job.id === searchTargetId || state.jobTasks.some(task => task.id === searchTargetId && task.jobId === job.id))?.id || scopedJobs.find(job => job.engagementId === state.selectedEngagement)?.id || scopedJobs[0]?.id || '');
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -395,7 +396,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate }) => {
                     parentTasks.map(parent => {
                       const subtasks = jobTasks.filter(t => t.parentTaskId === parent.id).sort((a, b) => a.order - b.order);
                       return (
-                        <div key={parent.id} className="borderbox" style={{ padding: 12 }}>
+                        <div key={parent.id} data-search-target={searchTargetId === parent.id ? 'true' : undefined} className="borderbox" style={{ padding: 12, outline: searchTargetId === parent.id ? '2px solid #0f766e' : undefined }}>
                           <div className="between">
                             <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                               <input
