@@ -56,6 +56,18 @@ describe('VP-036 GL source intake', () => {
     assert.ok(result.errors.some(error => error.includes('currency USD')));
   });
 
+  it('exposes an incomplete journal batch and blocks importing it with otherwise balanced journals', () => {
+    const partial = `${valid}\nJ2,L1,2026-01-15,1000,Cash,5,0,QAR,Incomplete batch,100`;
+    const parsed = parseGLWorkbook('partial.csv', bytes(partial), 'QAR', '2026-01-01', '2026-12-31');
+    assert.equal(parsed.transactions.length, 3, 'valid rows remain inspectable in preview');
+    assert.ok(parsed.errors.some(error => error.includes('Journal J2 is unbalanced')));
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const preparer = state.users.find(user => user.role === 'preparer')!;
+    state.currentRole = 'preparer'; state.currentUserId = preparer.id; state.currentPerson = preparer.name;
+    assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'partial.csv', format: 'CSV', sha256: 'c'.repeat(64), openingBalances: parsed.openingBalances, transactions: parsed.transactions }), /not balanced/);
+    assert.equal(engagement.glSourceHistory?.length || 0, 0, 'an incomplete batch cannot be partially committed');
+  });
+
   it('commits engagement-bound immutable revisions and invalidates dependent approvals', () => {
     const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
     const priorGeneration = engagement.generation;
