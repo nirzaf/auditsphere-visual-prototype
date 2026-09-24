@@ -52,7 +52,9 @@ Automated sources explicitly trace AT-01 through AT-55. See
   at the matching row. Unavailable documents remain searchable with an
   Unavailable status and open as selected, non-openable records; archived client
   results are labeled and still open their historical client record. Broader
-  person/grant combinations remain uncovered.
+  combinations across other person/grant classes remain uncovered. Chrome also
+  confirms the two-grant client administrator sees CL-001/CL-003 and cannot
+  discover CL-002 in search context choices.
 - **VP-060 — reporting (Verified):** WIP now values approved time using its approval-pinned
   rate; missing rates remain unknown instead of using a later budget version.
   A fixed calculation check covers approved, unapproved and missing-rate rows.

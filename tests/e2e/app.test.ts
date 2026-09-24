@@ -1434,9 +1434,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
-    const clientUserId = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.users.find(u=>u.label==='Management approver').id;})()`);
+    const clientUserId = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.users.find(u=>u.label==='Client administrator').id;})()`);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientUserId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole==="client"'), true, 'client persona must be active before search');
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole==="client_admin"'), true, 'multi-grant client administrator must be active before search');
     assert.equal(await waitForBrowser(`document.querySelector('#role-select')?.value===${JSON.stringify(clientUserId)}`), true);
     const search = async (query: string) => {
       await browserTab!.evaluate(`document.querySelector('.search-trigger')?.click()`);
@@ -1457,6 +1457,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('[...document.querySelectorAll(".modal-body button")].length===1&&[...document.querySelectorAll(".modal-body button")][0].innerText.includes("Shared document")'), true, 'client filters retain only the shared document in its permitted engagement');
     const clientSearchContexts = await browserTab!.evaluate<string[]>('[...document.querySelector("#global-search-context").options].map(option=>option.value)');
     assert.ok(clientSearchContexts.includes(sharedContext), 'the document result remains within its permitted engagement filter');
+    assert.ok(clientSearchContexts.includes('client:CL-001') && clientSearchContexts.includes('client:CL-003'), 'multi-grant client sees both explicitly granted client filters');
+    assert.equal(clientSearchContexts.includes('client:CL-002'), false, 'multi-grant client cannot discover an ungranted client through search filters');
     const hasHiddenEngagement = await browserTab!.evaluate<boolean>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).engagements.some(e=>!' + JSON.stringify(clientSearchContexts) + '.includes("engagement:"+e.id))');
     assert.equal(hasHiddenEngagement, true, 'a client cannot discover ungranted engagements through filter options');
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('Shared document'));if(!result)throw Error('Shared document result missing');result.click();})()`);
