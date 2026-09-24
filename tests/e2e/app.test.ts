@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../src/services/calculations.js';
 import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
@@ -3428,12 +3429,29 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Senior reviewer'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Review independently');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Add disclosure');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const titles=document.querySelectorAll('[aria-label="Disclosure title"]');const title=titles[titles.length-1];set.call(title,'Internal-only audit matter');title.dispatchEvent(new Event('input',{bubbles:true}));const text=document.querySelector('[aria-label="Internal-only audit matter disclosure text"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(text,'INTERNAL-ONLY-AT42-SECRET-DO-NOT-EXPORT');text.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelectorAll('[aria-label="Evidence document ID"]');set.call(evidence[evidence.length-1],'DOC-002');evidence[evidence.length-1].dispatchEvent(new Event('input',{bubbles:true}));const sharing=document.querySelector('[aria-label="Internal-only audit matter client sharing"]');if(sharing.checked)sharing.click();})()`);
+    await clickButton('Save preparer draft');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Senior reviewer'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Review independently');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton(assembleLabel);
     const assembled = await waitForBrowser('document.body.innerText.includes("saved with exact XLSX, DOCX and PDF files")');
     assert.equal(assembled, true, await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').packageHistory.map(x=>({revision:x.revision,passed:x.validation.passed,noteApplicability:x.noteApplicability,notes:x.notes}))`));
     const packageFile = await browserTab!.evaluate<string>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const p=e.packageHistory.find(x=>x.revision===e.packageRevision);const a=p.artifacts.find(x=>x.kind==='XLSX');const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result.blob);r.onerror=()=>reject(r.error)});const bytes=new Uint8Array(await blob.arrayBuffer());let bin='';for(const b of bytes)bin+=String.fromCharCode(b);db.close();return btoa(bin)})()`);
     const workbook = XLSX.read(Buffer.from(packageFile, 'base64'), { type: 'buffer' });
     const packageRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1, raw: true });
+    const otherArtifacts = await browserTab!.evaluate<string>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const p=e.packageHistory.find(x=>x.revision===e.packageRevision);const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const output={};for(const kind of ['DOCX','PDF']){const a=p.artifacts.find(x=>x.kind===kind);const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result.blob);r.onerror=()=>reject(r.error)});const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(const b of bytes)binary+=String.fromCharCode(b);output[kind]=btoa(binary);}db.close();return JSON.stringify(output)})()`);
+    const exported = JSON.parse(otherArtifacts) as Record<string,string>;
+    const docx = await JSZip.loadAsync(Buffer.from(exported.DOCX,'base64'));
+    const docxText = await docx.file('word/document.xml')!.async('string');
+    const pdfText = Buffer.from(exported.PDF,'base64').toString('latin1');
+    const internalMarkers = ['INTERNAL-ONLY-AT42-SECRET-DO-NOT-EXPORT','Initial fieldwork review underway.','WP-A1_Cash_and_Bank_Audit_Schedule.xlsx'];
+    for (const marker of internalMarkers) {
+      assert.equal(JSON.stringify(packageRows).includes(marker), false, `XLSX excludes internal content: ${marker}`);
+      assert.equal(docxText.includes(marker), false, `DOCX excludes internal content: ${marker}`);
+      assert.equal(pdfText.includes(marker), false, `PDF excludes internal content: ${marker}`);
+    }
     assert.equal(packageRows.find(row => row[0] === '5000')?.[3], 350000, 'XLSX package contains approved depreciation debit');
     assert.equal(packageRows.find(row => row[0] === '1500')?.[3], 750000, 'XLSX package contains approved depreciation credit');
     const sourceAfter = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`);
