@@ -140,6 +140,79 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
         : 'This prototype calculates only one Parent and one 100% owned Subsidiary. Other ownership methods produce no result.'}
     </p>
   </div>;
+  const visibleIds = visibleEngagementIds(state);
+  const isGranted = (componentId: string) => visibleIds === 'ALL' || visibleIds.includes(componentId);
+  const fullyGranted = group.components.every(component => isGranted(component.componentId));
+  if (!fullyGranted) {
+    const ungrantedRoles = group.components.filter(component => !isGranted(component.componentId)).map(component => component.role || 'Component').join(' and ');
+    return (
+      <div className="stack" style={{ gap: 20 }}>
+        <div className="pagehead">
+          <div>
+            <h1>Group Consolidation Workbench</h1>
+            <p>Wholly owned Parent + Subsidiary profile · scoped projection for your grant.</p>
+          </div>
+        </div>
+        <div className="panel panel-pad">
+          <span className="eyebrow">CONSOLIDATION GROUP · {group.id}</span>
+          <h2>{group.name}</h2>
+          <p className="sub">Presentation Currency: {groupCurrency} · Period: {group.period} · Perimeter revision {group.perimeterRevision || 1}</p>
+          <div role="alert" className="panel panel-pad mt16" style={{ background: '#fffbeb', color: '#92400e' }}>
+            <b>Consolidated output is unavailable under your scoped grant.</b>
+            <div className="sub mt4">Component {ungrantedRoles} is outside your grant. Group figures, eliminations, rates and perimeter editing require both pinned snapshots, and adding this component does not expand your access to its unrelated engagements.</div>
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Group Entity Perimeter</h3>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Client Entity</th>
+                  <th>Role</th>
+                  <th>Ownership %</th>
+                  <th>Effective Date</th>
+                  <th>Functional Currency</th>
+                  <th>Pinned Reporting Package</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.components.map((c: any) => {
+                  if (!isGranted(c.componentId)) return (
+                    <tr key={c.componentId}>
+                      <td><b>Restricted component</b></td>
+                      <td><span className="tag gray">{c.role || 'Component'}</span></td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td><span className="badge amber">Outside your scoped grant</span></td>
+                    </tr>
+                  );
+                  const componentEngagement = state.engagements.find(e => e.id === c.componentId);
+                  const clientRecord = state.clients.find(x => x.id === componentEngagement?.client);
+                  return (
+                    <tr key={c.componentId}>
+                      <td><b>{clientRecord?.name || c.legalEntityName || c.componentId}</b></td>
+                      <td><span className="tag gray">{c.role || 'Component'}</span></td>
+                      <td>{c.ownershipPercent ?? c.ownershipPct ?? 100}%</td>
+                      <td>{c.effectiveDate || '—'}</td>
+                      <td>{c.functionalCurrency || c.currency}</td>
+                      <td><b>Package Rev {c.pinnedPackageRev ?? c.packageRevisionPinned ?? 1}</b></td>
+                      <td><span className={`badge ${c.packageRows ? 'green' : 'red'}`}>{c.packageRows ? 'Pinned snapshot' : 'Missing snapshot'}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const missingPackage = !parentComp?.packageRows?.length || !subComp?.packageRows?.length || !parentEng || !subEng || !parentComp.packageRevisionPinned || !subComp.packageRevisionPinned;
   const missingRate = !missingPackage && (!Number.isFinite(fxRate(parentComp!)) || fxRate(parentComp!) <= 0 || !Number.isFinite(fxRate(subComp!)) || fxRate(subComp!) <= 0);
 
