@@ -561,3 +561,11 @@ v2 as fresh work, and verifies both applications remain pinned after template
 retirement. Risk edit/review impact checks also pass. VP-049 stays Partial for
 broader risk return/rework and reopen cases. The production bundle-size
 advisory (>500 kB) remains.
+
+VP-049 template revision changes from `9816b7b` are live. Production release
+`https://4cfb292a.steaudit-prototype.pages.dev` and `https://prototype.steaudit.com`
+both returned HTTP 200 and served `assets/index-Df4fnS9R.js` (2,231,623 bytes;
+SHA-256 `98b1f99c8b8f6eb09a04a0e1ba21591603e434b9546e53b4d13bc8bea85e08ec`),
+matching the local build. Wrangler reports deployment
+`4cfb292a-36c1-4025-bc4e-de0673ffc4bd` as Production on branch `production`,
+source `9816b7b`.
