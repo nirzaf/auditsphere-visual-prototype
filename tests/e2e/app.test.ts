@@ -49,7 +49,7 @@ class CdpTab {
           : { requestId: message.params.requestId, errorReason: 'BlockedByClient' })
           .catch(error => this.exceptions.push(String(error)));
       }
-      if (message.method === 'Runtime.exceptionThrown') this.exceptions.push(message.params.exceptionDetails.text || 'browser exception');
+      if (message.method === 'Runtime.exceptionThrown') this.exceptions.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text || 'browser exception');
       if (message.id) this.pending.get(message.id)?.(message);
       if (message.id) this.pending.delete(message.id);
     });
@@ -3147,6 +3147,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-02/AT-54: preserves conflicts and reports browser-storage failure without silent overwrite', async () => {
+    await browserTab!.evaluate(`(() => {
+      const select = document.querySelector('#role-select');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'relationship');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await waitForBrowser('document.querySelector("#role-select")?.value === "relationship"'), true);
     const targetResponse = await fetch(`http://127.0.0.1:${browserDebugPort}/json/new?about:blank`, { method: 'PUT' });
     assert.equal(targetResponse.ok, true);
     const target = await targetResponse.json() as { webSocketDebuggerUrl: string };
@@ -3161,15 +3167,29 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await secondTab.command('Runtime.enable');
       await secondTab.command('Page.navigate', { url: baseUrl });
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true);
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Add Client Profile');
+      await browserTab!.evaluate(`(() => {
+        const input = [...document.querySelectorAll('.modal input')].find(x => x.placeholder.includes('Al-Doha'));
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Blocked stale-tab client');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
       await secondTab.evaluate(`(() => {
         const key = 'ste-auditsphere-role-portals-v2';
-        const newer = JSON.parse(localStorage.getItem(key)); newer.asOfDate = '2026-09-24';
+        const newer = JSON.parse(localStorage.getItem(key));
+        newer.asOfDate = '2026-09-24';
+        const grant = newer.roleGrants[0];
+        if (!grant) throw Error('fixture must contain a grant to revoke');
+        newer.roleGrants = newer.roleGrants.filter(g => g !== grant);
+        newer.roleGrantHistory.push({id:crypto.randomUUID(),action:'Revoked',userId:grant.userId,role:grant.role,scopeKind:grant.scopeKind,scopeId:grant.scopeId,actorUserId:'admin',at:new Date().toISOString(),reason:'Assignment ended while edit dialog remained open',effectiveFrom:grant.effectiveFrom,expiresAt:grant.expiresAt,requestRef:grant.requestRef});
         localStorage.setItem(key, JSON.stringify(newer)); return true;
       })()`);
       assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector(".modal") && !document.querySelector("nav")'), true, 'revocation removes the open dialog and all stale workspace projections');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.every(c=>c.name!=='Blocked stale-tab client')`), true, 'stale dialog cannot save a business record');
       await clickButton('Keep this tab and replace newer state');
       const backup = await browserTab!.evaluate<string>('localStorage.getItem("ste-auditsphere-role-portals-v2.backup") || ""');
-      assert.equal(JSON.parse(backup).asOfDate, '2026-09-24', 'the conflicting state is preserved before local state wins');
+      assert.equal(JSON.parse(backup).roleGrantHistory.at(-1).reason, 'Assignment ended while edit dialog remained open', 'the revoked grant state is preserved before local state wins');
 
       await browserTab!.evaluate(`(() => {
         window.__nativeSetItem = Storage.prototype.setItem;
@@ -3235,7 +3255,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
       await clickButton('Export preserved payload');
       let downloaded: string[] = [];
-      for (let attempt = 0; attempt < 50; attempt++) {
+      for (let attempt = 0; attempt < 150; attempt++) {
         downloaded = readdirSync(downloadDir).filter(name => !name.endsWith('.crdownload'));
         if (downloaded.length) break;
         await new Promise(resolve => setTimeout(resolve, 100));

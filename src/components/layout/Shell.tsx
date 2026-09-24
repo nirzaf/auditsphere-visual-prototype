@@ -234,6 +234,27 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     return true;
   }).slice(0, 30);
 
+  if (prototypeStore.hasStorageConflict()) {
+    return (
+      <div id="app-root" className="panel panel-pad" role="alert" style={{ background: '#fef2f2', color: '#991b1b', margin: 12 }}>
+        <b>Another tab saved newer demo data.</b> This workspace is hidden until the saved-state conflict is resolved.
+        <div className="row mt8" style={{ gap: 8 }}>
+          <button className="btn sm primary" onClick={() => {
+            try { prototypeStore.resolveStorageConflict('reload'); window.location.reload(); }
+            catch (e) { triggerToast(e instanceof Error ? e.message : 'Reload failed', 'error'); }
+          }}>Reload newer state</button>
+          <button className="btn sm ghost" onClick={() => {
+            try { prototypeStore.resolveStorageConflict('keep-local'); }
+            catch (e) { triggerToast(e instanceof Error ? e.message : 'Could not preserve the other tab state', 'error'); }
+          }}>Keep this tab and replace newer state</button>
+        </div>
+        <div id="toasts" aria-live="polite">
+          {toasts.map(toast => <div key={toast.id} className={`toast ${toast.type || ''}`}>{toast.text}</div>)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="app-root">
       <input ref={importInput} type="file" accept="application/json,.json" aria-label="Import validated state JSON" onChange={handleImportState} style={{ display: 'none' }} />
@@ -245,21 +266,6 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             {prototypeStore.getPreservedStateJSON() && <button className="btn sm" onClick={() => downloadJSON(`auditsphere-preserved-${state.asOfDate}.json`, prototypeStore.getPreservedStateJSON()!)}>Export preserved payload</button>}
             {importStateButton}
             <button className="btn sm ghost" onClick={() => { if (window.confirm('Reset local demo data to the default baseline? The current payload remains available as a recovery backup.')) prototypeStore.resetState(); }}>Reset to default</button>
-          </div>
-        </div>
-      )}
-      {prototypeStore.hasStorageConflict() && (
-        <div role="alert" className="panel panel-pad" style={{ background: '#fef2f2', color: '#991b1b', margin: 12 }}>
-          <b>Another tab saved newer demo data.</b> This tab will not overwrite it until you resolve the conflict.
-          <div className="row mt8" style={{ gap: 8 }}>
-            <button className="btn sm primary" onClick={() => {
-              try { prototypeStore.resolveStorageConflict('reload'); window.location.reload(); }
-              catch (e) { triggerToast(e instanceof Error ? e.message : 'Reload failed', 'error'); }
-            }}>Reload newer state</button>
-            <button className="btn sm ghost" onClick={() => {
-              try { prototypeStore.resolveStorageConflict('keep-local'); }
-              catch (e) { triggerToast(e instanceof Error ? e.message : 'Could not preserve the other tab state', 'error'); }
-            }}>Keep this tab and replace newer state</button>
           </div>
         </div>
       )}
