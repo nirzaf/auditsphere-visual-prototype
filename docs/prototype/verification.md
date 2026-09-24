@@ -635,3 +635,15 @@ Pages branch as deployment `5ae00ea8-c5aa-4060-92e6-8ebd9e076884`
 `assets/index-D2Zz1xBs.js` (2,241,598 bytes; SHA-256
 `e3261d9051d8aaf412d3f3ade9c451bb4c7eaa28a25c681334289a0b2d2a2285`), matching
 the local build. Wrangler reports source `861737a`.
+
+R09 package-pin validation follow-up: the shared `updateConsolidationGroup`
+command now accepts only a preserved prior snapshot or the exact current
+engagement revision and rows; caller-supplied balance changes are rejected.
+Unit checks also create a second group from exact current component snapshots.
+`npm run lint` passed, unit tests passed 146/146, and full build/Chrome
+acceptance passed 65/65. Commit `bd6297d` is deployed to Production as
+`494ebb39-a016-42a9-acc2-481309ead097` ([release](https://494ebb39.steaudit-prototype.pages.dev)).
+The release and custom-domain pages both returned HTTP 200 and served
+`assets/index-vGt_ddlt.js` (2,242,072 bytes; SHA-256
+`bcdcb156b944e37f5f9895300bfe9f23688ff9a5b83363a64d96330c7fdcbe42`), matching
+the local build. Wrangler reports source `bd6297d`.
