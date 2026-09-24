@@ -147,6 +147,13 @@ class PrototypeStore {
     eng.approvals.eqr = null;
   }
 
+  private reopenWorkpaperReviewNotes(eng: EngagementRecord, workpaper: WorkpaperItem) {
+    for (const note of eng.reviews.filter(item => item.wp === workpaper.id && ['Responded', 'Cleared'].includes(item.status))) {
+      note.status = 'Reopened';
+      note.history.push({ actor: this.state.currentPerson, action: 'Reopened after workpaper revision', time: new Date().toISOString(), text: `Workpaper revision changed to v${workpaper.version}; previous response remains historical.` });
+    }
+  }
+
   private assignAccountingPeriod(engagement: EngagementRecord) {
     const client = this.state.clients.find(item => item.id === engagement.client);
     if (!client) return;
@@ -2051,6 +2058,7 @@ class PrototypeStore {
     workpaper.submittedVersion = undefined;
     workpaper.version += 1;
     workpaper.status = 'In progress';
+    if (engagement) this.reopenWorkpaperReviewNotes(engagement, workpaper);
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Workpaper ${wpId} ${role} reassigned to ${user.name}: ${reason.trim()}`, engId);
     this.notify();
@@ -2072,6 +2080,7 @@ class PrototypeStore {
       if (this.state.findings.some(item => item.engagementId === engId && item.linkedWorkpaperId === wpId && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(item.disposition))) throw new GuardError('INVALID_STATE', 'Resolve or formally disposition linked findings before marking the workpaper not applicable.');
     }
     wp.version++;
+    this.reopenWorkpaperReviewNotes(eng, wp);
     wp.applicable = updates.applicable;
     if (updates.scope !== undefined) wp.scope = updates.scope.trim();
     if (updates.workPerformed !== undefined) wp.workPerformed = updates.workPerformed.trim();
@@ -2105,6 +2114,7 @@ class PrototypeStore {
     }
     workpaper.evidenceRevisions[document.id] = document.version;
     workpaper.version++;
+    if (engagement) this.reopenWorkpaperReviewNotes(engagement, workpaper);
     workpaper.status = 'In progress';
     workpaper.submittedBy = undefined;
     workpaper.submittedVersion = undefined;
@@ -2131,6 +2141,7 @@ class PrototypeStore {
     workpaper.submittedBy = undefined;
     workpaper.submittedVersion = undefined;
     workpaper.version++;
+    if (engagement) this.reopenWorkpaperReviewNotes(engagement, workpaper);
     workpaper.status = 'In progress';
     if (engagement) this.invalidateReleaseBasis(engagement);
     this.logEvent(`Document ${documentId} unpinned from workpaper ${wpId}: ${reason.trim()}`, engId);
@@ -2197,6 +2208,9 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" was not found.`);
+    const workpaper = eng.workpapers.find(item => item.id === note.wp);
+    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    note.subjectVersion = workpaper.version;
     eng.reviews.unshift(note);
     this.invalidateReleaseBasis(eng);
     this.logEvent(`Review note ${note.id} raised on ${note.wp}`, note.id);
@@ -2212,6 +2226,8 @@ class PrototypeStore {
     const note = eng.reviews.find(r => r.id === noteId);
     if (!note) throw new GuardError('INVALID_STATE', `Review point "${noteId}" was not found.`);
     if (!response.trim()) throw new GuardError('INVALID_STATE', 'A response is required.');
+    const workpaper = eng.workpapers.find(item => item.id === note.wp);
+    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
     if (evidenceDoc) {
       const document = this.state.documents.find(d => d.id === evidenceDoc && d.engagementId === engId);
       if (!document) throw new GuardError('FORBIDDEN_SCOPE', 'Review evidence must be a document in this engagement.');
@@ -2219,6 +2235,7 @@ class PrototypeStore {
     note.response = response;
     note.responseEvidence = evidenceDoc;
     note.status = 'Responded';
+    note.subjectVersion = workpaper.version;
     this.invalidateReleaseBasis(eng);
     note.history.push({
       actor: this.state.currentPerson,
@@ -2238,6 +2255,14 @@ class PrototypeStore {
     if (!eng) return;
     const note = eng.reviews.find(r => r.id === noteId);
     if (!note) return;
+    const workpaper = eng.workpapers.find(item => item.id === note.wp);
+    if (!workpaper) throw new GuardError('INVALID_STATE', `Review workpaper "${note.wp}" was not found.`);
+    if (note.status === 'Reopened' || (note.subjectVersion !== undefined && note.subjectVersion !== workpaper.version)) {
+      note.status = 'Reopened';
+      note.history.push({ actor: this.state.currentPerson, action: 'Stale response rejected', time: new Date().toISOString(), text: `Response refers to workpaper v${note.subjectVersion ?? 'unknown'}; current revision is v${workpaper.version}.` });
+      this.notify();
+      throw new GuardError('STALE_REVISION', 'Review point was reopened by a workpaper change; assess the current revision before clearing.');
+    }
 
     // Responder cannot clear their own query!
     const lastResponder = note.history.filter(h => h.action.includes('Responded')).at(-1)?.actor;
@@ -2395,6 +2420,7 @@ class PrototypeStore {
 
     this.invalidateReleaseBasis(eng);
     wp.version += 1;
+    this.reopenWorkpaperReviewNotes(eng, wp);
     wp.status = 'In progress';
     wp.submittedBy = undefined;
     wp.submittedVersion = undefined;
@@ -2623,6 +2649,7 @@ class PrototypeStore {
         workpaper.submittedBy = undefined;
         workpaper.submittedVersion = undefined;
         workpaper.version++;
+        this.reopenWorkpaperReviewNotes(engagement, workpaper);
         workpaper.status = 'Changes required';
         this.invalidateReleaseBasis(engagement);
       }

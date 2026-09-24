@@ -2561,6 +2561,48 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-055: requires an independent response review and reopens after workpaper revision', async () => {
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Review Desk');
+    await clickButton('Raise Review Note');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT55 verify current workpaper revision after response.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Raise Query');
+    const noteId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').reviews.find(r=>r.text==='AT55 verify current workpaper revision after response.').id`);
+    const initial = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');return {note:e.reviews.find(x=>x.id===${JSON.stringify(noteId)}),wp:e.workpapers.find(x=>x.id==='WP-A1')};})()`);
+    assert.equal(initial.note.subjectVersion, initial.wp.version, 'new review query is pinned to its exact workpaper version');
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='reviewer'`), true);
+    const respond = async (message: string) => {
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(noteId)}));const b=[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Respond');if(!b)throw Error('review response action unavailable for '+${JSON.stringify(noteId)});b.click();})()`);
+      await browserTab!.evaluate(`(() => {const fields=document.querySelectorAll('.modal-backdrop textarea,.modal-backdrop input[type=text]');const setText=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;setText.call(fields[0],${JSON.stringify(message)});fields[0].dispatchEvent(new Event('input',{bubbles:true}));const setInput=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setInput.call(fields[1],'DOC-002');fields[1].dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Submit Response');
+    };
+    await respond('Checked the requested support against the current cash workpaper revision.');
+    const firstResponse = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').reviews.find(r=>r.id===${JSON.stringify(noteId)})`);
+    assert.equal(firstResponse.status,'Responded');
+    assert.equal(firstResponse.subjectVersion, initial.wp.version);
+    await clickButton('Clear Note');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("cannot clear their own review point")'), true, 'responder cannot clear their own response');
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButton('Clear Note');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').reviews.find(r=>r.id===${JSON.stringify(noteId)}).status==='Cleared'`), true, 'independent manager clears the responded query');
+    await clickButtonStartingWith('Audit Workpapers');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('[aria-label="Workpaper scope"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'Revision changed after review note clearance.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save workpaper revision');
+    const reopened = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');return {note:e.reviews.find(x=>x.id===${JSON.stringify(noteId)}),wp:e.workpapers.find(x=>x.id==='WP-A1')};})()`);
+    assert.equal(reopened.note.status,'Reopened');
+    assert.equal(reopened.note.response,firstResponse.response,'prior response remains in the history after its subject changes');
+    assert.ok(reopened.note.history.some((event: any)=>event.action==='Reopened after workpaper revision'));
+    await clickButtonStartingWith('Review Desk');
+    await respond('Rechecked workpaper revision '+reopened.wp.version+' and linked current support.');
+    const currentResponse = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').reviews.find(r=>r.id===${JSON.stringify(noteId)})`);
+    assert.equal(currentResponse.status,'Responded');
+    assert.equal(currentResponse.subjectVersion,reopened.wp.version,'new response is pinned to the current subject revision');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-47: opens the sign-offs and EQR workspace', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {

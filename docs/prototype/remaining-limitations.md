@@ -110,6 +110,12 @@ sources explicitly trace AT-01 through AT-54. See
   aggregation remains unit-backed; reporting and the full reopen/waiver matrix
   still need browser evidence.
 
+- **VP-055 — review points:** Chrome verifies a workpaper-version-pinned response,
+  rejects responder self-clear, records independent clearance, and reopens the note
+  after a subject revision while retaining the prior response. Cross-engagement
+  personal queues, eligible assignment/reassignment history, non-workpaper subjects,
+  filters and exports still need implementation and acceptance evidence.
+
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
   RSK-01↔PRC-03 link after reload, and schema v9 repairs legacy unscoped links.

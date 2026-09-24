@@ -1167,6 +1167,7 @@ export interface ReviewNoteItem {
   response: string;
   responseEvidence?: string;
   version: number;
+  subjectVersion?: number;
   history: Array<{ actor: string; action: string; time: string; text?: string }>;
 }
 

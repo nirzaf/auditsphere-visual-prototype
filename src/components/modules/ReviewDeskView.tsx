@@ -41,7 +41,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
 
   // Response form
   const [responseText, setResponseText] = useState('');
-  const [evidenceDoc, setEvidenceDoc] = useState('DOC-001 (QNB Bank Statement)');
+  const [evidenceDoc, setEvidenceDoc] = useState(state.documents.find(document => document.engagementId === selectedEng?.id)?.id || '');
 
   const handleRaiseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,7 +146,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                     <b>{r.text}</b>
                     {r.response && (
                       <div className="cell-sub" style={{ color: 'var(--teal-dark)', marginTop: 4 }}>
-                        <strong>Response:</strong> {r.response}
+                        <strong>{r.status === 'Reopened' ? 'Prior response:' : 'Response:'}</strong> {r.response}
                         {r.responseEvidence && <span> (Evidence: {r.responseEvidence})</span>}
                       </div>
                     )}
@@ -158,7 +158,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                   </td>
                   <td>
                     <div className="row" style={{ gap: 6 }}>
-                      {r.status === 'Open' && (
+                      {['Open', 'Reopened'].includes(r.status) && (
                         <button
                           className="btn sm"
                           onClick={() => {
