@@ -256,8 +256,10 @@ Automated sources explicitly trace AT-01 through AT-55. See
   Subsidiary and verifies no output or source mutation. Perimeter edits now reject
   invalid dates and duplicate components, retain prior revisions, revert through
   a new revision, return an approved elimination to draft after component changes,
-  and leave source trial balances unchanged. Broader elimination and ownership
-  cases remain incomplete.
+  and leave source trial balances unchanged. A narrow ENG-26001 grant now sees a
+  redacted perimeter with no figures, editor or history, and self-loop or
+  cross-group revision changes are rejected without touching state. Broader
+  elimination and ownership cases remain incomplete.
 - **R10 — migration/recovery:** migrations from schema versions 0–21 pass unit
   integrity checks. Chrome verifies concurrent-save and quota failures, and now
   injects malformed saved JSON to confirm the exact raw value is retained as a
@@ -307,8 +309,8 @@ Automated sources explicitly trace AT-01 through AT-55. See
 
 ## Verification snapshot
 
-Latest recorded full run: 149/149 unit checks and 67/67 E2E checks passed.
-E2E includes five static checks and 62 Chrome journeys. The Chrome suite blocks
+Latest recorded full run: 152/152 unit checks and 68/68 E2E checks passed.
+E2E includes five static checks and 63 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,
