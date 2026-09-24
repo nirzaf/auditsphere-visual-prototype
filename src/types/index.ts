@@ -563,6 +563,15 @@ export interface CommentItem {
   edited?: boolean;
   editedAt?: string;
   editedBy?: string;
+  moderationHistory?: Array<{ action: 'Hidden' | 'Restored'; by: string; byUserId: string; at: string; reason: string }>;
+}
+
+export interface LocalNoticeItem {
+  id: string;
+  recipientUserId: string;
+  commentId: string;
+  createdAt: string;
+  readAt?: string;
 }
 
 // Module 09: PBC
@@ -1386,6 +1395,7 @@ export interface PrototypeState {
   jobTemplates: JobTemplateItem[];
   workpaperTemplates?: WorkpaperTemplateItem[];
   comments: CommentItem[];
+  localNotices?: LocalNoticeItem[];
   documents: DocumentItem[];
   communications: CommunicationItem[];
   emailTemplates: EmailTemplateItem[];

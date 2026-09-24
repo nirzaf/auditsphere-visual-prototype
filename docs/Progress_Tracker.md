@@ -55,7 +55,7 @@
 | Unit checks reported passing | 155 / 155 | Rerun after per-note disclosure review and package-lineage implementation. |
 | E2E checks reported passing | 68 / 68 | Rerun: 5 static checks + 63 actual Chrome checks. |
 | Complete criterion-level acceptance | No | Referenced tests and passing subsets do not establish complete acceptance of every criterion. |
-| Pending action rows in this tracker | 124 | 3 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
+| Pending action rows in this tracker | 123 | 2 stated implementation actions; 84 evidence/verification actions; 37 requirement/scope reconciliation actions. These are planning rows, not discovered GitHub issues. |
 
 Sources: [S1], [S3], [S4], [S5]. This snapshot includes portal entity-switching/invoice-download evidence, task/workpaper search-target fixes, and independently reviewed cash-flow and per-note disclosure records. These increments do not change the 13/51 story or 10/29 module status totals. Test counts are outcomes of the tests present, not product-completion percentages. No unsupported “90% complete” estimate is used.
 
@@ -3934,7 +3934,7 @@ The original AT identifiers, names, expected outcomes and primary-story expressi
 <a id="pending"></a>
 ## 9. Pending work and acceptance queue
 
-This queue contains **130 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
+This queue contains **123 open planning actions** attached to the 51 Partial stories. Each action is intentionally left unchecked. Current branch issues, PRs, assignees and due dates were not queried; link them before using this as a team execution board. No action is permission to merge or deploy.
 
 ### 9.1 Recommended closure order
 
@@ -3953,7 +3953,7 @@ This queue contains **130 open planning actions** attached to the 51 Partial sto
 
 - [ ] **VP-014-I01** (P2; [VP-014](#vp-014)): Complete task-level comment/attachment surfaces recorded as missing where needed for the shared collaboration/linked-file contract. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
 
-- [ ] **VP-016-I01** (P2; [VP-016](#vp-016)): Complete recipient-specific local notice browsing and bounded moderator behavior where the original comment-permission contract requires it. Owner: `Unassigned`; issue/PR: `—`; target: `—`.
+- [x] **VP-016-I01** (P2; [VP-016](#vp-016)): Recipient-scoped local notice inbox/read state and reasoned internal-comment moderation implemented. Evidence: AT-14 Chrome and unit regression; 155/155 unit + 68/68 E2E checks, 2026-09-24. Full criterion sign-off remains open under E02.
 
 - [x] **VP-025-I02** (P2; [VP-025](#vp-025)): Implemented required-reason share/withdraw actions with attributable history and current client visibility projection. Evidence: store regression + VP-021 Chrome, 2026-09-24. Broader portal withdrawal/no-access cases remain under E03.
 

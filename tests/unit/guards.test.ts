@@ -828,6 +828,26 @@ describe('internal collaboration scope (AT-14)', () => {
     target.addComment({ ...base, mentions: ['partner'] });
     assert.equal(target.state.comments.find((item: any) => item.id === base.id).mentions[0], 'partner');
     assert.equal(target.state.events.some((event: any) => event.ref === base.id && event.text.includes('Local mention')), true);
+    const notice = target.state.localNotices.find((item: any) => item.commentId === base.id);
+    assert.equal(notice.recipientUserId, 'partner');
+    target.state.currentUserId = 'manager-2';
+    target.state.currentPerson = 'Mariam Saeed';
+    target.state.currentRole = 'manager';
+    assert.throws(() => target.markLocalNoticeRead(notice.id), /intended recipient/);
+    assert.throws(() => target.moderateComment(base.id, true, ' '), /requires a reason/);
+    target.state.currentUserId = 'manager';
+    target.state.currentPerson = 'Layla Rahman';
+    assert.throws(() => target.moderateComment(base.id, true, 'Author cannot moderate own note'), /cannot moderate their own/);
+    target.state.currentUserId = 'manager-2';
+    target.state.currentPerson = 'Mariam Saeed';
+    target.state.currentRole = 'manager';
+    target.moderateComment(base.id, true, 'Contains an accidentally pasted private detail.');
+    assert.equal(target.state.comments.find((item: any) => item.id === base.id).moderationHistory[0].action, 'Hidden');
+    assert.throws(() => target.moderateComment(base.id, true, 'Already hidden'), /already hidden/);
+    target.moderateComment(base.id, false, 'Private detail removed; comment can be restored.');
+    setPersona(target.state, 'Daniel James');
+    target.markLocalNoticeRead(notice.id);
+    assert.ok(notice.readAt);
   });
 });
 

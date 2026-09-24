@@ -1212,7 +1212,42 @@ class PrototypeStore {
       if ((comment.mentions || []).some(id => !eligibleIds.includes(id))) throw new GuardError('FORBIDDEN_SCOPE', 'Mention recipients must be active users who can access this job.');
     }
     this.state.comments.push(comment);
+    if ((comment.mentions || []).length) {
+      this.state.localNotices ||= [];
+      for (const recipientUserId of new Set(comment.mentions)) this.state.localNotices.push({ id: `${comment.id}:${recipientUserId}`, recipientUserId, commentId: comment.id, createdAt: new Date().toISOString() });
+    }
     (comment.mentions || []).forEach(id => this.logEvent(`Local mention for ${this.state.users.find(user => user.id === id)?.name} on ${comment.subjectType} ${comment.subjectId}`, comment.id));
+    this.notify();
+  }
+
+  public markLocalNoticeRead(noticeId: string) {
+    requireActiveIdentity(this.state);
+    const notice = this.state.localNotices?.find(item => item.id === noticeId);
+    if (!notice || notice.recipientUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'A local notice can only be read by its intended recipient.');
+    notice.readAt ||= new Date().toISOString();
+    this.notify();
+  }
+
+  public moderateComment(commentId: string, hidden: boolean, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'partner'], 'moderate internal comments');
+    const comment = this.state.comments.find(item => item.id === commentId);
+    if (!comment || comment.visibility !== 'internal') throw new GuardError('INVALID_STATE', 'Internal comment was not found.');
+    if (comment.subjectType === 'client') requireClientScope(this.state, comment.subjectId);
+    else if (comment.subjectType === 'engagement') requireEngagementScope(this.state, comment.subjectId);
+    else {
+      const task = comment.subjectType === 'task' ? this.state.jobTasks.find(item => item.id === comment.subjectId) : undefined;
+      const job = comment.subjectType === 'job' ? this.state.jobs.find(item => item.id === comment.subjectId) : task ? this.state.jobs.find(item => item.id === task.jobId) : undefined;
+      if (!job) throw new GuardError('INVALID_STATE', 'Comment subject was not found.');
+      requireEngagementScope(this.state, job.engagementId);
+    }
+    if (comment.author === this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'The comment author cannot moderate their own comment.');
+    if (typeof reason !== 'string' || !reason.trim() || reason.length > 1000) throw new GuardError('INVALID_STATE', 'Comment moderation requires a reason of 1,000 characters or fewer.');
+    const currentlyHidden = comment.moderationHistory?.at(-1)?.action === 'Hidden';
+    if (currentlyHidden === hidden) throw new GuardError('INVALID_STATE', `Comment is already ${hidden ? 'hidden' : 'visible'}.`);
+    comment.moderationHistory ||= [];
+    comment.moderationHistory.push({ action: hidden ? 'Hidden' : 'Restored', by: this.state.currentPerson, byUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim() });
+    this.logEvent(`Internal comment ${hidden ? 'hidden' : 'restored'} by moderator: ${reason.trim()}`, comment.id);
     this.notify();
   }
 
