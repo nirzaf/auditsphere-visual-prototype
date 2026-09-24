@@ -53,7 +53,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
 
     // Only issued invoices pinned to this engagement count; draft/approved and
     // sibling engagement invoices cannot reduce this row.
-    const clientInvoices = state.invoices.filter(i => i.engagementId === eng.id && (i.status === 'Issued' || i.status === 'Paid'));
+    const clientInvoices = state.invoices.filter(i => (i.engagementId || i.eng) === eng.id && (i.status === 'Issued' || i.status === 'Paid'));
     const billedAmount = clientInvoices.reduce((sum, i) => sum + i.amount, 0);
     const unbilledWip = recordedWipValue === null ? null : Math.max(0, recordedWipValue - billedAmount);
 
@@ -103,7 +103,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
   const report = visibleReports.some(r => r.key === selectedReport) ? selectedReport : visibleReports[0]?.key || 'clients';
   const scopedJobIds = new Set(state.jobs.filter(j => filteredEngs.some(e => e.id === j.engagementId)).map(j => j.id));
   const approvedTime = state.times.filter(t => t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
-  const scopedInvoices = state.invoices.filter(i => i.engagementId && filteredEngs.some(e => e.id === i.engagementId));
+  const scopedInvoices = state.invoices.filter(i => filteredEngs.some(e => e.id === (i.engagementId || i.eng)));
   const scopedInvoiceIds = new Set(scopedInvoices.map(i => i.id));
   const scopedClientsSet = new Set(scopedClients.filter(c => clientFilter === 'ALL' || c.id === clientFilter).map(c => c.id));
   const scopedCredits = state.creditNotes.filter(c => scopedInvoiceIds.has(c.invoiceId) && scopedClientsSet.has(c.clientId));
@@ -129,13 +129,13 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
       const amount = actual.filter(t => t.billable).every(t => t.billingRatePerHour !== undefined) ? actual.filter(t => t.billable).reduce((sum, t) => sum + t.durationMinutes / 60 * (t.billingRatePerHour || 0), 0).toFixed(2) : 'Unknown';
       return { engagementId: b.engagementId, cells: [b.engagementId, b.jobId || 'Engagement', String(b.version), b.currency, String(plan), String(minutes), String(minutes - plan), amount] };
     })),
-    invoices: data(['Invoice', 'Engagement', 'Client', 'Status', 'Currency', 'Amount', 'Paid', 'Due'], scopedInvoices.filter(i => scopedClientsSet.has(i.clientId)).map(i => ({ engagementId: i.engagementId, cells: [i.invoiceNumber, i.engagementId || '', state.clients.find(c => c.id === i.clientId)?.name || i.clientId, i.status, i.currency, String(i.amount), String(i.paid), i.due] }))),
-    credits: data(['Credit note', 'Invoice', 'Client', 'Status', 'Currency', 'Amount', 'Date'], scopedCredits.map(c => ({ engagementId: scopedInvoices.find(i => i.id === c.invoiceId)?.engagementId, cells: [c.creditNumber, c.invoiceId, state.clients.find(cl => cl.id === c.clientId)?.name || c.clientId, c.status, c.currency || 'Unknown', String(c.amount), c.issueDate || c.date || ''] }))),
+    invoices: data(['Invoice', 'Engagement', 'Client', 'Status', 'Currency', 'Amount', 'Paid', 'Due'], scopedInvoices.filter(i => scopedClientsSet.has(i.clientId)).map(i => ({ engagementId: i.engagementId || i.eng, cells: [i.invoiceNumber, i.engagementId || i.eng, state.clients.find(c => c.id === i.clientId)?.name || i.clientId, i.status, i.currency, String(i.amount), String(i.paid), i.due] }))),
+    credits: data(['Credit note', 'Invoice', 'Client', 'Status', 'Currency', 'Amount', 'Date'], scopedCredits.map(c => { const invoice = scopedInvoices.find(i => i.id === c.invoiceId); return { engagementId: invoice?.engagementId || invoice?.eng, cells: [c.creditNumber, c.invoiceId, state.clients.find(cl => cl.id === c.clientId)?.name || c.clientId, c.status, c.currency || 'Unknown', String(c.amount), c.issueDate || c.date || ''] }; })),
     receipts: data(['Receipt', 'Client', 'Date', 'Currency', 'Amount', 'Allocated', 'Unallocated'], scopedReceipts.map(r => {
       const allocated = r.allocations.filter(a => !a.reversed && scopedInvoiceIds.has(a.invoiceId)).reduce((sum, a) => sum + a.amount, 0);
       return { cells: [r.receiptNumber, state.clients.find(c => c.id === r.clientId)?.name || r.clientId, r.date, r.currency, String(r.amount), String(allocated), String(Math.max(0, r.amount - allocated))] };
     })),
-    ar: data(['Invoice', 'Engagement', 'Currency', 'Due', 'Outstanding', 'Aging bucket', 'Days overdue'], aging.invoiceBreakdown.map(r => ({ engagementId: r.invoice.engagementId, cells: [r.invoice.invoiceNumber, r.invoice.engagementId || '', r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)] }))),
+    ar: data(['Invoice', 'Engagement', 'Currency', 'Due', 'Outstanding', 'Aging bucket', 'Days overdue'], aging.invoiceBreakdown.map(r => ({ engagementId: r.invoice.engagementId || r.invoice.eng, cells: [r.invoice.invoiceNumber, r.invoice.engagementId || r.invoice.eng, r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)] }))),
     findings: data(['Finding', 'Engagement', 'Title', 'Severity', 'Disposition', 'Currency', 'Amount'], state.findings.filter(f => filteredEngs.some(e => e.id === f.engagementId)).map(f => ({ engagementId: f.engagementId, cells: [f.id, f.engagementId, f.title, f.severity || 'Unrated', f.disposition, f.currency || 'Unknown', f.amount === undefined ? 'Not quantified' : String(f.amount)] }))),
     reviews: data(['Review point', 'Engagement', 'Subject', 'Severity', 'Status', 'Assigned', 'Due'], filteredEngs.flatMap(e => e.reviews.map(r => ({ engagementId: e.id, cells: [r.id, e.id, r.wp, r.severity, r.status, r.assigned, r.due] })))),
     packages: data(['Engagement', 'Client', 'Package revision', 'Source revision', 'Status', 'Artifacts', 'SHA-256 identities'], filteredEngs.map(e => {

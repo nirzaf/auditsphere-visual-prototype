@@ -1642,7 +1642,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const engagementIds = new Set(engagements.map((item: any) => item.id));
         const jobs = sourceState.jobs.filter((item: any) => engagementIds.has(item.engagementId));
         const jobIds = new Set(jobs.map((item: any) => item.id));
-        const invoices = sourceState.invoices.filter((item: any) => item.engagementId && engagementIds.has(item.engagementId));
+        const invoices = sourceState.invoices.filter((item: any) => engagementIds.has(item.engagementId || item.eng));
         const invoiceIds = new Set(invoices.map((item: any) => item.id));
         const clientIds = new Set(clients.map((item: any) => item.id));
         const credits = sourceState.creditNotes.filter((item: any) => invoiceIds.has(item.invoiceId) && clientIds.has(item.clientId));
@@ -1652,7 +1652,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const wip = engagements.map((engagement: any) => {
           const approved = sourceState.times.filter((time: any) => time.engagementId === engagement.id && time.status === 'Approved');
           const recorded = calculateRecordedWipValue(approved);
-          const billed = sourceState.invoices.filter((invoice: any) => invoice.engagementId === engagement.id && ['Issued', 'Paid'].includes(invoice.status)).reduce((sum: number, invoice: any) => sum + invoice.amount, 0);
+          const billed = sourceState.invoices.filter((invoice: any) => (invoice.engagementId || invoice.eng) === engagement.id && ['Issued', 'Paid'].includes(invoice.status)).reduce((sum: number, invoice: any) => sum + invoice.amount, 0);
           const unbilled = recorded === null ? null : Math.max(0, recorded - billed);
           return { engagement, client: sourceState.clients.find((item: any) => item.id === engagement.client), approved, recorded, billed, unbilled };
         });
@@ -1686,13 +1686,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
           const amount = billable.every((t: any) => t.billingRatePerHour !== undefined) ? billable.reduce((sum: number, t: any) => sum + t.durationMinutes / 60 * (t.billingRatePerHour || 0), 0).toFixed(2) : 'Unknown';
           return [b.engagementId, b.jobId || 'Engagement', String(b.version), b.currency, String(planned), String(minutes), String(minutes - planned), amount];
         });
-        valueRows.invoices = invoices.filter((i: any) => clientIds.has(i.clientId)).map((i: any) => [i.invoiceNumber, i.engagementId || '', clientName(i.clientId), i.status, i.currency, String(i.amount), String(i.paid), i.due]);
+        valueRows.invoices = invoices.filter((i: any) => clientIds.has(i.clientId)).map((i: any) => [i.invoiceNumber, i.engagementId || i.eng, clientName(i.clientId), i.status, i.currency, String(i.amount), String(i.paid), i.due]);
         valueRows.credits = credits.map((c: any) => [c.creditNumber, c.invoiceId, clientName(c.clientId), c.status, c.currency || 'Unknown', String(c.amount), c.issueDate || c.date || '']);
         valueRows.receipts = receipts.map((r: any) => {
           const allocated = r.allocations.filter((a: any) => !a.reversed && invoiceIds.has(a.invoiceId)).reduce((sum: number, a: any) => sum + a.amount, 0);
           return [r.receiptNumber, clientName(r.clientId), r.date, r.currency, String(r.amount), String(allocated), String(Math.max(0, r.amount - allocated))];
         });
-        valueRows.ar = aging.invoiceBreakdown.map((r: any) => [r.invoice.invoiceNumber, r.invoice.engagementId || '', r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)]);
+        valueRows.ar = aging.invoiceBreakdown.map((r: any) => [r.invoice.invoiceNumber, r.invoice.engagementId || r.invoice.eng, r.invoice.currency, r.invoice.due, String(r.outstanding), r.bucket, String(r.daysOverdue)]);
         valueRows.findings = sourceState.findings.filter((f: any) => engagementIds.has(f.engagementId)).map((f: any) => [f.id, f.engagementId, f.title, f.severity || 'Unrated', f.disposition, f.currency || 'Unknown', f.amount === undefined ? 'Not quantified' : String(f.amount)]);
         valueRows.reviews = engagements.flatMap((e: any) => e.reviews.map((r: any) => [r.id, e.id, r.wp, r.severity, r.status, r.assigned, r.due]));
         valueRows.packages = engagements.map((e: any) => {
@@ -1744,6 +1744,18 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const csv = await browserTab!.evaluate<string>('window.__reportCsv.text()');
       assert.match(csv, /Northstar Services/);
       assert.doesNotMatch(csv, /Example Trading Entity|Meridian Manufacturing/);
+
+      await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Billing officer'));if(!o)throw Error('Billing persona missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole === 'billing'`), true);
+      const billingReports = await browserTab!.evaluate<string[]>('[...document.querySelectorAll("#practice-report option")].map(o=>o.value)');
+      assert.deepEqual(billingReports, ['wip', 'utilization', 'clients', 'time', 'budget', 'invoices', 'credits', 'receipts', 'ar']);
+      assert.ok(!billingReports.some(key => ['jobs', 'tasks', 'compliance', 'pbc', 'findings', 'reviews', 'packages'].includes(key)), 'billing catalogue must hide reports outside its permitted set');
+      await browserTab!.evaluate(`(() => {const c=document.querySelector('#report-client-filter');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(c,'CL-001');c.dispatchEvent(new Event('change',{bubbles:true}));const s=document.querySelector('#practice-report');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'invoices');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`document.querySelector('#practice-report')?.value === 'invoices'`), true);
+      await clickButton('Export Active Report (CSV)');
+      const billingCsv = parseCsv(await browserTab!.evaluate<string>('window.__reportCsv.text()'));
+      assert.ok(billingCsv.length > 1, 'billing persona has scoped invoice rows');
+      assert.ok(billingCsv.slice(1).every(row => row[2] === 'Example Trading Entity'), 'billing export must honor the active client filter');
       assert.equal(browserTab!.exceptions.length, 0);
     } finally {
       if (priorState) {

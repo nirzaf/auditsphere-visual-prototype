@@ -45,8 +45,9 @@ invalidation, but its full projection/provenance matrix remains open; 36 of 39 m
   A fixed calculation check covers approved, unapproved and missing-rate rows.
   Chrome now maps every exported CSV field for all 16 reports to persisted source
   records; WIP, utilization and compliance values are also independently
-  recomputed. OS-level print output and the remaining filter/persona combinations
-  still lack full acceptance evidence.
+  recomputed. The billing persona's restricted report catalogue and client-filtered
+  invoice export are also verified. OS-level print output and other filter/persona
+  combinations still lack full acceptance evidence.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   across two issued invoices and reverses one allocation with a reason while
   preserving the other invoice settlement. It exports a client-scoped CSV
