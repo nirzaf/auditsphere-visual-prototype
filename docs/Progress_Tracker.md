@@ -577,12 +577,12 @@ Create a typed prototype store, command boundary, selectors and explicit legacy 
 **Original journey links:** [AT-01](#at-01), [AT-06](#at-06), [AT-18](#at-18), [AT-53](#at-53), [AT-54](#at-54); [AT-52](#at-52) applies to the complete functional journey.
 
 #### Demonstrated / already implemented
-Role-aware routes, scoped selectors, responsive layout checks and an accessible client dialog are represented. Recorded Chrome checks cover narrow grants and 320/390/768-pixel layouts in exercised routes.
+Role-aware routes, scoped selectors, responsive layout checks and app-wide modal semantics, focus containment, Escape dismissal and return focus are implemented for active `.modal-backdrop .modal` dialogs. Chrome checks cover the client dialog at 320/390/768 pixels and keyboard behavior for an unannotated New Job dialog.
 
 #### Pending actions
 The distinction between implementation, evidence and scope reconciliation is intentional.
 
-- [ ] **VP-003-E01 — Verification/evidence pending:** Complete keyboard/focus/cancel tests for every active dialog, not just the client dialog.
+- [ ] **VP-003-E01 — Verification/evidence pending:** Exercise dialog-specific save/cancel and dismissal paths for every active modal. Shared semantics, focus containment, Escape, and focus restoration now pass in the client and New Job dialogs.
 
 - [ ] **VP-003-E02 — Verification/evidence pending:** Verify save/discard/cancel for dirty forms during persona, client, engagement and route switches, including denied/restored direct targets.
 
@@ -602,7 +602,7 @@ Create grouped navigation for Practice, Work, Client Services, Economics, Accoun
 |---|---|---|
 | VP-003-AC01 | Given a direct link or restored selection outside the current scope, when opened, then a safe unavailable view appears and no restricted record fields/counts are rendered. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 | VP-003-AC02 | Given unsaved form changes, when navigating or switching persona/client, then the user can save, discard or cancel; drafts cannot accidentally save into the new context. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
-| VP-003-AC03 | Keyboard-only users can open, edit, save and cancel dialogs with focus restored to the initiating control. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
+| VP-003-AC03 | Keyboard-only users can open, edit, save and cancel dialogs with focus restored to the initiating control. | SUBCASES VERIFIED 2026-09-24: shared accessible dialog behavior and client/New Job keyboard open, Tab containment, Escape cancel and focus restoration pass in Chrome. Keyboard save and each dialog-specific close path remain open. |
 | VP-003-AC04 | Every active route has a label, required capability and at least one role fixture; client routes contain no staff economics, internal notes or presenter exports. | OPEN FOR SIGN-OFF; existing passed subcases do not complete the criterion |
 
 **Requirement source:** [Original contract at this story](https://github.com/nirzaf/auditsphere-visual-prototype/blob/eaaa7cfd0ea9379a19e147c98752466ea75aab8d/Gap_Closure_User_Stories.md#L322).
@@ -3971,7 +3971,7 @@ This queue contains **117 open planning actions** attached to the 50 Partial sto
 |---|---|---|---|---|
 | VP-001-E01 | [VP-001](#vp-001) | P2 | Finish the criterion-by-criterion active navigation, settings, catalogue and historical-reference allowlist audit. Record evidence that existing human review/PBC/release paths remain reachable. | Pending / Unassigned / — |
 | VP-002-E01 | [VP-002](#vp-002) | P1 | Prove equivalent retained PBC/workpaper/review journeys and single-state updates across all active modules; test repeated mounting, routing and command execution. | Pending / Unassigned / — |
-| VP-003-E01 | [VP-003](#vp-003) | P1 | Complete keyboard/focus/cancel tests for every active dialog, not just the client dialog. | Pending / Unassigned / — |
+| VP-003-E01 | [VP-003](#vp-003) | P1 | Exercise dialog-specific save/cancel and dismissal paths for every active modal; shared keyboard behavior is implemented and tested for client and New Job dialogs. | Pending / Unassigned / — |
 | VP-003-E02 | [VP-003](#vp-003) | P1 | Verify save/discard/cancel for dirty forms during persona, client, engagement and route switches, including denied/restored direct targets. | Pending / Unassigned / — |
 | VP-004-E01 | [VP-004](#vp-004) | P1 | Complete future-schema, ambiguous-reference, corrupt-but-valid-JSON, storage-denial and recovery/export/import journeys against actual historical fixtures. | Pending / Unassigned / — |
 | VP-004-E02 | [VP-004](#vp-004) | P1 | Verify prior payloads and scopes survive every recovery choice and no binary upload payload is silently serialized into metadata. | Pending / Unassigned / — |

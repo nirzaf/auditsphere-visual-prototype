@@ -67,6 +67,74 @@ export const App: React.FC = () => {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    let activeDialog: HTMLElement | null = null;
+    let returnFocus: HTMLElement | null = null;
+    let dialogSequence = 0;
+    const focusable = (dialog: HTMLElement) => [...dialog.querySelectorAll<HTMLElement>(
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    )].filter(element => element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
+    const syncDialogs = () => {
+      const dialogs = [...document.querySelectorAll<HTMLElement>('.modal-backdrop .modal')];
+      dialogs.forEach(dialog => {
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
+          const title = dialog.querySelector<HTMLElement>('h1,h2,h3');
+          if (title) {
+            title.id ||= `dialog-title-${++dialogSequence}`;
+            dialog.setAttribute('aria-labelledby', title.id);
+          }
+        }
+        if (!dialog.hasAttribute('tabindex')) dialog.tabIndex = -1;
+      });
+      const next = dialogs.at(-1) || null;
+      if (next === activeDialog) return;
+      const previous = activeDialog;
+      activeDialog = next;
+      if (next) {
+        if (!previous) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        (focusable(next)[0] || next).focus();
+      } else {
+        const target = returnFocus;
+        returnFocus = null;
+        if (target?.isConnected) target.focus();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!activeDialog) return;
+      if (event.key === 'Escape') {
+        const backdrop = activeDialog.closest<HTMLElement>('.modal-backdrop');
+        if (!backdrop) return;
+        event.preventDefault();
+        event.stopPropagation();
+        backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      } else if (event.key === 'Tab') {
+        const items = focusable(activeDialog);
+        if (!items.length) { event.preventDefault(); activeDialog.focus(); return; }
+        const first = items[0], last = items.at(-1);
+        if (event.shiftKey && (document.activeElement === first || !activeDialog.contains(document.activeElement))) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !activeDialog.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    };
+    const onFocus = (event: FocusEvent) => {
+      if (activeDialog && event.target instanceof Node && !activeDialog.contains(event.target)) (focusable(activeDialog)[0] || activeDialog).focus();
+    };
+    const observer = new MutationObserver(syncDialogs);
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('focusin', onFocus, true);
+    syncDialogs();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('focusin', onFocus, true);
+    };
+  }, []);
+
   const state = prototypeStore.getSnapshot();
   const isClient = isClientRole(state.currentRole);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';

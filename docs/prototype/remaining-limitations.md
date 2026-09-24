@@ -2,8 +2,9 @@
 
 Updated 2026-09-24. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-047, VP-051,
-VP-018, VP-037, VP-052, VP-053, VP-055, VP-056, VP-057, VP-058, VP-059 and
-VP-060 are Verified; 51 of 64 stories and 29 of 39 modules remain Partial.
+VP-014, VP-018, VP-037, VP-052, VP-053, VP-055, VP-056, VP-057, VP-058,
+VP-059 and VP-060 are Verified; 50 of 64 stories and 29 of 39 modules remain
+Partial.
 Automated sources explicitly trace AT-01 through AT-55. See
 `verification.md` for exact executed checks.
 
@@ -312,13 +313,13 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,255.51 kB,
-  626.88 kB gzip in the current build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,293.78 kB,
+  635.02 kB gzip in the current build).
 
 ## Verification snapshot
 
-Latest recorded full run: 152/152 unit checks and 68/68 E2E checks passed.
-E2E includes five static checks and 63 Chrome journeys. The Chrome suite blocks
+Latest recorded full run: 161/161 unit checks and 69/69 E2E checks passed.
+E2E includes five static checks and 64 Chrome journeys. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin
 resource loading and runtime connections through CSP. VP-009, VP-018, VP-037,

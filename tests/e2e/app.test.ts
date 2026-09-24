@@ -573,6 +573,18 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     } finally {
       await browserTab!.command('Emulation.clearDeviceMetricsOverride');
     }
+    await clickButtonStartingWith('Jobs & Tasks');
+    await browserTab!.evaluate(`(() => {const trigger=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().endsWith('New Job'));trigger?.focus();trigger?.click();})()`);
+    assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog][aria-modal=true][aria-labelledby]")'), true, 'unannotated module dialogs receive accessible name and dialog semantics');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => document.querySelector('[role=dialog]')?.contains(document.activeElement))()`), true, 'opening a module dialog moves focus inside');
+    await browserTab!.evaluate(`(() => {const dialog=document.querySelector('[role=dialog]');const items=[...dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')].filter(x=>x.getClientRects().length);items.at(-1).focus();})()`);
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const d=document.querySelector('[role=dialog]');const items=[...d.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')].filter(x=>x.getClientRects().length);return document.activeElement===items[0];})()`), true, 'Tab remains inside the module dialog');
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape cancels the module dialog');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.textContent?.trim().endsWith('New Job'))()`), true, 'closing restores focus to the opener');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
