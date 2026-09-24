@@ -4,7 +4,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateReceivablesAging, verifyGLCompleteness } from '../../src/services/calculations.js';
-import { visibleClientIds, visibleEngagementIds, requireActiveIdentity, GuardError } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireActiveIdentity, markStateStale, GuardError } from '../../src/services/guards.js';
 import { createInitialState } from '../../src/store/initialState.js';
 import { seedManagementAcknowledgement, seedPackageDefinition } from './packageFixture.js';
 
@@ -184,6 +184,15 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
     const state = createInitialState();
     setPersona(state, 'Tariq Aziz'); // status: 'Inactive'
     assert.throws(() => requireActiveIdentity(state), /disabled/);
+  });
+
+  it('VP-019: stale browser state blocks all guarded commands until resolved', () => {
+    const state = createInitialState();
+    setPersona(state, 'Adam Khan');
+    markStateStale(state, true);
+    assert.throws(() => requireActiveIdentity(state), /Another browser tab saved newer state/);
+    markStateStale(state, false);
+    assert.doesNotThrow(() => requireActiveIdentity(state));
   });
 
   // RR15: Existing narrow engagement grant excludes sibling

@@ -22,6 +22,13 @@ export class GuardError extends Error {
   }
 }
 
+const staleStates = new WeakSet<object>();
+
+export function markStateStale(state: PrototypeState, stale: boolean): void {
+  if (stale) staleStates.add(state);
+  else staleStates.delete(state);
+}
+
 export function activePersona(state: PrototypeState) {
   const user = state.users.find(u => u.id === state.currentUserId);
   return user
@@ -30,6 +37,9 @@ export function activePersona(state: PrototypeState) {
 }
 
 export function requireActiveIdentity(state: PrototypeState): void {
+  if (staleStates.has(state)) {
+    throw new GuardError('STALE_REVISION', 'Another browser tab saved newer state. Reload it or explicitly replace it before continuing.');
+  }
   const persona = activePersona(state);
   if (!persona.id || state.currentPerson !== persona.name || state.currentRole !== persona.role) {
     throw new GuardError('DISABLED_IDENTITY', `Identity "${state.currentPerson}" is not recognized.`);

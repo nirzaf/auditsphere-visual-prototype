@@ -5,7 +5,7 @@ import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, Job
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
 import { calculateReconciliationVariance } from '../services/calculations';
 
 const STORAGE_KEY = 'ste-auditsphere-role-portals-v2';
@@ -46,6 +46,7 @@ class PrototypeStore {
       window.addEventListener('storage', (e) => {
         if (e.key === STORAGE_KEY) {
           this.storageConflict = true;
+          markStateStale(this.state, true);
           this.listeners.forEach(fn => fn());
         }
       });
@@ -62,12 +63,14 @@ class PrototypeStore {
       const { state } = migratePersistedState(parsed, createInitialState());
       const issues = validateFixtures(state);
       if (issues.length) throw new GuardError('INVALID_STATE', `Newer saved state failed validation: ${issues[0].message}`);
+      markStateStale(this.state, false);
       this.state = state;
     } else if (latest) {
       // Preserve the other tab's latest payload before the user explicitly replaces it.
       localStorage.setItem(STORAGE_BACKUP_KEY, latest);
     }
     this.storageConflict = false;
+    markStateStale(this.state, false);
     if (choice === 'keep-local') this.persist();
     this.listeners.forEach(fn => fn());
   }
@@ -4142,6 +4145,7 @@ class PrototypeStore {
     this.state = createInitialState();
     this.loadError = null;
     this.storageConflict = false;
+    markStateStale(this.state, false);
     this.logEvent('Local prototype state reset to initial baseline', 'SYS');
     this.notify();
   }
