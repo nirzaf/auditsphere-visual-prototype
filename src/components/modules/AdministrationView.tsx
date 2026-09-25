@@ -303,33 +303,17 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
 
       {/* Firm Legal Details */}
       {activeTab === 'firm' && (
-        <div className="panel panel-pad">
-          <h3>Firm Statutory Profile</h3>
-          <div className="grid2 mt16" style={{ gap: 16 }}>
-            <div>
-              <label className="caption">Firm Trading Name</label>
-              <input type="text" className="input" defaultValue="Al-Nuaimi & Partners Certified Public Accountants" />
-            </div>
-            <div>
-              <label className="caption">Statutory Registration Number</label>
-              <input type="text" className="input" defaultValue="CPA-QA-2018-0042" />
-            </div>
-            <div>
-              <label className="caption">Licensed Jurisdiction</label>
-              <input type="text" className="input" defaultValue="State of Qatar · QFMA & Ministry of Commerce" />
-            </div>
-            <div>
-              <label className="caption">Reporting Currency</label>
-              <input type="text" className="input" defaultValue="Qatari Riyal (QAR)" />
-            </div>
-          </div>
-        </div>
+        <FirmSettingsPanel
+          state={state}
+          onSaved={(text) => triggerNotice('success', text)}
+          onError={(text) => triggerNotice('error', text)}
+        />
       )}
 
       {/* RBAC Catalogue */}
       {activeTab === 'permissions' && (
         <div className="panel panel-pad">
-          <h3>The 14 Prototype Application Roles</h3>
+          <h3>The 10 Prototype Application Roles</h3>
           <p className="sub mt4">Explicit separation of duties catalogue enforced across all business commands.</p>
           <div className="grid2 mt16" style={{ gap: 12 }}>
             {[
@@ -504,6 +488,110 @@ export const AdministrationView: React.FC<AdministrationViewProps> = ({ onNaviga
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+/** Module 39 (VP-062): editable firm profile. Changes apply prospectively —
+ *  issued invoices, released packages and archived records keep their original
+ *  captured identity; new PDF exports and generated artifacts use the saved values. */
+const FirmSettingsPanel: React.FC<{
+  state: ReturnType<typeof prototypeStore.getSnapshot>;
+  onSaved: (text: string) => void;
+  onError: (text: string) => void;
+}> = ({ state, onSaved, onError }) => {
+  const firm = state.firmSettings;
+  const [draft, setDraft] = useState({ ...firm });
+  const [reason, setReason] = useState('');
+  const isAdmin = state.currentRole === 'admin' && state.roleGrants.some(g => g.userId === state.currentUserId && g.role === 'admin' && g.scopeKind === 'Global');
+  const firmEvents = state.events.filter(event => event.ref === 'FIRM').slice(0, 5);
+  const changed = JSON.stringify(draft) !== JSON.stringify(firm);
+
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      prototypeStore.updateFirmSettings(draft, reason.trim() || 'firm profile update');
+      onSaved('Firm settings saved. Changes apply prospectively; existing issued invoices, releases and archives are unchanged.');
+      setReason('');
+    } catch (err: any) {
+      onError(err.message);
+    }
+  };
+
+  return (
+    <div className="stack" style={{ gap: 16 }}>
+      <form className="panel panel-pad stack" onSubmit={handleSave} style={{ gap: 12 }}>
+        <div>
+          <h3>Firm Statutory Profile</h3>
+          <p className="sub mt4">Saved values flow into new invoice and credit-note PDF exports and future generated artifacts. Previously issued documents retain the identity captured at their creation.</p>
+        </div>
+        {!isAdmin && (
+          <div className="panel panel-pad" style={{ background: '#fffbeb', borderColor: '#fcd34d', color: '#92400e', padding: '8px 12px' }}>
+            Only administrators with an active Global grant can change firm settings. The form is read-only for your role.
+          </div>
+        )}
+        <div className="grid2" style={{ gap: 16 }}>
+          <div>
+            <label className="caption" htmlFor="firm-name">Firm Trading Name</label>
+            <input id="firm-name" type="text" className="input" required maxLength={120} disabled={!isAdmin} value={draft.firmName} onChange={e => setDraft({ ...draft, firmName: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-legal-name">Firm Legal Name</label>
+            <input id="firm-legal-name" type="text" className="input" required maxLength={200} disabled={!isAdmin} value={draft.firmLegalName} onChange={e => setDraft({ ...draft, firmLegalName: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-jurisdiction">Licensed Jurisdiction</label>
+            <input id="firm-jurisdiction" type="text" className="input" required maxLength={80} disabled={!isAdmin} value={draft.jurisdiction} onChange={e => setDraft({ ...draft, jurisdiction: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-currency">Firm Reporting Currency (ISO code)</label>
+            <input id="firm-currency" type="text" className="input" required maxLength={3} minLength={3} disabled={!isAdmin} value={draft.currency} onChange={e => setDraft({ ...draft, currency: e.target.value.toUpperCase() })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-inv-prefix">Invoice Number Prefix</label>
+            <input id="firm-inv-prefix" type="text" className="input" required maxLength={16} disabled={!isAdmin} value={draft.invoiceNumberPrefix} onChange={e => setDraft({ ...draft, invoiceNumberPrefix: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-inv-next">Next Invoice Number</label>
+            <input id="firm-inv-next" type="number" className="input" required min={1} step={1} disabled={!isAdmin} value={draft.invoiceNextNumber} onChange={e => setDraft({ ...draft, invoiceNextNumber: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-credit-prefix">Credit Number Prefix</label>
+            <input id="firm-credit-prefix" type="text" className="input" required maxLength={16} disabled={!isAdmin} value={draft.creditNumberPrefix} onChange={e => setDraft({ ...draft, creditNumberPrefix: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-credit-next">Next Credit Number</label>
+            <input id="firm-credit-next" type="number" className="input" required min={1} step={1} disabled={!isAdmin} value={draft.creditNextNumber} onChange={e => setDraft({ ...draft, creditNextNumber: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-terms">Default Payment Terms (days)</label>
+            <input id="firm-terms" type="number" className="input" required min={0} max={365} step={1} disabled={!isAdmin} value={draft.paymentTermsDays} onChange={e => setDraft({ ...draft, paymentTermsDays: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-locale">Locale</label>
+            <input id="firm-locale" type="text" className="input" required maxLength={16} disabled={!isAdmin} value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value })} />
+          </div>
+        </div>
+        <label className="caption" htmlFor="firm-reason">Reason for this change</label>
+        <input id="firm-reason" type="text" className="input" maxLength={200} disabled={!isAdmin} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Annual legal-name refresh" />
+        <div className="row" style={{ gap: 10 }}>
+          <button type="submit" className="btn primary sm" disabled={!isAdmin || !changed}>Save Firm Settings</button>
+          <button type="button" className="btn ghost sm" disabled={!isAdmin || !changed} onClick={() => { setDraft({ ...firm }); setReason(''); }}>Discard Changes</button>
+          {changed && <span className="caption">Unsaved changes — settings apply only after saving.</span>}
+        </div>
+      </form>
+      <div className="panel panel-pad">
+        <h4>Recent Firm Settings Changes</h4>
+        {firmEvents.length === 0 ? (
+          <p className="sub mt4">No firm settings changes recorded in this browser session.</p>
+        ) : (
+          <div className="stack mt8" style={{ gap: 6 }}>
+            {firmEvents.map((event, index) => (
+              <div className="caption" key={index}>· {event.text} — {event.time}</div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

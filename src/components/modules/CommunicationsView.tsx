@@ -33,12 +33,18 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const [participants, setParticipants] = useState('Omar Nasser (CFO), Layla Rahman (Manager)');
   const [noteSummary, setNoteSummary] = useState('');
   const [noteBody, setNoteBody] = useState('');
+  const [noteDate, setNoteDate] = useState(state.asOfDate);
+  const [noteVisibility, setNoteVisibility] = useState<CommunicationItem['visibility']>('Internal');
+  const [noteDocumentId, setNoteDocumentId] = useState('');
   const [relatedJobId, setRelatedJobId] = useState('');
+  const [editingCommunicationId, setEditingCommunicationId] = useState<string | null>(null);
+  const [correctionReason, setCorrectionReason] = useState('');
 
   const communications = state.communications;
   const selectedEngagement = state.engagements.find(engagement => engagement.id === state.selectedEngagement);
   const client = state.clients.find(item => item.id === selectedEngagement?.client) || state.clients[0];
   const clientJobs = state.jobs.filter(job => job.clientId === client?.id);
+  const communicationDocuments = state.documents.filter(item => item.clientId === client?.id && (!item.engagementId || item.engagementId === state.selectedEngagement));
   const relatedJob = clientJobs.find(job => job.id === relatedJobId);
 
   const saveEmailDraft = (submissionId = emailSubmissionId.current) => {
@@ -54,24 +60,37 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   };
   const saveNoteDraft = () => {
     if (!noteSummary.trim()) return false;
+    if (editingCommunicationId && !correctionReason.trim()) { setNoteError('A reason is required to correct this communication.'); return false; }
     try {
-      prototypeStore.addCommunication({ id: `COMM-${Date.now().toString().slice(-4)}`, clientId: client?.id || 'CL-001', engagementId: relatedJob?.engagementId || state.selectedEngagement, jobId: relatedJob?.id, direction: 'Inbound', channel, participants, summary: noteSummary, body: noteBody, author: state.currentPerson, date: new Date().toISOString(), visibility: 'Internal', status: 'Recorded manually' });
-      noteBaseline.current = { channel, participants, noteSummary: '', noteBody: '', relatedJobId: '' };
-      setNoteError(''); setShowLogNoteModal(false); setNoteSummary(''); setNoteBody(''); setRelatedJobId(''); return true;
+      const fields = { channel, participants, summary: noteSummary, body: noteBody, date: `${noteDate}T12:00:00.000Z`, visibility: noteVisibility, linkedDocumentId: noteDocumentId || undefined, jobId: relatedJob?.id };
+      if (editingCommunicationId) prototypeStore.correctCommunication(editingCommunicationId, fields, correctionReason);
+      else prototypeStore.addCommunication({ id: `COMM-${Date.now().toString().slice(-4)}`, clientId: client?.id || 'CL-001', engagementId: relatedJob?.engagementId || state.selectedEngagement, direction: 'Inbound', ...fields, author: state.currentPerson, status: 'Recorded manually' });
+      const clean = { channel: 'Phone' as CommunicationItem['channel'], participants: 'Omar Nasser (CFO), Layla Rahman (Manager)', noteSummary: '', noteBody: '', noteDate: state.asOfDate, noteVisibility: 'Internal' as CommunicationItem['visibility'], noteDocumentId: '', relatedJobId: '', correctionReason: '' };
+      noteBaseline.current = clean;
+      setNoteError(''); setShowLogNoteModal(false); setEditingCommunicationId(null); setCorrectionReason(''); setChannel(clean.channel); setParticipants(clean.participants); setNoteSummary(''); setNoteBody(''); setNoteDate(state.asOfDate); setNoteVisibility('Internal'); setNoteDocumentId(''); setRelatedJobId(''); return true;
     } catch (error) { setNoteError(error instanceof Error ? error.message : 'Communication note could not be saved.'); return false; }
   };
   const emailBaseline = useRef({ recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome });
-  const noteBaseline = useRef({ channel, participants, noteSummary, noteBody, relatedJobId });
+  const noteBaseline = useRef({ channel, participants, noteSummary, noteBody, noteDate, noteVisibility, noteDocumentId, relatedJobId, correctionReason });
   useEffect(() => {
     if (!onRegisterUnsavedForm) return;
     const sameEmail = () => recipientEmail === emailBaseline.current.recipientEmail && selectedTemplateId === emailBaseline.current.selectedTemplateId && subject === emailBaseline.current.subject && emailBody === emailBaseline.current.emailBody && simulationOutcome === emailBaseline.current.simulationOutcome;
-    const sameNote = () => channel === noteBaseline.current.channel && participants === noteBaseline.current.participants && noteSummary === noteBaseline.current.noteSummary && noteBody === noteBaseline.current.noteBody && relatedJobId === noteBaseline.current.relatedJobId;
+    const sameNote = () => channel === noteBaseline.current.channel && participants === noteBaseline.current.participants && noteSummary === noteBaseline.current.noteSummary && noteBody === noteBaseline.current.noteBody && noteDate === noteBaseline.current.noteDate && noteVisibility === noteBaseline.current.noteVisibility && noteDocumentId === noteBaseline.current.noteDocumentId && relatedJobId === noteBaseline.current.relatedJobId && correctionReason === noteBaseline.current.correctionReason;
     const discardEmail = () => { setShowComposeModal(false); setRecipientEmail(emailBaseline.current.recipientEmail); setSelectedTemplateId(emailBaseline.current.selectedTemplateId); setSubject(emailBaseline.current.subject); setEmailBody(emailBaseline.current.emailBody); setSimulationOutcome(emailBaseline.current.simulationOutcome); };
-    const discardNote = () => { setShowLogNoteModal(false); setChannel(noteBaseline.current.channel); setParticipants(noteBaseline.current.participants); setNoteSummary(''); setNoteBody(''); setRelatedJobId(''); };
+    const discardNote = () => { setShowLogNoteModal(false); setEditingCommunicationId(null); setChannel(noteBaseline.current.channel); setParticipants(noteBaseline.current.participants); setNoteSummary(noteBaseline.current.noteSummary); setNoteBody(noteBaseline.current.noteBody); setNoteDate(noteBaseline.current.noteDate); setNoteVisibility(noteBaseline.current.noteVisibility); setNoteDocumentId(noteBaseline.current.noteDocumentId); setRelatedJobId(noteBaseline.current.relatedJobId); setCorrectionReason(noteBaseline.current.correctionReason); };
     onRegisterUnsavedForm({ label: 'simulated email draft', isDirty: () => showComposeModal && !sameEmail(), save: saveEmailDraft, discard: discardEmail }, 'communications-email-draft');
     onRegisterUnsavedForm({ label: 'communication note draft', isDirty: () => showLogNoteModal && !sameNote(), save: saveNoteDraft, discard: discardNote }, 'communications-note-draft');
     return () => { onRegisterUnsavedForm(null, 'communications-email-draft'); onRegisterUnsavedForm(null, 'communications-note-draft'); };
-  }, [showComposeModal, showLogNoteModal, recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome, channel, participants, noteSummary, noteBody, relatedJobId, onRegisterUnsavedForm]);
+  }, [showComposeModal, showLogNoteModal, recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome, channel, participants, noteSummary, noteBody, noteDate, noteVisibility, noteDocumentId, relatedJobId, editingCommunicationId, correctionReason, onRegisterUnsavedForm]);
+
+  const openNewNote = () => {
+    const clean = { channel: 'Phone' as CommunicationItem['channel'], participants: 'Omar Nasser (CFO), Layla Rahman (Manager)', noteSummary: '', noteBody: '', noteDate: state.asOfDate, noteVisibility: 'Internal' as CommunicationItem['visibility'], noteDocumentId: '', relatedJobId: '', correctionReason: '' };
+    noteBaseline.current = clean; setEditingCommunicationId(null); setCorrectionReason(''); setNoteError(''); setChannel(clean.channel); setParticipants(clean.participants); setNoteSummary(''); setNoteBody(''); setNoteDate(clean.noteDate); setNoteVisibility(clean.noteVisibility); setNoteDocumentId(''); setRelatedJobId(''); setShowLogNoteModal(true);
+  };
+  const openCorrection = (communication: CommunicationItem) => {
+    const clean = { channel: communication.channel, participants: communication.participants, noteSummary: communication.summary, noteBody: communication.body || '', noteDate: communication.date.slice(0, 10), noteVisibility: communication.visibility, noteDocumentId: communication.linkedDocumentId || '', relatedJobId: communication.jobId || '', correctionReason: '' };
+    noteBaseline.current = clean; setEditingCommunicationId(communication.id); setCorrectionReason(''); setNoteError(''); setChannel(clean.channel); setParticipants(clean.participants); setNoteSummary(clean.noteSummary); setNoteBody(clean.noteBody); setNoteDate(clean.noteDate); setNoteVisibility(clean.noteVisibility); setNoteDocumentId(clean.noteDocumentId); setRelatedJobId(clean.relatedJobId); setShowLogNoteModal(true);
+  };
 
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +128,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
           <p>Microsoft 365 synthetic mail sender, delivery simulation outcomes, and client contact log.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn sm ghost" onClick={() => { setNoteError(''); setShowLogNoteModal(true); }}>
+          <button className="btn sm ghost" onClick={openNewNote}>
             <Icon name="message" /> Log Call / Meeting Note
           </button>
           <button className="btn primary sm" onClick={() => { emailAttemptRecorded.current = false; emailSubmissionId.current = crypto.randomUUID(); setEmailError(''); setShowComposeModal(true); }}>
@@ -124,8 +143,15 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
           <span className="caption">Inbound Calls, Meetings & Outbound Notifications</span>
         </div>
         <div className="stack panel-pad" style={{ gap: 12 }}>
-          {communications.map(comm => (
-            <div key={comm.id} className="borderbox" style={{ padding: 16 }}>
+          {communications.length === 0 && (
+            <div className="text-center" style={{ padding: '24px 0' }}>
+              <b>No communications recorded</b>
+              <p className="sub mt8">Compose a simulated email (accepted, failed, or unknown local outcomes) or log an inbound call/meeting note. Client-visible notes require a manager or partner confirmation and appear in the matching client portal.</p>
+            </div>
+          )}
+          {communications.map(comm => {
+            const canCorrect = comm.direction === 'Inbound' && (comm.author === state.currentPerson || state.currentRole === 'manager' || state.currentRole === 'partner');
+            return <div key={comm.id} className="borderbox" style={{ padding: 16 }}>
               <div className="between">
                 <div className="row" style={{ gap: 10 }}>
                   <Icon name={comm.channel === 'Email' ? 'message' : 'users'} />
@@ -150,11 +176,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
               )}
               {comm.simulationReference && <div className="cell-sub mt8">Simulation evidence · {comm.simulationReference} · {comm.simulationEvidence}</div>}
               {comm.jobId && <div className="cell-sub mt8">Linked job · {state.jobs.find(job => job.id === comm.jobId)?.title || comm.jobId}</div>}
+              {comm.linkedDocumentId && <div className="cell-sub mt8">Linked document · {state.documents.find(document => document.id === comm.linkedDocumentId)?.name || 'Reference unavailable'}</div>}
               <div className="cell-sub mt8">
-                Recorded by {comm.author} · {new Date(comm.date).toLocaleDateString('en-GB')}
+                Recorded by {comm.author} · {new Date(comm.date).toLocaleDateString('en-GB')} · Revision {comm.revision || 1}
               </div>
+              {comm.correctionHistory?.map(item => <div className="cell-sub mt8" key={`${comm.id}-correction-${item.revision}`}>Correction history · Rev {item.revision} by {item.correctedBy} · {new Date(item.correctedAt).toLocaleDateString('en-GB')} · {item.reason}</div>)}
+              {canCorrect && <button type="button" className="btn ghost sm mt8" onClick={() => openCorrection(comm)}>Correct Note</button>}
             </div>
-          ))}
+          })}
         </div>
       </div>
 
@@ -243,8 +272,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
         <div className="modal-backdrop" onClick={() => setShowLogNoteModal(false)}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Log Inbound Call or Meeting Note</h2>
-              <button className="icon-btn" onClick={() => setShowLogNoteModal(false)}>✕</button>
+              <h2>{editingCommunicationId ? 'Correct Inbound Communication' : 'Log Inbound Call or Meeting Note'}</h2>
+              <button className="icon-btn" aria-label="Close communication note dialog" onClick={() => { setShowLogNoteModal(false); setEditingCommunicationId(null); }}>✕</button>
             </div>
             {noteError && <p role="alert" className="sub">{noteError}</p>}
             <form onSubmit={handleLogNote}>
@@ -263,21 +292,30 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                     </select>
                   </div>
                   <div>
-                    <label className="caption">Participants</label>
+                    <label className="caption">Participants (500 characters maximum)</label>
                     <input
                       type="text"
                       className="input"
+                      aria-label="Communication participants"
+                      maxLength={500}
                       value={participants}
                       onChange={e => setParticipants(e.target.value)}
                     />
                   </div>
                 </div>
                 <label className="caption">Related job (optional)<select className="input mt4" value={relatedJobId} onChange={e => setRelatedJobId(e.target.value)}><option value="">No job link</option>{clientJobs.map(job => <option key={job.id} value={job.id}>{job.title}</option>)}</select></label>
+                <label className="caption">Recorded date<input type="date" className="input mt4" aria-label="Communication date" max={state.asOfDate} value={noteDate} onChange={e => setNoteDate(e.target.value)} required /></label>
+                <label className="caption">Related document (optional)<select className="input mt4" aria-label="Communication document" value={noteDocumentId} onChange={event => { setNoteDocumentId(event.target.value); setNoteError(''); }}><option value="">No document link</option>{communicationDocuments.filter(document => noteVisibility !== 'Client visible' || document.visibility === 'Client shared' && !document.brokenLink).map(document => <option key={document.id} value={document.id}>{document.name} · {document.visibility}{document.brokenLink ? ' · Unavailable' : ''}</option>)}</select></label>
+                {(state.currentRole === 'manager' || state.currentRole === 'partner') && <label className="caption">Visibility<select className="input mt4" aria-label="Communication visibility" value={noteVisibility} onChange={event => { const next = event.target.value as CommunicationItem['visibility']; const linked = noteDocumentId ? state.documents.find(document => document.id === noteDocumentId) : undefined; if (next === 'Client visible' && linked && (linked.brokenLink || linked.visibility !== 'Client shared')) { setNoteError('An internal or unavailable document cannot be linked to a client-visible communication. Remove the document link or choose a shared document first.'); return; } if (next === 'Client visible' && !window.confirm('This note will be published in the client portal. Confirm it contains only information approved for client viewing.')) return; setNoteError(''); setNoteVisibility(next); }}><option value="Internal">Internal only</option><option value="Client visible">Client visible</option></select></label>}
+                {noteVisibility === 'Client visible' && <div className="banner warning" role="note">This communication will appear in the client portal for this client and engagement.</div>}
+                {editingCommunicationId && <label className="caption">Correction reason (500 characters maximum)<textarea className="input" aria-label="Communication correction reason" maxLength={500} rows={2} value={correctionReason} onChange={event => setCorrectionReason(event.target.value)} required /></label>}
                 <div>
-                  <label className="caption">Summary Header</label>
+                  <label className="caption">Summary Header (240 characters maximum)</label>
                   <input
                     type="text"
                     className="input"
+                    aria-label="Communication summary"
+                    maxLength={240}
                     value={noteSummary}
                     onChange={e => setNoteSummary(e.target.value)}
                     placeholder="e.g. Discussed audit clearance timeline"
@@ -285,10 +323,12 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                   />
                 </div>
                 <div>
-                  <label className="caption">Discussion Notes</label>
+                  <label className="caption">Discussion Notes (5,000 characters maximum)</label>
                   <textarea
                     className="input"
+                    aria-label="Communication discussion notes"
                     rows={4}
+                    maxLength={5000}
                     value={noteBody}
                     onChange={e => setNoteBody(e.target.value)}
                     placeholder="Record significant discussion points, commitments and agreements..."
@@ -296,8 +336,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowLogNoteModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Save Note</button>
+                <button type="button" className="btn ghost sm" onClick={() => { setShowLogNoteModal(false); setEditingCommunicationId(null); }}>Cancel</button>
+                <button type="submit" className="btn primary sm">{editingCommunicationId ? 'Save Correction' : 'Save Note'}</button>
               </div>
             </form>
           </div>

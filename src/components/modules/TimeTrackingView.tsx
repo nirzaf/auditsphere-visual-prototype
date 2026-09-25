@@ -192,6 +192,12 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
               </tr>
             </thead>
             <tbody>
+              {times.length === 0 && (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '28px 12px' }}>
+                  <b>No time entries yet</b>
+                  <p className="sub mt8">Use “Record Time Entry” to log work against a job. Entries are submitted for independent review, can be returned with a reason, corrected, and resubmitted; approved billable time becomes eligible for invoicing.</p>
+                </td></tr>
+              )}
               {times.map(t => (
                 <tr key={t.id}>
                   <td><b>{t.id}</b></td>
@@ -221,27 +227,33 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
                   <td>
                     {t.status === 'Submitted' && (
                       <div className="row" style={{ gap: 6 }}>
-                        <button
-                          className="btn sm"
-                          onClick={() => handleApprove(t)}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          className="btn sm ghost"
-                          onClick={() => {
-                            setEntryToReturn(t);
-                            setReturnReason(''); returnBaseline.current = '';
-                            setShowReturnModal(true);
-                          }}
-                        >
-                          Return
-                        </button>
+                        {['manager', 'reviewer', 'partner'].includes(state.currentRole) && t.person !== state.currentPerson && (
+                          <>
+                            <button
+                              className="btn sm"
+                              onClick={() => handleApprove(t)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="btn sm ghost"
+                              onClick={() => {
+                                setEntryToReturn(t);
+                                setReturnReason(''); returnBaseline.current = '';
+                                setShowReturnModal(true);
+                              }}
+                            >
+                              Return
+                            </button>
+                          </>
+                        )}
+                        {['manager', 'reviewer', 'partner'].includes(state.currentRole) && t.person === state.currentPerson && <span className="caption" title="Independent review required">Self-review not permitted</span>}
+                        {!['manager', 'reviewer', 'partner'].includes(state.currentRole) && <span className="caption">Awaiting review</span>}
                       </div>
                     )}
                     {t.status === 'Approved' && (
                       <div className="stack" style={{ gap: 4 }}>
-                        <span className="caption">By {t.reviewedBy}</span>
+                        <span className="caption">By {t.reviewedBy}{t.reviewedAt ? ` · ${new Date(t.reviewedAt).toLocaleDateString()}` : ''}</span>
                         {(t.person === state.currentPerson || ['manager', 'partner'].includes(state.currentRole)) && <button className="btn sm ghost" onClick={() => openRevision(t, 'approved')}>Correct approved time</button>}
                       </div>
                     )}
@@ -276,10 +288,11 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
                       onChange={e => setPerson(e.target.value)}
                       disabled={!!entryToRevise}
                     >
-                      {state.users.map(u => (
+                      {state.users.filter(u => u.name === state.currentPerson).map(u => (
                         <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
                       ))}
                     </select>
+                    <div className="caption mt4">Each persona records only its own time.</div>
                   </div>
                   <div>
                     <label className="caption">Duration (Minutes)</label>

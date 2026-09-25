@@ -368,9 +368,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                         <div className="cell-sub">{p.id}</div>
                         {p.clarificationNote && <div className="cell-sub">Clarification requested: {p.clarificationNote}</div>}
                         {p.sharedFiles && p.sharedFiles.length > 0 && (
-                          <div className="cell-sub text-teal mt4">
-                            Latest file: {p.sharedFiles[p.sharedFiles.length - 1].name}
-                          </div>
+                          <details className="mt4">
+                            <summary className="cell-sub text-teal">Files submitted ({p.sharedFiles.length}) — latest: {p.sharedFiles[p.sharedFiles.length - 1].name}</summary>
+                            {p.sharedFiles.map((file, index) => (
+                              <div className="cell-sub" key={`${file.name}-${index}`}>v{file.version} · {file.name} · {new Date(file.uploadedAt).toLocaleDateString()} · by {file.uploadedBy}</div>
+                            ))}
+                          </details>
                         )}
                       </td>
                       <td>{p.category}</td>
@@ -381,16 +384,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                         </span>
                       </td>
                       <td>
-                        <button
-                          className="btn sm"
-                          disabled={!['Requested', 'Needs clarification', 'Received', 'Accepted'].includes(p.status)}
-                          onClick={() => {
-                            setUploadPbcModal(p);
-                            setUploadFile(null);
-                          }}
-                        >
-                          <Icon name="plus" size="sm" /> Upload Document
-                        </button>
+                        {p.status === 'Accepted' ? (
+                          <span className="caption">Accepted — no further upload</span>
+                        ) : (
+                          <button
+                            className="btn sm"
+                            disabled={!['Requested', 'Needs clarification', 'Received'].includes(p.status)}
+                            title={!['Requested', 'Needs clarification', 'Received'].includes(p.status) ? 'This request is not open for uploads' : undefined}
+                            onClick={() => {
+                              setUploadPbcModal(p);
+                              setUploadFile(null);
+                            }}
+                          >
+                            <Icon name="plus" size="sm" /> Upload Document
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -455,6 +463,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                     <span className="caption">{new Date(m.date).toLocaleDateString('en-GB')}</span>
                   </div>
                   <p className="sub mt8" style={{ whiteSpace: 'pre-line' }}>{m.body}</p>
+                  {m.linkedDocumentId && (() => { const linked = state.documents.find(document => document.id === m.linkedDocumentId && document.clientId === client.id && (!document.engagementId || document.engagementId === eng?.id) && document.visibility === 'Client shared' && !document.brokenLink); return linked ? <div className="cell-sub mt8">Shared document · {linked.name} · v{linked.version}</div> : null; })()}
                 </div>
               ))
             )}

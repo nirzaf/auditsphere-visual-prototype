@@ -83,6 +83,13 @@ main[id],h1{scroll-margin-top:90px}
 @media(max-width:760px){body{font-size:16px}.btn,.btn.sm,.icon-btn,.navitem{min-height:44px}.navitem{margin-bottom:6px}.main{padding-left:16px;padding-right:16px}.tablewrap{overscroll-behavior-inline:contain}}
 @media(prefers-reduced-motion:reduce){html:focus-within{scroll-behavior:auto}.skip-link{transition:none!important}}
 
+/* Keep the mobile drawer out of keyboard navigation while it is off-canvas. */
+@media(max-width:760px){
+  .sidebar{visibility:hidden;transition:transform .2s ease,visibility 0s linear .2s}
+  .sidebar.open{visibility:visible;transition:transform .2s ease,visibility 0s}
+  .search-trigger{min-width:44px;min-height:44px;justify-content:center}
+}
+
 /* UX audit fixes (UX_AUDIT_REPORT.md F1/F2/F3/F6/F8) */
 #main .navitem{color:#42585e}
 #main .navitem:hover{color:var(--ink);background:#f0f5f4}

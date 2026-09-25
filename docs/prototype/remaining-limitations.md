@@ -22,8 +22,8 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   behavior covered. AT-57 verifies Stay/Save/Discard for a consolidation output draft across route changes; Save prepares and persists the output package before transition. Other draft combinations and context changes remain open. Chrome now verifies a restored
   out-of-scope ENG-26002 selection renders no restricted details, then selecting
   permitted ENG-26001 opens Financial Statements. The broader route and grant
-  matrix remains open. The latest full suite after the current VP-031 changes
-  passed 203/203 unit and 92/92 E2E (5 static + 87 Chrome). AT-53
+  matrix remains open. The latest full suite after the current VP-033 changes
+  passed 204/204 unit and 92/92 E2E (5 static + 87 Chrome). AT-53
   focus wrap, AT-37 mapping navigation and AT-45 persona-change all pass.
 
 - **VP-005 — practice dashboard (Partial):** Focused Chrome coverage now spans
@@ -95,8 +95,13 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   Not reflected, Reflected in TB, Partially reflected and Unknown, pinned to the
   current TB source revision. Unit checks confirm partial/unknown/rejected
   journals are not silently applied and stale reflected decisions block output;
-  Chrome verifies the selected status and prior decision history persist. Reasoned
-  journal amendments and complete evidence/workpaper/finding linkage scenarios
+  Chrome verifies the selected status and prior decision history persist. The
+  former lifecycle dead-end is closed: a management-accepted journal reflected
+  at the current source revision can now be recorded as Reporting included in a
+  live session, which makes the linked finding's Corrected-in-TB disposition
+  reachable end-to-end (unit + Chrome verified, 2026-09-26); technical-review
+  rejection also records a bounded rationale shown on the journal. Reasoned
+  journal amendments and complete evidence/workpaper linkage scenarios
   remain open.
 
 - **VP-034 — accounting setup:** client legal entity, reporting basis and
@@ -171,12 +176,17 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   but does not define post-record metadata editing. It exports a client-scoped CSV
   statement with issued invoices, credits and receipts; Draft and other-client
   invoices are excluded. Client, as-of date and currency filters drive the
-  balances, including historical balances before a later receipt. Printable
-  layout and native print action are implemented, though OS print/PDF output is
-  not captured. The integration is offline-only. Five aging bucket cards now
-  open invoice-level gross, credit,
-  payment, outstanding and overdue-day detail; Chrome verifies the displayed
-  31–60 day invoices sum to the bucket total.
+  balances, including historical balances before a later receipt. The printable
+  statement has a native browser print action; Chrome produces a one-page PDF
+  whose rendered title, account/date/currency context and table rows were
+  visually verified. Physical printer and OS-driver behavior are outside the
+  browser prototype scope. The integration is offline-only. All five aging
+  bucket cards open invoice-level gross, credit, payment, outstanding and
+  overdue-day detail; Chrome verifies every bucket drill-down sum against its
+  fixed-date calculation. Unit cases cover due-today and each day-count
+  boundary, plus reversal dates that preserve historical aging before reversal
+  and restore invoice/unallocated receipt balances afterward. Broader
+  actor/currency scope matrices remain to be accepted.
 - **VP-030 — source-linked billing:** Chrome drafts an invoice from approved
   billable time at its pinned rate and accepted fixed-fee proposal balance. Time
   sources are reserved once, and fixed-fee invoices cannot exceed the accepted
@@ -188,8 +198,16 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   denied by the shared store guard. Moderation and recipient-specific
   notification browsing remain incomplete.
 - **AT-27 — manual communications:** Chrome records an inbound meeting note with
-  internal visibility and confirms the client portal omits it. Broader activity
-  linking across communication/client/job views remains incomplete.
+  a scenario-date-bounded date, verifies the summary/participants/notes character
+  limits, persists a selected historical date deterministically, and confirms the
+  client portal omits an internal record. Managers/partners receive an explicit
+  publication warning; declining leaves visibility internal, preparer publication
+  is blocked in the store, and confirmed content appears only in the matching
+  Northstar portal. Same-scope shared document links appear there, while internal
+  document names remain out of portal/search output. Reasoned correction preserves
+  prior content, actor and revision. Store guards reject impossible/future dates,
+  over-limit text and unsafe document links atomically. Broader actor/context,
+  linked-request and correction/rework combinations remain incomplete.
 - **AT-26 — simulated email:** Chrome resolves the request template and records
   accepted, failed and unknown outcomes locally without external mail requests.
   Only active contacts for the client can be selected; each explicit send stores
@@ -227,8 +245,13 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
 - **VP-050 — audit fieldwork:** Chrome records work performed against PRC-01,
   submits it with a linked current adequate evidence revision, denies preparer
   self-clearance, and retains independent manager clearance after reload. The
-  PRC-04 exception remains visible. Procedure template administration, detailed
-  edit history, and the full exception rework matrix remain incomplete.
+  PRC-04 exception remains visible after submission and clearance. Append-only
+  procedure history records actor, time, program/template version, status,
+  prior/current work and conclusion, evidence limitation and return rationale.
+  Chrome verifies an eight-entry PRC-01 rework history across return,
+  resubmission and re-clearance; unit checks verify separate template-v1/v2
+  procedure histories. VP-050-E01 is complete; the four acceptance criteria
+  and full story sign-off remain open.
 
 - **VP-054 — findings:** the findings register now writes through guarded store
   commands, validates scoped source references, preserves promoted sample
@@ -238,8 +261,11 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   is reflected. Significant unresolved findings block release readiness. Chrome
   verifies a sourced qualitative finding and durable disposition, plus promotion
   of a sampled monetary exception with its population/item link. Financial
-  aggregation remains unit-backed; reporting and the full reopen/waiver matrix
-  still need browser evidence.
+  aggregation remains unit-backed. VP-054-E01 now verifies that an unresolved
+  Significant finding appears consistently in Release Completion, Financial
+  Packages and Report Centre, and that a reasoned immaterial waiver resolves the
+  release gate. VP-054-E02 still needs qualitative/no-amount, immutable provenance
+  and release re-evaluation evidence; criterion and story sign-off remain open.
 
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal
@@ -253,8 +279,16 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   revision when a risk changes, linked procedures require reassessment, and an
   independent reviewer can approve the new plan. Chrome also returns a plan with
   reviewer rationale, creates a separate manager rework revision, and independently
-  approves it to restore planning. Broader risk combinations and reopen scenarios
-  still need direct acceptance evidence.
+  approves it to restore planning. Risk owners now come from active in-scope
+  professional staff; client, inactive and out-of-scope owners are rejected
+  atomically at the store boundary and excluded from the UI selector. Cross-
+  engagement procedure links are rejected, template-v1/v2 applications retain
+  separate snapshots through retirement, and unresolved coverage gaps are visible.
+  The focused VP-049 lifecycle regression now covers multiple risks on one
+  procedure, repeated risk-driven plan revisions and procedure reassessment,
+  reviewer return/rework/re-clearance, and unchanged plan, procedure and template
+  snapshots. The two VP-049 evidence actions are complete; criterion-level and
+  overall story acceptance remain open.
 
 - **VP-018/019 — identity and access:** Chrome grants and revokes an engagement
   scope and verifies durable actor/time/scope/reason history after both actions.
@@ -459,10 +493,23 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   scope, not an outstanding acceptance requirement.
 - **Build size:** Vite warns that the main bundle exceeds 500 kB (2,455.98 kB, 677.91 kB gzip in the 2026-09-25 local verification build).
 
+## Lifecycle-closure delta (2026-09-26)
+
+A module-by-module lifecycle audit closed the following genuine gaps (unit + Chrome evidence in `verification.md` entries 65–66):
+
+- **MOD-22/MOD-34 dead-end:** no action could previously set an adjustment journal to 'Reporting included', so a finding's Corrected-in-TB disposition was unreachable from a live session. A guarded `markAdjustmentJournalReportingIncluded` action now requires management acceptance plus current reflected-TB evidence; the Chrome journey raises a linked finding and completes the disposition. Technical-review rejection also records a bounded rationale.
+- **MOD-39 firm settings:** the statutory profile tab was an unwired stub (uncontrolled inputs, no save, fixture text contradicting the store). It is now a validated, role-gated, prospective-apply form with a logged reason, a recent-changes list, and downstream flow into invoice PDF identity.
+- **MOD-14 invoice returns:** the store's review-rejection leg was unreachable from the UI; invoices now return with a mandatory reviewer note shown to the preparer, cleared on rework or approval, alongside rendered revision/approval history.
+- **MOD-30 fieldwork returns:** reverting submitted/cleared fieldwork silently cleared the reviewer; it now requires and records a bounded reason, actor and time, cleared on re-clearance.
+- **MOD-15 receipt methods:** the picker offered Direct debit and Credit card options the store always rejected (and which would falsely imply payment processing); it now offers exactly the supported offline methods.
+- **Role-gating drift:** time review, job creation/reassignment, budget authoring, finding dispositions, document rename/move/availability and portal uploads now hide or disable controls the store would reject, with explanatory text instead of guaranteed-failure buttons.
+- **Rendered history and empty states:** invoice revision/approval history, contact revision history, reassignment history, PBC submitted-file versions and acceptance history, and scope-reassessment history now render; empty states were added for templates, leads, proposals, invoices, time, adjustments, reconciliations, documents, communications, PBC and findings; the '/' shortcut now actually opens Global Search; MOD-29 gained a create-risk affordance (`createAuditRisk`) with reciprocal links.
+
 ## Verification snapshot
 
-Latest local verification: 199/199 unit checks and 90/90 E2E checks passed on
-2026-09-25 at base commit `0077cc6` plus current uncommitted changes. AT-30 covers invoice account/contact snapshots, multiple ad-hoc lines, approved-time source reservation, explicit draft cancellation and re-reservation; approved invoice cancellation is rejected. AT-31 also covers return with reason, credit revision 2, independent reapproval of that exact revision, local issue and no payment movement. AT-32 covers receipt split, selective allocation reversal and balances; store guards reject malformed metadata, seeded allocations and stale receipt caches atomically. AT-34 verifies client-wide profile revision, sibling mapping/statement/package invalidation, retained prior package state, and closed-period TB/GL import denial. AT-36 verifies mapped GL tie-out and store guards reject unrecognized or inactive posting chart accounts before committing a GL revision. VP-006 supports full profile fields, revision-checked editing, soft archive/reactivation, duplicate and similar-entity checks, scoped profile editing and blocks new active work for suspended/archived clients. AT-05/AT-06 browser lifecycle covers edit, suspension, retained contacts, archive and reactivation; a store test confirms established engagement, invoice, document and workpaper links remain. VP-007 contact revision history and non-authorizing group behavior pass. VP-008 opens all 12 tabs under CL-001/CL-002 and, under an ENG-26001-only manager grant, filters the portfolio engagement count/Open Work shortcut and every Client 360 tab to ENG-26001 while excluding an ENG-26003-only PBC sentinel; it also preserves portfolio filters and context on back/forward. CL-002 creation journeys cover a job, PBC request, internal note and Draft invoice. VP-025 AT-18 verifies mounted portal entity refresh across client identities; VP-025-E03 covers no-access and unpresented-package states, withdrawn DOC-002 exclusion and separate package acknowledgement/management representation records; wider portal list and actor matrices remain open. AT-02/AT-54 cross-tab conflict, expiry and storage-denial checks now pass with the new profile form. VP-048 requires deliberate benchmark and percentage inputs, validates assigned staff and dates, and invalidates cleared fieldwork after approved materiality changes. VP-002 redirects every former role-view hash route into the React application and preserves browser history with current role guards. VP-017 AT-15 now exercises Start/Skip and four-step tenant/resource/optional/review navigation, backtracking, cancellation without persistence, reviewed configuration save and reload. Its wrong-tenant case holds site/library/root fixed and proves explicit recovery while stale identity still blocks overall readiness; a separate root-only change stales prior results, produces access-denied, then recovers. RR35 rejects invalid tenant/domain lengths, credentialed or queried URLs, invalid library/root/mailbox values and missing/duplicate/inactive/unknown-role identity mappings atomically; unit tests now cover all six simulated outcomes on each capability while broad browser invalid-resource and outage matrices remain outstanding.
+Latest local verification: 216/216 unit checks and 96/96 E2E checks passed on
+2026-09-26 on the current worktree (base `5c2e323` plus uncommitted changes
+from two parallel work streams, including the lifecycle-closure delta above). AT-30 covers invoice account/contact snapshots, multiple ad-hoc lines, approved-time source reservation, explicit draft cancellation and re-reservation; approved invoice cancellation is rejected. AT-31 also covers return with reason, credit revision 2, independent reapproval of that exact revision, local issue and no payment movement. AT-32 covers receipt split, selective allocation reversal and balances; store guards reject malformed metadata, seeded allocations and stale receipt caches atomically. AT-34 verifies client-wide profile revision, sibling mapping/statement/package invalidation, retained prior package state, and closed-period TB/GL import denial. AT-36 verifies mapped GL tie-out and store guards reject unrecognized or inactive posting chart accounts before committing a GL revision. VP-006 supports full profile fields, revision-checked editing, soft archive/reactivation, duplicate and similar-entity checks, scoped profile editing and blocks new active work for suspended/archived clients. AT-05/AT-06 browser lifecycle covers edit, suspension, retained contacts, archive and reactivation; a store test confirms established engagement, invoice, document and workpaper links remain. VP-007 contact revision history and non-authorizing group behavior pass. VP-008 opens all 12 tabs under CL-001/CL-002 and, under an ENG-26001-only manager grant, filters the portfolio engagement count/Open Work shortcut and every Client 360 tab to ENG-26001 while excluding an ENG-26003-only PBC sentinel; it also preserves portfolio filters and context on back/forward. CL-002 creation journeys cover a job, PBC request, internal note and Draft invoice. VP-025 AT-18 verifies mounted portal entity refresh across client identities; VP-025-E03 covers no-access and unpresented-package states, withdrawn DOC-002 exclusion and separate package acknowledgement/management representation records; wider portal list and actor matrices remain open. AT-02/AT-54 cross-tab conflict, expiry and storage-denial checks now pass with the new profile form. VP-048 requires deliberate benchmark and percentage inputs, validates assigned staff and dates, and invalidates cleared fieldwork after approved materiality changes. VP-002 redirects every former role-view hash route into the React application and preserves browser history with current role guards. VP-017 AT-15 now exercises Start/Skip and four-step tenant/resource/optional/review navigation, backtracking, cancellation without persistence, reviewed configuration save and reload. Its wrong-tenant case holds site/library/root fixed and proves explicit recovery while stale identity still blocks overall readiness; a separate root-only change stales prior results, produces access-denied, then recovers. RR35 rejects invalid tenant/domain lengths, credentialed or queried URLs, invalid library/root/mailbox values and missing/duplicate/inactive/unknown-role identity mappings atomically; unit tests now cover all six simulated outcomes on each capability while broad browser invalid-resource and outage matrices remain outstanding.
 The VP-042 AT-38/40 package subcase confirms internal-only disclosure/comment/workpaper references do not
 appear in generated XLSX, DOCX, PDF bytes, or the client portal. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was

@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope, eligibleAuditRiskOwners } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition, seedManagementAcknowledgement } from './packageFixture.js';
@@ -1308,6 +1308,68 @@ describe('simulated mail attempts (AT-26)', () => {
   });
 });
 
+describe('manual communication date and text boundaries (VP-027-E02)', () => {
+  it('rejects invalid/future dates and oversized inbound text atomically', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const record = (overrides: Record<string, unknown> = {}) => ({
+      id: 'COMM-VP027-BOUNDARY', clientId: 'CL-001', engagementId: 'ENG-26001', direction: 'Inbound' as const,
+      channel: 'Phone' as const, participants: 'Omar Nasser and Layla Rahman', summary: 'Discussed evidence timing',
+      body: 'The client confirmed the manual delivery date.', author: state.currentPerson,
+      date: `${state.asOfDate}T12:00:00.000Z`, visibility: 'Internal' as const, status: 'Recorded manually' as const,
+      ...overrides
+    });
+    const originalCount = state.communications.length;
+    assert.throws(() => prototypeStore.addCommunication(record({ date: '2026-02-30T12:00:00.000Z' })), /date must be valid/);
+    assert.throws(() => prototypeStore.addCommunication(record({ date: '2026-09-24T12:00:00.000Z' })), /date must be valid/);
+    assert.throws(() => prototypeStore.addCommunication(record({ summary: 'x'.repeat(241) })), /240 characters/);
+    assert.throws(() => prototypeStore.addCommunication(record({ participants: 'x'.repeat(501) })), /500 characters/);
+    assert.throws(() => prototypeStore.addCommunication(record({ body: 'x'.repeat(5001) })), /5,000 characters/);
+    assert.equal(state.communications.length, originalCount, 'invalid input never appends a partial communication');
+    prototypeStore.addCommunication(record());
+    assert.equal(state.communications.length, originalCount + 1);
+    assert.equal(state.communications[0].date, `${state.asOfDate}T12:00:00.000Z`);
+    assert.equal(state.communications[0].status, 'Recorded manually');
+    setPersona(state, 'Adam Khan');
+    assert.throws(() => prototypeStore.addCommunication(record({ id: 'COMM-VP027-PUBLISH-DENIED', visibility: 'Client visible' })), /publish an inbound communication/);
+    assert.equal(state.communications.length, originalCount + 1, 'unauthorized publication is rejected atomically');
+    setPersona(state, 'Layla Rahman');
+    assert.throws(() => prototypeStore.addCommunication(record({ id: 'COMM-VP027-INTERNAL-ATTACHMENT', visibility: 'Client visible', linkedDocumentId: 'DOC-003' })), /internal documents cannot be linked/);
+    assert.throws(() => prototypeStore.addCommunication(record({ id: 'COMM-VP027-FOREIGN-ATTACHMENT', linkedDocumentId: 'DOC-AT27-FOREIGN' })), /same client and engagement/);
+    assert.equal(state.communications.length, originalCount + 1, 'unsafe document references do not append a partial record');
+    prototypeStore.addCommunication(record({ id: 'COMM-VP027-PUBLISH-ALLOWED', visibility: 'Client visible' }));
+    assert.equal(state.communications[0].visibility, 'Client visible', 'an authorized manager can explicitly create a client-visible note');
+    prototypeStore.addCommunication(record({ id: 'COMM-VP027-SHARED-ATTACHMENT', visibility: 'Client visible', linkedDocumentId: 'DOC-002' }));
+    assert.equal(state.communications[0].linkedDocumentId, 'DOC-002', 'a same-client shared document can be linked to the published note');
+    const toCorrect = state.communications[0];
+    assert.throws(() => prototypeStore.correctCommunication(toCorrect.id, { summary: 'Missing reason' }, ' '), /requires a reason/);
+    setPersona(state, 'Adam Khan');
+    assert.throws(() => prototypeStore.correctCommunication(toCorrect.id, { summary: 'Unauthorized edit' }, 'Not assigned'), /Only the communication author/);
+    assert.equal(toCorrect.summary, 'Discussed evidence timing', 'unauthorized correction leaves the record unchanged');
+    setPersona(state, 'Layla Rahman');
+    prototypeStore.correctCommunication(toCorrect.id, { summary: 'Corrected evidence timing' }, 'Fix the meeting subject');
+    assert.equal(toCorrect.revision, 2);
+    assert.deepEqual(toCorrect.correctionHistory?.[0], {
+      revision: 1, correctedBy: 'Layla Rahman', correctedByUserId: state.currentUserId,
+      correctedAt: toCorrect.correctionHistory?.[0].correctedAt,
+      reason: 'Fix the meeting subject',
+      previous: { channel: 'Phone', participants: 'Omar Nasser and Layla Rahman', summary: 'Discussed evidence timing', body: 'The client confirmed the manual delivery date.', date: `${state.asOfDate}T12:00:00.000Z`, visibility: 'Client visible', jobId: undefined, linkedDocumentId: 'DOC-002' }
+    });
+    assert.throws(() => prototypeStore.correctCommunication(toCorrect.id, { date: '2026-09-24T12:00:00.000Z' }, 'Future correction'), /date must be valid/);
+    assert.equal(toCorrect.summary, 'Corrected evidence timing', 'invalid correction leaves current revision unchanged');
+    assert.equal(toCorrect.correctionHistory?.length, 1, 'invalid correction does not append history');
+    assert.throws(() => prototypeStore.correctCommunication('COMM-01', { summary: 'Rewrite a sent attempt' }, 'Not supported'), /Only a manually recorded inbound communication/);
+    prototypeStore.addCommunication(record({ id: 'COMM-VP027-VISIBILITY-CHANGE' }));
+    const visibilityChange = state.communications[0];
+    setPersona(state, 'Adam Khan');
+    assert.throws(() => prototypeStore.correctCommunication(visibilityChange.id, { visibility: 'Client visible' }, 'Publish note'), /Only the communication author or a manager\/partner/);
+    setPersona(state, 'Layla Rahman');
+    prototypeStore.correctCommunication(visibilityChange.id, { visibility: 'Client visible' }, 'Client approved publication');
+    assert.equal(visibilityChange.visibility, 'Client visible');
+    assert.equal(visibilityChange.correctionHistory?.[0].previous.visibility, 'Internal');
+  });
+});
+
 describe('time correction lifecycle (AT-28)', () => {
   it('returns, resubmits, approves and corrects time without overwriting prior revisions', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
@@ -2353,12 +2415,16 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(current.auditRisks.find((risk: any) => risk.id === 'RSK-01').linkedProcedureIds.includes('PRC-03'));
     assert.ok(current.auditPrograms.flatMap((program: any) => program.procedures).find((procedure: any) => procedure.id === 'PRC-03').linkedRiskIds.includes('RSK-01'));
     assert.throws(() => prototypeStore.setAuditRiskProcedureLink('ENG-26002', 'RSK-01', 'PRC-03', true), /both belong to the selected engagement/);
+    const secondaryRiskId = prototypeStore.createAuditRisk('ENG-26001', { title: 'AT49 additional receivables risk', area: 'Revenue & Receivables', assertions: ['Completeness', 'Accuracy'], description: 'Test a second risk sharing the same substantive procedure.', rationale: 'A separate risk factor affects the selected assertions.', response: 'Extend the shared procedure for the additional risk.', owner: current.auditRisks.find((risk: any) => risk.id === 'RSK-01').owner, rating: 'Medium', linkedProcedureIds: ['PRC-03'] });
+    const procedure = current.auditPrograms.flatMap((program: any) => program.procedures).find((item: any) => item.id === 'PRC-03');
+    assert.ok(procedure.linkedRiskIds.includes('RSK-01') && procedure.linkedRiskIds.includes(secondaryRiskId) && procedure.linkedRiskIds.length >= 2, 'one procedure can retain reciprocal links to multiple risks');
+    const procedureSnapshot = { id: procedure.id, title: procedure.title, instructions: procedure.instructions, requiredEvidence: procedure.requiredEvidence };
+    const templateSnapshots = structuredClone(current.auditProgramTemplates || []);
     const engagement = current.engagements.find((item: any) => item.id === 'ENG-26001');
     prototypeStore.saveAuditPlan({ id: 'PLAN-ENG-26001-V1', engagementId: engagement.id, version: 1, status: 'Under review', benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5, performanceMaterialityRate: 75, clearlyTrivialRate: 5, overallMateriality: 30_000, performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Initial plan basis.'], teamAllocations: [{ person: 'Layla Rahman', role: 'Engagement Manager', scheduledStart: '2026-09-25', scheduledEnd: '2026-10-31' }], timingMilestones: [], significantAreas: ['Revenue & Receivables'] });
     prototypeStore.setPersona('reviewer');
     prototypeStore.reviewAuditPlan('PLAN-ENG-26001-V1', true, 'Approved initial risk response.');
     prototypeStore.setPersona('manager');
-    const procedure = current.auditPrograms.flatMap((program: any) => program.procedures).find((item: any) => item.id === 'PRC-03');
     procedure.status = 'Cleared'; procedure.workPerformed = 'Prior approved testing'; procedure.conclusion = 'No exception'; procedure.evidenceLimitation = 'Current evidence requires reassessment.'; procedure.reviewedByUserId = 'reviewer'; procedure.reviewedAt = '2026-09-23T00:00:00.000Z';
     const risk = current.auditRisks.find((item: any) => item.id === 'RSK-01');
     const priorResponse = risk.response;
@@ -2382,6 +2448,71 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     prototypeStore.reviewAuditPlan('PLAN-ENG-26001-V2', true, 'Reviewed risk-driven plan revision.');
     assert.equal(current.auditPlans[1].status, 'Approved');
     assert.equal(engagement.planning, true);
+    prototypeStore.setPersona('manager');
+    prototypeStore.updateAuditProcedureExecution(engagement.id, procedure.id, 'Reassessed the shared procedure for RSK-01 and the additional receivables risk.', 'Both risk responses are addressed by current evidence.', 'Current evidence was rechecked after the risk-driven plan revision.');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Submitted');
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Cleared');
+    assert.equal(procedure.status, 'Cleared', 'independent reviewer clears the reassessed shared procedure');
+    prototypeStore.setPersona('manager');
+    const secondaryRisk = current.auditRisks.find((item: any) => item.id === secondaryRiskId);
+    prototypeStore.updateAuditRisk(engagement.id, secondaryRiskId, { title: secondaryRisk.title, area: secondaryRisk.area, assertions: secondaryRisk.assertions, description: secondaryRisk.description, rationale: secondaryRisk.rationale, response: `${secondaryRisk.response} Add a targeted cut-off sample.`, owner: secondaryRisk.owner, rating: secondaryRisk.rating, linkedProcedureIds: secondaryRisk.linkedProcedureIds });
+    assert.deepEqual(current.auditPlans.map((plan: any) => plan.status), ['Superseded', 'Superseded', 'Under review'], 'a second risk change supersedes the reviewed plan and creates the next review revision');
+    assert.match(current.auditPlans[2].rationales.at(-1), new RegExp(secondaryRiskId));
+    assert.match(current.auditPlans[1].rationales.at(-1), /Risk RSK-01 changed/, 'earlier plan revision retains its original rationale snapshot');
+    assert.equal(procedure.status, 'In progress');
+    assert.equal(procedure.scopeReassessmentHistory.length, 2, 'repeated risk changes retain both reassessment events');
+    assert.deepEqual(procedure.scopeReassessmentHistory.map((item: any) => item.previousStatus), ['Cleared', 'Cleared']);
+    assert.ok(procedure.linkedRiskIds.includes('RSK-01') && procedure.linkedRiskIds.includes(secondaryRiskId));
+    prototypeStore.updateAuditProcedureExecution(engagement.id, procedure.id, 'Reworked after the second risk response update.', 'Updated work covers both linked risks.', 'No limitation remains after the targeted reassessment.');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Submitted');
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'In progress', 'Add the requested cut-off sample and clarify the additional risk response.');
+    assert.equal(procedure.returnReason, 'Add the requested cut-off sample and clarify the additional risk response.');
+    assert.equal(procedure.status, 'In progress', 'reviewer return reopens the procedure for preparer rework');
+    prototypeStore.setPersona('manager');
+    prototypeStore.updateAuditProcedureExecution(engagement.id, procedure.id, 'Added the requested cut-off sample and clarified the shared risk response.', 'The expanded sample supports both risk responses.', 'No limitation remains.');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Submitted');
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.updateAuditProcedureStatus(engagement.id, procedure.id, 'Cleared');
+    assert.equal(procedure.status, 'Cleared', 'returned work can be reworked, resubmitted and independently cleared');
+    assert.equal(procedure.scopeReassessmentHistory.length, 2, 'rework preserves prior reassessment history');
+    assert.deepEqual({ id: procedure.id, title: procedure.title, instructions: procedure.instructions, requiredEvidence: procedure.requiredEvidence }, procedureSnapshot, 'risk reassessment does not rewrite the pinned procedure instructions');
+    assert.deepEqual(current.auditProgramTemplates || [], templateSnapshots, 'risk reassessment does not rewrite reusable template revisions');
+    prototypeStore.resetState();
+  });
+
+  it('VP-049-E02: risk owners must be active professional staff with selected-engagement access', async () => {
+    state = structuredClone(createInitialState());
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const risk = state.auditRisks.find(item => item.id === 'RSK-01')!;
+    const changes = {
+      title: risk.title, area: risk.area, assertions: [...risk.assertions], description: risk.description,
+      rationale: risk.rationale, response: risk.response, owner: risk.owner, rating: risk.rating,
+      linkedProcedureIds: [...risk.linkedProcedureIds]
+    };
+    const before = structuredClone(risk);
+    const eligibleNames = eligibleAuditRiskOwners(state, 'ENG-26001').map(user => user.name);
+    assert.ok(eligibleNames.includes('Adam Khan'));
+    assert.ok(!eligibleNames.some(name => state.users.some(user => user.name === name && user.group === 'Client')));
+
+    const clientUser = state.users.find(user => user.group === 'Client' && user.status === 'Active')!;
+    assert.throws(() => prototypeStore.updateAuditRisk('ENG-26001', risk.id, { ...changes, owner: clientUser.name }), /active in-scope professional owner/);
+
+    const outOfScopeOwner = { ...state.users.find(user => user.id === 'preparer')!, id: 'preparer-eng-26002', name: 'Out-of-scope preparer' };
+    state.users.push(outOfScopeOwner);
+    state.roleGrants.push({ userId: outOfScopeOwner.id, role: outOfScopeOwner.role, scopeKind: 'Engagement', scopeId: 'ENG-26002' });
+    assert.ok(!eligibleAuditRiskOwners(state, 'ENG-26001').some(user => user.id === outOfScopeOwner.id));
+    assert.throws(() => prototypeStore.updateAuditRisk('ENG-26001', risk.id, { ...changes, owner: outOfScopeOwner.name }), /active in-scope professional owner/);
+
+    const inactiveName = 'Mariam Saeed';
+    const inactive = state.users.find(user => user.name === inactiveName)!;
+    inactive.status = 'Inactive';
+    assert.throws(() => prototypeStore.updateAuditRisk('ENG-26001', risk.id, { ...changes, owner: inactiveName }), /active in-scope professional owner/);
+
+    assert.deepEqual(risk, before, 'rejected owner assignments leave the risk and its links unchanged');
+    assert.equal(state.auditPlans?.length ?? 0, 0, 'rejected owner assignments do not create or stale a plan');
     prototypeStore.resetState();
   });
 
@@ -2399,15 +2530,26 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(applied.sourceTemplateVersion, 1);
     assert.equal(applied.procedures[0].status, 'Not started');
     assert.equal(applied.procedures[0].workPerformed, '');
+    prototypeStore.updateAuditProcedureExecution('ENG-26001', applied.procedures[0].id, 'Version one inspection completed.', 'The selected invoices agree to source records.', 'Evidence limitation documented for this isolated lifecycle check.');
+    prototypeStore.updateAuditProcedureStatus('ENG-26001', applied.procedures[0].id, 'Submitted');
+    assert.deepEqual(applied.procedures[0].history.map((entry: any) => [entry.programId, entry.sourceTemplateId, entry.sourceTemplateVersion]), [[programId, id, 1], [programId, id, 1]], 'history entries retain the applied template v1 context');
     prototypeStore.reviseAuditProgramTemplate(id, { ...template, description: 'Updated purpose.' });
     assert.equal((prototypeStore as any).state.auditProgramTemplates.find((item: any) => item.id === id).status, 'Draft');
     assert.equal((prototypeStore as any).state.auditProgramTemplateHistory[0].status, 'Published');
     assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
+    prototypeStore.publishAuditProgramTemplate(id);
+    const secondProgramId = prototypeStore.applyAuditProgramTemplate('ENG-26001', id);
+    const appliedV2 = (prototypeStore as any).state.auditPrograms.find((item: any) => item.id === secondProgramId);
+    prototypeStore.updateAuditProcedureExecution('ENG-26001', appliedV2.procedures[0].id, 'Version two inspection completed.', 'Revised instructions were followed and supported.', '');
+    assert.equal(appliedV2.procedures[0].history[0].sourceTemplateVersion, 2, 'a procedure created from template v2 records its own version context');
+    assert.notEqual(appliedV2.procedures[0].id, applied.procedures[0].id, 'template revisions create distinct procedure histories');
     prototypeStore.retireAuditProgramTemplate(id);
     assert.throws(() => prototypeStore.applyAuditProgramTemplate('ENG-26001', id), /Published audit program template not found/);
     assert.equal((prototypeStore as any).state.auditProgramTemplates.find((item: any) => item.id === id).status, 'Retired');
     assert.equal(applied.sourceTemplateVersion, 1);
     assert.equal(applied.procedures[0].instructions, 'Trace to invoices.');
+    assert.equal(appliedV2.sourceTemplateVersion, 2);
+    assert.equal(appliedV2.procedures[0].history[0].sourceTemplateId, id);
   });
 
   it('EQR sign-off blocked when unresolved EQR concerns exist (VP-056 / F03)', async () => {
@@ -2696,7 +2838,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.throws(() => prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Reversed Job', '2026-10-31', 'Layla Rahman', undefined, '2026-11-01'), /valid start and delivery dates/);
 
     // Retire template
-    prototypeStore.retireJobTemplate(draftTpl.id);
+    prototypeStore.retireJobTemplate(draftTpl.id, 'Superseded by the revised audit delivery template.');
     assert.throws(
       () => prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Another Job', '2026-10-31', 'Layla Rahman'),
       /Only Published templates/

@@ -289,9 +289,13 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
           <button className="btn sm ghost" onClick={() => onNavigate('job-templates')}>
             <Icon name="layers" /> Job Templates
           </button>
-          <button className="btn primary sm" onClick={openAddJobModal}>
-            <Icon name="plus" /> New Job
-          </button>
+          {['manager', 'partner'].includes(state.currentRole) ? (
+            <button className="btn primary sm" onClick={openAddJobModal}>
+              <Icon name="plus" /> New Job
+            </button>
+          ) : (
+            <span className="caption">Jobs are registered by managers or partners.</span>
+          )}
         </div>
       </div>
 
@@ -320,9 +324,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
             Create a custom job or instantiate a standard delivery template to begin tracking engagement deliverables.
           </p>
           <div className="row mt16" style={{ justifyContent: 'center', gap: 10 }}>
-            <button className="btn primary sm" onClick={openAddJobModal}>
-              <Icon name="plus" /> Create New Job
-            </button>
+            {['manager', 'partner'].includes(state.currentRole) && (
+              <button className="btn primary sm" onClick={openAddJobModal}>
+                <Icon name="plus" /> Create New Job
+              </button>
+            )}
             <button className="btn ghost sm" onClick={() => onNavigate('job-templates')}>
               Browse Templates
             </button>
@@ -439,6 +445,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                 </b>
                                 <div className="cell-sub">Assigned: {parent.assignee} · Status: {parent.status}</div>
                                 {parent.statusHistory?.length ? <div className="cell-sub">Status history: {parent.statusHistory.map(event => `${event.from} → ${event.to} by ${event.by}${event.reason ? `: ${event.reason}` : ''}`).join(' · ')}</div> : null}
+                                {parent.reassignmentHistory?.length ? <div className="cell-sub">Reassignment history: {parent.reassignmentHistory.map(event => `${event.from} → ${event.to} on ${event.date.slice(0, 10)}${event.reason ? `: ${event.reason}` : ''}`).join(' · ')}</div> : null}
                                 {parent.status === 'Blocked' && <div className="cell-sub">Blocked: {parent.blockedReason}</div>}
                                 <select className="input sm mt4" aria-label={`Task status ${parent.id}`} value={parent.status} disabled={selectedJob.status === 'Cancelled'} onChange={e => handleSetTaskStatus(parent, e.target.value as JobTaskItem['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select>
                               </div>
@@ -449,7 +456,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                               <button className="btn sm ghost" aria-label={`Move ${parent.title} down`} disabled={selectedJob.status === 'Cancelled' || parentTasks.at(-1)?.id === parent.id} onClick={() => moveTask(parent, 1)}>↓</button>
                               <button
                                 className="btn sm ghost"
-                                disabled={selectedJob.status === 'Cancelled'}
+                                disabled={selectedJob.status === 'Cancelled' || !['manager', 'partner'].includes(state.currentRole)}
+                                title={!['manager', 'partner'].includes(state.currentRole) ? 'Reassignment requires a manager or partner' : undefined}
                                 onClick={() => openReassignment(parent)}
                               >
                                 Reassign
@@ -493,7 +501,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                     <button className="btn sm ghost" aria-label={`Edit task ${sub.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => openTaskEdit(sub)}>Edit</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} up`} disabled={selectedJob.status === 'Cancelled' || subtasks[0]?.id === sub.id} onClick={() => moveTask(sub, -1)}>↑</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} down`} disabled={selectedJob.status === 'Cancelled' || subtasks.at(-1)?.id === sub.id} onClick={() => moveTask(sub, 1)}>↓</button>
-                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => openReassignment(sub)}>Reassign</button>
+                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled' || !['manager', 'partner'].includes(state.currentRole)} title={!['manager', 'partner'].includes(state.currentRole) ? 'Reassignment requires a manager or partner' : undefined} onClick={() => openReassignment(sub)}>Reassign</button>
                                   </div>
                                 </div>
                               ))}

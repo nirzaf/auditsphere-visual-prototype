@@ -177,6 +177,19 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     }
   };
 
+  const handleReturnInvoice = (inv: InvoiceRecord) => {
+    const reason = window.prompt('Reason for returning this invoice draft for changes:');
+    if (!reason?.trim()) return;
+    try {
+      prototypeStore.reviewInvoice(inv.id, false, reason);
+      setNotice({ type: 'success', text: `Invoice ${inv.invoiceNumber} returned to the preparer with a recorded reason.` });
+      setTimeout(() => setNotice(null), 4000);
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+      setTimeout(() => setNotice(null), 6000);
+    }
+  };
+
   const handleIssue = (inv: InvoiceRecord) => {
     prototypeStore.issueInvoice(inv.id);
   };
@@ -276,6 +289,8 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       `Tax Invoice: ${inv.invoiceNumber}`,
       [
         `Client Legal Name: ${inv.billingDetails?.accountName || client?.name || 'Example Trading Entity'}`,
+        `Issuing Firm: ${state.firmSettings.firmLegalName} (${state.firmSettings.firmName})`,
+        `Firm Jurisdiction: ${state.firmSettings.jurisdiction}`,
         `Billing Contact: ${inv.billingDetails?.contactName || client?.contact || 'Not recorded'}`,
         `Billing Email: ${inv.billingDetails?.email || client?.email || 'Not recorded'}`,
         `Billing Phone: ${inv.billingDetails?.phone || client?.phone || 'Not recorded'}`,
@@ -331,12 +346,33 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
               </tr>
             </thead>
             <tbody>
+              {invoices.length === 0 && (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '28px 12px' }}>
+                  <b>No invoices match the current scope</b>
+                  <p className="sub mt8">Use “Draft New Invoice” to create a draft from approved billable time or an accepted fixed-fee proposal. Drafts then move through independent review (approve or reasoned return), issue, and — if needed — credit notes.</p>
+                </td></tr>
+              )}
               {invoices.map(inv => {
                 const outstanding = Math.max(0, inv.amount - inv.paid - (inv.creditsApplied || 0));
                 return (
                   <tr key={inv.id}>
                     <td><b>{inv.invoiceNumber}</b></td>
-                    <td>{inv.description}</td>
+                    <td>
+                      {inv.description}
+                      {inv.reviewNote && <div className="caption text-danger mt4">Returned by reviewer: {inv.reviewNote}</div>}
+                      {inv.commercialApproval && <div className="caption mt4">Approved by {inv.commercialApproval.by}{inv.commercialApproval.at ? ` · ${new Date(inv.commercialApproval.at).toLocaleString()}` : ''}</div>}
+                      {Boolean((inv.revisionHistory?.length || inv.commercialApprovalHistory?.length)) && (
+                        <details className="mt4">
+                          <summary className="caption">History ({(inv.revisionHistory?.length || 0) + (inv.commercialApprovalHistory?.length || 0)} entries)</summary>
+                          {(inv.revisionHistory || []).map(entry => (
+                            <div className="caption" key={`${entry.revision}-${entry.editedAt}`}>Rev {entry.revision} → {entry.revision + 1} · {entry.editedBy} · {new Date(entry.editedAt).toLocaleString()} · {entry.reason}</div>
+                          ))}
+                          {(inv.commercialApprovalHistory || []).map(entry => (
+                            <div className="caption" key={`${entry.revision}-${entry.at}`}>Rev {entry.revision} approved by {entry.by} · {new Date(entry.at).toLocaleString()}{entry.basis ? ` · ${entry.basis}` : ''}</div>
+                          ))}
+                        </details>
+                      )}
+                    </td>
                     <td><b>{formatCurrency(inv.amount, inv.currency)}</b></td>
                     <td>{formatCurrency(inv.paid, inv.currency)}</td>
                     <td>{inv.creditsApplied ? formatCurrency(inv.creditsApplied, inv.currency) : '—'}</td>
@@ -360,6 +396,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                           <>
                             {canReviseAdHocInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Edit</button>}
                             <button className="btn sm ghost" onClick={() => handleApprove(inv)}>Approve</button>
+                            <button className="btn sm ghost text-danger" onClick={() => handleReturnInvoice(inv)}>Return</button>
                             {['billing', 'manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
                           </>
                         )}

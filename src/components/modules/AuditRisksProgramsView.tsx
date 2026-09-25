@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { RouteKey, AuditProcedureItem, AuditProgramTemplate, AuditRiskItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
+import { eligibleAuditRiskOwners } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface AuditRisksProgramsViewProps {
@@ -24,6 +25,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const eligibleRiskOwners = selectedEng ? eligibleAuditRiskOwners(state, selectedEng.id) : [];
 
   // VP-003: the risk, template and fieldwork draft panels are inline edit surfaces.
   // Register them so route/persona/engagement changes cannot silently drop typed work.
@@ -103,9 +105,16 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   ];
   const coverageGapPanel = <div className="panel panel-pad" role="status"><b>Unresolved risk coverage gaps ({coverageGaps.length})</b>{coverageGaps.length ? <ul className="sub">{coverageGaps.map(gap => <li key={gap}>{gap}</li>)}</ul> : <p className="sub">Every risk and procedure has a reciprocal link.</p>}</div>;
 
-  const handleUpdateProcedureStatus = (procId: string, status: AuditProcedureItem['status']) => {
+  const handleUpdateProcedureStatus = (procId: string, status: AuditProcedureItem['status'], procedure?: AuditProcedureItem) => {
+    const isReturn = (procedure?.status === 'Submitted' || procedure?.status === 'Cleared') && ['Not started', 'In progress', 'Blocked'].includes(status);
+    let reason = '';
+    if (isReturn) {
+      const entered = window.prompt('Reason for returning this fieldwork to the preparer:');
+      if (!entered?.trim()) return;
+      reason = entered;
+    }
     try {
-      prototypeStore.updateAuditProcedureStatus(selectedEng.id, procId, status);
+      prototypeStore.updateAuditProcedureStatus(selectedEng.id, procId, status, reason);
       setNotice(`Procedure ${procId} saved as ${status}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Procedure status could not be saved.');
@@ -125,6 +134,17 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
   const handleSaveRisk = () => {
     if (!riskDraft) return;
     try {
+      if (riskDraft.id === 'NEW') {
+        const createdId = prototypeStore.createAuditRisk(selectedEng.id, {
+          title: riskDraft.title, area: riskDraft.area, assertions: riskDraft.assertions,
+          description: riskDraft.description, rationale: riskDraft.rationale,
+          response: riskDraft.response, owner: riskDraft.owner, rating: riskDraft.rating,
+          linkedProcedureIds: riskDraft.linkedProcedureIds
+        });
+        setRiskDraft(null);
+        setNotice(`Risk ${createdId} added to the assessment with its procedure links.`);
+        return;
+      }
       const current = risks.find(risk => risk.id === riskDraft.id);
       if (!current) throw new Error('Risk is no longer in this engagement.');
       prototypeStore.updateAuditRisk(selectedEng.id, riskDraft.id, {
@@ -275,7 +295,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                           <select
                             className="input sm"
                             value={p.status}
-                            onChange={e => handleUpdateProcedureStatus(p.id, e.target.value as any)}
+                            onChange={e => handleUpdateProcedureStatus(p.id, e.target.value as any, p)}
                           >
                             <option value="Not started">Not started</option>
                             <option value="In progress">In progress</option>
@@ -284,7 +304,11 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                             <option value="Cleared">Cleared</option>
                           </select>
                         </td>
-                        <td>{p.reviewedByUserId ? `Reviewed by ${state.users.find(user => user.id === p.reviewedByUserId)?.name || p.reviewedByUserId}` : p.preparedByUserId ? `Prepared by ${state.users.find(user => user.id === p.preparedByUserId)?.name || p.preparedByUserId}` : 'No sign-off'}</td>
+                        <td>{p.reviewedByUserId ? `Reviewed by ${state.users.find(user => user.id === p.reviewedByUserId)?.name || p.reviewedByUserId}` : p.preparedByUserId ? `Prepared by ${state.users.find(user => user.id === p.preparedByUserId)?.name || p.preparedByUserId}` : 'No sign-off'}
+                          {p.returnReason && <div className="caption text-danger mt4">Returned: {p.returnReason}</div>}
+                          {Boolean(p.history?.length) && <details className="mt4"><summary className="caption">Fieldwork change history ({p.history?.length})</summary><ol className="sub mt4">{p.history?.map(entry => <li key={entry.id} className="mb8"><b>Revision {entry.revision}: {entry.action}</b> · {entry.occurredAt.slice(0, 10)} · {state.users.find(user => user.id === entry.actorUserId)?.name || entry.actorUserId}<div className="caption">Program {entry.programId}{entry.sourceTemplateVersion ? ` · template v${entry.sourceTemplateVersion}` : ''} · {entry.status}</div>{entry.reason && <div className="caption text-danger">Reason: {entry.reason}</div>}{entry.previous && <div className="caption">Prior state: {entry.previous.status}{entry.previous.workPerformed ? ` · Work: ${entry.previous.workPerformed}` : ''}{entry.previous.conclusion ? ` · Conclusion: ${entry.previous.conclusion}` : ''}</div>}{entry.workPerformed && <div className="caption">Work: {entry.workPerformed}</div>}{entry.conclusion && <div className="caption">Conclusion: {entry.conclusion}</div>}{entry.evidenceLimitation && <div className="caption">Evidence limitation: {entry.evidenceLimitation}</div>}</li>)}</ol></details>}
+                          {Boolean(p.scopeReassessmentHistory?.length) && <details className="mt4"><summary className="caption">Reassessment history ({p.scopeReassessmentHistory?.length})</summary>{p.scopeReassessmentHistory?.map((entry, index) => <div className="caption" key={`${entry.invalidatedAt}-${index}`}>{entry.invalidatedAt.slice(0, 10)} · was {entry.previousStatus} · {entry.reason}</div>)}</details>}
+                        </td>
                         <td>{p.linkedRiskIds?.length ? p.linkedRiskIds.map(id => <span className="tag gray" key={id}>{id}</span>) : <span className="badge amber">Unlinked</span>}</td>
                       </tr>
                     ))}
@@ -300,7 +324,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
       {activeTab === 'risks' && (
         <div className="stack">{coverageGapPanel}
           <div className="panel">
-            <div className="panel-head"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3></div>
+            <div className="panel-head between"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3>{['manager', 'preparer'].includes(state.currentRole) && <button className="btn primary sm" onClick={() => setRiskDraft({ id: 'NEW', engagementId: selectedEng.id, title: '', area: '', assertions: [], description: '', rationale: '', response: '', owner: '', rating: 'Medium', linkedProcedureIds: [], revisions: [] })}><Icon name="plus" size="sm" /> Add assessed risk</button>}</div>
             <div className="tablewrap"><table>
               <thead><tr><th>Risk</th><th>Area / Rating</th><th>Assertions</th><th>Rationale</th><th>Planned response</th><th>Owner</th><th>Linked procedures</th><th>Action</th></tr></thead>
               <tbody>{risks.map(risk => <tr key={risk.id}>
@@ -313,7 +337,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
             </table></div>
           </div>
           {riskDraft && <div className="panel panel-pad stack">
-            <h3>Edit {riskDraft.id}</h3>
+            <h3>{riskDraft.id === 'NEW' ? 'Add assessed risk' : `Edit ${riskDraft.id}`}</h3>
             <div className="grid2">
               <label className="caption">Risk title<input className="input mt4" value={riskDraft.title} onChange={e => setRiskDraft({...riskDraft, title:e.target.value})} /></label>
               <label className="caption">Area<input className="input mt4" value={riskDraft.area} onChange={e => setRiskDraft({...riskDraft, area:e.target.value})} /></label>
@@ -321,7 +345,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
               <label className="caption">Rationale<textarea className="input mt4" value={riskDraft.rationale} onChange={e => setRiskDraft({...riskDraft, rationale:e.target.value})} /></label>
               <label className="caption">Planned response<textarea className="input mt4" value={riskDraft.response} onChange={e => setRiskDraft({...riskDraft, response:e.target.value})} /></label>
               <label className="caption">Assertions (comma separated)<input className="input mt4" value={riskDraft.assertions.join(', ')} onChange={e => setRiskDraft({...riskDraft, assertions:e.target.value.split(',').map(value=>value.trim()).filter(Boolean)})} /></label>
-              <label className="caption">Owner<input className="input mt4" value={riskDraft.owner} onChange={e => setRiskDraft({...riskDraft, owner:e.target.value})} /></label>
+              <label className="caption">Owner<select className="input mt4" aria-label="Assessed risk owner" required value={riskDraft.owner} onChange={e => setRiskDraft({...riskDraft, owner:e.target.value})}><option value="">Choose an in-scope professional</option>{eligibleRiskOwners.map(owner => <option key={owner.id} value={owner.name}>{owner.name}</option>)}</select></label>
               <label className="caption">Rating<select className="input mt4" value={riskDraft.rating} onChange={e => setRiskDraft({...riskDraft, rating:e.target.value as AuditRiskItem['rating']})}><option>Low</option><option>Medium</option><option>Significant</option></select></label>
             </div>
             <fieldset className="borderbox"><legend className="caption">Linked procedures</legend><div className="grid2">{programs.flatMap(program=>program.procedures).map(procedure=><label key={procedure.id} className="row" style={{gap:8}}><input type="checkbox" checked={riskDraft.linkedProcedureIds.includes(procedure.id)} onChange={e=>setRiskDraft({...riskDraft,linkedProcedureIds:e.target.checked?[...new Set([...riskDraft.linkedProcedureIds,procedure.id])]:riskDraft.linkedProcedureIds.filter(id=>id!==procedure.id)})} />{procedure.id} · {procedure.title || procedure.text}</label>)}</div></fieldset>

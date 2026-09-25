@@ -253,6 +253,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigate, onRegi
               </tr>
             </thead>
             <tbody>
+              {proposals.length === 0 && (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '24px 12px' }}>
+                  <b>No proposals drafted yet</b>
+                  <p className="sub mt8">Use “New Proposal” to draft service terms from the reusable catalogue. Drafts pass independent commercial review, are presented to the client, and — once accepted — unlock engagement creation.</p>
+                </td></tr>
+              )}
               {proposals.map(p => (
                 <tr key={p.id}>
                   <td>

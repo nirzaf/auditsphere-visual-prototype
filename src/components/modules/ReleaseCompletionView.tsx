@@ -7,6 +7,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { loadVerifiedArtifact } from '../../services/artifactStore';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
+import { isReleaseBlockingFinding } from '../../services/findings';
 
 interface ReleaseCompletionViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -52,12 +53,8 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
   const noOpenReviews = selectedEng.reviews.every(r => r.status === 'Cleared');
 
   // Gate 3: Findings resolution (no unresolved material misstatements)
-  const openMaterialFindings = state.findings.filter(
-    f => f.engagementId === selectedEng.id &&
-      !['Corrected in TB', 'Corrected by client', 'Waived as immaterial', 'Uncorrected waived'].includes(f.disposition) &&
-      (f.severity === 'Material' || f.category === 'Monetary misstatement')
-  );
-  const noMaterialFindings = openMaterialFindings.length === 0;
+  const openBlockingFindings = state.findings.filter(f => f.engagementId === selectedEng.id && isReleaseBlockingFinding(f));
+  const noMaterialFindings = openBlockingFindings.length === 0;
 
   // Gate 4: Multi-stage sign-offs recorded and valid for current generation
   const approvalsValid = Boolean(
@@ -197,16 +194,16 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
             <button className="btn sm ghost" onClick={() => onNavigate('reviews')}>Inspect Desk</button>
           </div>
 
-          {/* Gate 3: Material Findings */}
+          {/* Gate 3: Significant and material findings */}
           <div className="between borderbox" style={{ padding: 12 }}>
             <div className="row" style={{ gap: 10, alignItems: 'center' }}>
               <Icon name={noMaterialFindings ? 'checkcircle' : 'shield'} className={noMaterialFindings ? 'text-green' : 'text-amber'} />
               <div>
-                <b>3. No Unresolved Material Misstatements</b>
+                <b>3. No Unresolved Significant/Material Findings</b>
                 <div className="cell-sub">
-                  {openMaterialFindings.length === 0
+                  {openBlockingFindings.length === 0
                     ? 'All audit findings resolved or classified as trivial'
-                    : `${openMaterialFindings.length} unresolved material finding(s) pending resolution`}
+                    : `${openBlockingFindings.length} unresolved significant/material finding(s) pending resolution`}
                 </div>
               </div>
             </div>

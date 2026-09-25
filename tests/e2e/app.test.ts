@@ -331,8 +331,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('.sidebar')?.classList.contains('open')`), true);
       await browserTab!.evaluate(`document.querySelector('.mobile-menu').click()`);
       assert.equal(await waitForBrowser(`document.querySelector('.mobile-menu')?.getAttribute('aria-expanded')==='false'`), true);
+      await browserTab!.evaluate(`document.querySelector('.mobile-menu').focus()`);
+      await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+      await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+      assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('#primary-navigation')?.contains(document.activeElement) || false`), false, 'closed off-canvas navigation is skipped by keyboard focus');
     } finally {
-      await browserTab!.command('Emulation.clearDeviceMetricsOverride');
+      await browserTab!.command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
     }
   });
 
@@ -1303,6 +1307,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     try {
       for (const width of [768, 390, 320]) {
         await browserTab!.command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 500 });
+        if (width <= 760) {
+          await browserTab!.evaluate(`document.querySelector('.mobile-menu').click()`);
+          assert.equal(await waitForBrowser(`document.querySelector('.sidebar')?.classList.contains('open')`), true, `mobile drawer opens at ${width}px`);
+        }
+        const navState = await browserTab!.evaluate<any>(`(() => ({width:innerWidth,role:document.querySelector('#role-select')?.value,nav:[...document.querySelectorAll('nav button')].map(x=>x.innerText.trim())}))()`);
+        assert.ok(navState.nav.some((label: string) => label.startsWith('Client Portfolio')), `partner navigation missing at ${width}px: ${JSON.stringify(navState)}`);
         await clickButtonStartingWith('Client Portfolio');
         const pageWidth = await browserTab!.evaluate<number>('document.documentElement.scrollWidth');
         assert.ok(pageWidth <= width, `client portfolio overflows at ${width}px: ${pageWidth}px`);
@@ -1517,6 +1527,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await clickButton('Risks & Audit Programs');
     assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr')].some(r=>r.innerText.includes('PRC-01')&&r.innerText.includes('Reviewed by Layla Rahman'))`), true, 'review attribution remains visible after reload');
+    const returnSubmitted = await browserTab!.evaluate<boolean>(`(() => {window.prompt=()=> 'Add the latest confirmation and explain the cut-off test before clearance.';const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-01'));const select=row?.querySelector('select');if(!select)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'In progress');select.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+    assert.equal(returnSubmitted, true);
+    const returnState = await browserTab!.evaluate<any>(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return {status:p.status,history:p.history,returnReason:p.returnReason};})()`);
+    assert.equal(returnState.status==='In progress'&&returnState.history?.length===5&&returnState.history.at(-1).action==='Returned'&&returnState.history.at(-1).reason?.includes('latest confirmation'), true, `a reasoned reviewer return is recorded as a new immutable history entry: ${JSON.stringify(returnState)}`);
+    await switchRole('Audit preparer', 'preparer');
+    const reopenedFieldwork = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-01'));const button=[...(row?.querySelectorAll('button')||[])].find(b=>b.innerText.trim()==='Record fieldwork');if(!button)return false;button.click();return true;})()`);
+    assert.equal(reopenedFieldwork, true);
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;const work=document.querySelector('[aria-label="Work performed for PRC-01"]');set.call(work,'Rechecked both confirmations and added the cut-off test requested by the reviewer.');work.dispatchEvent(new Event('input',{bubbles:true}));const conclusion=document.querySelector('[aria-label="Conclusion for PRC-01"]');const setInput=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setInput.call(conclusion,'Revised testing supports the balances and cut-off.');conclusion.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save fieldwork');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-01'));const select=row.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Submitted');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Submitted'&&p.history?.length===7&&p.history.at(-1).action==='Submitted';})()`), true, 'reworked fieldwork has a new submission revision');
+    await switchRole('Engagement manager', 'manager');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-01'));const select=row.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Cleared');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-01');return p.status==='Cleared'&&p.history?.length===8&&p.history.at(-1).action==='Cleared'&&p.history.at(-1).actorUserId==='manager';})()`), true, 'independent re-clearance is retained after rework');
+    const historyVisible = await browserTab!.evaluate<boolean>(`(() => {const details=[...document.querySelectorAll('details')].find(d=>d.querySelector('summary')?.innerText.includes('Fieldwork change history (8)'));if(!details)return false;details.open=true;return details.innerText.includes('Add the latest confirmation')&&details.innerText.includes('Rechecked both confirmations')&&details.innerText.includes('Revision 8: Cleared');})()`);
+    assert.equal(historyVisible, true, 'the fieldwork history view shows reviewer rationale and both work descriptions across all eight revisions');
+    await switchRole('Audit preparer', 'preparer');
+    await clickButton('Fixed Assets and Depreciation');
+    const openedException = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-04'));const button=[...(row?.querySelectorAll('button')||[])].find(b=>b.innerText.trim()==='Record fieldwork');if(!button)return false;button.click();return true;})()`);
+    assert.equal(openedException, true);
+    await browserTab!.evaluate(`(() => {const set=(selector,value)=>{const field=document.querySelector(selector);if(!field)throw Error('Missing '+selector);let proto=Object.getPrototypeOf(field),descriptor;while(proto&&!descriptor){descriptor=Object.getOwnPropertyDescriptor(proto,'value');proto=Object.getPrototypeOf(proto);}if(!descriptor?.set)throw Error('No value setter for '+selector+' ('+field.tagName+')');descriptor.set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));};set('[aria-label="Work performed for PRC-04"]','Recalculated depreciation and traced the proposed under-accrual to the fixed asset register.');set('[aria-label="Conclusion for PRC-04"]','The QAR 500 under-accrual is supported and linked to AJ-01.');})()`);
+    await clickButton('Save fieldwork');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-04'));const select=row.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Submitted');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const program=s.auditPrograms.find(x=>x.procedures.some(p=>p.id==='PRC-04'));const p=program.procedures.find(x=>x.id==='PRC-04');return p.status==='Submitted'&&p.hasExceptions&&p.history.length===2&&p.history.every(h=>h.programId===program.id);})()`), true, 'a second program retains its own fieldwork history and the linked exception');
+    await switchRole('Engagement manager', 'manager');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-04'));const select=row.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Cleared');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.auditPrograms.flatMap(x=>x.procedures).find(x=>x.id==='PRC-04');return p.status==='Cleared'&&p.hasExceptions&&p.history.at(-1).action==='Cleared';})()`), true, 'clearance does not silently erase the exception or its fieldwork history');
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('PRC-04'))?.innerText.includes('Exception recorded')`), true, 'the completed procedure continues to display its exception');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -2328,6 +2366,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), jobsBeforeRevision + 1);
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));b.click();})()`);
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(authored.id)}));if(!row)throw Error('Authored template row missing');row.click();})()`);
+    await browserTab!.evaluate(`window.prompt=()=> 'Retired after the revised template was applied.'`);
     await clickButton('Retire Template');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTemplates.find(t=>t.id===${JSON.stringify(authored.id)}).status==='Retired'`), true);
     assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id===${JSON.stringify(lifecycleJob.id)}).status`), 'Not started', 'retirement preserves the created job');
@@ -2425,7 +2464,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-27: logs a received meeting note manually and keeps the internal record out of the client portal', async () => {
-    await browserTab!.evaluate(`(() => {const state=${JSON.stringify(JSON.stringify(createInitialState()))};const parsed=JSON.parse(state);parsed.jobs.push({id:'JOB-AT27-CL002',clientId:'CL-002',engagementId:'ENG-26002',title:'AT-27 Northstar meeting follow-up',owner:'Layla Rahman',dueDate:'2026-10-31',status:'In progress',createdAt:'2026-09-01'});localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(parsed));})()`);
+    await browserTab!.evaluate(`(() => {const state=${JSON.stringify(JSON.stringify(createInitialState()))};const parsed=JSON.parse(state);parsed.jobs.push({id:'JOB-AT27-CL002',clientId:'CL-002',engagementId:'ENG-26002',title:'AT-27 Northstar meeting follow-up',owner:'Layla Rahman',dueDate:'2026-10-31',status:'In progress',createdAt:'2026-09-01'});parsed.documents.push({id:'DOC-AT27-SHARED',clientId:'CL-002',engagementId:'ENG-26002',name:'Northstar_Shared_Minutes.pdf',folderPath:'/Engagements/2026/Correspondence/',version:1,size:1200,classification:'Client provided',visibility:'Client shared',source:'SharePoint',uploadedBy:'Aisha Saleh',uploadedAt:'2026-09-20T10:00:00Z'},{id:'DOC-AT27-INTERNAL',clientId:'CL-002',engagementId:'ENG-26002',name:'Northstar_Internal_Workpaper.pdf',folderPath:'/Engagements/2026/Audit/Workpapers/',version:1,size:2400,classification:'Working paper',visibility:'Internal',source:'SharePoint',uploadedBy:'Adam Khan',uploadedAt:'2026-09-20T10:00:00Z'});localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(parsed));})()`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -2437,6 +2476,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`location.hash==='#communications'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26002'`), true, 'Client 360 action carries the selected client engagement into communications');
     await clickButton('Log Call / Meeting Note');
     const setNoteField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.parentElement?.querySelector('input,textarea');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const noteLimits = await browserTab!.evaluate<any>(`(() => ({dateDefault:document.querySelector('[aria-label="Communication date"]')?.value,dateMax:document.querySelector('[aria-label="Communication date"]')?.max,summaryMax:document.querySelector('[aria-label="Communication summary"]')?.maxLength,participantsMax:document.querySelector('[aria-label="Communication participants"]')?.maxLength,bodyMax:document.querySelector('[aria-label="Communication discussion notes"]')?.maxLength}))()`);
+    assert.deepEqual(noteLimits,{dateDefault:'2026-09-23',dateMax:'2026-09-23',summaryMax:240,participantsMax:500,bodyMax:5000},'manual note exposes the active scenario date and bounded text controls');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Communication date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-09-22');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await setNoteField('Summary Header', 'AT27 Received meeting note');
     await setNoteField('Discussion Notes', 'Client confirmed the inventory count date.',);
     await browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Related job'));const s=l?.querySelector('select');if(!s||s.options.length<2)throw Error('No related job choices');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,s.options[1].value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -2447,12 +2489,60 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(saved.engagementId, 'ENG-26002', 'communication keeps the selected engagement context');
     assert.equal(saved.visibility, 'Internal');
     assert.equal(saved.body, 'Client confirmed the inventory count date.');
+    assert.equal(saved.date, '2026-09-22T12:00:00.000Z', 'manual date is stored as a deterministic local-noon timestamp');
     assert.ok(saved.jobId, 'the manually logged communication keeps its related job identity');
+    await clickButton('Log Call / Meeting Note');
+    const canChooseVisibility = await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Communication visibility"]')`);
+    assert.equal(canChooseVisibility, true, 'manager can select communication visibility');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Communication document"]');if(![...select.options].some(option=>option.value==='DOC-AT27-INTERNAL')||![...select.options].some(option=>option.value==='DOC-AT27-SHARED'))throw Error('same-scope document references are missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'DOC-AT27-INTERNAL');select.dispatchEvent(new Event('change',{bubbles:true}));window.__publicationConfirmations=[];window.confirm=message=>{window.__publicationConfirmations.push(message);return true;};const visibility=document.querySelector('[aria-label="Communication visibility"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(visibility,'Client visible');visibility.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Communication visibility"]').value`), 'Internal', 'internal attachment blocks client publication before confirmation');
+    assert.match(await browserTab!.evaluate<string>(`document.querySelector('[role="alert"]')?.innerText||''`), /internal or unavailable document cannot be linked/i);
+    assert.equal(await browserTab!.evaluate<number>(`window.__publicationConfirmations.length`), 0, 'an unsafe attachment is rejected before the publication warning');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Communication document"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'DOC-AT27-SHARED');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {window.__publicationConfirmations=[];window.confirm=message=>{window.__publicationConfirmations.push(message);return false;};const select=document.querySelector('[aria-label="Communication visibility"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Client visible');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Communication visibility"]').value`), 'Internal', 'declining the publication warning keeps the note internal');
+    const publicationWarning = await browserTab!.evaluate<any>(`({confirmation:window.__publicationConfirmations[0],inline:document.querySelector('[role="note"]')?.innerText||''})`);
+    assert.match(publicationWarning.confirmation,/published in the client portal/);
+    await browserTab!.evaluate(`(() => {window.confirm=message=>{window.__publicationConfirmations.push(message);return true;};const select=document.querySelector('[aria-label="Communication visibility"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Client visible');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('[aria-label="Communication visibility"]')?.value==='Client visible'&&document.querySelector('[role="note"]')?.innerText.includes('client portal')`), true, 'confirming publication exposes a visible warning');
+    await setNoteField('Summary Header', 'AT27 Approved client-visible follow-up');
+    await setNoteField('Discussion Notes', 'Only approved meeting summary for the client.');
+    await clickButton('Save Note');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.some(c=>c.summary==='AT27 Approved client-visible follow-up'&&c.visibility==='Client visible'&&c.linkedDocumentId==='DOC-AT27-SHARED')`), true, 'authorized explicit publication with its shared document link is stored');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.panel .borderbox')].find(item=>item.querySelector('b')?.innerText==='AT27 Approved client-visible follow-up');const button=[...(card?.querySelectorAll('button')||[])].find(item=>item.innerText==='Correct Note');if(!button)throw Error('Correction action missing from authorized communication');button.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.modal h2')?.innerText==='Correct Inbound Communication'`), true, 'manual inbound notes expose an explicit correction form');
+    await setNoteField('Summary Header', 'AT27 Corrected client-visible follow-up');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Communication correction reason"]');if(!input)throw Error('Correction reason field missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Corrected wording after client review');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Save Correction');
+    const correctedCommunication = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.find(c=>c.id&&c.linkedDocumentId==='DOC-AT27-SHARED')`);
+    assert.equal(correctedCommunication.summary,'AT27 Corrected client-visible follow-up');
+    assert.equal(correctedCommunication.revision,2);
+    assert.equal(correctedCommunication.correctionHistory.length,1);
+    assert.equal(correctedCommunication.correctionHistory[0].correctedBy,'Layla Rahman');
+    assert.equal(correctedCommunication.correctionHistory[0].reason,'Corrected wording after client review');
+    assert.equal(correctedCommunication.correctionHistory[0].previous.summary,'AT27 Approved client-visible follow-up');
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();})()`);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT27 Received meeting note/, 'the job view projects the same communication record');
-    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Northstar management approver'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Messages & Mail');
-    assert.doesNotMatch(await browserTab!.evaluate<string>('document.body.innerText'), /AT27 Received meeting note|Client confirmed the inventory count date/);
+    const clientMessages = await browserTab!.evaluate<string>('document.body.innerText');
+    assert.doesNotMatch(clientMessages, /AT27 Received meeting note|Client confirmed the inventory count date/);
+    assert.match(clientMessages,/AT27 Corrected client-visible follow-up/,'the corrected client-visible communication is shown in the client portal');
+    assert.match(clientMessages,/Northstar_Shared_Minutes.pdf/,'only an explicitly shared linked document is projected to the portal');
+    assert.doesNotMatch(clientMessages,/Northstar_Internal_Workpaper.pdf/,'internal linked document name is not exposed through communication details');
+    assert.doesNotMatch(clientMessages,/Corrected wording after client review/,'internal correction rationale is not exposed to the client');
+    await browserTab!.evaluate(`document.querySelector('.search-trigger').click()`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('.modal-backdrop input')`), true, 'client portal search opens');
+    const searchDocument = async (name: string) => {
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(name)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return browserTab!.evaluate<string>(`document.querySelector('.modal-body')?.innerText||''`);
+    };
+    assert.doesNotMatch(await searchDocument('Northstar_Internal_Workpaper.pdf'), /Northstar_Internal_Workpaper\.pdf/,'client search does not expose an internal linked document name');
+    assert.match(await searchDocument('Northstar_Shared_Minutes.pdf'),/Northstar_Shared_Minutes\.pdf/,'client search retains its permitted shared document');
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    assert.equal(await waitForBrowser(`!document.querySelector('.modal-backdrop')`), true);
     assert.deepEqual(browserTab!.exceptions, []);
     await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
     await browserTab!.command('Page.reload');
@@ -2897,6 +2987,55 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-003-E01: global search traps keyboard focus and dismisses without persisting its draft', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector(".search-trigger")'), true);
+    const before = await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`);
+    await browserTab!.evaluate(`(() => {const trigger=document.querySelector('.search-trigger');trigger.focus();trigger.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.modal[role="dialog"][aria-modal="true"]')&&document.activeElement===document.querySelector('.modal input')`), true, 'opening global search focuses its query and exposes modal semantics');
+    const dialogLabel = await browserTab!.evaluate<string>(`document.querySelector('.modal[role="dialog"]')?.getAttribute('aria-label')||''`);
+    assert.equal(dialogLabel, 'Global search', 'global search modal has an accessible name');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'unsaved search draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const dialog=document.querySelector('.modal');const items=[...dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element=>element.getAttribute('aria-hidden')!=='true'&&element.getClientRects().length>0);if(!items.length)throw Error('Global search has no keyboard controls');items.at(-1).focus();})()`);
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    assert.equal(await waitForBrowser(`document.activeElement===document.querySelector('.modal input')`), true, 'Tab from the final modal control wraps to the first control');
+    await browserTab!.evaluate(`document.querySelector('#role-select').focus()`);
+    assert.equal(await waitForBrowser(`document.activeElement===document.querySelector('.modal input')`), true, 'focus cannot escape the open dialog');
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    assert.equal(await waitForBrowser(`!document.querySelector('.modal-backdrop')`), true, 'Escape closes global search');
+    assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`), before, 'search drafts do not mutate persisted business state');
+    await browserTab!.evaluate(`(() => {const trigger=document.querySelector('.search-trigger');trigger.focus();trigger.click();})()`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('.modal-backdrop')`), true);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop').click()`);
+    assert.equal(await waitForBrowser(`!document.querySelector('.modal-backdrop')`), true, 'backdrop dismissal closes global search');
+    assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`), before, 'backdrop dismissal leaves persisted application state unchanged');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('VP-003-E01: scenario chooser dismisses without loading or changing demo state', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector(".tour-header")'), true);
+    const before = await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`);
+    const route = await browserTab!.evaluate<string>('location.hash');
+    await browserTab!.evaluate(`document.querySelector('.tour-header').click()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.modal[role="dialog"][aria-modal="true"] h2')?.innerText==='Select Demo Scenario Preset'`), true, 'scenario chooser opens as a titled modal dialog');
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    assert.equal(await waitForBrowser(`!document.querySelector('.modal-backdrop')`), true, 'Escape dismisses the scenario chooser');
+    assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`), before, 'Escape does not load or mutate a scenario');
+    assert.equal(await browserTab!.evaluate<string>('location.hash'), route, 'Escape leaves the active route unchanged');
+    await browserTab!.evaluate(`document.querySelector('.tour-header').click()`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('.modal-backdrop')`), true);
+    await browserTab!.evaluate(`document.querySelector('.modal-backdrop').click()`);
+    assert.equal(await waitForBrowser(`!document.querySelector('.modal-backdrop')`), true, 'backdrop dismisses the scenario chooser');
+    assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2') || ''`), before, 'backdrop dismissal does not load or mutate a scenario');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-50/VP-061: client search excludes internal activity and finds shared documents', async () => {
     await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
     await browserTab!.command('Page.reload');
@@ -2998,7 +3137,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes('Reference unavailable')`), true, 'unavailable search target opens its record with its state visible');
     await browserTab!.evaluate(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));s.clients.find(client=>client.id==='CL-001').status='Archived';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
     await browserTab!.command('Page.reload');
-    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")', 15000), true, 'app should finish reloading the archived-client search fixture');
     await search('CL-001');
     assert.match(await browserTab!.evaluate<string>(`[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('CL-001'))?.innerText||''`), /Archived/);
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes('CL-001'));if(!result)throw Error('Archived client result missing');result.click();})()`);
@@ -3100,6 +3239,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(reversed.receipt.allocatedAmount,30000);
     assert.equal(reversed.receipt.amount - reversed.receipt.allocatedAmount,20000,'reversing only one of two allocations restores exactly that amount to unallocated receipt funds');
     assert.equal(reversed.receipt.amount,reversed.receipt.allocations.filter((allocation:any)=>!allocation.reversed).reduce((sum:number,allocation:any)=>sum+allocation.amount,0)+(reversed.receipt.amount-reversed.receipt.allocatedAmount),'receipt gross reconciles to active allocation history plus unallocated balance after reversal');
+    const reopenedReceiptDisplay = await browserTab!.evaluate<string>(`(() => {const panel=[...document.querySelectorAll('.panel')].find(x=>x.querySelector('h3')?.innerText.includes('Offline Bank Receipts'));const row=[...(panel?.querySelectorAll('tbody tr')||[])].find(x=>x.innerText.includes('RCP-AT32'));return row?.querySelectorAll('td')[6]?.innerText.trim()||'';})()`);
+    assert.equal(reopenedReceiptDisplay,formatCurrency(20000,'QAR'),'receipt register visibly shows the reversed amount as unallocated');
     await browserTab!.evaluate(`(() => {const date=document.querySelector('[aria-label="Receivables as of date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,'2026-09-23');date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const statementSource = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const clientId=s.clients[0].id;const asOf='2026-09-23';const allocatedAsOf=(allocations,receiptDate)=>allocations.filter(a=>(a.date||a.allocatedAt||receiptDate).slice(0,10)<=asOf&&(!a.reversed||!a.reversalDate||a.reversalDate>asOf)).reduce((sum,a)=>sum+a.amount,0);const paidAsOf=i=>{const ledger=s.receipts.flatMap(r=>r.allocations.map(a=>({...a,receiptDate:r.date}))).filter(a=>a.invoiceId===i.id);return ledger.length?ledger.filter(a=>(a.date||a.allocatedAt||a.receiptDate).slice(0,10)<=asOf&&(!a.reversed||!a.reversalDate||a.reversalDate>asOf)).reduce((sum,a)=>sum+a.amount,0):i.paid;};return [ ['Document No','Date','Type','Currency','Billed Amount','Paid / Allocated','Balance'], ...s.invoices.filter(i=>i.clientId===clientId&&i.currency==='QAR'&&(i.status==='Issued'||i.status==='Paid')&&(i.issueDate||i.due)<=asOf).map(i=>{const paid=paidAsOf(i);return [i.invoiceNumber,i.issueDate||i.due,'Invoice',i.currency,String(i.amount),String(paid),String(i.amount-paid)];}), ...s.creditNotes.filter(c=>c.clientId===clientId&&c.status==='Issued'&&c.issueDate<=asOf).map(c=>[c.creditNumber,c.issueDate,'Credit note',c.currency||'QAR',String(-c.amount),'0',String(-c.amount)]), ...s.receipts.filter(r=>r.clientId===clientId&&r.currency==='QAR'&&r.date<=asOf).map(r=>{const allocated=allocatedAsOf(r.allocations,r.date);return [r.receiptNumber,r.date,'Receipt',r.currency,String(-r.amount),String(allocated),String(r.amount-allocated)];}) ];})()`);
     const visibleStatement = await browserTab!.evaluate<string[][]>(`[...document.querySelectorAll('.receivables-statement tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.innerText))`);
@@ -4802,8 +4943,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
     await switchPersona('Engagement manager', 'manager');
     await clickButton('Accounting Workbench');
-    const review = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Complete Technical Review');if(!b)return false;b.click();return true;})()`);
-    assert.equal(review, true, 'review action should be available to an independent manager');
+    const reviewState = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const cards=[...document.querySelectorAll('.panel')].filter(x=>x.innerText.includes('AT38 management review sample'));return {role:s.currentRole,person:s.currentPerson,engagement:s.selectedEngagement,route:location.hash,adjustmentsTab:[...document.querySelectorAll('.tab-btn')].find(x=>x.classList.contains('active'))?.innerText,cards:cards.map(card=>({text:card.innerText.slice(0,500),buttons:[...card.querySelectorAll('button')].map(b=>b.innerText.trim())})),body:document.querySelector('main#main')?.innerText.slice(0,600)};})()`);
+    const review = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample'));const b=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Approve technical review');if(!b)return false;b.click();return true;})()`);
+    assert.equal(review, true, `review action should be available to an independent manager: ${JSON.stringify(reviewState)}`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}).status==='Technical review'`), true);
 
     await switchPersona('Management approver', 'client');
@@ -4877,7 +5019,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Prior journal revisions \(1\)/, 'prior decision and journal revision remains visible');
 
     await switchPersona('Senior reviewer', 'reviewer');
-    const reReview = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample amended'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Complete Technical Review');if(!button)return false;button.click();return true;})()`);
+    const reReview = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('AT38 management review sample amended'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Approve technical review');if(!button)return false;button.click();return true;})()`);
     assert.equal(reReview, true, 'amended revision requires a fresh independent review');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.id===${JSON.stringify(journal.id)}).status==='Technical review'`), true);
     await switchPersona('Management approver', 'client');
@@ -5707,6 +5849,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
       await clickButton('Risks & Audit Programs');
+      const openRiskTab = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Identified Risk Register'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(openRiskTab, true);
+      await clickButton('Edit risk');
+      const riskOwnerChoices = await browserTab!.evaluate<any>(`(() => {const s=document.querySelector('[aria-label="Assessed risk owner"]');return {tag:s?.tagName,values:[...(s?.options||[])].map(o=>o.textContent.trim()),selected:s?.value};})()`);
+      assert.equal(riskOwnerChoices.tag, 'SELECT', 'risk owner is chosen from a controlled staff list');
+      assert.ok(riskOwnerChoices.values.includes('Adam Khan'), 'current in-scope staff owner remains selectable');
+      assert.ok(!riskOwnerChoices.values.includes('Rami Nasser'), 'client personas are excluded from owner choices');
+      await clickButton('Cancel');
       assert.equal(await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Reusable Program Templates'));if(!b)return false;b.click();return true;})()`), true);
       await clickButton('New template');
       const setInput = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);
@@ -6032,6 +6182,21 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     const afterReload = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}'))()`);
     assert.deepEqual([afterReload.disposition, afterReload.dispositionHistory[0].rationale], ['Corrected by client', 'Management adopted the independent count review procedure.']);
+    await clickButtonStartingWith('Findings & Differences');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Client correction did not address the missing independent count evidence.';const select=document.querySelector('[aria-label="Disposition for ${created.id}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Uncorrected');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const f=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}');return f.disposition==='Uncorrected'&&f.dispositionHistory.length===2&&f.dispositionHistory.at(-1).from==='Corrected by client'&&f.dispositionHistory.at(-1).rationale.includes('did not address');})()`), true, 'reopening the finding to Uncorrected retains a reasoned disposition revision');
+    await clickButton('Release & Completion');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /1 unresolved significant\/material finding\(s\) pending resolution/, 'release completion blocks and displays the reopened significant finding');
+    await clickButton('Financial Packages');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Uncorrected Found/, 'financial package validation agrees that the finding is unresolved');
+    await clickButton('Report Centre');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#practice-report');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'findings');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), new RegExp(`${created.id}[^\\n]*VP-054 inventory count control gap[^\\n]*Significant[^\\n]*Uncorrected`), 'the audit findings report agrees with finding detail and release status');
+    await clickButtonStartingWith('Findings & Differences');
+    await browserTab!.evaluate(`(() => {window.prompt=()=> 'Waived after the remaining qualitative control risk was documented and accepted.';const select=document.querySelector('[aria-label="Disposition for ${created.id}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Waived as immaterial');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`(() => {const f=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}');return f.disposition==='Waived as immaterial'&&f.dispositionHistory.length===3&&f.dispositionHistory.at(-1).rationale.includes('remaining qualitative control risk');})()`), true, 'a reasoned immaterial waiver is retained in the finding history');
+    await clickButton('Release & Completion');
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /All audit findings resolved or classified as trivial/, 'the waiver updates release completion without deleting the finding');
     await clickButtonStartingWith('Findings & Differences');
     await clickButton('Raise Finding');
     await browserTab!.evaluate(`(() => {const setInput=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const setText=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;const title=document.querySelector('[aria-label="Finding title"]');setInput.call(title,'VP-054 promoted sampled receivable shortfall');title.dispatchEvent(new Event('input',{bubbles:true}));for(const [label,value] of [['Finding condition','Sampled receivable is QAR 250 below the ledger.'],['Finding recommendation','Investigate the variance and correct the balance if confirmed.']]){const field=document.querySelector('[aria-label="'+label+'"]');setText.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));}for(const [label,value] of [['Finding category','Monetary misstatement'],['Finding severity','Significant'],['Finding assertion','Existence'],['Finding currency','QAR'],['Finding sample exception','POP-01/AT54-SAMPLE-01']]){const field=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(field,value);field.dispatchEvent(new Event('change',{bubbles:true}));}const amount=document.querySelector('[aria-label="Finding signed amount"]');setInput.call(amount,'-250');amount.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -6452,6 +6617,75 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
+  });
+
+  it('lifecycle closure: reasoned invoice return, rework and firm-settings save (MOD-14/MOD-39)', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Billing & Invoices');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Billing, Invoicing')`), true, 'billing register loads');
+    await browserTab!.evaluate(`window.prompt = () => 'Retainer period does not match the signed proposal.'`);
+    const returned = await browserTab!.evaluate<boolean>(`(() => {
+      const row = [...document.querySelectorAll('tr')].find(tr => tr.innerText.includes('INV-2026-003'));
+      const btn = row && [...row.querySelectorAll('button')].find(b => b.innerText.trim() === 'Return');
+      if (!btn) return false; btn.click(); return true;
+    })()`);
+    assert.equal(returned, true, 'draft invoice row exposes a Return action');
+    const returnState = await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const i=s.invoices.find(x=>x.id==='INV-26003');return i.status==='Draft' && i.reviewNote==='Retainer period does not match the signed proposal.' && !i.commercialApproval;})()`);
+    assert.equal(returnState, true, 'return records the reviewer note and keeps the draft unapproved');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Returned by reviewer: Retainer period does not match the signed proposal.')`), true, 'the preparer sees the return reason near the invoice');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Returned by reviewer: Retainer period does not match the signed proposal.')`), true, 'return note persists across reload');
+
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'admin');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='admin'`), true);
+    await clickButtonStartingWith('Firm Administration');
+    await clickButton('Firm Legal Details & Branding');
+    assert.equal(await waitForBrowser(`!!document.querySelector('#firm-name')`), true, 'firm profile form renders from saved settings');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const name=document.querySelector('#firm-name');set.call(name,'STE Audit & Accounting International');name.dispatchEvent(new Event('input',{bubbles:true}));const legal=document.querySelector('#firm-legal-name');set.call(legal,'STE Audit & Accounting International L.L.C.');legal.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('#firm-reason');set.call(reason,'International rebrand');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Firm Settings');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.firmSettings.firmName==='STE Audit & Accounting International' && s.firmSettings.firmLegalName==='STE Audit & Accounting International L.L.C.' && s.events.some(e=>e.ref==='FIRM'&&e.text.includes('International rebrand'));})()`), true, 'firm settings save prospectively with a logged reason');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('existing issued invoices, releases and archives are unchanged')`), true, 'prospective-application disclosure is shown');
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('lifecycle closure: adjustment reporting inclusion feeds a corrected-in-TB finding (MOD-22/MOD-34)', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Accounting Workbench');
+    await clickButtonStartingWith('Adjustments (');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Depreciation of Fixed Assets adjustment')`), true, 'adjustment journal card renders');
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const evidence=document.querySelector('[aria-label="Reflection evidence reference for AJ-01"]');set.call(evidence,'TB-IMPORT-REV-1');evidence.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[aria-label="Save reflection evidence for AJ-01"]').click();})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(j=>j.id==='AJ-01').reflectionEvidenceRef==='TB-IMPORT-REV-1'`), true, 'reflection evidence persists');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('[aria-label="Reflection status for AJ-01"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Reflected in TB');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(j=>j.id==='AJ-01').reflectionStatus==='Reflected in TB'`), true);
+    await browserTab!.evaluate(`document.querySelector('[aria-label="Record reporting inclusion for AJ-01"]').click()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(j=>j.id==='AJ-01').status==='Reporting included'`), true, 'reporting inclusion is reachable from a live session');
+
+    await clickButtonStartingWith('Findings & Differences');
+    await clickButton('Raise Finding');
+    await browserTab!.evaluate(`(() => {const setInput=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const setText=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;const title=document.querySelector('[aria-label="Finding title"]');setInput.call(title,'AT-LIFECYCLE corrected depreciation difference');title.dispatchEvent(new Event('input',{bubbles:true}));const condition=document.querySelector('[aria-label="Finding condition"]');setText.call(condition,'Depreciation difference corrected by AJ-01.');condition.dispatchEvent(new Event('input',{bubbles:true}));const recommendation=document.querySelector('[aria-label="Finding recommendation"]');setText.call(recommendation,'Accept the posted correcting journal.');recommendation.dispatchEvent(new Event('input',{bubbles:true}));for(const [label,value] of [['Finding category','Monetary misstatement'],['Finding currency','QAR'],['Finding journal','AJ-01']]){const field=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(field,value);field.dispatchEvent(new Event('change',{bubbles:true}));}const amount=document.querySelector('[aria-label="Finding signed amount"]');setInput.call(amount,'250');amount.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Record Finding');
+    const created = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.title==='AT-LIFECYCLE corrected depreciation difference'))()`);
+    assert.ok(created?.id, 'linked finding is recorded');
+    assert.equal(created.linkedJournalId, 'AJ-01');
+    await browserTab!.evaluate(`(() => {window.prompt = () => 'Journal AJ-01 is reflected at the current source revision.';const s=document.querySelector('[aria-label="Disposition for ${created.id}"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Corrected in TB');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}').disposition==='Corrected in TB'`), true, 'the corrected-in-TB disposition completes the live chain');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).findings.find(x=>x.id==='${created.id}').disposition==='Corrected in TB'`), true, 'disposition persists across reload');
+
+    await browserTab!.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key: '/', bubbles: true}))`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('.modal-backdrop input')`), true, 'the "/" shortcut opens Global Search');
+    await browserTab!.evaluate(`(() => {const close=[...document.querySelectorAll('.modal-backdrop button')].find(b=>b.innerText.trim()==='✕');close&&close.click();})()`);
+    assert.deepEqual(browserTab!.exceptions, []);
   });
 
   it('AT-03/VP-063: blocks external HTTP requests across the Chrome acceptance journeys', async () => {

@@ -349,8 +349,8 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate, on
                     >
                       <option value="Bank transfer">Bank Wire / Transfer</option>
                       <option value="Cheque">Corporate Cheque</option>
-                      <option value="Direct debit">Direct Debit</option>
-                      <option value="Credit card">Card Transaction</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Other">Other (recorded offline)</option>
                     </select>
                   </div>
                   <div>

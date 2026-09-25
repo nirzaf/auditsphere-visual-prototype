@@ -243,20 +243,20 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                             try { prototypeStore.setDocumentClientSharing(doc.id, shared, reason); setNotice(`Client sharing ${shared ? 'enabled' : 'withdrawn'} for ${doc.name}.`); }
                             catch (err) { setNotice(err instanceof Error ? err.message : 'Client sharing could not be updated.'); }
                           }}>{doc.visibility === 'Client shared' ? 'Withdraw sharing' : 'Share with client'}</button>}
-                          <button className="btn sm ghost" onClick={() => {
+                          {['manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost" onClick={() => {
                             const name = window.prompt('Document name', doc.name);
                             if (name === null) return;
                             const path = window.prompt('Existing library folder path', doc.folderPath);
                             if (path === null) return;
                             try { prototypeStore.updateDocumentReference(doc.id, name, path); setNotice(`Document reference ${doc.id} updated; its identity and evidence links remain unchanged.`); }
                             catch (err) { setNotice(err instanceof Error ? err.message : 'Document reference could not be updated.'); }
-                          }}>Rename / Move</button>
-                          <button className="btn sm ghost" onClick={() => {
+                          }}>Rename / Move</button>}
+                          {['manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost" onClick={() => {
                             const reason = doc.brokenLink ? '' : window.prompt('Why is this reference unavailable?') || '';
                             if (!doc.brokenLink && !reason) return;
                             try { prototypeStore.setDocumentAvailability(doc.id, !doc.brokenLink, reason); setNotice(doc.brokenLink ? `Document reference ${doc.id} restored.` : `Document reference ${doc.id} marked unavailable.`); }
                             catch (err) { setNotice(err instanceof Error ? err.message : 'Availability could not be updated.'); }
-                          }}>{doc.brokenLink ? 'Restore reference' : 'Simulate unavailable'}</button>
+                          }}>{doc.brokenLink ? 'Restore reference' : 'Simulate unavailable'}</button>}
                         </div>
                       </td>
                     </tr>

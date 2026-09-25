@@ -785,11 +785,30 @@ export interface CommunicationItem {
   participants: string;
   summary: string;
   body?: string;
+  revision?: number;
+  correctionHistory?: Array<{
+    revision: number;
+    correctedBy: string;
+    correctedByUserId: string;
+    correctedAt: string;
+    reason: string;
+    previous: {
+      channel: CommunicationItem['channel'];
+      participants: string;
+      summary: string;
+      body?: string;
+      date: string;
+      visibility: CommunicationItem['visibility'];
+      jobId?: string;
+      linkedDocumentId?: string;
+    };
+  }>;
   author: string;
   date: string;
   visibility: 'Internal' | 'Client visible';
   status?: 'Simulated accepted' | 'Simulated failed' | 'Outcome unknown' | 'Recorded manually';
   relatedRequestId?: string;
+  linkedDocumentId?: string;
   recipientEmail?: string;
   simulationReference?: string;
   simulationEvidence?: string;
@@ -885,6 +904,7 @@ export interface InvoiceRecord {
   due: string;
   issueDate?: string;
   preparedBy: string;
+  reviewNote?: string;
   lines: InvoiceLineItem[];
   commercialApproval?: {
     by: string;
@@ -1013,6 +1033,9 @@ export interface AdjustmentJournalItem {
   state?: string;
   preparedBy: string;
   reviewedBy?: string;
+  reviewNote?: string;
+  reportingIncludedBy?: string;
+  reportingIncludedAt?: string;
   managementAcceptedBy?: string;
   managementDecisionNote?: string;
   reflectionStatus: 'Not reflected' | 'Reflected in TB' | 'Partially reflected' | 'Unknown';
@@ -1208,6 +1231,7 @@ export interface AuditProcedureItem {
   id: string;
   engagementId?: string;
   linkedRiskIds?: string[];
+  history?: AuditProcedureHistoryEntry[];
   scopeReassessmentRequired?: boolean;
   scopeReassessmentReason?: string;
   scopeReassessmentHistory?: Array<{ reason: string; previousStatus: AuditProcedureItem['status']; reviewedByUserId?: string; reviewedAt?: string; invalidatedAt: string }>;
@@ -1232,8 +1256,33 @@ export interface AuditProcedureItem {
   preparedByUserId?: string;
   reviewedByUserId?: string;
   reviewedAt?: string;
+  returnReason?: string;
+  returnedByUserId?: string;
+  returnedAt?: string;
   evidenceReassessmentRequired?: boolean;
   evidenceReassessmentHistory?: Array<{ documentId: string; version: number; previousStatus: AuditProcedureItem['status']; reviewedByUserId?: string; reviewedAt?: string; invalidatedAt: string }>;
+}
+
+export interface AuditProcedureHistoryEntry {
+  id: string;
+  revision: number;
+  action: 'Fieldwork saved' | 'Submitted' | 'Returned' | 'Cleared' | 'Status changed';
+  actorUserId: string;
+  occurredAt: string;
+  programId: string;
+  sourceTemplateId?: string;
+  sourceTemplateVersion?: number;
+  status: AuditProcedureItem['status'];
+  workPerformed?: string;
+  conclusion?: string;
+  evidenceLimitation?: string;
+  reason?: string;
+  previous?: {
+    status: AuditProcedureItem['status'];
+    workPerformed?: string;
+    conclusion?: string;
+    evidenceLimitation?: string;
+  };
 }
 
 export interface AuditProgramItem {

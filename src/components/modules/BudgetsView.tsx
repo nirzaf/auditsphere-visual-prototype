@@ -160,9 +160,13 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
           <p>Track planned versus actual hours, staff cost rates, and billing realization margins.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={handleOpenAuthorModal}>
-            <Icon name="plus" /> Author New Budget Version
-          </button>
+          {['billing', 'manager', 'partner'].includes(state.currentRole) ? (
+            <button className="btn primary sm" onClick={handleOpenAuthorModal}>
+              <Icon name="plus" /> Author New Budget Version
+            </button>
+          ) : (
+            <span className="caption">Budget versions are authored by billing, manager, or partner roles.</span>
+          )}
         </div>
       </div>
 
@@ -220,9 +224,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
               <div className="borderbox mt16 text-center" style={{ padding: 24 }}>
                 <b>No budget lines configured for this engagement.</b>
                 <p className="sub mt4">Use the authoring button above to establish planned hours and staff rates.</p>
-                <button className="btn primary sm mt12" onClick={handleOpenAuthorModal}>
-                  Create Initial Budget Version
-                </button>
+                {['billing', 'manager', 'partner'].includes(state.currentRole) && (
+                  <button className="btn primary sm mt12" onClick={handleOpenAuthorModal}>
+                    Create Initial Budget Version
+                  </button>
+                )}
               </div>
             ) : (
               <div className="metric-grid mt16">

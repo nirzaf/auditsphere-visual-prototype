@@ -124,6 +124,16 @@ export function eligibleReviewAssignees(state: PrototypeState, engagementId: str
   });
 }
 
+/** Active professional staff who can open the risk register for this engagement. */
+export function eligibleAuditRiskOwners(state: PrototypeState, engagementId: string) {
+  return state.users.filter(user => {
+    const visible = visibleEngagementIds(state, user.id);
+    return user.status === 'Active' && user.group === 'Professional'
+      && canOpenRoute(user.role, 'audit-risks')
+      && (visible === 'ALL' || visible.includes(engagementId));
+  });
+}
+
 export function requireClientScope(state: PrototypeState, clientId: string): void {
   const visible = visibleClientIds(state);
   if (visible !== 'ALL' && !visible.includes(clientId)) {

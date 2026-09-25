@@ -430,9 +430,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
+                {contacts.length === 0 && (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '24px 12px' }}>
+                    <b>No contacts recorded for this client</b>
+                    <p className="sub mt8">Add a contact to record responsibility periods and portal-access requests. Contact changes are versioned with before/after history.</p>
+                  </td></tr>
+                )}
                 {contacts.map(c => (
                   <tr key={c.id} data-search-target={c.id === searchTargetId ? 'true' : undefined} className={c.id === searchTargetId ? 'selected-row' : undefined}>
-                    <td><b>{c.name}</b> {c.isPrimary && <span className="tag blue">Primary</span>}</td>
+                    <td><b>{c.name}</b> {c.isPrimary && <span className="tag blue">Primary</span>}{Boolean(c.history?.length) && <details className="mt4"><summary className="caption">Revision history ({c.history!.length})</summary>{c.history!.map(entry => <div className="cell-sub" key={`${entry.revision}-${entry.changedAt}`}>Rev {entry.revision} · {new Date(entry.changedAt).toLocaleString()} · by {state.users.find(user => user.id === entry.changedByUserId)?.name || entry.changedByUserId}{entry.after.email !== entry.before.email ? ` · email ${entry.before.email} → ${entry.after.email}` : ''}{entry.after.active !== entry.before.active ? ` · ${entry.before.active ? 'active' : 'inactive'} → ${entry.after.active ? 'active' : 'inactive'}` : ''}{entry.after.isPrimary !== entry.before.isPrimary ? ` · primary ${entry.before.isPrimary ? 'yes' : 'no'} → ${entry.after.isPrimary ? 'yes' : 'no'}` : ''}</div>)}</details>}</td>
                     <td>{c.title || 'Finance'}</td>
                     <td>{c.email}</td>
                     <td>{c.phone || '—'}</td>
@@ -476,6 +482,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
+                {engagements.length === 0 && <tr><td colSpan={8} className="sub text-center" style={{ padding: 16 }}>No engagements for this client yet. Accept a proposal or a client-acceptance case to create one.</td></tr>}
                 {engagements.map(e => (
                   <tr key={e.id}>
                     <td><b>{e.id}</b></td>
@@ -524,6 +531,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
+                {jobs.length === 0 && <tr><td colSpan={7} className="sub text-center" style={{ padding: 16 }}>No jobs registered for this client. Jobs appear here once created in Jobs &amp; Tasks for one of this client's engagements.</td></tr>}
                 {jobs.map(j => (
                   <tr key={j.id}>
                     <td><b>{j.title}</b><div className="cell-sub">{j.id}</div></td>
@@ -560,6 +568,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
+                {documents.length === 0 && <tr><td colSpan={7} className="sub text-center" style={{ padding: 16 }}>No documents registered for this client. Documents added through client uploads, the library, or workspace preparation appear here.</td></tr>}
                 {documents.map(d => (
                   <tr key={d.id}>
                     <td><b>{d.name}</b></td>
@@ -587,7 +596,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
           </div>
           {requestNotice && <div role="status" className="panel-pad sub">{requestNotice}</div>}
           <div className="row panel-pad" style={{ gap: 10, flexWrap: 'wrap' }}>
-            <label className="caption">Status <select aria-label="Filter PBC requests by status" className="input" value={requestStatusFilter} onChange={event => setRequestStatusFilter(event.target.value)}><option>All</option>{['Draft', 'Requested', 'Received', 'Under review', 'Needs clarification', 'Accepted', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
+            <label className="caption">Status <select aria-label="Filter PBC requests by status" className="input" value={requestStatusFilter} onChange={event => setRequestStatusFilter(event.target.value)}><option>All</option>{['Draft', 'Requested', 'Received', 'Needs clarification', 'Accepted', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
             <label className="caption">Search requests <input aria-label="Search PBC requests" className="input" value={requestSearch} onChange={event => setRequestSearch(event.target.value)} placeholder="Title, ID, category or contact" /></label>
             <span className="caption">Showing {visiblePbcRequests.length} of {pbcRequests.length}</span>
           </div>
@@ -612,9 +621,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
+                {visiblePbcRequests.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px 12px' }}>
+                    <b>{pbcRequests.length === 0 ? 'No PBC requests for this client yet' : 'No requests match the current filter'}</b>
+                    <p className="sub mt8">{pbcRequests.length === 0 ? 'Use “New PBC Request” to draft an information request. Drafts are presented to the client, answered through the portal, clarified or accepted, and retained with full version history.' : 'Adjust the status filter or search text to see saved requests.'}</p>
+                  </td></tr>
+                )}
                 {visiblePbcRequests.map(p => (
                   <tr key={p.id} data-search-target={p.id === searchTargetId ? 'true' : undefined} className={p.id === searchTargetId ? 'selected-row' : undefined}>
-                    <td><b>{p.title}</b><div className="cell-sub">{p.id}</div>{p.clarificationNote && <div className="cell-sub">Clarification: {p.clarificationNote}</div>}</td>
+                    <td><b>{p.title}</b><div className="cell-sub">{p.id}</div>{p.clarificationNote && <div className="cell-sub">Clarification: {p.clarificationNote}</div>}{Boolean(p.sharedFiles?.length) && <details className="mt4"><summary className="caption">Submitted files ({p.sharedFiles!.length})</summary>{p.sharedFiles!.map((file, index) => <div className="cell-sub" key={`${file.id}-${index}`}>v{file.version} · {file.name} · {new Date(file.uploadedAt).toLocaleDateString()} · by {file.uploadedBy}</div>)}</details>}{Boolean(p.acceptanceHistory?.length) && <details className="mt4"><summary className="caption">Acceptance history ({p.acceptanceHistory!.length})</summary>{p.acceptanceHistory!.map(entry => <div className="cell-sub" key={`${entry.version}-${entry.acceptedAt}`}>v{entry.version} accepted by {entry.acceptedBy} · {new Date(entry.acceptedAt).toLocaleString()}</div>)}</details>}</td>
                     <td>{p.category}</td>
                     <td>{p.due}</td>
                     <td><span className={`badge ${p.status === 'Accepted' ? 'green' : p.status === 'Received' ? 'blue' : 'amber'}`}>{p.status}</span></td>
@@ -655,7 +670,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                   <span className="tag gray">{c.channel} · {c.direction}</span>
                 </div>
                 <p className="sub mt8" style={{ whiteSpace: 'pre-line' }}>{c.body}</p>
-                <div className="cell-sub mt8">{c.author} · {new Date(c.date).toLocaleDateString('en-GB')} · {c.visibility}{c.jobId ? ` · Job: ${state.jobs.find(job => job.id === c.jobId)?.title || c.jobId}` : ''}</div>
+                <div className="cell-sub mt8">{c.author} · {new Date(c.date).toLocaleDateString('en-GB')} · {c.visibility}{c.jobId ? ` · Job: ${state.jobs.find(job => job.id === c.jobId)?.title || c.jobId}` : ''}{c.linkedDocumentId ? ` · Document: ${state.documents.find(document => document.id === c.linkedDocumentId)?.name || 'Reference unavailable'}` : ''}</div>
               </div>
             ))}
           </div>

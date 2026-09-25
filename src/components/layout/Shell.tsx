@@ -1,7 +1,7 @@
 // AuditSphere Layout Shell
 // Sidebar, Topbar, Scenario Switcher, Search Modal, and Notifications
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, RoleKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { canOpenRoute, visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
@@ -24,6 +24,92 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const [searchRecordType, setSearchRecordType] = useState('all');
   const [searchContext, setSearchContext] = useState('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuTrigger = useRef<HTMLButtonElement>(null);
+  const mobileNavigation = useRef<HTMLElement>(null);
+  const searchTrigger = useRef<HTMLButtonElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchOpener = useRef<HTMLElement | null>(null);
+  const openSearch = () => {
+    searchOpener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : searchTrigger.current;
+    setSearchRecordType('all');
+    setSearchContext('all');
+    setShowSearchModal(true);
+  };
+  const closeSearch = () => {
+    setShowSearchModal(false);
+    window.requestAnimationFrame(() => searchOpener.current?.focus());
+  };
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+    if (window.matchMedia?.('(max-width: 760px)').matches) mobileMenuTrigger.current?.focus();
+  };
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const drawer = mobileNavigation.current;
+    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+    window.requestAnimationFrame(() => focusable()[0]?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!window.matchMedia?.('(max-width: 760px)').matches) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMobileMenu();
+      } else if (event.key === 'Tab') {
+        const targets = focusable();
+        if (!targets.length) return;
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !drawer?.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !drawer?.contains(document.activeElement))) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
+  useEffect(() => {
+    if (!showSearchModal) return;
+    window.requestAnimationFrame(() => searchInput.current?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSearch();
+      } else if (event.key === 'Tab') {
+        const modal = document.querySelector<HTMLElement>('.global-search-dialog');
+        const targets = Array.from(modal?.querySelectorAll<HTMLElement>('input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+        if (!targets.length) return;
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !modal?.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !modal?.contains(document.activeElement))) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showSearchModal]);
+  // "/" opens Global Search unless the user is typing in a field or a dialog is open.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+      if (document.querySelector('.modal-backdrop, .modal-overlay, .modal')) return;
+      event.preventDefault();
+      openSearch();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
   // Desktop sidebar collapse is a presenter preference, persisted separately from
   // the validated business state.
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -288,12 +374,12 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       {mobileMenuOpen && (
         <div
           className="mobile-overlay"
-          onClick={() => setMobileMenuOpen(false)}
+          onClick={closeMobileMenu}
         />
       )}
 
       {/* Main Sidebar */}
-      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside ref={mobileNavigation} id="primary-navigation" aria-label="Primary navigation" className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brandmark">
             <Icon name="layers" />
@@ -325,7 +411,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                   aria-label={sidebarCollapsed ? item.label : undefined}
                   onClick={() => {
                     onRouteChange(item.key);
-                    setMobileMenuOpen(false);
+                    closeMobileMenu();
                   }}
                 >
                   <Icon name={item.icon} />
@@ -375,6 +461,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               <Icon name="arrow" />
             </button>
             <button
+              ref={mobileMenuTrigger}
               className="icon-btn mobile-menu"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
@@ -387,8 +474,10 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               Workspace &nbsp;/&nbsp; <b>{currentRoute.toUpperCase().replace('-', ' ')}</b>
             </div>
             <button
+              ref={searchTrigger}
               className="search-trigger"
-              onClick={() => { setSearchRecordType('all'); setSearchContext('all'); setShowSearchModal(true); }}
+              aria-label="Open global search"
+              onClick={openSearch}
             >
               <Icon name="search" />
               <span>Search clients, jobs, workpapers, invoices…</span>
@@ -528,14 +617,16 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
 
       {/* Global Search Modal */}
       {showSearchModal && (
-        <div className="modal-backdrop" onClick={() => setShowSearchModal(false)}>
-          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={closeSearch}>
+          <div className="modal global-search-dialog" role="dialog" aria-modal="true" aria-label="Global search" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <div className="row" style={{ flex: 1, gap: 10 }}>
                 <Icon name="search" />
                 <input
+                  ref={searchInput}
                   type="text"
                   className="input"
+                  aria-label="Search practice records"
                   style={{ flex: 1 }}
                   placeholder="Type to search clients, engagements, jobs, documents..."
                   value={searchQuery}
@@ -543,7 +634,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                   autoFocus
                 />
               </div>
-              <button className="icon-btn" onClick={() => setShowSearchModal(false)}>✕</button>
+              <button className="icon-btn" aria-label="Close global search" onClick={closeSearch}>✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: 380, overflowY: 'auto' }}>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -577,7 +668,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                             if (item.clientId) onSelectClient(item.clientId);
                             if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
                             onRouteChange(item.route, item.objectId);
-                            setShowSearchModal(false);
+                            closeSearch();
                           });
                         }}
                       >

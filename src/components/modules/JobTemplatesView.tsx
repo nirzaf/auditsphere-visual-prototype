@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { RouteKey, JobTemplateItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface JobTemplatesViewProps {
@@ -82,9 +83,11 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
   };
 
   const handleRetireTemplate = (tplId: string) => {
+    const reason = window.prompt('Reason for retiring this template (existing jobs are unaffected):');
+    if (!reason?.trim()) return;
     try {
-      prototypeStore.retireJobTemplate(tplId);
-      triggerNotice('success', 'Template retired. Existing jobs remain unaffected, but new instantiation is blocked.');
+      prototypeStore.retireJobTemplate(tplId, reason);
+      triggerNotice('success', 'Template retired with a recorded reason. Existing jobs remain unaffected, but new instantiation is blocked.');
     } catch (err: any) {
       triggerNotice('error', err.message);
     }
@@ -178,6 +181,12 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                   </tr>
                 </thead>
                 <tbody>
+                  {templates.length === 0 && (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px 12px' }}>
+                      <b>No job templates yet</b>
+                      <p className="sub mt8">Use “Author New Template” to define reusable phases and subtasks. Templates are published before use, instantiated into real jobs, revised as new drafts, and retired with a recorded reason.</p>
+                    </td></tr>
+                  )}
                   {templates.map(tpl => (
                     <tr
                       key={tpl.id}
@@ -319,7 +328,10 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                     value={targetEngId}
                     onChange={e => setTargetEngId(e.target.value)}
                   >
-                    {state.engagements.map(eng => {
+                    {state.engagements.filter(eng => {
+                      const visible = visibleEngagementIds(state);
+                      return visible === 'ALL' || visible.includes(eng.id);
+                    }).map(eng => {
                       const c = state.clients.find(x => x.id === eng.client);
                       return (
                         <option key={eng.id} value={eng.id}>

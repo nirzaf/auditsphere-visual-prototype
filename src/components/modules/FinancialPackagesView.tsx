@@ -11,6 +11,7 @@ import { applyReportingAdjustments, calculateIncomeStatement } from '../../servi
 import { artifactSha256, downloadVerifiedArtifact, persistArtifacts } from '../../services/artifactStore';
 import { FinancialPackageRevision, GeneratedArtifactRecord } from '../../types';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
+import { isReleaseBlockingFinding } from '../../services/findings';
 
 const DEFAULT_SECTIONS = [
   { id: 'rpt', title: 'Independent Auditor Report', desc: 'Standard unmodified opinion under ISA 700 with key audit matters.', enabled: true },
@@ -100,9 +101,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const tbBalanced = Math.abs(tbSum) < 1;
   const workpapersCleared = selectedEng.workpapers.every(w => !w.applicable || w.status === 'Cleared' || w.status === 'Not applicable');
   const reviewNotesCleared = selectedEng.reviews.every(r => r.status === 'Cleared');
-  const findingsImmaterial = state.findings.filter(
-    f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)
-  ).length === 0;
+  const findingsImmaterial = state.findings.filter(f => f.engagementId === selectedEng.id && isReleaseBlockingFinding(f)).length === 0;
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
   const unmappedAccounts = selectedEng.rows.filter(row => !currentMapping?.mappings.some(mapping => mapping.accountCode === row.code));
   const mappingsReady = Boolean(currentMapping?.status === 'Approved' && unmappedAccounts.length === 0);
@@ -215,7 +214,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         noteRevision: revision,
         disclosures: structuredClone(disclosures),
         sections: packageSections.map((s, order) => ({ ...s, order: order + 1 })),
-        validation: { passed: allValid, trialBalanceNet: tbSum, pendingWorkpapers: selectedEng.workpapers.filter(w => w.applicable && w.status !== 'Cleared' && w.status !== 'Not applicable').length, openReviews: selectedEng.reviews.filter(r => r.status !== 'Cleared').length, materialFindings: state.findings.filter(f => f.engagementId === selectedEng.id && f.severity === 'Material' && !['Corrected in TB', 'Corrected by client', 'Waived as immaterial'].includes(f.disposition)).length },
+        validation: { passed: allValid, trialBalanceNet: tbSum, pendingWorkpapers: selectedEng.workpapers.filter(w => w.applicable && w.status !== 'Cleared' && w.status !== 'Not applicable').length, openReviews: selectedEng.reviews.filter(r => r.status !== 'Cleared').length, materialFindings: state.findings.filter(f => f.engagementId === selectedEng.id && isReleaseBlockingFinding(f)).length },
         artifacts,
         createdAt: new Date().toISOString(),
         createdBy: state.currentPerson,
@@ -361,7 +360,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           </div>
 
           <div className="borderbox" style={{ padding: 12 }}>
-            <span className="caption">Material Findings</span>
+            <span className="caption">Significant / Material Findings</span>
             <div className="mt4">
               <span className={`badge ${findingsImmaterial ? 'green' : 'red'}`}>
                 {findingsImmaterial ? 'Immaterial / Cleared' : 'Uncorrected Found'}

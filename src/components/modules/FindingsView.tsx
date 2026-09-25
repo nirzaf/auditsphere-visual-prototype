@@ -15,6 +15,7 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTa
   const findings = state.findings.filter(item => item.engagementId === state.selectedEngagement);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notice, setNotice] = useState('');
+  const canDisposition = ['manager', 'reviewer', 'partner'].includes(state.currentRole);
 
   // New finding form
   const [title, setTitle] = useState('');
@@ -37,6 +38,20 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTa
   const [journalId, setJournalId] = useState('');
   const [reviewNoteId, setReviewNoteId] = useState('');
   const engagement = state.engagements.find(item => item.id === state.selectedEngagement);
+  if (!engagement) {
+    return (
+      <div className="panel panel-pad text-center" style={{ padding: '60px 20px' }}>
+        <Icon name="checkboard" size="xl" className="text-muted mb16" />
+        <h3>No Engagement Selected</h3>
+        <p className="sub max-w-md mx-auto mt8">
+          Findings are recorded per engagement. Select an engagement you are granted access to in order to raise and disposition findings.
+        </p>
+        <button className="btn primary sm mt16" onClick={() => onNavigate('engagements')}>
+          Go to Engagements
+        </button>
+      </div>
+    );
+  }
   const approvedPlan = state.auditPlans?.filter(plan => plan.engagementId === state.selectedEngagement && plan.status === 'Approved').sort((a, b) => b.version - a.version)[0];
   const availableProcedures = state.auditPrograms.filter(program => program.engagementId === state.selectedEngagement || (!program.engagementId && state.selectedEngagement === state.engagements[0]?.id)).flatMap(program => program.procedures);
   const availableEvidence = state.evidenceCatalogue.filter(item => {
@@ -119,6 +134,14 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTa
       </div>
 
       <div className="stack" style={{ gap: 16 }}>
+        {findings.length === 0 && (
+          <div className="panel panel-pad text-center" style={{ padding: '32px 20px' }}>
+            <h3>No findings recorded for this engagement</h3>
+            <p className="sub max-w-md mx-auto mt8">
+              Raise a finding to record misstatements, control deficiencies, or disclosure omissions. Each disposition requires a rationale and feeds the package-validation and release gates.
+            </p>
+          </div>
+        )}
         {findings.map(f => (
           <div key={f.id} data-search-target={f.id === searchTargetId ? 'true' : undefined} className="panel panel-pad" style={f.id === searchTargetId ? { outline: '2px solid #0f766e' } : undefined}>
             <div className="between">
@@ -135,9 +158,13 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTa
                 <span className={`badge ${['Corrected by client', 'Corrected in TB'].includes(f.disposition) ? 'green' : 'amber'}`}>
                   {f.disposition}
                 </span>
-                <select className="input" aria-label={`Disposition for ${f.id}`} value={f.disposition} onChange={e => handleDisposition(f, e.target.value as AuditFindingItem['disposition'])}>
-                  {['Uncorrected', 'Management agreed', 'Proposed for correction', 'Corrected by client', 'Corrected in TB', 'Waived as immaterial', 'Uncorrected waived'].map(value => <option key={value}>{value}</option>)}
-                </select>
+                {canDisposition ? (
+                  <select className="input" aria-label={`Disposition for ${f.id}`} value={f.disposition} onChange={e => handleDisposition(f, e.target.value as AuditFindingItem['disposition'])}>
+                    {['Uncorrected', 'Management agreed', 'Proposed for correction', 'Corrected by client', 'Corrected in TB', 'Waived as immaterial', 'Uncorrected waived'].map(value => <option key={value}>{value}</option>)}
+                  </select>
+                ) : (
+                  <span className="caption">Dispositions are recorded by manager, reviewer, or partner roles</span>
+                )}
               </div>
             </div>
 
