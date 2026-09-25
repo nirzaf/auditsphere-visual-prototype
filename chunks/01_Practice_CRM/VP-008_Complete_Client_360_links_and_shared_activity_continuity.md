@@ -1,18 +1,18 @@
 ---
 id: "VP-008"
 title: "Complete Client 360 links and shared activity continuity"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-008"]
 modules: ["MOD-02", "MOD-17"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:05+00:00"
 ---
 
 # VP-008 — Complete Client 360 links and shared activity continuity
@@ -60,10 +60,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] All 12 existing tabs have honest empty, available and denied states.
-- [ ] Opening a child selects that exact record and retains its correct engagement.
-- [ ] The same activity has the same ID/content in Client 360 and its owning module.
-- [ ] Returning does not switch to a similar-named or previous client.
+- [x] All 12 existing tabs have honest empty, available and denied states.
+- [x] Opening a child selects that exact record and retains its correct engagement.
+- [x] The same activity has the same ID/content in Client 360 and its owning module.
+- [x] Returning does not switch to a similar-named or previous client.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -72,13 +72,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + ClientDetailView inspection |
+| Persona and client/engagement / fixture | Manager persona across two client workspaces; client_finance for entity re-scoping |
+| Exact original criterion and assertion | E2E "VP-008-E01: preserves filtered portfolio and exact engagement context across two client workspaces"; AT-18 entity switch |
+| Command / test / observed result | Child open selects exact record with correct engagement; returning preserves context; honest empty states |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. VP-008-E01 and AT-18 ("No shared documents available for this entity." re-scoping); Client 360 tabs carry counts and empty states |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

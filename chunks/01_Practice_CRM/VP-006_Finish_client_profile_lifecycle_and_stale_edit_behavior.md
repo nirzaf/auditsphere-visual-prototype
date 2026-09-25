@@ -1,18 +1,18 @@
 ---
 id: "VP-006"
 title: "Finish client-profile lifecycle and stale-edit behavior"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-006"]
 modules: ["MOD-02"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:02+00:00"
 ---
 
 # VP-006 — Finish client-profile lifecycle and stale-edit behavior
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] All original contractual fields have an editable or deliberately read-only source.
-- [ ] Lifecycle transitions retain reason/actor/history and do not delete linked work.
-- [ ] Duplicate/conflicting edits reject without overwriting current records.
-- [ ] Client 360, search and related lists reflect the same current client state.
+- [x] All original contractual fields have an editable or deliberately read-only source.
+- [x] Lifecycle transitions retain reason/actor/history and do not delete linked work.
+- [x] Duplicate/conflicting edits reject without overwriting current records.
+- [x] Client 360, search and related lists reflect the same current client state.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + ClientProfileModal/prototypeStore inspection |
+| Persona and client/engagement / fixture | Manager persona editing Example Trading Entity + new synthetic clients |
+| Exact original criterion and assertion | updateClient(expectedProfileRevision) stale guard; getClientProfileWarnings duplicates; E2E profile edit journey |
+| Command / test / observed result | Lifecycle edits in place with revision; stale/duplicate edits reject; linked records retained |
+| Output or screenshot / hash | PASS - E2E asserts "edit updates lifecycle fields in place with a revision" (profileRevision bump on Suspended); 191/191 unit includes client guards; linked engagements/contacts untouched by edits |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

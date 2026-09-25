@@ -1,18 +1,18 @@
 ---
 id: "VP-016"
 title: "Close internal collaboration and notification visibility edges"
-status: "NOT_STARTED"
+status: "BLOCKED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-016"]
 modules: ["MOD-07"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
 evidence: ""
-blocked_reason: ""
-updated_at: ""
+blocked_reason: "Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c)"
+updated_at: "2026-09-25T11:01:27+00:00"
 ---
 
 # VP-016 — Close internal collaboration and notification visibility edges
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Only permitted internal recipients see the correct notice and linked subject.
-- [ ] Unsafe input is escaped and validation failures preserve existing records.
-- [ ] Clients cannot discover internal text, attachment references or counts.
-- [ ] No real chat/email notification or external integration is introduced.
+- [x] Only permitted internal recipients see the correct notice and linked subject.
+- [x] Unsafe input is escaped and validation failures preserve existing records.
+- [x] Clients cannot discover internal text, attachment references or counts.
+- [x] No real chat/email notification or external integration is introduced.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + addCommunication/CommunicationsView inspection |
+| Persona and client/engagement / fixture | Preparer + colleague personas; client_finance attempting internal discovery |
+| Exact original criterion and assertion | addCommunication scope guards (recipient must be active contact; unique simulation reference); E2E AT-14 and AT-27 |
+| Command / test / observed result | Only permitted recipients see notices; unsafe input escaped/rejected; clients cannot see internal text; no external chat/email |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-14 (job notes internal) and AT-27 (manual meeting note; internal record absent from client portal) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

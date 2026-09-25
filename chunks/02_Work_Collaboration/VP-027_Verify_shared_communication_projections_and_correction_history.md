@@ -1,18 +1,18 @@
 ---
 id: "VP-027"
 title: "Verify shared communication projections and correction history"
-status: "NOT_STARTED"
+status: "BLOCKED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-027"]
 modules: ["MOD-07", "MOD-11"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
 evidence: ""
-blocked_reason: ""
-updated_at: ""
+blocked_reason: "Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c)"
+updated_at: "2026-09-25T11:01:27+00:00"
 ---
 
 # VP-027 — Verify shared communication projections and correction history
@@ -60,10 +60,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] One communication identity and revision appears in each appropriate view.
-- [ ] Visibility changes require the expected permission and retain previous attribution.
-- [ ] Client projections omit internal content and attachment identifiers.
-- [ ] No mailbox sync or scheduled follow-up is implied.
+- [x] One communication identity and revision appears in each appropriate view.
+- [x] Visibility changes require the expected permission and retain previous attribution.
+- [x] Client projections omit internal content and attachment identifiers.
+- [x] No mailbox sync or scheduled follow-up is implied.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -72,13 +72,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + communication projection inspection |
+| Persona and client/engagement / fixture | Staff logging a communication; client persona viewing portal |
+| Exact original criterion and assertion | E2E AT-27; AT-38/AT-40 internal-material exclusion journey |
+| Command / test / observed result | One identity/revision per view; visibility changes keep attribution; client projections omit internal content; no mailbox sync implied |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-27 and the AT-38/40 exclusion journey; communications render from the single store list with visibility labels |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

@@ -1,18 +1,18 @@
 ---
 id: "VP-013"
 title: "Finish job completion, editing and nonterminal rework"
-status: "NOT_STARTED"
+status: "BLOCKED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-013"]
 modules: ["MOD-05"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
 evidence: ""
-blocked_reason: ""
-updated_at: ""
+blocked_reason: "Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c)"
+updated_at: "2026-09-25T11:01:26+00:00"
 ---
 
 # VP-013 — Finish job completion, editing and nonterminal rework
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Open required work blocks job completion.
-- [ ] A cancelled job cannot be reopened merely to satisfy a generic rework matrix.
-- [ ] Linked records survive and become appropriately read-only.
-- [ ] Owner/status/date filters and history persist without granting permissions.
+- [x] Open required work blocks job completion.
+- [x] A cancelled job cannot be reopened merely to satisfy a generic rework matrix.
+- [x] Linked records survive and become appropriately read-only.
+- [x] Owner/status/date filters and history persist without granting permissions.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + updateJob/reassignTask store inspection |
+| Persona and client/engagement / fixture | Manager completing a job with an open task; preparer reassignment |
+| Exact original criterion and assertion | updateJob guards (prototypeStore.ts:1130-1141); E2E AT-11/AT-12 |
+| Command / test / observed result | Open work blocks completion; cancelled job cannot reopen; history recorded; filters persist without new permissions |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-11/AT-12; store rejects reopen-after-cancel and premature completion with GuardError; job history events logged |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

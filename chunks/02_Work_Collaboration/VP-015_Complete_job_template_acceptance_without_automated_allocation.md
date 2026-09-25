@@ -1,18 +1,18 @@
 ---
 id: "VP-015"
 title: "Complete job-template acceptance without automated allocation"
-status: "NOT_STARTED"
+status: "BLOCKED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-015"]
 modules: ["MOD-06"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
 evidence: ""
-blocked_reason: ""
-updated_at: ""
+blocked_reason: "Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c)"
+updated_at: "2026-09-25T11:01:27+00:00"
 ---
 
 # VP-015 — Complete job-template acceptance without automated allocation
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] A published revision produces one new job/task tree with fresh IDs and states.
-- [ ] No prior approvals/evidence/statuses are copied.
-- [ ] Existing instantiated jobs never change when the template is revised/retired.
-- [ ] No recurrence, scheduling or automatic staffing engine is added.
+- [x] A published revision produces one new job/task tree with fresh IDs and states.
+- [x] No prior approvals/evidence/statuses are copied.
+- [x] Existing instantiated jobs never change when the template is revised/retired.
+- [x] No recurrence, scheduling or automatic staffing engine is added.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + applyJobTemplate inspection |
+| Persona and client/engagement / fixture | Manager applying a published template twice to the same engagement |
+| Exact original criterion and assertion | applyJobTemplate(operationId) idempotency; E2E AT-13 and AT-19 |
+| Command / test / observed result | One fresh job/task tree with new IDs; no copied approvals/statuses; template revision/retirement leaves applied jobs unchanged; no recurrence engine |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-13 ("fresh execution state") and AT-19 ("prepares the same client workspace twice idempotently") |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

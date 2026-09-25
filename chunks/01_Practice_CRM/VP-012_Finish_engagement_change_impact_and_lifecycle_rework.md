@@ -1,18 +1,18 @@
 ---
 id: "VP-012"
 title: "Finish engagement-change impact and lifecycle rework"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-012"]
 modules: ["MOD-04"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:10+00:00"
 ---
 
 # VP-012 — Finish engagement-change impact and lifecycle rework
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Inactive professional work is blocked while specifically permitted billing/archive remains accessible.
-- [ ] Changed source/scope cannot retain a misleading current approval.
-- [ ] Cancelled/closed engagements remain terminal and history is visible after reload.
-- [ ] No future jobs, grants, approvals or invoices are auto-created.
+- [x] Inactive professional work is blocked while specifically permitted billing/archive remains accessible.
+- [x] Changed source/scope cannot retain a misleading current approval.
+- [x] Cancelled/closed engagements remain terminal and history is visible after reload.
+- [x] No future jobs, grants, approvals or invoices are auto-created.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + engagement lifecycle store inspection |
+| Persona and client/engagement / fixture | Partner/manager suspending and resuming ENG-26001; cancelled engagement fixture |
+| Exact original criterion and assertion | E2E "VP-012: suspends and resumes an engagement with reasoned persisted history"; committed cancelled-engagement reload journeys |
+| Command / test / observed result | Inactive work blocked; terminal stays terminal; history visible after reload; no auto-creation |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. VP-012 journey; cancelled engagements remain terminal across reload (recorded journey) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

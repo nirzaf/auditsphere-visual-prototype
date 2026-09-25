@@ -9,10 +9,10 @@
 
 | Execution status | Tasks |
 |---|---:|
-| NOT_STARTED | 44 |
+| NOT_STARTED | 32 |
 | IN_PROGRESS | 0 |
-| IN_REVIEW | 2 |
-| BLOCKED | 6 |
+| IN_REVIEW | 10 |
+| BLOCKED | 10 |
 | REOPENED | 0 |
 | COMPLETED | 0 |
 | **Total** | **52** |
@@ -53,22 +53,22 @@ The source reports 16 stories and 10 modules Verified. See [the preserve-baselin
 
 | Task | Kind / priority | Status | Coordination readiness | Owner |
 |---|---|---|---|---|
-| [VP-005 — Close dashboard persona and count-to-record demonstrations](chunks/01_Practice_CRM/VP-005_Close_dashboard_persona_and_count_to_record_demonstrations.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-006 — Finish client-profile lifecycle and stale-edit behavior](chunks/01_Practice_CRM/VP-006_Finish_client_profile_lifecycle_and_stale_edit_behavior.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-007 — Verify contact responsibilities, custom fields and relationship boundaries](chunks/01_Practice_CRM/VP-007_Verify_contact_responsibilities_custom_fields_and_relationship_boundaries.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-008 — Complete Client 360 links and shared activity continuity](chunks/01_Practice_CRM/VP-008_Complete_Client_360_links_and_shared_activity_continuity.md) | IMPLEMENT_OR_VERIFY / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-010 — Close reusable service content and proposal drafting gaps](chunks/01_Practice_CRM/VP-010_Close_reusable_service_content_and_proposal_drafting_gaps.md) | IMPLEMENT_OR_VERIFY / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-011 — Verify exact proposal responses and manual acceptance history](chunks/01_Practice_CRM/VP-011_Verify_exact_proposal_responses_and_manual_acceptance_history.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-012 — Finish engagement-change impact and lifecycle rework](chunks/01_Practice_CRM/VP-012_Finish_engagement_change_impact_and_lifecycle_rework.md) | VERIFY_FIRST / P1 | NOT_STARTED | READY | Unassigned |
+| [VP-005 — Close dashboard persona and count-to-record demonstrations](chunks/01_Practice_CRM/VP-005_Close_dashboard_persona_and_count_to_record_demonstrations.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-006 — Finish client-profile lifecycle and stale-edit behavior](chunks/01_Practice_CRM/VP-006_Finish_client_profile_lifecycle_and_stale_edit_behavior.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-007 — Verify contact responsibilities, custom fields and relationship boundaries](chunks/01_Practice_CRM/VP-007_Verify_contact_responsibilities_custom_fields_and_relationship_boundaries.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-008 — Complete Client 360 links and shared activity continuity](chunks/01_Practice_CRM/VP-008_Complete_Client_360_links_and_shared_activity_continuity.md) | IMPLEMENT_OR_VERIFY / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-010 — Close reusable service content and proposal drafting gaps](chunks/01_Practice_CRM/VP-010_Close_reusable_service_content_and_proposal_drafting_gaps.md) | IMPLEMENT_OR_VERIFY / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-011 — Verify exact proposal responses and manual acceptance history](chunks/01_Practice_CRM/VP-011_Verify_exact_proposal_responses_and_manual_acceptance_history.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-012 — Finish engagement-change impact and lifecycle rework](chunks/01_Practice_CRM/VP-012_Finish_engagement_change_impact_and_lifecycle_rework.md) | VERIFY_FIRST / P1 | IN_REVIEW | READY | M.F.M Fazrin |
 
 ## 02_Work_Collaboration — Jobs, templates and internal collaboration
 
 | Task | Kind / priority | Status | Coordination readiness | Owner |
 |---|---|---|---|---|
-| [VP-013 — Finish job completion, editing and nonterminal rework](chunks/02_Work_Collaboration/VP-013_Finish_job_completion_editing_and_nonterminal_rework.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-015 — Complete job-template acceptance without automated allocation](chunks/02_Work_Collaboration/VP-015_Complete_job_template_acceptance_without_automated_allocation.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-016 — Close internal collaboration and notification visibility edges](chunks/02_Work_Collaboration/VP-016_Close_internal_collaboration_and_notification_visibility_edges.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-027 — Verify shared communication projections and correction history](chunks/02_Work_Collaboration/VP-027_Verify_shared_communication_projections_and_correction_history.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
+| [VP-013 — Finish job completion, editing and nonterminal rework](chunks/02_Work_Collaboration/VP-013_Finish_job_completion_editing_and_nonterminal_rework.md) | VERIFY_FIRST / P2 | BLOCKED | READY | M.F.M Fazrin |
+| [VP-015 — Complete job-template acceptance without automated allocation](chunks/02_Work_Collaboration/VP-015_Complete_job_template_acceptance_without_automated_allocation.md) | VERIFY_FIRST / P2 | BLOCKED | READY | M.F.M Fazrin |
+| [VP-016 — Close internal collaboration and notification visibility edges](chunks/02_Work_Collaboration/VP-016_Close_internal_collaboration_and_notification_visibility_edges.md) | VERIFY_FIRST / P2 | BLOCKED | READY | M.F.M Fazrin |
+| [VP-027 — Verify shared communication projections and correction history](chunks/02_Work_Collaboration/VP-027_Verify_shared_communication_projections_and_correction_history.md) | VERIFY_FIRST / P2 | BLOCKED | READY | M.F.M Fazrin |
 
 ## 03_M365_Documents_Portal — Microsoft simulation, access, documents and client portal
 
@@ -88,7 +88,7 @@ The source reports 16 stories and 10 modules Verified. See [the preserve-baselin
 
 | Task | Kind / priority | Status | Coordination readiness | Owner |
 |---|---|---|---|---|
-| [VP-028 — Close approved-time correction and billing-impact paths](chunks/04_Practice_Finance/VP-028_Close_approved_time_correction_and_billing_impact_paths.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
+| [VP-028 — Close approved-time correction and billing-impact paths](chunks/04_Practice_Finance/VP-028_Close_approved_time_correction_and_billing_impact_paths.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-029 — Finish budget arithmetic and historical variance guidance](chunks/04_Practice_Finance/VP-029_Finish_budget_arithmetic_and_historical_variance_guidance.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
 | [VP-030 — Close invoice-source, ad-hoc line and reservation behavior](chunks/04_Practice_Finance/VP-030_Close_invoice_source_ad_hoc_line_and_reservation_behavior.md) | IMPLEMENT_OR_VERIFY / P1 | NOT_STARTED | READY | Unassigned |
 | [VP-031 — Finish invoice review, credit and genuine-download journeys](chunks/04_Practice_Finance/VP-031_Finish_invoice_review_credit_and_genuine_download_journeys.md) | VERIFY_FIRST / P1 | NOT_STARTED | READY | Unassigned |

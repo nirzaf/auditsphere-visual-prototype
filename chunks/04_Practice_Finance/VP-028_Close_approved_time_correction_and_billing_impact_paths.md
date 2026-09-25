@@ -1,18 +1,18 @@
 ---
 id: "VP-028"
 title: "Close approved-time correction and billing-impact paths"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-028"]
 modules: ["MOD-12"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; E2E AT-28 and AT-51 passing at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:29+00:00"
 ---
 
 # VP-028 — Close approved-time correction and billing-impact paths
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Self-review and invalid minutes/date/scope reject without partial changes.
-- [ ] Correction preserves approved source/rate history.
-- [ ] Already-consumed time cannot be invoiced again by correction.
-- [ ] Each affected view clearly distinguishes approved, submitted and superseded time.
+- [x] Self-review and invalid minutes/date/scope reject without partial changes.
+- [x] Correction preserves approved source/rate history.
+- [x] Already-consumed time cannot be invoiced again by correction.
+- [x] Each affected view clearly distinguishes approved, submitted and superseded time.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + correctApprovedTime inspection |
+| Persona and client/engagement / fixture | Preparer submits time; reviewer approves/returns; correction after approval |
+| Exact original criterion and assertion | correctApprovedTime/resubmitReturnedTime (prototypeStore.ts:1707,3425); E2E AT-28; AT-51 |
+| Command / test / observed result | Self-review/invalid minutes reject atomically; approved history retained; consumed time not re-invoiced; views distinguish approved/submitted/superseded |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-28 ("records, returns, resubmits and corrects approved time as retained revisions") and AT-51 (rate version without rewriting issued invoices) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

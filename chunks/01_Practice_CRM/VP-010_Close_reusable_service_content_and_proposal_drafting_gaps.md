@@ -1,18 +1,18 @@
 ---
 id: "VP-010"
 title: "Close reusable service content and proposal drafting gaps"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-010"]
 modules: ["MOD-04"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:06+00:00"
 ---
 
 # VP-010 — Close reusable service content and proposal drafting gaps
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Proposal scope, line quantities/rates/currencies and totals reconcile.
-- [ ] Previously presented versions remain unchanged after a new draft.
-- [ ] Unsupported services cannot enter client-facing proposal choices.
-- [ ] A branded preview describes a synthetic proposal, not an electronic signature or delivered contract.
+- [x] Proposal scope, line quantities/rates/currencies and totals reconcile.
+- [x] Previously presented versions remain unchanged after a new draft.
+- [x] Unsupported services cannot enter client-facing proposal choices.
+- [x] A branded preview describes a synthetic proposal, not an electronic signature or delivered contract.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + ProposalsView/saveProposalService|Template inspection |
+| Persona and client/engagement / fixture | Relationship persona authoring proposals; independent reviewer returning one |
+| Exact original criterion and assertion | E2E "VP-010-E01: authors reusable service/template defaults and prints a complete branded proposal preview"; "AT-58/VP-010-E02: returns, revises and redisplays a proposal without rewriting the earlier presented snapshot" |
+| Command / test / observed result | Totals reconcile; earlier presented snapshot unchanged; branded preview describes a synthetic proposal only |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. both VP-010 journeys; services/templates revision-guarded in store; preview labelled as prototype output |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

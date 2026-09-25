@@ -1,18 +1,18 @@
 ---
 id: "VP-007"
 title: "Verify contact responsibilities, custom fields and relationship boundaries"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-007"]
 modules: ["MOD-02"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:04+00:00"
 ---
 
 # VP-007 — Verify contact responsibilities, custom fields and relationship boundaries
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] One permitted active primary contact is preserved where required.
-- [ ] Invalid date ranges/custom values reject atomically.
-- [ ] Disabling a field/contact preserves prior values and references.
-- [ ] Group and contact changes do not widen any role grant.
+- [x] One permitted active primary contact is preserved where required.
+- [x] Invalid date ranges/custom values reject atomically.
+- [x] Disabling a field/contact preserves prior values and references.
+- [x] Group and contact changes do not widen any role grant.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + updateClientContact store inspection |
+| Persona and client/engagement / fixture | Client administrator persona, primary contact + relationship groups |
+| Exact original criterion and assertion | updateClientContact atomic guard errors; E2E AT-05/AT-06 |
+| Command / test / observed result | One active primary contact; invalid ranges reject atomically; disabled contacts keep references; no grant widening |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-05/06 (primary contact, non-authorizing relationship group); contact effectiveFrom/effectiveTo/active handled in one store call |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

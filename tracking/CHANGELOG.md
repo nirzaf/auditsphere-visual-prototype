@@ -17,3 +17,23 @@ Status changes made with the helper append below. This history is not the source
 | 2026-09-24T22:39:06+00:00 | DEMO-001: NOT_STARTED → BLOCKED | M.F.M Fazrin | Implementation and rehearsal evidence are complete (see card + verification record 2026-09-25); transition gated by upstream VP-003 awaiting the VP-001/VP-002 reviewer sign-off chain |
 | 2026-09-24T22:39:07+00:00 | DEMO-003: NOT_STARTED → BLOCKED | M.F.M Fazrin | Implementation and rehearsal evidence are complete (see card + verification record 2026-09-25); transition gated by upstream VP-003 awaiting the VP-001/VP-002 reviewer sign-off chain |
 | 2026-09-24T22:39:07+00:00 | DEMO-002: NOT_STARTED → BLOCKED | M.F.M Fazrin | Implementation and rehearsal evidence are complete (see card); transition gated by upstream DEMO-001/VP-004 which await the VP-001/VP-002 reviewer sign-off chain |
+| 2026-09-25T11:01:00+00:00 | VP-005: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:01+00:00 | VP-005: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:01+00:00 | VP-006: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:02+00:00 | VP-006: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:03+00:00 | VP-007: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:04+00:00 | VP-007: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:04+00:00 | VP-008: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:05+00:00 | VP-008: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:06+00:00 | VP-010: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:06+00:00 | VP-010: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:07+00:00 | VP-011: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:08+00:00 | VP-011: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:09+00:00 | VP-012: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:10+00:00 | VP-012: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending |
+| 2026-09-25T11:01:26+00:00 | VP-013: NOT_STARTED → BLOCKED | M.F.M Fazrin | Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c) |
+| 2026-09-25T11:01:27+00:00 | VP-015: NOT_STARTED → BLOCKED | M.F.M Fazrin | Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c) |
+| 2026-09-25T11:01:27+00:00 | VP-016: NOT_STARTED → BLOCKED | M.F.M Fazrin | Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c) |
+| 2026-09-25T11:01:27+00:00 | VP-027: NOT_STARTED → BLOCKED | M.F.M Fazrin | Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c) |
+| 2026-09-25T11:01:28+00:00 | VP-028: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T11:01:29+00:00 | VP-028: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; E2E AT-28 and AT-51 passing at 258733c; reviewer sign-off pending |

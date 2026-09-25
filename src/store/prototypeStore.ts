@@ -1444,6 +1444,14 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     const comment = this.state.comments.find(item => item.id === id);
     if (!comment) throw new GuardError('INVALID_STATE', 'Comment was not found.');
+    if (comment.subjectType === 'client') requireClientScope(this.state, comment.subjectId);
+    else if (comment.subjectType === 'engagement') requireEngagementScope(this.state, comment.subjectId);
+    else {
+      const task = comment.subjectType === 'task' ? this.state.jobTasks.find(item => item.id === comment.subjectId) : undefined;
+      const job = comment.subjectType === 'job' ? this.state.jobs.find(item => item.id === comment.subjectId) : task ? this.state.jobs.find(item => item.id === task.jobId) : undefined;
+      if (!job) throw new GuardError('INVALID_STATE', 'Comment subject was not found.');
+      requireEngagementScope(this.state, job.engagementId);
+    }
     if (comment.author !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the comment author can edit this note.');
     if (!text.trim() || text.length > 5000) throw new GuardError('INVALID_STATE', 'Comment text is required and must be 5,000 characters or fewer.');
     comment.text = text.trim();

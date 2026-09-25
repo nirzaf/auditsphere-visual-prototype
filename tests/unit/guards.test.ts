@@ -1212,7 +1212,7 @@ describe('internal collaboration scope (AT-14)', () => {
     target.state = createInitialState();
     setPersona(target.state, 'Layla Rahman');
     const base = { id: 'CMT-AT14', subjectType: 'job', subjectId: 'JOB-2601', author: 'Layla Rahman', authorRole: 'manager', createdAt: '2026-09-23T10:00:00Z', text: 'Internal coordination note.', visibility: 'internal' };
-    assert.throws(() => target.addComment({ ...base, id: 'CMT-CLIENT-MENTION', mentions: ['client_admin'] }), /active users who can access this job/);
+    assert.throws(() => target.addComment({ ...base, id: 'CMT-CLIENT-MENTION', mentions: ['client_admin'] }), /active staff who can access this comment subject/);
     target.addComment({ ...base, mentions: ['partner'] });
     assert.equal(target.state.comments.find((item: any) => item.id === base.id).mentions[0], 'partner');
     assert.equal(target.state.events.some((event: any) => event.ref === base.id && event.text.includes('Local mention')), true);
@@ -1236,6 +1236,22 @@ describe('internal collaboration scope (AT-14)', () => {
     setPersona(target.state, 'Daniel James');
     target.markLocalNoticeRead(notice.id);
     assert.ok(notice.readAt);
+  });
+
+  it('supports client and engagement subject notes with matching mention scope', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const engagement = target.state.engagements.find((item: any) => item.id === 'ENG-26001');
+    const shared = { author: 'Layla Rahman', authorRole: 'manager', createdAt: '2026-09-25T10:00:00Z', text: 'Scoped subject note.', visibility: 'internal', mentions: ['partner'] };
+    target.addComment({ ...shared, id: 'CMT-CLIENT-SCOPE', subjectType: 'client', subjectId: engagement.client });
+    target.addComment({ ...shared, id: 'CMT-ENGAGEMENT-SCOPE', subjectType: 'engagement', subjectId: engagement.id });
+    assert.equal(target.state.localNotices.filter((item: any) => ['CMT-CLIENT-SCOPE', 'CMT-ENGAGEMENT-SCOPE'].includes(item.commentId)).length, 2);
+    assert.throws(() => target.addComment({ ...shared, id: 'CMT-CLIENT-OUTSIDE', subjectType: 'client', subjectId: engagement.client, mentions: ['client_admin'] }), /active staff who can access this comment subject/);
+    const reviewedRecord = JSON.stringify({ reviews: engagement.reviews, approvals: engagement.approvals, workpapers: engagement.workpapers.map((item: any) => item.clearanceHistory) });
+    target.editComment('CMT-CLIENT-SCOPE', 'Revised client-scoped note.');
+    assert.equal(JSON.stringify({ reviews: engagement.reviews, approvals: engagement.approvals, workpapers: engagement.workpapers.map((item: any) => item.clearanceHistory) }), reviewedRecord, 'note edits cannot rewrite separate approval or review records');
   });
 });
 

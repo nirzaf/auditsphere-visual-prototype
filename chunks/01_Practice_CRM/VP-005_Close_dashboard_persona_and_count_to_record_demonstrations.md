@@ -1,18 +1,18 @@
 ---
 id: "VP-005"
 title: "Close dashboard persona and count-to-record demonstrations"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-005"]
 modules: ["MOD-01"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table + E2E journeys in tests/e2e/app.test.ts (83/83 pass at 258733c); reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:01:01+00:00"
 ---
 
 # VP-005 — Close dashboard persona and count-to-record demonstrations
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Displayed counts equal filtered records at fixed as-of boundaries.
-- [ ] Ready does not include zero-work or missing-required-review engagements.
-- [ ] Nonfinancial roles cannot infer restricted financial amounts through cards or drill-down.
-- [ ] Returning from a detail preserves the intended filter/context or explains a reset.
+- [x] Displayed counts equal filtered records at fixed as-of boundaries.
+- [x] Ready does not include zero-work or missing-required-review engagements.
+- [x] Nonfinancial roles cannot infer restricted financial amounts through cards or drill-down.
+- [x] Returning from a detail preserves the intended filter/context or explains a reset.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c (in-flight parallel work, verified) |
+| Browser / viewport / build | Headless Chrome E2E + DashboardView scoping inspection |
+| Persona and client/engagement / fixture | Narrow group-user grant + manager variants, fixed as-of 2026-09-23 |
+| Exact original criterion and assertion | E2E journey "VP-005: scopes dashboard records, metrics, attention and activity to the active grant" |
+| Command / test / observed result | Counts equal scoped records; Ready excludes zero-work; restricted amounts not inferred |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. VP-005 journey (narrow persona sees only the granted engagement, injected sibling-client records invisible); DashboardView metrics derive from the same scoped lists |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 
