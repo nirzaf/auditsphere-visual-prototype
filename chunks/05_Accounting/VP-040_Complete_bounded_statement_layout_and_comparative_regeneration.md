@@ -1,18 +1,18 @@
 ---
 id: "VP-040"
 title: "Complete bounded statement layout and comparative regeneration"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-040"]
 modules: ["MOD-24"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:06+00:00"
 ---
 
 # VP-040 — Complete bounded statement layout and comparative regeneration
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Each statement line/subtotal has exact source-account and mapping lineage.
-- [ ] Missing or unreviewed comparatives never become zero or a misleading valid comparison.
-- [ ] A changed input/layout stales saved review and requires a new revision.
-- [ ] UI and genuine output agree for the supported fixture; no generic accounting rule engine is added.
+- [x] Each statement line/subtotal has exact source-account and mapping lineage.
+- [x] Missing or unreviewed comparatives never become zero or a misleading valid comparison.
+- [x] A changed input/layout stales saved review and requires a new revision.
+- [x] UI and genuine output agree for the supported fixture; no generic accounting rule engine is added.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + FinancialStatementsView inspection |
+| Persona and client/engagement / fixture | Preparer generates statements; reviewer approves mapping; comparative fixture |
+| Exact original criterion and assertion | E2E "AT-37: independently approves account mappings and traces statement rows to their source accounts"; statement generation from mapped TB with declared basis |
+| Command / test / observed result | Line/subtotal lineage to source accounts and mappings; missing comparatives never become zero; changed inputs stale saved review and require a new revision; no generic rule engine |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-37; statement rows render with source-account lineage and stale-review handling on changed inputs |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

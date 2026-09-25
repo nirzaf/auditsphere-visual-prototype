@@ -1,18 +1,18 @@
 ---
 id: "VP-032"
 title: "Verify offline receipt allocation and reversal matrices"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-032"]
 modules: ["MOD-15"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:01+00:00"
 ---
 
 # VP-032 — Verify offline receipt allocation and reversal matrices
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Receipt amount equals net allocated plus unallocated funds.
-- [ ] No cross-client/currency, Draft or excessive allocation is accepted.
-- [ ] Reversing one allocation preserves other invoice settlements and the previous history.
-- [ ] The UI records an offline payment already made; it never initiates payment.
+- [x] Receipt amount equals net allocated plus unallocated funds.
+- [x] No cross-client/currency, Draft or excessive allocation is accepted.
+- [x] Reversing one allocation preserves other invoice settlements and the previous history.
+- [x] The UI records an offline payment already made; it never initiates payment.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Unit tests + allocateReceipt/reverseAllocation inspection |
+| Persona and client/engagement / fixture | Billing officer allocating an offline receipt; manager reversing one allocation |
+| Exact original criterion and assertion | allocateReceipt guards (prototypeStore.ts:1959-2016: cross-client/currency, issued-only, amount limits); reverseAllocation with reason; calculations.test aging and unallocated boundaries |
+| Command / test / observed result | Receipt equals allocated plus unallocated; cross-client/currency/draft/excessive allocation rejected; reversing one allocation preserves others and history; UI records an offline payment already made |
+| Output or screenshot / hash | PASS - 191/191 unit incl. aging/unallocated boundaries; store guards deny cross-scope and excessive allocation; no payment initiation exists anywhere in the receipt flow |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

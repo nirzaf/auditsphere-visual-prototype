@@ -8,8 +8,8 @@ These are small remaining-work slices, not permission to rebuild this entire dom
 
 | Task | Kind / priority | Status | Coordination readiness | Owner |
 |---|---|---|---|---|
-| [VP-061 — Finish scoped search targets and return-to-context cases](../../chunks/08_Cross_Module_Closeout/VP-061_Finish_scoped_search_targets_and_return_to_context_cases.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
-| [VP-062 — Verify prospective firm settings and editor ownership](../../chunks/08_Cross_Module_Closeout/VP-062_Verify_prospective_firm_settings_and_editor_ownership.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
+| [VP-061 — Finish scoped search targets and return-to-context cases](../../chunks/08_Cross_Module_Closeout/VP-061_Finish_scoped_search_targets_and_return_to_context_cases.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
+| [VP-062 — Verify prospective firm settings and editor ownership](../../chunks/08_Cross_Module_Closeout/VP-062_Verify_prospective_firm_settings_and_editor_ownership.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-063 — Close original acceptance evidence against the active Vite app](../../chunks/08_Cross_Module_Closeout/VP-063_Close_original_acceptance_evidence_against_the_active_Vite_app.md) | VERIFY_FIRST / P1 | NOT_STARTED | READY | Unassigned |
 | [VP-064 — Reconcile status, source notes and final demonstration handoff](../../chunks/08_Cross_Module_Closeout/VP-064_Reconcile_status_source_notes_and_final_demonstration_handoff.md) | RECONCILE / P1 | NOT_STARTED | WAITING: VP-063, DEMO-004 | Unassigned |
 

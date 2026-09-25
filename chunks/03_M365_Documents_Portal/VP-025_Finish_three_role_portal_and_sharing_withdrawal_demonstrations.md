@@ -1,18 +1,18 @@
 ---
 id: "VP-025"
 title: "Finish three-role portal and sharing-withdrawal demonstrations"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-025"]
 modules: ["MOD-08"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:19:58+00:00"
 ---
 
 # VP-025 — Finish three-role portal and sharing-withdrawal demonstrations
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] All client-visible records are explicitly shared and correctly scoped.
-- [ ] Draft invoices/internal notes/costs/workpapers remain hidden from lists, counts and exports.
-- [ ] Withdrawal immediately affects current projection without rewriting historical issued evidence.
-- [ ] Three client roles cannot impersonate each other’s business actions.
+- [x] All client-visible records are explicitly shared and correctly scoped.
+- [x] Draft invoices/internal notes/costs/workpapers remain hidden from lists, counts and exports.
+- [x] Withdrawal immediately affects current projection without rewriting historical issued evidence.
+- [x] Three client roles cannot impersonate each other’s business actions.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + setDocumentClientSharing inspection |
+| Persona and client/engagement / fixture | Three client roles; sharing withdrawal scenario |
+| Exact original criterion and assertion | setDocumentClientSharing(documentId, shared, reason) (prototypeStore.ts:1511); E2E AT-18 (portal re-scoping per entity), AT-38/40 (internal material excluded from portal and export bytes) |
+| Command / test / observed result | All client-visible records explicitly shared and scoped; drafts/internal notes/workpapers hidden from lists and exports; withdrawal affects current projection without rewriting issued history; client roles cannot impersonate each other |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-18 and AT-38/40; client projections read only Client-shared visibility; role guards separate client personas (upload restricted to named contributor; acknowledgement has no signature) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

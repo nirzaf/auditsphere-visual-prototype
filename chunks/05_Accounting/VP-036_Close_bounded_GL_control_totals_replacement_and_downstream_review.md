@@ -1,18 +1,18 @@
 ---
 id: "VP-036"
 title: "Close bounded GL control totals, replacement and downstream review"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-036"]
 modules: ["MOD-21"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:04+00:00"
 ---
 
 # VP-036 — Close bounded GL control totals, replacement and downstream review
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Per account, explicit opening + accepted movement equals the closing TB or an explained incomplete residual.
-- [ ] Incomplete batches cannot be committed by either UI or store.
-- [ ] The accepted column map/source hash/context survive reload and replacement.
-- [ ] Stale downstream review is visible; historical client source rows are never changed.
+- [x] Per account, explicit opening + accepted movement equals the closing TB or an explained incomplete residual.
+- [x] Incomplete batches cannot be committed by either UI or store.
+- [x] The accepted column map/source hash/context survive reload and replacement.
+- [x] Stale downstream review is visible; historical client source rows are never changed.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + GL intake inspection |
+| Persona and client/engagement / fixture | Preparer importing GL batches; accepted column map survives reload |
+| Exact original criterion and assertion | E2E "AT-36: imports a period-bound GL source, reconciles opening plus movement to TB, and retains replacement history"; "AT-35: rejects an unbalanced TB import then preserves the accepted source revision"; gl-import unit tests |
+| Command / test / observed result | Opening + accepted movement equals closing TB or explained residual; incomplete batches cannot be committed; column map/source hash/context survive reload and replacement; historical client rows unchanged |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-35 and AT-36; store check denies partial-batch commit (recorded evidence in tracker VP-036 rows) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

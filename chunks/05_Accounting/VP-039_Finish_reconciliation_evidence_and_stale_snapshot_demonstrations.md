@@ -1,18 +1,18 @@
 ---
 id: "VP-039"
 title: "Finish reconciliation evidence and stale-snapshot demonstrations"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-039"]
 modules: ["MOD-23"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:06+00:00"
 ---
 
 # VP-039 — Finish reconciliation evidence and stale-snapshot demonstrations
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Unexplained residuals cannot be approved.
-- [ ] Proposed corrections need exact permitted links; timing items are not journals.
-- [ ] A different eligible person reviews; return rationale persists.
-- [ ] No live bank statement/provider provenance is added as a prototype blocker.
+- [x] Unexplained residuals cannot be approved.
+- [x] Proposed corrections need exact permitted links; timing items are not journals.
+- [x] A different eligible person reviews; return rationale persists.
+- [x] No live bank statement/provider provenance is added as a prototype blocker.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + reconciliation store inspection |
+| Persona and client/engagement / fixture | Preparer drafts a reconciliation schedule; reviewer returns it |
+| Exact original criterion and assertion | E2E "AT-39: renders reconciliation timing and variance totals"; recDraft form validation (required items/dates/amounts) and saveReconciliationSchedule draft revisions |
+| Command / test / observed result | Unexplained residuals cannot be approved; corrections need permitted links; timing items are not journals; independent review with persisted rationale; no live bank provider |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-39; reconciliation variance calculation surfaces unexplained residuals for human decision (calculateReconciliationVariance) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

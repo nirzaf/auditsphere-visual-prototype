@@ -1,18 +1,18 @@
 ---
 id: "VP-024"
 title: "Complete accepted-PBC evidence reassessment across recipients"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-024"]
 modules: ["MOD-09"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:19:58+00:00"
 ---
 
 # VP-024 — Complete accepted-PBC evidence reassessment across recipients
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Accepted response replacement never silently changes an old evidence/workpaper pin.
-- [ ] Only the supported current recipient contributes and a distinct eligible person reviews.
-- [ ] Existing file-size/type/quota regressions remain passing; do not recreate them as wholly missing.
-- [ ] UI/reload/download statements match the actual PBC storage class.
+- [x] Accepted response replacement never silently changes an old evidence/workpaper pin.
+- [x] Only the supported current recipient contributes and a distinct eligible person reviews.
+- [x] Existing file-size/type/quota regressions remain passing; do not recreate them as wholly missing.
+- [x] UI/reload/download statements match the actual PBC storage class.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + uploadPbcResponse/acceptPbcResponse inspection |
+| Persona and client/engagement / fixture | Client_finance uploads and replaces; independent reviewer accepts |
+| Exact original criterion and assertion | uploadPbcResponse appends new shared-file version without mutating prior entries (prototypeStore.ts:3284-3353); acceptPbcResponse pins acceptedVersion + acceptanceHistory; E2E AT-23/24 |
+| Command / test / observed result | Replacement never silently changes old evidence/workpaper pins; only the named contributor contributes; a distinct eligible person reviews; size/type/quota guards keep passing |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-23/24 (replacement after clarification then independent acceptance); requireIndependentActor blocks self-acceptance; validatePbcUpload size/type checks unchanged |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

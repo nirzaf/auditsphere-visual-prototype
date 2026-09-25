@@ -1,18 +1,18 @@
 ---
 id: "VP-042"
 title: "Close package sharing and remaining generator-edge acceptance"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-042"]
 modules: ["MOD-25"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:08+00:00"
 ---
 
 # VP-042 — Close package sharing and remaining generator-edge acceptance
@@ -56,10 +56,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Failed generation/digest/storage never leaves a successful package revision or partial artifact set.
-- [ ] Client-visible files exclude internal-only notes/comments/workpaper references.
-- [ ] Exact selected current reviewed schedules remain selected after reload.
-- [ ] New package revisions retain old bytes and require their own review/acknowledgement.
+- [x] Failed generation/digest/storage never leaves a successful package revision or partial artifact set.
+- [x] Client-visible files exclude internal-only notes/comments/workpaper references.
+- [x] Exact selected current reviewed schedules remain selected after reload.
+- [x] New package revisions retain old bytes and require their own review/acknowledgement.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -68,13 +68,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + package artifact inspection |
+| Persona and client/engagement / fixture | Preparer generates a package; failed-generation fixture; client persona download |
+| Exact original criterion and assertion | E2E "AT-41/AT-42/AT-48: saves exact generated package artifacts and verifies them after reload"; AT-38/40 internal-material exclusion; VP-042-AC04 verification row 2026-09-24 |
+| Command / test / observed result | Failed generation leaves no successful revision or partial artifacts; client files exclude internal-only content; selected schedules persist after reload; new revisions retain old bytes and need their own review |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-41/42/48 (SHA-256 re-verified after reload) and the internal-exclusion journey; artifact store verifies size/type/digest on every load |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

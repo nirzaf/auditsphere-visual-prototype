@@ -1,18 +1,18 @@
 ---
 id: "VP-038"
 title: "Finish adjustment reflection and evidence-linked correction paths"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-038"]
 modules: ["MOD-22"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:05+00:00"
 ---
 
 # VP-038 — Finish adjustment reflection and evidence-linked correction paths
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Only eligible accepted unreflected reporting adjustments affect statements once.
-- [ ] Reflected replacement sources do not double-apply the same amount.
-- [ ] Partial/Unknown/missing proof blocks applicable final reporting with a visible reason.
-- [ ] Journal amendment and rejection retain history without real client/firm ledger posting.
+- [x] Only eligible accepted unreflected reporting adjustments affect statements once.
+- [x] Reflected replacement sources do not double-apply the same amount.
+- [x] Partial/Unknown/missing proof blocks applicable final reporting with a visible reason.
+- [x] Journal amendment and rejection retain history without real client/firm ledger posting.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + adjustment reflection inspection |
+| Persona and client/engagement / fixture | Preparer adds adjustment; reviewer accepts; client accepts reflection |
+| Exact original criterion and assertion | E2E "AT-38: routes a new adjustment through independent technical review and client acceptance"; "AT-38/AT-40: includes an accepted unreflected adjustment in the financial statements" |
+| Command / test / observed result | Only eligible accepted unreflected adjustments affect statements once; reflected replacements do not double-apply; partial/unknown proof blocks final reporting with a visible reason; amendment/rejection retain history without posting |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. both AT-38 journeys; reflection status + source-version pinning drives inclusion exactly once |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

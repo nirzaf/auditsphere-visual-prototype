@@ -551,11 +551,27 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-15/AT-16: saves a per-capability M365 simulation and retains it on reload', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'deterministic M365 setup fixture reloads');
     await clickButtonStartingWith('Jobs & Tasks');
     assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'local business work is available before setup');
     assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'skipping M365 setup leaves fixture jobs usable');
     await clickButton('Microsoft 365 Setup');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Microsoft 365 Setup (Simulated)")'), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Tenant & people') && [...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Back')?.disabled`), true, 'wizard opens at its first step with Back disabled');
+    await clickButton('Continue');
+    assert.equal(await waitForBrowser(`document.querySelector('button[aria-current="step"]')?.innerText.includes('SharePoint library')`), true, 'Continue advances to canonical storage');
+    await clickButton('Back');
+    assert.equal(await waitForBrowser(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Tenant & people')`), true, 'Back restores the prior setup step');
+    const savedTenantBeforeCancel = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`);
+    await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'cancelled-tenant-draft');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Cancel setup');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), savedTenantBeforeCancel, 'Cancel discards draft data without writing it');
+    await clickButton('Continue'); await clickButton('Continue'); await clickButton('Continue');
+    assert.equal(await waitForBrowser(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Review & save')`), true, 'the guided path reaches its review step');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('local role mapping(s); no access grants created') && document.body.innerText.includes('Saving records only this synthetic configuration')`), true, 'review summarizes scope without implying authorization or live setup');
+    await clickButton('Back'); await clickButton('Back'); await clickButton('Back');
     const authBoundary = await browserTab!.evaluate<any>(`(() => ({passwordFields:document.querySelectorAll('input[type="password"],input[autocomplete="current-password"],input[autocomplete="new-password"]').length, microsoftSignInLinks:[...document.querySelectorAll('a[href]')].filter(a=>/microsoftonline|login\.microsoft/i.test(a.href)).length, liveConnected:document.querySelector('main#main')?.innerText.includes('liveConnected: false')}))()`);
     assert.deepEqual(authBoundary, { passwordFields: 0, microsoftSignInLinks: 0, liveConnected: true }, 'setup has no credential or sign-in surface and stays disconnected');
     const clicked = await browserTab!.evaluate<boolean>(`(() => {
@@ -573,6 +589,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /liveConnected: false/);
     assert.deepEqual(browserTab!.requests.filter(url => /^https?:/i.test(url) && !url.startsWith(baseUrl)), [], 'M365 setup interactions make no external HTTP requests');
 
+    await clickButton('Continue');
     const savedSite = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.sharePointSite`);
     await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='SharePoint site (synthetic)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'http://invalid.example/sites/audit');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save simulated configuration');
@@ -583,6 +600,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
     await clickPanelButton('sharepoint — simulated test', 'Simulate: Success (simulated)');
     const beforeConfig = await browserTab!.evaluate<any>(`(() => { const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {revision:s.m365Config.configRevision, grants:s.roleGrants.length, identity:s.m365Config.verificationResults.identity.configRevision, sharepoint:s.m365Config.verificationResults.sharepoint.configRevision}; })()`);
+    await clickButton('Back');
     await browserTab!.evaluate(`(() => {
       const row = [...document.querySelectorAll('fieldset .between')].find(x => x.innerText.includes('Layla Rahman'));
       const role = row?.querySelector('select[aria-label="AuditSphere role for Layla Rahman"]');
@@ -596,6 +614,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.ok(mapped.revision > beforeConfig.revision);
     assert.equal(mapped.grants, beforeConfig.grants, 'identity mapping alone must not create an authorization grant');
     assert.equal(mapped.identity, beforeConfig.identity, 'configuration edits retain prior identity result as stale evidence');
+
+    await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'wrong-tenant-fixture');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Continue');
 
     const rootInput = await browserTab!.evaluate<boolean>(`(() => {
       const label = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === 'Folder root');
@@ -611,6 +632,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.command('Input.insertText', { text: '/AuditSphere/Clients/UpdatedRoot' });
     await clickButton('Save simulated configuration');
     assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return c.verificationResults.identity.configRevision < c.configRevision && c.verificationResults.sharepoint.configRevision < c.configRevision;})()`), true, 'changing resource selections makes earlier results stale');
+    await clickPanelButton('sharepoint — simulated test', 'Simulate: Missing resource (simulated)');
+    const wrongTenantFailure = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {tenant:c.tenantId,sharepoint:c.verificationResults.sharepoint.outcome,liveConnected:c.liveConnected,status:c.status};})()`);
+    assert.deepEqual(wrongTenantFailure, {tenant:'wrong-tenant-fixture',sharepoint:'missing-resource',liveConnected:false,status:'Simulated error'}, 'wrong-tenant resource failure is recorded without a false connection or success');
+    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome==='success'`), true, 'explicit local retry recovers the selected resource simulation');
     await clickPanelButton('sharepoint — simulated test', 'Simulate: Access denied (simulated)');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'access-denied'`), true);
     await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
@@ -2190,11 +2216,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-21: keeps OneDrive optional until enabled and preserves SharePoint as canonical storage', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'deterministic OneDrive setup fixture reloads');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'admin');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId === 'admin'`), true, 'administrator persona is active');
     assert.equal(await waitForBrowser(`[...document.querySelectorAll('nav button')].some(x=>x.innerText.trim()==='Microsoft 365 Setup')`), true, 'administrator can open M365 setup');
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Microsoft 365 Setup');if(!b)throw Error('Microsoft 365 Setup navigation is missing');b.click();})()`);
     assert.equal(await waitForBrowser('document.querySelector(".crumb")?.innerText.includes("M365 SETUP")'), true, 'M365 setup route opened');
+    await clickButton('Continue'); await clickButton('Continue');
     const setupText = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(setupText, /OneDrive/, 'M365 setup renders the optional OneDrive section');
     const disabled = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Enable bounded OneDrive'));return [...label.closest('.panel').querySelectorAll('button')].filter(x=>x.innerText.includes('Success (simulated)')).every(x=>x.disabled);})()`);
@@ -2821,7 +2851,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
   it('AT-41/AT-42/AT-48: saves exact generated package artifacts and verifies them after reload', async () => {
     await browserTab!.evaluate(`(() => {
-      const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key)||${JSON.stringify(JSON.stringify(createInitialState()))});
+      const key='ste-auditsphere-role-portals-v2';const state=${JSON.stringify(createInitialState())};
       state.auditPrograms.push({id:'PRG-AT53',engagementId:'ENG-26002',area:'Evidence provenance',objective:'Keep released package identities stable after a later evidence unlink.',procedures:[{id:'PRC-AT53',engagementId:'ENG-26002',linkedRiskIds:[],ref:'P-NS-1',title:'Evidence provenance fixture',instructions:'Verify the synthetic Northstar evidence reference.',assignee:'Adam Khan',requiredEvidence:'Reviewed source',status:'Cleared',workPerformed:'Verified current source revision.',conclusion:'Satisfactory'}]});
       state.documents.push({id:'DOC-AT53',clientId:'CL-002',engagementId:'ENG-26002',name:'Northstar_Internal_Evidence.pdf',folderPath:'/Engagements/2026/Audit/Workpapers/',version:1,size:1234,classification:'Working paper',visibility:'Internal',source:'SharePoint',uploadedBy:'Adam Khan',uploadedAt:'2026-09-22T10:00:00Z'});
       state.evidenceCatalogue.push({id:'EVD-AT53',title:'Northstar Evidence Provenance Fixture',documentId:'DOC-AT53',version:1,adequacyStatus:'Adequate',receivedDate:'2026-09-22',owner:'Adam Khan',linkedProcedures:['PRC-AT53']});

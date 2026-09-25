@@ -1,18 +1,18 @@
 ---
 id: "VP-029"
 title: "Finish budget arithmetic and historical variance guidance"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-029"]
 modules: ["MOD-13"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:19:59+00:00"
 ---
 
 # VP-029 — Finish budget arithmetic and historical variance guidance
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] 600 minutes × QAR 200/hour = QAR 2,000 planned value.
-- [ ] 660 minutes gives QAR 2,200 billable value and +60-minute variance; QAR 80/hour gives QAR 880 cost.
-- [ ] Missing cost stays unavailable rather than zero/margin.
-- [ ] Changing future rates does not rewrite approved historical snapshots or add scheduling automation.
+- [x] 600 minutes × QAR 200/hour = QAR 2,000 planned value.
+- [x] 660 minutes gives QAR 2,200 billable value and +60-minute variance; QAR 80/hour gives QAR 880 cost.
+- [x] Missing cost stays unavailable rather than zero/margin.
+- [x] Changing future rates does not rewrite approved historical snapshots or add scheduling automation.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + budget aggregation inspection |
+| Persona and client/engagement / fixture | Manager reviewing budgets across engagements and currencies |
+| Exact original criterion and assertion | E2E "AT-59/VP-029-E01/E02: aggregates each engagement once using approved time rate snapshots by currency"; playbook fixture arithmetic in calculations tests |
+| Command / test / observed result | Planned/billable value, variance and cost per the fixed fixtures; missing cost stays unavailable; future rate changes do not rewrite approved snapshots |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. the VP-029 aggregation journey; calculations.test covers the dedicated arithmetic fixtures |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

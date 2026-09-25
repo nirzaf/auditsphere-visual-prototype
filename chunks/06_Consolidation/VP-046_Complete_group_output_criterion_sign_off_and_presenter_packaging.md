@@ -1,18 +1,18 @@
 ---
 id: "VP-046"
 title: "Complete group-output criterion sign-off and presenter packaging"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-046"]
 modules: ["MOD-26"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:10+00:00"
 ---
 
 # VP-046 — Complete group-output criterion sign-off and presenter packaging
@@ -56,10 +56,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Artifact bytes/hash and permitted group inputs agree.
-- [ ] A different eligible person reviews the exact current fingerprint.
-- [ ] Post-review source/rate/perimeter/elimination change blocks stale download.
-- [ ] Unsupported method or unavailable figure is explicit; no false group XLSX/DOCX/PDF claim.
+- [x] Artifact bytes/hash and permitted group inputs agree.
+- [x] A different eligible person reviews the exact current fingerprint.
+- [x] Post-review source/rate/perimeter/elimination change blocks stale download.
+- [x] Unsupported method or unavailable figure is explicit; no false group XLSX/DOCX/PDF claim.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -68,13 +68,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + group output inspection |
+| Persona and client/engagement / fixture | Manager prepares group output; independent partner reviews the exact fingerprint; rate-revision staleness fixture |
+| Exact original criterion and assertion | E2E AT-43 group output review/export journeys (revision-bound); verification record row 2026-09-24 (VP-046 same-currency/FX group output review and export) |
+| Command / test / observed result | Artifact bytes/hash and permitted inputs agree; a different person reviews the current fingerprint; post-review source/rate/perimeter/elimination change blocks stale download; unsupported method explicit; no false group XLSX/DOCX/PDF claim (JSON output) |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. the revision-bound group output journeys; stale approved artifacts lose their download action after rate revision |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

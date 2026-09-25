@@ -1,18 +1,18 @@
 ---
 id: "VP-061"
 title: "Finish scoped search targets and return-to-context cases"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-061"]
 modules: ["MOD-17"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:22:10+00:00"
 ---
 
 # VP-061 — Finish scoped search targets and return-to-context cases
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Every result opens the correct specific authorized record.
-- [ ] Search/count/filter options never reveal an ungranted record.
-- [ ] Unavailable/archived results are labeled and cannot bypass availability guards.
-- [ ] No embeddings, AI, indexing service or duplicate record store is added.
+- [x] Every result opens the correct specific authorized record.
+- [x] Search/count/filter options never reveal an ungranted record.
+- [x] Unavailable/archived results are labeled and cannot bypass availability guards.
+- [x] No embeddings, AI, indexing service or duplicate record store is added.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + Shell search inspection |
+| Persona and client/engagement / fixture | Client persona searching; staff returning to context via results |
+| Exact original criterion and assertion | E2E "AT-50/VP-061: client search excludes internal activity and finds shared documents"; VP-003-AC02 journey (global-search navigation verifies Stay/Save/Discard) |
+| Command / test / observed result | Scoped search targets only permitted entities (no title/snippet/count leakage); historical requirements text not indexed; return-to-context safe across unsaved drafts |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-50/VP-061; Shell.tsx search filters by visibleClientIds/visibleEngagementIds and excludes internal record types from client scope |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

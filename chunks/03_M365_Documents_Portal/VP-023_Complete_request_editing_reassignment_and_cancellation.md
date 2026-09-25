@@ -1,18 +1,18 @@
 ---
 id: "VP-023"
 title: "Complete request editing, reassignment and cancellation"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-023"]
 modules: ["MOD-09"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Implemented + unit-verified (196/196); E2E run 82/83 with the single failure in another agent's in-flight journey edits; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:15:51+00:00"
 ---
 
 # VP-023 — Complete request editing, reassignment and cancellation

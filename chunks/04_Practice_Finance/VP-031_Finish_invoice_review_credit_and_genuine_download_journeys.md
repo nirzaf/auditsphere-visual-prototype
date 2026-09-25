@@ -1,18 +1,18 @@
 ---
 id: "VP-031"
 title: "Finish invoice review, credit and genuine-download journeys"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-031"]
 modules: ["MOD-14"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:01+00:00"
 ---
 
 # VP-031 — Finish invoice review, credit and genuine-download journeys
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Reviewer must be a different eligible person.
-- [ ] Issued invoice content is not edited in place.
-- [ ] Partial credits never exceed remaining creditable value or cross client/currency.
-- [ ] Downloaded artifacts match the selected issued revision and remain clearly synthetic.
+- [x] Reviewer must be a different eligible person.
+- [x] Issued invoice content is not edited in place.
+- [x] Partial credits never exceed remaining creditable value or cross client/currency.
+- [x] Downloaded artifacts match the selected issued revision and remain clearly synthetic.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + credit-note store inspection |
+| Persona and client/engagement / fixture | Preparer drafts invoice/credit; independent reviewer approves or returns |
+| Exact original criterion and assertion | E2E "AT-31/VP-031: requires independent invoice and credit review before issue"; reviewCreditNote/reviseCreditNote guards (guards.test.ts:1693-1704) |
+| Command / test / observed result | Reviewer differs from preparer; issued content not edited in place; partial credits capped within client/currency; artifacts match the issued revision and stay synthetic |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-31/VP-031; store rejects revise-after-approval and reason-less returns; genuine download formats verified by unit tests (XLSX/DOCX/PDF digests) |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

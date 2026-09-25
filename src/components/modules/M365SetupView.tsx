@@ -18,6 +18,8 @@ interface M365SetupViewProps {
 
 type CardKey = 'identity' | 'sharepoint' | 'mail' | 'onedrive';
 type SimOutcome = 'success' | 'access-denied' | 'missing-resource' | 'expired-session' | 'throttled' | 'unavailable';
+type SetupStep = 0 | 1 | 2 | 3;
+const SETUP_STEPS = ['Tenant & people', 'SharePoint library', 'Optional services', 'Review & save'];
 
 const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
   { key: 'success', label: 'Success (simulated)', detail: 'Local scenario fixture reports the selected synthetic resource as reachable.' },
@@ -43,6 +45,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
   const [permittedUsers, setPermittedUsers] = useState(config.permittedUsers || []);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [wizardStep, setWizardStep] = useState<SetupStep>(0);
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement);
   const workspaceClient = state.clients.find(c => c.id === selectedEng?.client);
 
@@ -131,7 +134,12 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
         </p>
       </div>
 
+      <nav aria-label="Setup progress" className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {SETUP_STEPS.map((step, index) => <button key={step} type="button" className={`btn sm ${wizardStep === index ? 'primary' : 'ghost'}`} aria-current={wizardStep === index ? 'step' : undefined} onClick={() => setWizardStep(index as SetupStep)}>{index + 1}. {step}</button>)}
+      </nav>
+
       <form onSubmit={handleSave} className="panel panel-pad stack" style={{ gap: 16 }}>
+        {wizardStep === 0 && <>
         <h3>1 · Synthetic tenant &amp; people</h3>
         <div className="grid2">
           <div>
@@ -163,7 +171,9 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
             </div>;
           })}
         </fieldset>
+        </>}
 
+        {wizardStep === 1 && <>
         <h3>2 · SharePoint canonical library</h3>
         <div>
           <label className="caption">SharePoint site (synthetic)</label>
@@ -179,7 +189,9 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
             <input type="text" className="input mono" value={folderRoot} onChange={e => { setFolderRoot(e.target.value); markDirty(); }} required />
           </div>
         </div>
+        </>}
 
+        {wizardStep === 2 && <>
         <h3>3 · Optional mail sender</h3>
         <div>
           <label className="caption">Exchange Online outbound sender (synthetic mailbox label)</label>
@@ -192,10 +204,25 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
           <input type="checkbox" checked={oneDriveEnabled} onChange={e => { setOneDriveEnabled(e.target.checked); markDirty(); }} />
           <span>Enable bounded OneDrive file selection/import simulation (never a second canonical archive)</span>
         </label>
+        </>}
+
+        {wizardStep === 3 && <>
+          <h3>4 · Review configuration</h3>
+          <dl className="grid2">
+            <div><dt className="caption">Synthetic tenant</dt><dd>{tenantName || 'Not set'} <span className="mono">({tenantId || 'No fixture ID'})</span></dd></div>
+            <div><dt className="caption">Permitted people</dt><dd>{permittedUsers.length} local role mapping(s); no access grants created</dd></div>
+            <div><dt className="caption">SharePoint canonical location</dt><dd>{siteUrl || 'Not set'} · {library || 'No library'} · {folderRoot || 'No folder root'}</dd></div>
+            <div><dt className="caption">Optional services</dt><dd>Mail {mailSender.trim() ? `enabled (${mailSender})` : 'disabled'} · OneDrive {oneDriveEnabled ? 'enabled' : 'disabled'}</dd></div>
+          </dl>
+          <p className="caption">Saving records only this synthetic configuration. It does not connect to Microsoft or create authorization grants.</p>
+        </>}
 
         <div className="row mt12" style={{ gap: 10 }}>
           <button type="submit" className="btn primary sm">Save simulated configuration</button>
           {dirty && <span className="tag amber">Unsaved changes — prior verification is stale until re-tested</span>}
+          <button type="button" className="btn sm ghost" disabled={wizardStep === 0} onClick={() => setWizardStep((wizardStep - 1) as SetupStep)}>Back</button>
+          <button type="button" className="btn sm ghost" disabled={wizardStep === 3} onClick={() => setWizardStep((wizardStep + 1) as SetupStep)}>Continue</button>
+          <button type="button" className="btn sm ghost" onClick={() => { discardConfiguration(); setWizardStep(0); }}>Cancel setup</button>
           <button type="button" className="btn sm ghost" onClick={handleDisconnect}>Simulate disconnect</button>
         </div>
       </form>

@@ -1,18 +1,18 @@
 ---
 id: "VP-050"
 title: "Complete fieldwork exception return and evidence rework"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-050"]
 modules: ["MOD-30"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:22:09+00:00"
 ---
 
 # VP-050 — Complete fieldwork exception return and evidence rework
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Work performed, result, exception/limitation and current evidence are visible per procedure.
-- [ ] Submit is not clearance; same person cannot clear their own work.
-- [ ] Replaced evidence/risk input requires relevant reassessment before new clearance.
-- [ ] Unresolved exceptions remain visible in fieldwork and downstream readiness.
+- [x] Work performed, result, exception/limitation and current evidence are visible per procedure.
+- [x] Submit is not clearance; same person cannot clear their own work.
+- [x] Replaced evidence/risk input requires relevant reassessment before new clearance.
+- [x] Unresolved exceptions remain visible in fieldwork and downstream readiness.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + fieldwork store inspection |
+| Persona and client/engagement / fixture | Preparer records fieldwork; manager clears; preparer reworks after replacement evidence |
+| Exact original criterion and assertion | E2E "VP-050: persists procedure fieldwork and requires independent reviewer clearance"; committed fieldwork journeys (reassess and resubmit against replacement evidence; preparer cannot clear own work) |
+| Command / test / observed result | Fieldwork exceptions return to the preparer with preserved drafts; evidence rework requires resubmission and independent clearance; same-person denial enforced |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. the VP-050 journey and the replacement-evidence rework journey; procedure status transitions recorded with actor identity |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

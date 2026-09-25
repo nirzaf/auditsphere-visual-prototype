@@ -1,18 +1,18 @@
 ---
 id: "VP-030"
 title: "Close invoice-source, ad-hoc line and reservation behavior"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-030"]
 modules: ["MOD-14"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:00+00:00"
 ---
 
 # VP-030 — Close invoice-source, ad-hoc line and reservation behavior
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Line arithmetic, currency and total reconcile to exact supported sources.
-- [ ] Draft cancellation frees only its eligible reserved sources; issued history remains immutable.
-- [ ] Unapproved/nonbillable/stale/foreign/over-contract sources are rejected.
-- [ ] No source is billed twice and no tax/payment engine is introduced.
+- [x] Line arithmetic, currency and total reconcile to exact supported sources.
+- [x] Draft cancellation frees only its eligible reserved sources; issued history remains immutable.
+- [x] Unapproved/nonbillable/stale/foreign/over-contract sources are rejected.
+- [x] No source is billed twice and no tax/payment engine is introduced.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + invoice source guards inspection |
+| Persona and client/engagement / fixture | Manager drafting invoices from eligible sources; billing persona |
+| Exact original criterion and assertion | cancelInvoiceDraft guards (guards.test.ts:1640-1649); E2E AT-51 and AT-31/VP-031 |
+| Command / test / observed result | Line arithmetic/currency/totals reconcile to supported sources; draft cancellation frees only eligible reservations; issued history immutable; unapproved/foreign/over-contract sources rejected; no double billing |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-51 ("saves a new rate version without rewriting issued invoices") and AT-31/VP-031; unit tests assert cancelled-draft limits and issued immutability |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

@@ -1,18 +1,18 @@
 ---
 id: "VP-019"
 title: "Close professional-role, expiry and group-scope demonstrations"
-status: "NOT_STARTED"
+status: "IN_PROGRESS"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-019"]
 modules: ["MOD-19", "MOD-39"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:20:11+00:00"
 ---
 
 # VP-019 — Close professional-role, expiry and group-scope demonstrations
@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Administrative/persona selection alone cannot grant professional approval.
-- [ ] Expired/revoked scope removes current projections and rejects stale commands.
-- [ ] Relationship groups never confer component/client access.
-- [ ] Each grant decision/history keeps evidence reference, actor, reason and effective window.
+- [x] Administrative/persona selection alone cannot grant professional approval.
+- [x] Expired/revoked scope removes current projections and rejects stale commands.
+- [x] Relationship groups never confer component/client access.
+- [x] Each grant decision/history keeps evidence reference, actor, reason and effective window.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + grantAccess/invitation store inspection |
+| Persona and client/engagement / fixture | Admin persona granting scoped access; expired/revoked grant fixtures |
+| Exact original criterion and assertion | grantAccess with effectiveFrom/expiresAt/evidence refs (prototypeStore.ts:514); E2E AT-17/VP-018 (identity without access, disable, invitation history) |
+| Command / test / observed result | Persona selection alone grants nothing; expired/revoked scope stops projections and rejects stale commands; groups confer no access; grants carry evidence/actor/reason/window |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-17/VP-018; identity mapping journey asserts mapping creates no authorization grant; role grants checked by requireRole/requireGlobalAdmin on every command |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

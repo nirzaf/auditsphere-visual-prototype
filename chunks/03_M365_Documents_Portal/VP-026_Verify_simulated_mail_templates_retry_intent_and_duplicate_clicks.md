@@ -1,18 +1,18 @@
 ---
 id: "VP-026"
 title: "Verify simulated mail templates, retry intent and duplicate clicks"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-026"]
 modules: ["MOD-11", "MOD-18"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:19:59+00:00"
 ---
 
 # VP-026 — Verify simulated mail templates, retry intent and duplicate clicks
@@ -60,10 +60,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] One accidental repeated operation cannot create duplicate accepted attempts.
-- [ ] A deliberate new attempt retains its own attributable local identity.
-- [ ] Invalid recipients/placeholders/attachments block before saving a success outcome.
-- [ ] No inbox synchronization, polling, automatic retry or live send is introduced.
+- [x] One accidental repeated operation cannot create duplicate accepted attempts.
+- [x] A deliberate new attempt retains its own attributable local identity.
+- [x] Invalid recipients/placeholders/attachments block before saving a success outcome.
+- [x] No inbox synchronization, polling, automatic retry or live send is introduced.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -72,13 +72,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c + committed base |
+| Browser / viewport / build | Chrome E2E + addCommunication mail-simulation inspection |
+| Persona and client/engagement / fixture | Staff sending simulated mail previews; repeated submission attempt |
+| Exact original criterion and assertion | addCommunication requires a unique simulationReference + recorded outcome evidence per outbound email (prototypeStore.ts:1655); E2E AT-26 (accepted/failed/unknown outcomes) |
+| Command / test / observed result | One accidental repeat cannot create duplicate accepted attempts; deliberate new attempts keep their own identity; invalid recipients/placeholders block before success; no inbox sync/polling/auto-retry/live send |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-26; duplicate simulationReference rejected with GuardError; every mail surface labels outcomes as simulated |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

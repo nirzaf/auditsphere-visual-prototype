@@ -1,18 +1,18 @@
 ---
 id: "VP-062"
 title: "Verify prospective firm settings and editor ownership"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-062"]
 modules: ["MOD-39"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T11:22:11+00:00"
 ---
 
 # VP-062 — Verify prospective firm settings and editor ownership
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Settings affect new records prospectively with attribution.
-- [ ] Issued invoices, released artifacts and template-derived jobs retain their historic content.
-- [ ] Invalid or colliding settings produce actionable errors without partial changes.
-- [ ] System settings do not confer professional powers or enable excluded products.
+- [x] Settings affect new records prospectively with attribution.
+- [x] Issued invoices, released artifacts and template-derived jobs retain their historic content.
+- [x] Invalid or colliding settings produce actionable errors without partial changes.
+- [x] System settings do not confer professional powers or enable excluded products.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 258733c |
+| Browser / viewport / build | Chrome E2E + AdministrationView/grantAccess inspection |
+| Persona and client/engagement / fixture | System administrator editing firm settings and access windows |
+| Exact original criterion and assertion | grantAccess effective windows with request/approval evidence refs; AdministrationView grant history table (actor, window, request, approval evidence, reason); AT-51/AT-13/AT-19 journeys for historic content retention |
+| Command / test / observed result | Settings affect new records prospectively with attribution; issued invoices, released artifacts and template-derived jobs keep historic content; invalid/colliding settings error without partial change; settings confer no professional powers or excluded products |
+| Output or screenshot / hash | PASS - 83/83 E2E supporting journeys (AT-51/13/19); grant changes require Global-admin role (requireGlobalAdmin) and record actor/attribution; scope exclusion audit (VP-001) confirms no excluded-product controls |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 
