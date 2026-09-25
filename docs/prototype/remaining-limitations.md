@@ -264,8 +264,13 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   aggregation remains unit-backed. VP-054-E01 now verifies that an unresolved
   Significant finding appears consistently in Release Completion, Financial
   Packages and Report Centre, and that a reasoned immaterial waiver resolves the
-  release gate. VP-054-E02 still needs qualitative/no-amount, immutable provenance
-  and release re-evaluation evidence; criterion and story sign-off remain open.
+  release gate. VP-054-E02 now carries the qualitative/no-amount immutable-provenance
+  and release re-evaluation evidence: a unit check and the Chrome journey hold a
+  sourced qualitative finding's engagement/category/severity and its linked
+  procedure/evidence/workpaper references unchanged (with amount and currency still
+  absent) across Uncorrected → Waived-as-immaterial dispositions and a browser
+  reload, prove no monetary value is invented, and show release treatment changes
+  only after a reasoned human disposition. Criterion and story sign-off remain open.
 
 - **VP-049 — risks and programs:** the risk register now edits persisted
   engagement-scoped risks; Chrome verifies a response edit and reciprocal

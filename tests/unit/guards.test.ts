@@ -1650,6 +1650,14 @@ describe('finding lifecycle (VP-054)', () => {
     const journalFinding = prototypeStore.addFinding({ ...base, title: 'Linked journal correction', amount: 25, linkedJournalId: journal.id });
     prototypeStore.setFindingDisposition(journalFinding, 'Corrected in TB', 'Reviewed journal AJ-01 is reflected in the trial balance.');
     assert.equal(state.findings.find(item => item.id === journalFinding)?.disposition, 'Corrected in TB');
+
+    const qualitative = state.findings.find(item => item.id === qualitativeId)!;
+    const qualitativeProvenance = [qualitative.engagementId, qualitative.category, qualitative.severity, qualitative.amount, qualitative.currency, qualitative.linkedProcedureId, qualitative.linkedEvidenceId, qualitative.linkedWorkpaperId];
+    prototypeStore.setFindingDisposition(qualitativeId, 'Uncorrected', 'The control deficiency remains unresolved after client response.');
+    prototypeStore.setFindingDisposition(qualitativeId, 'Waived as immaterial', 'A reviewer documented why no adjustment is warranted.');
+    const afterDisposition = state.findings.find(item => item.id === qualitativeId)!;
+    assert.deepEqual([afterDisposition.engagementId, afterDisposition.category, afterDisposition.severity, afterDisposition.amount, afterDisposition.currency, afterDisposition.linkedProcedureId, afterDisposition.linkedEvidenceId, afterDisposition.linkedWorkpaperId], qualitativeProvenance, 'disposition revisions preserve qualitative classification and exact source provenance');
+    assert.deepEqual(afterDisposition.dispositionHistory?.map(item => item.disposition), ['Uncorrected', 'Waived as immaterial'], 'release treatment changes only after a reasoned human disposition');
   });
 
   it('requires scoped existing source references and preserves the originating sampling exception', async () => {
