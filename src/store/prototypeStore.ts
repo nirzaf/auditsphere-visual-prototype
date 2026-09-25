@@ -1,11 +1,11 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision, ProposalServiceDefinition, ProposalContentTemplate } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, isClientRole, canOpenRoute, GuardError, markStateStale, roleRequiresApprovalEvidence, requireConsolidationGroupScope } from '../services/guards';
 import { applyReportingAdjustments, calculateReconciliationVariance } from '../services/calculations';
 import { validatePbcUpload } from '../services/pbcUpload';
 import { consolidationOutputFingerprint } from '../services/consolidationOutput';
@@ -32,6 +32,15 @@ const requireGlobalAdmin = (state: PrototypeState, action: string) => {
     throw new GuardError('FORBIDDEN_SCOPE', `Only administrators with an active Global grant can ${action}.`);
   }
 };
+const unsupportedProposalTerms = ['t' + 'ax', 'pay' + 'roll', 'artificial ' + 'intelligence', 'A' + 'I', 'payment ' + 'gateway', 'e ' + 'signature', 'signature ' + 'provider'];
+const hasUnsupportedProposalOffering = (value: string) => {
+  const words = value.toLowerCase().match(/[a-z]+/g) || [];
+  const normalized = ` ${words.join(' ')} `;
+  return words.some(word => word.startsWith('re' + 'curr')) || unsupportedProposalTerms.some(term => normalized.includes(` ${term.toLowerCase()} `));
+};
+const isProposalCurrency = (value: string) => ['QAR', 'USD', 'EUR', 'GBP'].includes(value);
+const isProposalDate = (value?: string) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value);
+const hasValidProposalPeriod = (start?: string, end?: string) => Boolean(isProposalDate(start) && isProposalDate(end) && start! <= end!);
 
 class PrototypeStore {
   private state: PrototypeState;
@@ -284,40 +293,113 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'create client profiles');
     if (visibleClientIds(this.state) !== 'ALL') throw new GuardError('FORBIDDEN_SCOPE', 'Creating a client profile requires an active Global client grant.');
-    if (!client.name || !client.name.trim()) {
-      throw new GuardError('INVALID_STATE', 'Client legal name is required.');
-    }
-    if (!client.code || !client.code.trim()) {
-      throw new GuardError('INVALID_STATE', 'Client code is required.');
-    }
+    this.validateClientProfile(client);
+    if (this.state.clients.some(existing => existing.id === client.id)) throw new GuardError('INVALID_STATE', `Client "${client.id}" already exists.`);
     const normalized = client.code.trim().toUpperCase();
     if (this.state.clients.some(c => c.code.trim().toUpperCase() === normalized)) {
       throw new GuardError('INVALID_STATE', `Duplicate client code "${client.code}". Review the similar-name warning instead of merging distinct legal entities.`);
     }
-    client.accountingProfile ||= { legalEntityName: client.name.trim(), reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] };
-    this.state.clients.push(client);
-    this.logEvent(`New client profile created: ${client.name}`, client.id);
+    const saved: ClientRecord = { ...client, code: normalized, name: client.name.trim(), clientType: client.clientType, profileRevision: 0, accountingProfile: client.accountingProfile || { legalEntityName: client.name.trim(), reportingBasis: 'Not selected', baseCurrency: 'QAR', accounts: [], periodBooks: [], dimensions: [], revision: 0, chartRevision: 0, history: [] } };
+    this.state.clients.push(saved);
+    if (saved.contact?.trim() && saved.email?.trim()) this.state.contacts.push({ id: `CNT-${crypto.randomUUID()}`, clientId: saved.id, name: saved.contact.trim(), email: saved.email.trim(), phone: saved.phone?.trim() || undefined, isPrimary: true, active: true });
+    this.logEvent(`New client profile created: ${saved.name}`, saved.id);
     this.notify();
+    return this.getClientProfileWarnings(saved, saved.id);
   }
 
-  public updateClient(client: ClientRecord) {
-    requireActiveIdentity(this.state);
-    if (!client.name || !client.name.trim()) {
-      throw new GuardError('INVALID_STATE', 'Client legal name is required.');
+  private validateClientProfile(client: ClientRecord) {
+    const allowedTypes = ['Company', 'Individual', 'Partnership', 'Government', 'Nonprofit', 'Other'];
+    const allowedStatuses = ['Prospect', 'Active', 'Suspended', 'Archived'];
+    if (!client.name?.trim()) throw new GuardError('INVALID_STATE', 'Client legal name is required.');
+    if (!client.code?.trim()) throw new GuardError('INVALID_STATE', 'Client code is required.');
+    if (!client.clientType || !allowedTypes.includes(client.clientType)) throw new GuardError('INVALID_STATE', 'Choose a valid client type.');
+    if (!allowedStatuses.includes(client.status)) throw new GuardError('INVALID_STATE', 'Choose a valid client status.');
+    if (!client.relationshipOwner?.trim()) throw new GuardError('INVALID_STATE', 'A relationship owner is required.');
+    const inScopeUser = (name: string, roles: RoleKey[]) => this.state.users.some(user => {
+      if (user.status !== 'Active' || user.name !== name || !roles.includes(user.role)) return false;
+      const visible = visibleClientIds(this.state, user.id);
+      return visible === 'ALL' || visible.includes(client.id);
+    });
+    if (!inScopeUser(client.relationshipOwner, ['relationship', 'manager', 'partner'])) throw new GuardError('FORBIDDEN_SCOPE', 'Relationship owner must be an active relationship, manager, or partner persona with client scope.');
+    if (client.partner && !inScopeUser(client.partner, ['partner'])) throw new GuardError('FORBIDDEN_SCOPE', 'Assigned partner must be active and have client scope.');
+    if (client.manager && !inScopeUser(client.manager, ['manager'])) throw new GuardError('FORBIDDEN_SCOPE', 'Assigned manager must be active and have client scope.');
+    const email = client.email?.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new GuardError('INVALID_STATE', 'Enter a valid client email address.');
+    const phone = client.phone?.trim();
+    if (phone && !/^\+?[0-9().\s-]{7,24}$/.test(phone)) throw new GuardError('INVALID_STATE', 'Enter a valid client phone number.');
+    const website = client.website?.trim();
+    if (website) {
+      try { const url = new URL(website); if (!['http:', 'https:'].includes(url.protocol) || !url.hostname.includes('.')) throw new Error(); }
+      catch { throw new GuardError('INVALID_STATE', 'Enter a valid website URL beginning with http:// or https://.'); }
     }
+    if (typeof client.revenue !== 'number' || !Number.isFinite(client.revenue) || client.revenue < 0) throw new GuardError('INVALID_STATE', 'Annual revenue must be a finite non-negative amount.');
+  }
+
+  public getClientProfileWarnings(client: Pick<ClientRecord, 'name' | 'registrationNumber'>, excludingClientId?: string): string[] {
+    const visible = visibleClientIds(this.state);
+    const nameTokens = (value: string) => value.toLowerCase().replace(/\b(limited|ltd|llc|wll|company|co|the)\b/g, ' ').match(/[a-z0-9]+/g) || [];
+    const tokens = nameTokens(client.name).filter(token => token.length > 2);
+    const warnings: string[] = [];
+    for (const existing of this.state.clients) {
+      if (existing.id === excludingClientId || visible !== 'ALL' && !visible.includes(existing.id)) continue;
+      const sameRegistration = Boolean(client.registrationNumber?.trim() && existing.registrationNumber?.trim() && client.registrationNumber.trim().toLowerCase() === existing.registrationNumber.trim().toLowerCase());
+      const existingTokens = new Set(nameTokens(existing.name).filter(token => token.length > 2));
+      const overlap = [...new Set(tokens)].filter(token => existingTokens.has(token));
+      const similarName = overlap.length >= 2 || tokens.length > 0 && tokens.every(token => existingTokens.has(token)) || [...existingTokens].every(token => token.length > 2 && tokens.includes(token));
+      if (sameRegistration) warnings.push(`Registration number matches ${existing.name} (${existing.id}); review before saving. The legal entities will remain separate.`);
+      else if (similarName) warnings.push(`Name is similar to ${existing.name} (${existing.id}); review the legal entity before saving. No records will be merged.`);
+    }
+    return warnings;
+  }
+
+  public updateClient(client: ClientRecord, expectedProfileRevision: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'edit client profiles');
+    requireClientScope(this.state, client.id);
+    const index = this.state.clients.findIndex(c => c.id === client.id);
+    if (index < 0) throw new GuardError('INVALID_STATE', `Client "${client.id}" was not found.`);
+    const current = this.state.clients[index];
+    if ((current.profileRevision || 0) !== expectedProfileRevision) throw new GuardError('STALE_REVISION', `Stale client profile: expected revision ${expectedProfileRevision} but found ${current.profileRevision || 0}. Reload the profile and retry.`);
+    this.validateClientProfile(client);
     const normalized = client.code.trim().toUpperCase();
     if (this.state.clients.some(c => c.id !== client.id && c.code.trim().toUpperCase() === normalized)) {
       throw new GuardError('INVALID_STATE', `Duplicate client code "${client.code}".`);
     }
-    const index = this.state.clients.findIndex(c => c.id === client.id);
-    if (index >= 0) {
-      this.state.clients[index] = client;
-      this.logEvent(`Client profile updated: ${client.name}`, client.id);
-      this.notify();
-    }
+    const saved: ClientRecord = { ...current, ...client, code: normalized, name: client.name.trim(), profileRevision: expectedProfileRevision + 1, accountingProfile: current.accountingProfile, customFields: current.customFields, relationshipGroupId: current.relationshipGroupId };
+    this.state.clients[index] = saved;
+    this.logEvent(`Client profile updated: ${saved.name} (Rev ${saved.profileRevision})`, saved.id);
+    this.notify();
+    return this.getClientProfileWarnings(saved, saved.id);
   }
 
   /** Contacts never create portal logins, management authority or staff roles (VP-007). */
+  public updateClientContact(clientId: string, contactId: string, changes: Partial<Pick<PrototypeState['contacts'][number], 'name' | 'email' | 'phone' | 'title' | 'responsibility' | 'effectiveFrom' | 'effectiveTo' | 'active'>>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner', 'admin', 'onboarding'], 'edit client contacts');
+    requireClientScope(this.state, clientId);
+    const index = this.state.contacts.findIndex(item => item.id === contactId && item.clientId === clientId);
+    const current = this.state.contacts[index];
+    if (!current) throw new GuardError('INVALID_STATE', 'Contact was not found in this client.');
+    const next = { ...current, ...structuredClone(changes) };
+    if (!next.active) next.isPrimary = false;
+    if (!next.name.trim() || !next.email.trim()) throw new GuardError('INVALID_STATE', 'Contact full name and email address are required.');
+    if (next.isPrimary && !next.active) throw new GuardError('INVALID_STATE', 'An inactive contact cannot be primary.');
+    const validDate = (value?: string) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!validDate(next.effectiveFrom) || !validDate(next.effectiveTo) || next.effectiveFrom && next.effectiveTo && next.effectiveTo < next.effectiveFrom) throw new GuardError('INVALID_STATE', 'Contact responsibility dates must be real calendar dates and the end date cannot precede the start date.');
+    const snapshot = (contact: typeof current) => ({ name: contact.name, email: contact.email, phone: contact.phone, title: contact.title, responsibility: contact.responsibility, effectiveFrom: contact.effectiveFrom, effectiveTo: contact.effectiveTo, isPrimary: contact.isPrimary, active: contact.active });
+    const before = snapshot(current);
+    const revision = (current.revision || 1) + 1;
+    if (next.isPrimary) this.state.contacts.forEach(contact => { if (contact.clientId === clientId) contact.isPrimary = contact.id === contactId; });
+    else if (current.isPrimary) this.state.contacts.forEach(contact => { if (contact.clientId === clientId && contact.id === contactId) contact.isPrimary = false; });
+    next.revision = revision;
+    next.history = [...(current.history || []), { revision, changedAt: new Date().toISOString(), changedByUserId: this.state.currentUserId, before, after: snapshot(next) }];
+    next.portalAccessRequested = current.portalAccessRequested || false;
+    this.state.contacts[index] = next;
+    this.logEvent(`Contact updated: ${next.name} (Rev ${revision})`, next.id);
+    this.notify();
+    return revision;
+  }
+
   public addContact(contact: PrototypeState['contacts'][0]) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['relationship', 'manager', 'partner', 'admin', 'onboarding'], 'add client contacts');
@@ -331,6 +413,8 @@ class PrototypeStore {
     if (!validDate(contact.effectiveFrom) || !validDate(contact.effectiveTo) || contact.effectiveFrom && contact.effectiveTo && contact.effectiveTo < contact.effectiveFrom) throw new GuardError('INVALID_STATE', 'Contact responsibility dates must be real calendar dates and the end date cannot precede the start date.');
     if (contact.isPrimary) this.state.contacts.forEach(c => { if (c.clientId === contact.clientId) c.isPrimary = false; });
     contact.portalAccessRequested = false;
+    contact.revision ||= 1;
+    contact.history ||= [];
     this.state.contacts.push(contact);
     this.logEvent(`Contact added: ${contact.name} (${contact.clientId})`, contact.id);
     this.notify();
@@ -427,7 +511,7 @@ class PrototypeStore {
   }
 
   /** Explicit scoped grants (VP-019). Admin alone never grants professional authority. */
-  public grantAccess(userId: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement', scopeId?: string, reason = '', dates: { effectiveFrom?: string; expiresAt?: string; requestRef?: string } = {}) {
+  public grantAccess(userId: string, role: RoleKey, scopeKind: 'Global' | 'Client' | 'Engagement' | 'Group', scopeId?: string, reason = '', dates: { effectiveFrom?: string; expiresAt?: string; requestRef?: string; approvalEvidenceRef?: string } = {}) {
     requireActiveIdentity(this.state);
     requireGlobalAdmin(this.state, 'grant access');
     const user = this.state.users.find(u => u.id === userId && u.status === 'Active');
@@ -442,18 +526,21 @@ class PrototypeStore {
     };
     if (!validDate(dates.effectiveFrom) || !validDate(dates.expiresAt) || dates.effectiveFrom && dates.expiresAt && dates.expiresAt < dates.effectiveFrom) throw new GuardError('INVALID_STATE', 'Grant effective and expiry dates must be valid, and expiry cannot precede the effective date.');
     if (!dates.requestRef?.trim()) throw new GuardError('INVALID_STATE', 'An approved access-request reference is required.');
+    if (roleRequiresApprovalEvidence(role) && !dates.approvalEvidenceRef?.trim()) throw new GuardError('INVALID_STATE', 'Professional or management-approver access requires a separate approval-evidence reference.');
+    if (roleRequiresApprovalEvidence(role) && dates.approvalEvidenceRef?.trim() === dates.requestRef.trim()) throw new GuardError('INVALID_STATE', 'Approval evidence must have a separate reference from the access request.');
     if ((scopeKind === 'Client' || scopeKind === 'Engagement') && !scopeId) {
       throw new GuardError('INVALID_STATE', 'Scoped grants require a scope ID.');
     }
     if (scopeKind === 'Client' && !this.state.clients.some(c => c.id === scopeId)) throw new GuardError('INVALID_STATE', 'Grant client does not exist.');
     if (scopeKind === 'Engagement' && !this.state.engagements.some(e => e.id === scopeId)) throw new GuardError('INVALID_STATE', 'Grant engagement does not exist.');
+    if (scopeKind === 'Group' && !this.state.consolidationGroups.some(group => group.id === scopeId)) throw new GuardError('INVALID_STATE', 'Grant consolidation group does not exist.');
     if (this.state.roleGrants.some(g => g.userId === userId && g.role === role && g.scopeKind === scopeKind && g.scopeId === scopeId)) {
       throw new GuardError('INVALID_STATE', 'That scope is already granted to this persona.');
     }
     const at = new Date().toISOString();
-    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim(), grantedAt: at, grantedBy: actor.id, reason: reason.trim() });
+    this.state.roleGrants.push({ userId, role, scopeKind, scopeId, effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim(), approvalEvidenceRef: dates.approvalEvidenceRef?.trim() || undefined, grantedAt: at, grantedBy: actor.id, reason: reason.trim() });
     this.state.roleGrantHistory ||= [];
-    this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Granted', userId, role, scopeKind, scopeId, actorUserId: actor.id, at, reason: reason.trim(), effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim() });
+    this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Granted', userId, role, scopeKind, scopeId, actorUserId: actor.id, at, reason: reason.trim(), effectiveFrom: dates.effectiveFrom, expiresAt: dates.expiresAt, requestRef: dates.requestRef.trim(), approvalEvidenceRef: dates.approvalEvidenceRef?.trim() || undefined });
     this.logEvent(`Access granted: ${user.name} → ${role} (${scopeKind}${scopeId ? ':' + scopeId : ''}) — ${reason}`, scopeId || user.id);
     this.notify();
   }
@@ -466,7 +553,7 @@ class PrototypeStore {
       if (!reason.trim()) throw new GuardError('INVALID_STATE', 'An access-revocation reason is required.');
       const grant = this.state.roleGrants[idx];
       this.state.roleGrantHistory ||= [];
-      this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Revoked', userId, role, scopeKind: grant.scopeKind, scopeId: grant.scopeId, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim(), effectiveFrom: grant.effectiveFrom, expiresAt: grant.expiresAt, requestRef: grant.requestRef });
+      this.state.roleGrantHistory.push({ id: crypto.randomUUID(), action: 'Revoked', userId, role, scopeKind: grant.scopeKind, scopeId: grant.scopeId, actorUserId: this.state.currentUserId, at: new Date().toISOString(), reason: reason.trim(), effectiveFrom: grant.effectiveFrom, expiresAt: grant.expiresAt, requestRef: grant.requestRef, approvalEvidenceRef: grant.approvalEvidenceRef });
       this.state.roleGrants.splice(idx, 1);
       this.logEvent(`Access revoked: ${this.state.users.find(u => u.id === userId)?.name || userId} → ${role}${scopeId ? ' (' + scopeId + ')' : ''} — ${reason.trim()}`, scopeId || userId);
       this.notify();
@@ -743,6 +830,8 @@ class PrototypeStore {
         id: newClientId,
         code,
         name: lead.name,
+        clientType: 'Company',
+        profileRevision: 0,
         initials: lead.name.slice(0, 2).toUpperCase(),
         industry: 'Commercial Client',
         contact: lead.contact,
@@ -762,6 +851,39 @@ class PrototypeStore {
   }
 
   // --- Proposal Actions (VP-010, VP-011) ---
+  public saveProposalService(service: ProposalServiceDefinition, expectedRevision?: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'maintain proposal service definitions');
+    if (!service.id.trim() || !service.name.trim() || hasUnsupportedProposalOffering(`${service.name} ${service.description}`) || !service.scope.trim() || !service.deliverables.trim() || !service.period.trim() || !hasValidProposalPeriod(service.periodStart, service.periodEnd) || !isProposalCurrency(service.currency) || !isValidMoney(service.rate, true) || !Number.isFinite(service.quantity) || service.quantity <= 0 || !['Fixed', 'Time & Materials', 'Retainer'].includes(service.feeModel)) throw new GuardError('INVALID_STATE', 'Proposal service requires an in-scope offering, supported currency, valid reporting period, a positive quantity, nonnegative rate and valid fee model.');
+    const list = this.state.proposalServices ||= [];
+    const index = list.findIndex(item => item.id === service.id);
+    if (index >= 0 && expectedRevision !== undefined && list[index].revision !== expectedRevision) throw new GuardError('STALE_REVISION', 'Proposal service changed in another view. Reload before saving.');
+    const next = { ...structuredClone(service), revision: index >= 0 ? list[index].revision + 1 : 1 };
+    if (index >= 0) { (this.state.proposalServiceHistory ||= []).push(structuredClone(list[index])); list[index] = next; }
+    else list.push(next);
+    this.logEvent(`Proposal service ${next.id} saved at revision ${next.revision}`, next.id);
+    this.notify();
+    return structuredClone(next);
+  }
+
+  public saveProposalTemplate(template: ProposalContentTemplate, expectedRevision?: number) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['relationship', 'manager', 'partner'], 'maintain proposal content templates');
+    const serviceSource = this.state.proposalServices?.find(service => service.id === template.serviceId);
+    const serviceRevisionExists = Boolean(serviceSource && (!template.serviceRevision || serviceSource.revision === template.serviceRevision || this.state.proposalServiceHistory?.some(service => service.id === template.serviceId && service.revision === template.serviceRevision)));
+    if (!template.id.trim() || !template.name.trim() || !template.title.trim() || hasUnsupportedProposalOffering(`${template.name} ${template.title} ${template.description}`) || !template.scope.trim() || !template.deliverables.trim() || !template.period.trim() || !hasValidProposalPeriod(template.periodStart, template.periodEnd) || !template.terms.trim() || !isProposalCurrency(template.currency) || !serviceRevisionExists) throw new GuardError('INVALID_STATE', 'Proposal template requires an in-scope supported service revision, title, scope, valid reporting period, terms and a supported currency.');
+    if (!Number.isFinite(template.quantity) || template.quantity <= 0 || !isValidMoney(template.rate, true) || !['Fixed', 'Time & Materials', 'Retainer'].includes(template.feeModel)) throw new GuardError('INVALID_STATE', 'Proposal template requires a positive quantity, nonnegative rate and valid fee model.');
+    const list = this.state.proposalTemplates ||= [];
+    const index = list.findIndex(item => item.id === template.id);
+    if (index >= 0 && expectedRevision !== undefined && list[index].revision !== expectedRevision) throw new GuardError('STALE_REVISION', 'Proposal template changed in another view. Reload before saving.');
+    const next = { ...structuredClone(template), revision: index >= 0 ? list[index].revision + 1 : 1 };
+    if (index >= 0) { (this.state.proposalTemplateHistory ||= []).push(structuredClone(list[index])); list[index] = next; }
+    else list.push(next);
+    this.logEvent(`Proposal content template ${next.id} saved at revision ${next.revision}`, next.id);
+    this.notify();
+    return structuredClone(next);
+  }
+
   public addProposal(prop: PrototypeState['proposals'][0]) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'draft proposals');
@@ -769,7 +891,7 @@ class PrototypeStore {
     if (prop.leadId && !this.state.leads.some(l => l.id === prop.leadId)) throw new GuardError('INVALID_STATE', 'Proposal opportunity was not found.');
     if (prop.leadId && prop.clientId && this.state.leads.find(l => l.id === prop.leadId)?.convertedClientId !== prop.clientId) throw new GuardError('INVALID_STATE', 'Proposal opportunity and client do not match.');
     if (this.state.proposals.some(p => p.id === prop.id)) throw new GuardError('INVALID_STATE', `Proposal "${prop.id}" already exists.`);
-    if (!prop.title.trim() || !prop.items.length || !prop.items.every(item => item.serviceName.trim() && item.scope.trim() && item.description.trim() && item.deliverables.trim() && isValidMoney(item.amount, true)) || !prop.terms.trim() || !isValidMoney(prop.totalAmount, true) || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal requires a title, complete scope, deliverables, terms, and a total equal to its valid line items.');
+    if (!prop.title.trim() || !prop.period?.trim() || !hasValidProposalPeriod(prop.periodStart, prop.periodEnd) || !isProposalCurrency(prop.currency) || (prop.templateId && !Boolean(this.state.proposalTemplates?.some(template => template.id === prop.templateId && template.revision === prop.templateRevision) || this.state.proposalTemplateHistory?.some(template => template.id === prop.templateId && template.revision === prop.templateRevision))) || !prop.items.length || !prop.items.every(item => item.serviceName.trim() && ['Fixed', 'Time & Materials', 'Retainer'].includes(item.feeModel) && item.scope.trim() && item.description.trim() && item.exclusions?.trim() && item.deliverables.trim() && item.clientResponsibilities?.trim() && item.dependencies?.trim() && item.period?.trim() && hasValidProposalPeriod(item.periodStart, item.periodEnd) && isValidMoney(item.amount, true) && Number.isFinite(item.quantity) && (item.quantity || 0) > 0 && isValidMoney(item.rate ?? item.amount, true) && Math.abs(item.amount - (item.feeModel === 'Fixed' ? item.rate ?? item.amount : (item.quantity || 0) * (item.rate || 0))) <= 0.005 && (!item.serviceId || Boolean(this.state.proposalServices?.some(service => service.id === item.serviceId && (!item.serviceRevision || service.revision === item.serviceRevision)) || this.state.proposalServiceHistory?.some(service => service.id === item.serviceId && service.revision === item.serviceRevision)))) || !prop.terms.trim() || !isValidMoney(prop.totalAmount, true) || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal requires a period, supported currency, complete line scope, valid service and reconciled fee calculations.');
     this.state.proposals.push(prop);
     this.logEvent(`Proposal ${prop.title} drafted (Rev ${prop.revision})`, prop.id);
     this.notify();
@@ -780,7 +902,7 @@ class PrototypeStore {
     requireRole(this.state, ['relationship', 'manager', 'partner'], 'edit proposal drafts');
     const index = this.state.proposals.findIndex(item => item.id === prop.id);
     if (index < 0 || this.state.proposals[index].state !== 'Draft') throw new GuardError('INVALID_STATE', 'Only an existing draft proposal can be edited.');
-    if (!prop.items.length || !prop.items.every(item => item.scope.trim() && item.deliverables.trim() && isValidMoney(item.amount, true)) || !prop.terms.trim() || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal scope, deliverables, terms, and line item total are required.');
+    if (!prop.period?.trim() || !hasValidProposalPeriod(prop.periodStart, prop.periodEnd) || !isProposalCurrency(prop.currency) || (prop.templateId && !Boolean(this.state.proposalTemplates?.some(template => template.id === prop.templateId && template.revision === prop.templateRevision) || this.state.proposalTemplateHistory?.some(template => template.id === prop.templateId && template.revision === prop.templateRevision))) || !prop.items.length || !prop.items.every(item => ['Fixed', 'Time & Materials', 'Retainer'].includes(item.feeModel) && item.scope.trim() && item.exclusions?.trim() && item.deliverables.trim() && item.clientResponsibilities?.trim() && item.dependencies?.trim() && item.period?.trim() && hasValidProposalPeriod(item.periodStart, item.periodEnd) && isValidMoney(item.amount, true) && Number.isFinite(item.quantity) && (item.quantity || 0) > 0 && isValidMoney(item.rate ?? item.amount, true) && Math.abs(item.amount - (item.feeModel === 'Fixed' ? item.rate ?? item.amount : (item.quantity || 0) * (item.rate || 0))) <= 0.005) || !prop.terms.trim() || Math.abs(prop.items.reduce((sum, item) => sum + item.amount, 0) - prop.totalAmount) > 0.005) throw new GuardError('INVALID_STATE', 'Proposal scope, fee calculations, period, currency and terms are required.');
     this.state.proposals[index] = prop;
     this.logEvent(`Proposal ${prop.id} draft updated`, prop.id);
     this.notify();
@@ -825,11 +947,12 @@ class PrototypeStore {
     // Same-person commercial approval denied even under another role label (VP-011).
     requireIndependentActor(prop.preparedBy, this.state.currentPerson, 'commercially approve this proposal', this.state);
     if (prop.state !== 'Draft' && prop.state !== 'Internal review') throw new GuardError('INVALID_STATE', 'Only an unpresented proposal revision can be reviewed.');
+    if (!approved && !notes?.trim()) throw new GuardError('INVALID_STATE', 'A return reason is required before a proposal can be sent back for revision.');
     prop.commercialReview = {
       reviewedBy: this.state.currentPerson,
       reviewedAt: new Date().toISOString(),
       approved,
-      notes
+      notes: notes?.trim() || undefined
     };
     prop.state = approved ? 'Approved to send' : 'Draft';
     this.logEvent(`Proposal ${prop.id} ${approved ? 'approved' : 'returned'} by ${this.state.currentPerson}`, prop.id);
@@ -838,14 +961,15 @@ class PrototypeStore {
 
   public recordProposalResponse(propId: string, response: PrototypeState['proposals'][0]['clientResponse']) {
     requireActiveIdentity(this.state);
-    requireRole(this.state, ['client'], 'record client proposal acceptance');
+    requireRole(this.state, ['client', 'relationship', 'manager', 'partner'], 'record client proposal response');
     const prop = this.state.proposals.find(p => p.id === propId);
     if (!prop || !response) throw new GuardError('INVALID_STATE', 'Proposal or client response was not found.');
     if (!prop.clientId) throw new GuardError('INVALID_STATE', 'Proposal must be linked to a client before recording a response.');
     requireClientScope(this.state, prop.clientId);
     if (prop.state !== 'Presented' || !prop.commercialReview?.approved) throw new GuardError('INVALID_STATE', 'Only an approved, presented proposal can receive a client response.');
-    if (!prop.presentedSnapshot || prop.presentedSnapshot.revision !== prop.revision || !response.contact.trim() || !response.evidenceRef?.trim() || !response.notes.trim()) throw new GuardError('INVALID_STATE', 'Response requires the current presented revision, an authorized contact, notes, and an evidence reference.');
-    prop.clientResponse = response;
+    const authorizedContact = this.state.contacts.find(contact => contact.clientId === prop.clientId && contact.active && contact.name.trim().toLocaleLowerCase() === response.contact?.trim().toLocaleLowerCase());
+    if (!prop.presentedSnapshot || prop.presentedSnapshot.revision !== prop.revision || !['Accepted', 'Declined', 'Withdrawn'].includes(response.responseType) || !authorizedContact || !['Email', 'Meeting', 'Letter'].includes(response.method) || !isProposalDate(response.date) || !response.evidenceRef?.trim() || !response.notes.trim()) throw new GuardError('INVALID_STATE', 'Response requires the current presented revision, an active client contact, allowed method and allowed response type, valid date, notes, and an evidence reference.');
+    prop.clientResponse = { ...response, contact: response.contact.trim(), recordedBy: this.state.currentPerson, recordedRole: this.state.currentRole, contactId: authorizedContact.id, revision: prop.presentedSnapshot.revision };
     prop.state = response.responseType;
     this.logEvent(`Proposal ${prop.id} client response: ${response.responseType} by ${response.contact}`, prop.id);
     this.notify();
@@ -856,7 +980,9 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'create engagements');
     requireClientScope(this.state, eng.client);
-    if (!this.state.clients.some(c => c.id === eng.client)) throw new GuardError('INVALID_STATE', 'Engagement client was not found.');
+    const engagementClient = this.state.clients.find(c => c.id === eng.client);
+    if (!engagementClient) throw new GuardError('INVALID_STATE', 'Engagement client was not found.');
+    if (['Suspended', 'Archived'].includes(engagementClient.status) && !['Draft', 'Acceptance', 'Acceptance pending'].includes(eng.stage)) throw new GuardError('INVALID_STATE', `Client ${engagementClient.id} is ${engagementClient.status.toLowerCase()}; reactivate the client before starting active professional work.`);
     if (eng.proposalId) {
       const proposal = this.state.proposals.find(p => p.id === eng.proposalId);
       if (!proposal || proposal.clientId !== eng.client || proposal.state !== 'Accepted' || !proposal.clientResponse?.evidenceRef || proposal.presentedSnapshot?.revision !== proposal.revision) throw new GuardError('INVALID_STATE', 'Engagement must link to the same client’s accepted current proposal revision with evidence.');
@@ -880,6 +1006,8 @@ class PrototypeStore {
     requireRole(this.state, ['partner'], 'professionally accept engagements');
     const eng = this.state.engagements.find(item => item.id === engagementId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" was not found.`);
+    const client = this.state.clients.find(item => item.id === eng.client);
+    if (!client || ['Suspended', 'Archived'].includes(client.status)) throw new GuardError('INVALID_STATE', 'A suspended or archived client must be reactivated before professional acceptance.');
     requireEngagementScope(this.state, eng.id, 'activation');
     if (!['Draft', 'Acceptance'].includes(eng.stage)) throw new GuardError('INVALID_STATE', 'Only a draft engagement can be activated.');
     const proposal = this.state.proposals.find(item => item.id === eng.proposalId);
@@ -906,6 +1034,8 @@ class PrototypeStore {
     if (eng.client !== current.client) throw new GuardError('INVALID_STATE', 'An engagement cannot be reassigned to another client.');
     if (!this.state.users.some(u => u.status === 'Active' && u.role === 'manager' && u.name === eng.manager) || !this.state.users.some(u => u.status === 'Active' && u.role === 'partner' && u.name === eng.partner)) throw new GuardError('INVALID_STATE', 'Engagement manager and partner must be active assigned personas.');
     const scopeChanged = current.service !== eng.service || current.year !== eng.year || current.period !== eng.period;
+    const teamChanged = current.manager !== eng.manager || current.partner !== eng.partner || JSON.stringify(current.team) !== JSON.stringify(eng.team);
+    const planningReviewChanged = scopeChanged || teamChanged;
     if (!eng.service.trim() || !eng.period.trim() || !Number.isInteger(eng.year) || eng.year < 1900 || eng.year > 2100 || !/^\d{4}$/.test(String(eng.year))) throw new GuardError('INVALID_STATE', 'Engagement service, reporting period and a valid reporting year are required.');
     const updated = { ...current, service: eng.service.trim(), year: eng.year, period: eng.period.trim(), stage: eng.stage, due: eng.due, manager: eng.manager, partner: eng.partner, team: [...eng.team], opinion: eng.opinion };
     if (new Set(updated.team).size !== updated.team.length || updated.team.some(name => !this.state.users.some(user => user.status === 'Active' && user.group === 'Professional' && user.name === name)) || !updated.team.includes(updated.manager) || !updated.team.includes(updated.partner)) throw new GuardError('INVALID_STATE', 'The engagement team must contain unique active professional personas, including its manager and partner.');
@@ -916,17 +1046,27 @@ class PrototypeStore {
     }
     if (JSON.stringify(updated) !== JSON.stringify(current)) {
       const changed = (['service', 'year', 'period', 'stage', 'due', 'manager', 'partner', 'team', 'opinion'] as const).filter(key => JSON.stringify(current[key]) !== JSON.stringify(updated[key]));
-      if (scopeChanged) {
+      if (planningReviewChanged) {
         updated.planning = false;
-        updated.sourceAccepted = false;
-        updated.mappingApproved = false;
-        for (const revision of this.state.statementSetRevisions || []) if (revision.engagementId === eng.id || revision.comparativeEngagementId === eng.id) revision.status = 'Stale';
+        if (scopeChanged) {
+          updated.sourceAccepted = false;
+          updated.mappingApproved = false;
+          for (const revision of this.state.statementSetRevisions || []) if (revision.engagementId === eng.id || revision.comparativeEngagementId === eng.id) revision.status = 'Stale';
+          for (const reconciliation of updated.reconciliations || []) this.staleReconciliation(reconciliation);
+          for (const revision of updated.cashFlowScheduleHistory || []) revision.status = 'Stale';
+        }
+        const latestActivePlan = [...(this.state.auditPlans || [])].filter(plan => plan.engagementId === eng.id && plan.status !== 'Superseded').sort((a, b) => b.version - a.version)[0];
+        if (latestActivePlan) {
+          latestActivePlan.status = 'Superseded';
+          latestActivePlan.supersededReason = `Engagement ${scopeChanged ? 'service or reporting period' : 'team'} changed; update and independently review the audit plan.`;
+        }
         for (const program of this.state.auditPrograms) if (program.engagementId === eng.id || (!program.engagementId && eng.id === this.state.engagements[0]?.id)) for (const procedure of program.procedures) {
           if (procedure.status === 'Not started' && !procedure.workPerformed && !procedure.conclusion) continue;
+          const reason = scopeChanged ? 'Engagement service or reporting period changed' : 'Engagement team changed';
           procedure.scopeReassessmentHistory ||= [];
-          procedure.scopeReassessmentHistory.push({ reason: 'Engagement service or reporting period changed', previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+          procedure.scopeReassessmentHistory.push({ reason, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
           procedure.scopeReassessmentRequired = true;
-          procedure.scopeReassessmentReason = 'Service or period changed';
+          procedure.scopeReassessmentReason = scopeChanged ? 'Service or period changed' : 'Engagement team changed';
           if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
           procedure.reviewedByUserId = undefined;
           procedure.reviewedAt = undefined;
@@ -972,6 +1112,7 @@ class PrototypeStore {
     if (!eng || eng.client !== job.clientId) throw new GuardError('INVALID_STATE', 'Job client and engagement must match.');
     if (!job.title.trim() || !job.owner.trim() || !job.dueDate) throw new GuardError('INVALID_STATE', 'Job title, owner, and due date are required.');
     if (this.state.jobs.some(j => j.id === job.id)) throw new GuardError('INVALID_STATE', `Job "${job.id}" already exists.`);
+    this.assertScopedJobStaff(job.owner, job.engagementId, 'Job owner');
     this.state.jobs.push(job);
     this.logEvent(`New job scheduled: ${job.title}`, job.id);
     this.notify();
@@ -985,6 +1126,7 @@ class PrototypeStore {
       const current = this.state.jobs[index];
       requireEngagementScope(this.state, job.engagementId);
       if (job.clientId !== current.clientId || job.engagementId !== current.engagementId) throw new GuardError('INVALID_STATE', 'A job cannot be moved to a different client or engagement.');
+      this.assertScopedJobStaff(job.owner, job.engagementId, 'Job owner');
       if (current.status === 'Cancelled' && job.status !== 'Cancelled') throw new GuardError('INVALID_STATE', 'A cancelled job cannot be reopened. Its history remains available.');
       const children = this.state.jobTasks.filter(t => t.jobId === job.id && t.status !== 'Cancelled');
       if (job.status === 'Completed' && children.some(t => t.status !== 'Completed')) throw new GuardError('INVALID_STATE', 'Job cannot complete while required tasks are unfinished.');
@@ -1070,10 +1212,14 @@ class PrototypeStore {
   }
 
   private assertTaskAssignee(name: string, engagementId: string) {
+    this.assertScopedJobStaff(name, engagementId, 'Task assignee');
+  }
+
+  private assertScopedJobStaff(name: string, engagementId: string, label: string) {
     const user = this.state.users.find(item => item.status === 'Active' && item.name === name && !isClientRole(item.role) && canOpenRoute(item.role, 'jobs'));
-    if (!user) throw new GuardError('INVALID_STATE', 'Task assignee must be an active staff user with job access.');
+    if (!user) throw new GuardError('INVALID_STATE', `${label} must be an active staff user with job access.`);
     const visible = visibleEngagementIds(this.state, user.id);
-    if (visible !== 'ALL' && !visible.includes(engagementId)) throw new GuardError('FORBIDDEN_SCOPE', 'Task assignee must have access to this engagement.');
+    if (visible !== 'ALL' && !visible.includes(engagementId)) throw new GuardError('FORBIDDEN_SCOPE', `${label} must have access to this engagement.`);
   }
 
   public reassignTask(taskId: string, newAssignee: string, reason: string) {
@@ -1104,6 +1250,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'create job templates');
     if (!template.name || !template.name.trim()) throw new GuardError('INVALID_STATE', 'Template name is required.');
+    this.assertJobTemplateStructure(template);
     if (this.state.jobTemplates.some(t => t.id === template.id)) throw new GuardError('INVALID_STATE', 'Job template ID must be unique.');
     this.state.jobTemplates.push(template);
     this.logEvent(`Job template created: ${template.name}`, template.id);
@@ -1115,7 +1262,7 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'revise job templates');
     const source = this.state.jobTemplates.find(template => template.id === sourceId);
     if (!source || source.status !== 'Published') throw new GuardError('INVALID_STATE', 'Only a published template can be revised.');
-    if (!edits.name.trim() || !edits.defaultJobTitle.trim() || edits.tasks.length === 0 || edits.tasks.some(task => !task.title.trim() || (task.subtasks || []).some(subtask => !subtask.trim()))) throw new GuardError('INVALID_STATE', 'A revision requires a name, default job title, and titled phases/subtasks.');
+    this.assertJobTemplateStructure({ ...source, ...edits });
     const rootTemplateId = source.rootTemplateId || source.id;
     const revision = Math.max(...this.state.jobTemplates.filter(template => (template.rootTemplateId || template.id) === rootTemplateId).map(template => template.revision)) + 1;
     const next: JobTemplateItem = { ...edits, id: `${rootTemplateId}-R${revision}`, status: 'Draft', revision, revisionOfId: source.id, rootTemplateId, tasks: structuredClone(edits.tasks) };
@@ -1131,6 +1278,8 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'publish job templates');
     const tpl = this.state.jobTemplates.find(t => t.id === templateId);
     if (!tpl) throw new GuardError('INVALID_STATE', 'Template not found.');
+    this.assertJobTemplateStructure(tpl);
+    if (tpl.status === 'Retired') throw new GuardError('INVALID_STATE', 'Retired templates cannot be republished; create a new revision.');
     tpl.status = 'Published';
     this.logEvent(`Job template published: ${tpl.name}`, tpl.id);
     this.notify();
@@ -1141,12 +1290,19 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'retire job templates');
     const tpl = this.state.jobTemplates.find(t => t.id === templateId);
     if (!tpl) throw new GuardError('INVALID_STATE', 'Template not found.');
+    if (tpl.status === 'Retired') throw new GuardError('INVALID_STATE', 'Template is already retired.');
     tpl.status = 'Retired';
     this.logEvent(`Job template retired: ${tpl.name}`, tpl.id);
     this.notify();
   }
 
-  public applyJobTemplate(templateId: string, engagementId: string, jobTitle: string, dueDate: string, owner: string, operationId?: string) {
+  private assertJobTemplateStructure(template: Pick<JobTemplateItem, 'name' | 'defaultJobTitle' | 'tasks'>) {
+    if (!template.name.trim() || !template.defaultJobTitle.trim() || template.tasks.length === 0 || template.tasks.some(task => !task.title.trim() || (task.subtasks || []).some(subtask => !subtask.trim()))) {
+      throw new GuardError('INVALID_STATE', 'A template requires a name, default job title, and titled phases/subtasks.');
+    }
+  }
+
+  public applyJobTemplate(templateId: string, engagementId: string, jobTitle: string, dueDate: string, owner: string, operationId?: string, startDate = this.state.asOfDate) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner'], 'apply job templates');
     requireEngagementScope(this.state, engagementId);
@@ -1155,16 +1311,18 @@ class PrototypeStore {
     if (operationId) {
       const prior = this.state.jobs.find(job => job.templateOperationId === operationId);
       if (prior) {
-        if (prior.fromTemplateId !== templateId || prior.engagementId !== engagementId || prior.title !== jobTitle || prior.dueDate !== dueDate || prior.owner !== owner) throw new GuardError('INVALID_STATE', 'Template operation ID was already used for different job details.');
+        if (prior.fromTemplateId !== templateId || prior.engagementId !== engagementId || prior.title !== jobTitle || prior.dueDate !== dueDate || prior.startDate !== startDate || prior.owner !== owner) throw new GuardError('INVALID_STATE', 'Template operation ID was already used for different job details.');
         return prior;
       }
     }
     if (tpl.status !== 'Published') {
       throw new GuardError('INVALID_STATE', 'Only Published templates can be applied to create jobs (VP-015).');
     }
+    this.assertJobTemplateStructure(tpl);
     const eng = this.state.engagements.find(e => e.id === engagementId);
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" was not found.`);
-    if (!jobTitle.trim() || !dueDate || !this.state.users.some(u => u.status === 'Active' && u.name === owner)) throw new GuardError('INVALID_STATE', 'A job title, due date, and active owner are required.');
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!jobTitle.trim() || !validDate(startDate) || !validDate(dueDate) || startDate > dueDate || !this.state.users.some(u => u.status === 'Active' && u.name === owner)) throw new GuardError('INVALID_STATE', 'A job title, valid start and delivery dates, and active owner are required.');
     const newJobId = `JOB-260${this.state.jobs.length + 1}`;
 
     const newJob: JobRecord = {
@@ -1174,7 +1332,7 @@ class PrototypeStore {
       title: jobTitle || tpl.defaultJobTitle,
       description: tpl.description,
       owner,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate,
       dueDate,
       status: 'Not started',
       fromTemplateId: tpl.id,
@@ -1229,15 +1387,19 @@ class PrototypeStore {
     if (!comment.text.trim() || comment.text.length > 5000) throw new GuardError('INVALID_STATE', 'Comment text is required and must be 5,000 characters or fewer.');
     if (comment.subjectType !== 'client' && comment.visibility !== 'internal') throw new GuardError('INVALID_STATE', 'Job, task and engagement comments must remain internal.');
     if (this.state.comments.some(item => item.id === comment.id)) throw new GuardError('INVALID_STATE', `Comment "${comment.id}" already exists.`);
-    if (comment.subjectType === 'job' || comment.subjectType === 'task') {
-      const task = comment.subjectType === 'task' ? this.state.jobTasks.find(item => item.id === comment.subjectId) : undefined;
-      const job = comment.subjectType === 'job' ? this.state.jobs.find(item => item.id === comment.subjectId) : this.state.jobs.find(item => item.id === task?.jobId);
-      const eligibleIds = this.state.users.filter(user => {
-        const visible = visibleEngagementIds(this.state, user.id);
-        return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && (visible === 'ALL' || visible.includes(job!.engagementId));
-      }).map(user => user.id);
-      if ((comment.mentions || []).some(id => !eligibleIds.includes(id))) throw new GuardError('FORBIDDEN_SCOPE', 'Mention recipients must be active users who can access this job.');
-    }
+    const task = comment.subjectType === 'task' ? this.state.jobTasks.find(item => item.id === comment.subjectId) : undefined;
+    const job = comment.subjectType === 'job' ? this.state.jobs.find(item => item.id === comment.subjectId) : task ? this.state.jobs.find(item => item.id === task.jobId) : undefined;
+    const eligibleIds = this.state.users.filter(user => {
+      if (user.status !== 'Active' || isClientRole(user.role) || !canOpenRoute(user.role, 'jobs')) return false;
+      if (comment.subjectType === 'client') {
+        const visible = visibleClientIds(this.state, user.id);
+        return visible === 'ALL' || visible.includes(comment.subjectId);
+      }
+      const engagementId = comment.subjectType === 'engagement' ? comment.subjectId : job!.engagementId;
+      const visible = visibleEngagementIds(this.state, user.id);
+      return visible === 'ALL' || visible.includes(engagementId);
+    }).map(user => user.id);
+    if ((comment.mentions || []).some(id => !eligibleIds.includes(id))) throw new GuardError('FORBIDDEN_SCOPE', 'Mention recipients must be active staff who can access this comment subject.');
     this.state.comments.push(comment);
     if ((comment.mentions || []).length) {
       this.state.localNotices ||= [];
@@ -1584,6 +1746,9 @@ class PrototypeStore {
     requireClientScope(this.state, inv.clientId);
     if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
     if (!isValidMoney(inv.amount, true) || !Array.isArray(inv.lines) || Math.abs(inv.lines.reduce((s, line) => s + line.amount, 0) - inv.amount) > 0.005) throw new GuardError('INVALID_STATE', 'Invoice total must match its line items.');
+    if (inv.lines.some(line => !line.description.trim() || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.rate) || line.rate < 0 || !Number.isFinite(line.amount) || line.amount < 0 || Math.abs(Math.round(line.amount * 100) / 100 - line.amount) > 0.005 || Math.abs(Math.round(line.quantity * line.rate * 100) / 100 - line.amount) > 0.005)) {
+      throw new GuardError('INVALID_STATE', 'Every invoice line needs a description, positive quantity, non-negative finite rate, and matching rounded line total.');
+    }
     if (inv.status !== 'Draft') throw new GuardError('INVALID_STATE', 'New invoices must begin as drafts.');
     if (this.state.invoices.some(i => i.id === inv.id || i.invoiceNumber === inv.invoiceNumber)) throw new GuardError('INVALID_STATE', 'Invoice ID and number must be unique.');
     const timeLines = inv.lines.filter(line => line.sourceType === 'Time entry');
@@ -1597,7 +1762,7 @@ class PrototypeStore {
       const quantity = time.durationMinutes / 60;
       const amount = Math.round(quantity * time.billingRatePerHour! * 100) / 100;
       if (line.quantity !== quantity || line.rate !== time.billingRatePerHour || line.amount !== amount) throw new GuardError('INVALID_STATE', `Invoice line for "${time.id}" does not match its approved duration and pinned rate.`);
-      if (this.state.invoices.some(existing => existing.lines.some(existingLine => existingLine.sourceType === 'Time entry' && existingLine.sourceId === time.id))) throw new GuardError('INVALID_STATE', `Time source "${time.id}" has already been consumed by an invoice.`);
+      if (this.state.invoices.some(existing => existing.status !== 'Cancelled' && existing.lines.some(existingLine => existingLine.sourceType === 'Time entry' && existingLine.sourceId === time.id))) throw new GuardError('INVALID_STATE', `Time source "${time.id}" has already been consumed by an invoice.`);
       return time;
     });
     const fixedLines = inv.lines.filter(line => line.sourceType === 'Fixed service');
@@ -1616,6 +1781,23 @@ class PrototypeStore {
     this.state.invoices.push(inv);
     timeSources.forEach(time => { time.billedInvoiceId = inv.id; });
     this.logEvent(`Invoice draft created: ${inv.invoiceNumber}`, inv.id);
+    this.notify();
+  }
+
+  public cancelInvoiceDraft(invId: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['billing', 'manager', 'partner'], 'cancel invoice drafts');
+    const invoice = this.state.invoices.find(item => item.id === invId);
+    if (!invoice) throw new GuardError('INVALID_STATE', `Invoice "${invId}" was not found.`);
+    requireClientScope(this.state, invoice.clientId);
+    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
+    if (invoice.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only unapproved invoice drafts can be cancelled.');
+    invoice.status = 'Cancelled';
+    invoice.lines.filter(line => line.sourceType === 'Time entry').forEach(line => {
+      const time = this.state.times.find(entry => entry.id === line.sourceId);
+      if (time?.billedInvoiceId === invoice.id) time.billedInvoiceId = undefined;
+    });
+    this.logEvent(`Invoice draft cancelled: ${invoice.invoiceNumber}`, invoice.id);
     this.notify();
   }
 
@@ -1672,14 +1854,16 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', `Credit ${credit.amount} exceeds remaining creditable amount ${remaining}.`);
     }
     this.state.creditNotes.push(credit);
+    credit.revision = Math.max(1, credit.revision || 1);
     credit.status = 'Draft';
     credit.reviewedBy = undefined;
+    credit.reviewedRevision = undefined;
     credit.issuedBy = undefined;
     this.logEvent(`Credit note drafted: ${credit.creditNumber} (${credit.amount} ${credit.currency || inv.currency})`, credit.id);
     this.notify();
   }
 
-  public reviewCreditNote(creditId: string, approved: boolean) {
+  public reviewCreditNote(creditId: string, approved: boolean, returnReason?: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['billing', 'manager', 'partner'], 'review credit notes');
     const credit = this.state.creditNotes.find(c => c.id === creditId);
@@ -1687,11 +1871,39 @@ class PrototypeStore {
     requireClientScope(this.state, credit.clientId);
     const invoice = this.state.invoices.find(i => i.id === credit.invoiceId);
     if (invoice?.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
-    if (credit.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a draft credit note can be reviewed.');
-    if (approved) requireIndependentActor(credit.preparedBy, this.state.currentPerson, 'approve their own credit note', this.state);
+    if (approved && credit.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a draft credit note can be approved.');
+    if (approved) {
+      requireIndependentActor(credit.preparedBy, this.state.currentPerson, 'approve their own credit note', this.state);
+      const otherReservedCredits = this.state.creditNotes.filter(item => item.id !== credit.id && item.invoiceId === credit.invoiceId && (item.status === 'Issued' || item.status === 'Approved')).reduce((sum, item) => sum + item.amount, 0);
+      if (credit.amount > (invoice?.amount || 0) - otherReservedCredits) throw new GuardError('INVALID_STATE', 'Credit note exceeds the remaining creditable invoice balance.');
+    } else if ((credit.status !== 'Draft' && credit.status !== 'Approved') || !returnReason?.trim()) throw new GuardError('INVALID_STATE', 'Returning a draft or approved credit note requires a reason.');
     credit.status = approved ? 'Approved' : 'Draft';
     credit.reviewedBy = approved ? this.state.currentPerson : undefined;
+    credit.reviewedRevision = approved ? Math.max(1, credit.revision || 1) : undefined;
+    credit.returnReason = approved ? undefined : returnReason!.trim();
+    if (!approved) credit.revision = Math.max(1, credit.revision || 1) + 1;
     this.logEvent(`Credit note ${credit.creditNumber} ${approved ? 'approved' : 'returned'} by ${this.state.currentPerson}`, credit.id);
+    this.notify();
+  }
+
+  public reviseCreditNote(creditId: string, changes: { amount: number; reason: string }) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['billing', 'manager', 'partner'], 'revise credit notes');
+    const credit = this.state.creditNotes.find(item => item.id === creditId);
+    if (!credit) throw new GuardError('INVALID_STATE', `Credit note "${creditId}" was not found.`);
+    requireClientScope(this.state, credit.clientId);
+    const invoice = this.state.invoices.find(item => item.id === credit.invoiceId);
+    if (invoice?.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
+    if (credit.status !== 'Draft' || !credit.returnReason) throw new GuardError('INVALID_STATE', 'Only a returned draft credit note can be revised.');
+    if (!isValidMoney(changes.amount) || !changes.reason?.trim()) throw new GuardError('INVALID_STATE', 'Revised credit requires a positive cent-accurate amount and reason.');
+    if ((credit.currency || invoice?.currency) !== invoice?.currency) throw new GuardError('INVALID_STATE', 'Credit note currency must match the invoice currency.');
+    const otherReservedCredits = this.state.creditNotes.filter(item => item.id !== credit.id && item.invoiceId === credit.invoiceId && (item.status === 'Issued' || item.status === 'Approved')).reduce((sum, item) => sum + item.amount, 0);
+    if (changes.amount > (invoice?.amount || 0) - otherReservedCredits) throw new GuardError('INVALID_STATE', 'Credit note exceeds the remaining creditable invoice balance.');
+    credit.amount = changes.amount;
+    credit.reason = changes.reason.trim();
+    credit.reviewedBy = undefined;
+    credit.reviewedRevision = undefined;
+    this.logEvent(`Credit note ${credit.creditNumber} revised to revision ${credit.revision}`, credit.id);
     this.notify();
   }
 
@@ -1705,10 +1917,12 @@ class PrototypeStore {
     if (!invoice || (invoice.status !== 'Issued' && invoice.status !== 'Paid')) throw new GuardError('INVALID_STATE', 'Credit note invoice is no longer eligible for credit.');
     if ((credit.currency || invoice.currency) !== invoice.currency) throw new GuardError('INVALID_STATE', 'Credit note currency must match the invoice currency.');
     if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
-    if (credit.status !== 'Approved' || !credit.reviewedBy) throw new GuardError('INVALID_STATE', 'Credit note must receive independent review before issue.');
+    if (credit.status !== 'Approved' || !credit.reviewedBy || credit.reviewedRevision !== Math.max(1, credit.revision || 1)) throw new GuardError('INVALID_STATE', 'Credit note must receive independent review of its current revision before issue.');
     requireIndependentActor(credit.reviewedBy, this.state.currentPerson, 'issue the credit note they reviewed', this.state);
     const alreadyIssued = this.state.creditNotes.filter(c => c.invoiceId === invoice.id && c.status === 'Issued').reduce((sum, c) => sum + c.amount, 0);
     if (credit.amount > invoice.amount - alreadyIssued) throw new GuardError('INVALID_STATE', 'Credit note exceeds the remaining creditable invoice balance.');
+    const otherApproved = this.state.creditNotes.filter(item => item.id !== credit.id && item.invoiceId === invoice.id && item.status === 'Approved').reduce((sum, item) => sum + item.amount, 0);
+    if (credit.amount + otherApproved > invoice.amount - alreadyIssued) throw new GuardError('INVALID_STATE', 'Credit note exceeds the remaining creditable invoice balance after other approved credits.');
     credit.status = 'Issued';
     credit.issueDate = this.state.asOfDate;
     credit.date = this.state.asOfDate;
@@ -1722,10 +1936,13 @@ class PrototypeStore {
   public addReceipt(receipt: ReceiptRecord) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['billing', 'manager', 'partner'], 'record offline receipts');
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!receipt.id?.trim() || !receipt.receiptNumber?.trim() || receipt.receiptNumber.length > 80 || !/^[A-Z]{3}$/.test(receipt.currency) || !validDate(receipt.date) || !['Bank transfer', 'Cash', 'Cheque', 'Other'].includes(receipt.method) || typeof receipt.externalRef !== 'string' || receipt.externalRef.length > 160 || typeof receipt.reference !== 'undefined' && (typeof receipt.reference !== 'string' || receipt.reference.length > 160) || typeof receipt.notes !== 'undefined' && (typeof receipt.notes !== 'string' || receipt.notes.length > 2000)) throw new GuardError('INVALID_STATE', 'Receipt requires a bounded number/reference, valid date, supported method, three-letter currency and bounded text metadata.');
     if (!isValidMoney(receipt.amount)) throw new GuardError('INVALID_STATE', 'Receipt amount must be finite, positive, and use at most two decimal places.');
     if (!receipt.clientId) throw new GuardError('INVALID_STATE', 'Receipt requires a client billing account.');
-    if (this.state.receipts.some(r => r.id === receipt.id || r.receiptNumber === receipt.receiptNumber)) throw new GuardError('INVALID_STATE', 'Receipt ID and number must be unique.');
+    if (this.state.receipts.some(r => r.id === receipt.id || r.receiptNumber.trim().toLowerCase() === receipt.receiptNumber.trim().toLowerCase())) throw new GuardError('INVALID_STATE', 'Receipt ID and number must be unique.');
     requireClientScope(this.state, receipt.clientId);
+    if (receipt.allocatedAmount !== 0 || receipt.allocations.length !== 0) throw new GuardError('INVALID_STATE', 'New receipt must start with no allocations; use allocation commands to record settlement history.');
     this.state.receipts.unshift(receipt);
     this.logEvent(`Offline receipt recorded: ${receipt.receiptNumber} (${receipt.amount} ${receipt.currency})`, receipt.id);
     this.notify();
@@ -1752,7 +1969,8 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', 'Allocation amount must be finite, positive, and use at most two decimal places.');
     }
 
-    const unallocated = receipt.amount - (receipt.allocatedAmount || 0);
+    if (!Array.isArray(receipt.allocations) || Math.abs(receipt.allocatedAmount - receipt.allocations.filter(item => !item.reversed).reduce((sum, item) => sum + item.amount, 0)) > 0.005 || this.state.receipts.some(item => Math.abs(item.allocatedAmount - (item.allocations || []).filter(allocation => !allocation.reversed).reduce((sum, allocation) => sum + allocation.amount, 0)) > 0.005)) throw new GuardError('INVALID_STATE', 'Receipt allocation balance is stale; reload before allocating.');
+    const unallocated = receipt.amount - receipt.allocatedAmount;
     if (amount > unallocated) {
       throw new GuardError('INVALID_STATE', `Allocation amount ${amount} exceeds available unallocated receipt balance ${unallocated}.`);
     }
@@ -1762,14 +1980,7 @@ class PrototypeStore {
       .filter(c => c.invoiceId === invoice.id && c.status === 'Issued')
       .reduce((s, c) => s + c.amount, 0);
 
-    let totalAllocated = 0;
-    this.state.receipts.forEach(r => {
-      (r.allocations || []).forEach(a => {
-        if (a.invoiceId === invoice.id && !a.reversed) {
-          totalAllocated += a.amount;
-        }
-      });
-    });
+    const totalAllocated = this.state.receipts.flatMap(item => item.allocations || []).filter(item => item.invoiceId === invoice.id && !item.reversed).reduce((sum, item) => sum + item.amount, 0);
 
     const settledAmount = Math.max(invoice.paid || 0, totalAllocated);
     const remainingInvoice = Math.max(0, invoice.amount - issuedCredits - settledAmount);
@@ -1799,7 +2010,7 @@ class PrototypeStore {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['billing', 'manager', 'partner'], 'reverse receipt allocations');
     const receipt = this.state.receipts.find(r => r.id === receiptId);
-    if (!receipt || !receipt.allocations[allocationIndex]) return;
+    if (!receipt || !receipt.allocations[allocationIndex]) throw new GuardError('INVALID_STATE', 'Receipt allocation was not found.');
     requireClientScope(this.state, receipt.clientId);
     if (!reason.trim()) throw new GuardError('INVALID_STATE', 'A reversal reason is required.');
 
@@ -1808,6 +2019,9 @@ class PrototypeStore {
     const invoice = this.state.invoices.find(i => i.id === alloc.invoiceId);
     if (!invoice) throw new GuardError('INVALID_STATE', 'The allocated invoice no longer exists.');
     if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
+    const currentInvoiceSettled = receipt.allocations.filter(item => item.invoiceId === invoice.id && !item.reversed).reduce((sum, item) => sum + item.amount, 0);
+    const allInvoiceSettled = this.state.receipts.flatMap(item => item.allocations || []).filter(item => item.invoiceId === invoice.id && !item.reversed).reduce((sum, item) => sum + item.amount, 0);
+    if (Math.abs((invoice.paid || 0) - allInvoiceSettled) > 0.005 || Math.abs(receipt.allocatedAmount - receipt.allocations.filter(item => !item.reversed).reduce((sum, item) => sum + item.amount, 0)) > 0.005 || currentInvoiceSettled < alloc.amount) throw new GuardError('INVALID_STATE', 'Settlement totals are stale; refresh before reversing this allocation.');
 
     alloc.reversed = true;
     alloc.reversalDate = new Date().toISOString().split('T')[0];
@@ -1878,7 +2092,7 @@ class PrototypeStore {
     const client = this.state.clients.find(item => item.id === eng.client);
     const profile = client?.accountingProfile;
     const periodBook = profile?.periodBooks.find(book => book.id === eng.accountingPeriodBookId && book.ownerEngagementId === engId);
-    if (source && (!profile || profile.reportingBasis === 'Not selected' || !periodBook || eng.accountingProfileRevision !== profile.revision || eng.accountingChartRevision !== profile.chartRevision)) throw new GuardError('INVALID_STATE', 'Complete or reload the client accounting setup and select this engagement’s period book before importing a trial balance.');
+    if (source && (!profile || profile.reportingBasis === 'Not selected' || !periodBook || periodBook.status !== 'Open' || eng.accountingProfileRevision !== profile.revision || eng.accountingChartRevision !== profile.chartRevision)) throw new GuardError('INVALID_STATE', 'Complete or reload the client accounting setup and select this engagement’s open period book before importing a trial balance.');
     if (source && rows.some(row => !profile?.accounts.some(account => account.code === row.code && account.active && account.posting))) throw new GuardError('INVALID_STATE', 'Imported accounts must exist as active posting accounts in the selected chart.');
     if (source && rows.some(row => source.mapping.dimension && !row.dimensions?.[source.mapping.dimension.id] || Object.entries(row.dimensions || {}).some(([id, value]) => !profile?.dimensions.some(dimension => dimension.id === id && dimension.active && dimension.values.includes(value))))) throw new GuardError('INVALID_STATE', 'Imported dimension values must exist in an active dimension in the selected accounting profile.');
     if (!Array.isArray(rows) || rows.some(r => !r.code.trim() || !r.name.trim() || !Number.isFinite(r.balance)) || new Set(rows.map(r => r.code.trim())).size !== rows.length) throw new GuardError('INVALID_STATE', 'Trial balance rows require unique account codes, names, and finite balances.');
@@ -1920,7 +2134,8 @@ class PrototypeStore {
     const client = this.state.clients.find(item => item.id === engagement?.client);
     const profile = client?.accountingProfile;
     const book = profile?.periodBooks.find(item => item.id === engagement?.accountingPeriodBookId && item.ownerEngagementId === engagementId);
-    if (!engagement || !book || !profile || profile.reportingBasis === 'Not selected' || engagement.accountingProfileRevision !== profile.revision || engagement.accountingChartRevision !== profile.chartRevision) throw new GuardError('INVALID_STATE', 'Select this engagement’s current accounting period book before importing its general ledger.');
+    if (!engagement || !book || book.status !== 'Open' || !profile || profile.reportingBasis === 'Not selected' || engagement.accountingProfileRevision !== profile.revision || engagement.accountingChartRevision !== profile.chartRevision) throw new GuardError('INVALID_STATE', 'Select this engagement’s current open accounting period book before importing its general ledger.');
+    if (Object.keys(input.openingBalances || {}).some(code => !profile.accounts.some(account => account.code === code && account.active && account.posting))) throw new GuardError('INVALID_STATE', 'GL opening balances must reference active posting accounts in the selected chart.');
     if (input.columnMapping && (Object.keys(input.columnMapping).length > 10 || Object.entries(input.columnMapping).some(([key, value]) => !/^(journal|line|date|account|name|debit|credit|currency|description|opening)$/.test(key) || typeof value !== 'string' || value.length > 256))) throw new GuardError('INVALID_STATE', 'GL column mapping must contain only bounded, known source fields.');
     const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
     const cents = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
@@ -1928,7 +2143,7 @@ class PrototypeStore {
     const keys = new Set<string>();
     if (!input || typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 255 || !['CSV', 'XLSX'].includes(input.format) || typeof input.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(input.sha256) || !Array.isArray(input.transactions) || !input.transactions.length || input.transactions.length > 5000 || !input.openingBalances || typeof input.openingBalances !== 'object' || Array.isArray(input.openingBalances) || Object.values(input.openingBalances).some(value => !Number.isFinite(value) || !cents(value))) throw new GuardError('INVALID_STATE', 'GL import requires a named bounded source, SHA-256, transactions, and cent-accurate opening balances.');
     for (const line of input.transactions) {
-      if (!line || typeof line.journalId !== 'string' || !line.journalId.trim() || line.journalId.length > 128 || typeof line.lineId !== 'string' || !line.lineId.trim() || line.lineId.length > 128 || typeof line.accountCode !== 'string' || !line.accountCode.trim() || line.accountCode.length > 128 || typeof line.accountName !== 'string' || !line.accountName.trim() || line.accountName.length > 255 || typeof line.description !== 'string' || !line.description.trim() || line.description.length > 2048 || typeof line.date !== 'string' || !validDate(line.date) || line.date < book.startDate || line.date > book.endDate || line.currency !== profile.baseCurrency || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || !cents(line.debit) || !cents(line.credit) || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || keys.has(`${line.journalId}\u0000${line.lineId}`)) throw new GuardError('INVALID_STATE', 'GL lines must have unique keys, valid in-period dates, matching currency and exactly one cent-accurate non-negative debit or credit.');
+      if (!line || typeof line.journalId !== 'string' || !line.journalId.trim() || line.journalId.length > 128 || typeof line.lineId !== 'string' || !line.lineId.trim() || line.lineId.length > 128 || typeof line.accountCode !== 'string' || !line.accountCode.trim() || line.accountCode.length > 128 || !profile.accounts.some(account => account.code === line.accountCode && account.active && account.posting) || typeof line.accountName !== 'string' || !line.accountName.trim() || line.accountName.length > 255 || typeof line.description !== 'string' || !line.description.trim() || line.description.length > 2048 || typeof line.date !== 'string' || !validDate(line.date) || line.date < book.startDate || line.date > book.endDate || line.currency !== profile.baseCurrency || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || !cents(line.debit) || !cents(line.credit) || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || keys.has(`${line.journalId}\u0000${line.lineId}`)) throw new GuardError('INVALID_STATE', 'GL lines must reference active posting accounts and have unique keys, valid in-period dates, matching currency and exactly one cent-accurate non-negative debit or credit.');
       keys.add(`${line.journalId}\u0000${line.lineId}`);
       const totals = journalTotals.get(line.journalId) || { debit: 0, credit: 0, date: line.date, currency: line.currency };
       if (totals.date !== line.date || totals.currency !== line.currency) throw new GuardError('INVALID_STATE', `Journal ${line.journalId} mixes dates or currencies.`);
@@ -2295,12 +2510,13 @@ class PrototypeStore {
     if (!group.reportingBasis) throw new GuardError('INVALID_STATE', 'Select a supported group reporting basis.');
     const index = this.state.consolidationGroups.findIndex(item => item.id === group.id);
     const existingGroup = this.state.consolidationGroups[index];
+    if (existingGroup) requireConsolidationGroupScope(this.state, existingGroup.id);
     if (existingGroup && JSON.stringify(group.eliminations) !== JSON.stringify(existingGroup.eliminations)) throw new GuardError('INVALID_STATE', 'Group elimination journals must use the guarded draft and independent-review actions.');
     if (existingGroup && JSON.stringify(group.outputPackages || []) !== JSON.stringify(existingGroup.outputPackages || [])) throw new GuardError('INVALID_STATE', 'Group output package revisions and review decisions must use the guarded prepare and independent-review actions.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(e => e.id === component.componentId);
       if (!engagement || engagement.year !== Number(group.period.match(/\d{4}/)?.[0])) throw new GuardError('INVALID_STATE', `Component ${component.componentId} does not match the group period.`);
-      requireEngagementScope(this.state, engagement.id);
+      if (!existingGroup) requireEngagementScope(this.state, engagement.id);
       const client = this.state.clients.find(item => item.id === engagement.client);
       const profile = client?.accountingProfile;
       const periodBook = profile?.periodBooks.find(book => book.id === engagement.accountingPeriodBookId && book.ownerEngagementId === engagement.id && book.status === 'Open');
@@ -2360,7 +2576,7 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'prepare group elimination journals');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     if (!group || !reason.trim()) throw new GuardError('INVALID_STATE', 'Choose a group and record why this elimination is being saved.');
-    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    requireConsolidationGroupScope(this.state, group.id);
     const components = group.components;
     if (input.counterpartyA === input.counterpartyB || !components.some(component => component.componentId === input.counterpartyA) || !components.some(component => component.componentId === input.counterpartyB)) throw new GuardError('INVALID_STATE', 'Choose the two distinct component entities as counterparties.');
     const currency = group.presentationCurrency || group.currency;
@@ -2411,6 +2627,7 @@ class PrototypeStore {
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     const elimination = group?.eliminations.find(item => item.id === eliminationId);
     if (!group || !elimination || elimination.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a saved draft group elimination can be submitted.');
+    requireConsolidationGroupScope(this.state, group.id);
     if (elimination.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can submit this group elimination.');
     elimination.status = 'Submitted';
     elimination.submittedByUserId = this.state.currentUserId;
@@ -2425,7 +2642,7 @@ class PrototypeStore {
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     const elimination = group?.eliminations.find(item => item.id === eliminationId);
     if (!group || !elimination || elimination.status !== 'Submitted') throw new GuardError('INVALID_STATE', 'Only a submitted group elimination can be reviewed.');
-    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    requireConsolidationGroupScope(this.state, group.id);
     if (!note.trim() || !evidenceRef.trim() || evidenceRef.trim().length > 160) throw new GuardError('INVALID_STATE', 'Record the review rationale and evidence reference (160 characters or fewer).');
     if (!elimination.preparedByUserId) throw new GuardError('INVALID_STATE', 'The elimination draft has no recorded preparer.');
     requireIndependentActor(elimination.preparedByUserId, this.state.currentUserId, 'review their own group elimination', this.state);
@@ -2472,6 +2689,7 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'prepare consolidated output packages');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     if (!group || !record.id || !record.evidenceRef.trim() || record.preparedByUserId !== this.state.currentUserId || record.status !== 'Draft' || !/^[a-f0-9]{64}$/i.test(record.artifact.sha256) || record.artifact.size <= 0 || !record.artifact.name || record.artifact.mimeType !== 'application/json' || group.outputPackages?.some(item => item.id === record.id || item.artifact.id === record.artifact.id)) throw new GuardError('INVALID_STATE', 'A prepared group output requires a unique identity, its exact active preparer, review evidence and a verified JSON artifact identity.');
+    requireConsolidationGroupScope(this.state, group.id);
     if (record.revision !== (group.outputPackages?.length || 0) + 1 || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'The consolidated output changed before its package could be saved. Rebuild from current reviewed inputs.');
     for (const component of group.components) {
       const engagement = this.state.engagements.find(item => item.id === component.componentId);
@@ -2489,6 +2707,7 @@ class PrototypeStore {
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     const record = group?.outputPackages?.find(item => item.id === packageId);
     if (!group || !record || record.status === 'Approved' || !note.trim() || !evidenceRef.trim() || record.preparedByUserId === this.state.currentUserId || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'A different partner, current exact group-output revision, rationale and review evidence are required. Rebuild stale output packages.');
+    requireConsolidationGroupScope(this.state, group.id);
     record.reviewHistory.push({ status: decision, byUserId: this.state.currentUserId, by: this.state.currentPerson, at: new Date().toISOString(), note: note.trim(), evidenceRef: evidenceRef.trim() });
     record.status = decision;
     if (decision === 'Approved') record.approvedFingerprint = record.fingerprint;
@@ -2502,7 +2721,7 @@ class PrototypeStore {
     requireRole(this.state, ['manager', 'partner'], 'change consolidation exchange rates');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     if (!group) throw new GuardError('INVALID_STATE', `Consolidation group "${groupId}" was not found.`);
-    for (const component of group.components) requireEngagementScope(this.state, component.componentId);
+    requireConsolidationGroupScope(this.state, group.id);
     const presentationCurrency = group.presentationCurrency || group.currency;
     if (!/^[A-Z]{3}$/.test(currency) || currency === presentationCurrency || !group.components.some(component => component.currency === currency)) throw new GuardError('INVALID_STATE', 'Select a foreign currency used by a group component.');
     if (!Number.isFinite(rate) || rate <= 0) throw new GuardError('INVALID_STATE', 'Exchange rate must be a finite number greater than zero.');
@@ -4293,9 +4512,41 @@ class PrototypeStore {
     if (!this.state.auditPlans) this.state.auditPlans = [];
     const engPlans = this.state.auditPlans.filter(p => p.engagementId === plan.engagementId);
     const latest = engPlans.reduce<AuditPlanRecord | undefined>((current, item) => !current || item.version > current.version ? item : current, undefined);
+    const supersedingApprovedPlan = latest?.status === 'Approved';
+    const reviewImpact = supersedingApprovedPlan
+      ? `Approved audit plan v${latest.version} superseded by v${plan.version}; reassess affected procedure scope and conclusions.`
+      : undefined;
     if (plan.version !== (latest?.version || 0) + 1 || plan.status !== 'Under review') throw new GuardError('STALE_REVISION', `New audit plan must be the next version and start under review (expected v${(latest?.version || 0) + 1}).`);
-    if (!Number.isFinite(plan.benchmarkValue) || plan.benchmarkValue <= 0 || !Number.isFinite(plan.materialityRate) || plan.materialityRate <= 0 || !plan.rationales.some(r => r.trim())) throw new GuardError('INVALID_STATE', 'Audit plan needs a positive benchmark, rate, and rationale.');
-    if (latest) latest.status = 'Superseded';
+    if (!Number.isFinite(plan.benchmarkValue) || plan.benchmarkValue <= 0 ||
+        !Number.isFinite(plan.materialityRate) || plan.materialityRate <= 0 || plan.materialityRate > 100 ||
+        !Number.isFinite(plan.performanceMaterialityRate) || plan.performanceMaterialityRate! <= 0 || plan.performanceMaterialityRate! > 100 ||
+        !Number.isFinite(plan.clearlyTrivialRate) || plan.clearlyTrivialRate! < 0 || plan.clearlyTrivialRate! > 100 ||
+        !plan.rationales.some(r => r.trim())) {
+      throw new GuardError('INVALID_STATE', 'Audit plan needs a positive benchmark, explicit valid materiality rates, and a rationale.');
+    }
+    const expectedOverall = Math.round(plan.benchmarkValue * plan.materialityRate / 100);
+    const expectedPerformance = Math.round(expectedOverall * plan.performanceMaterialityRate! / 100);
+    const expectedTrivial = Math.round(expectedOverall * plan.clearlyTrivialRate! / 100);
+    if (plan.overallMateriality !== expectedOverall || plan.performanceMateriality !== expectedPerformance || plan.clearlyTrivialThreshold !== expectedTrivial) {
+      throw new GuardError('INVALID_STATE', 'Audit plan threshold amounts must match its saved benchmark and explicit rates.');
+    }
+    if (!Array.isArray(plan.teamAllocations) || plan.teamAllocations.length === 0) {
+      throw new GuardError('INVALID_STATE', 'Assign at least one in-scope staff member with a role and scheduled dates before submitting the audit plan.');
+    }
+    for (const assignment of plan.teamAllocations) {
+      const user = this.state.users.find(item => item.status === 'Active' && item.name === assignment.person && !isClientRole(item.role) && canOpenRoute(item.role, 'audit-planning'));
+      if (!user) throw new GuardError('INVALID_STATE', 'Every audit plan assignment must name an active staff user with audit-planning access.');
+      const visible = visibleEngagementIds(this.state, user.id);
+      if (visible !== 'ALL' && !visible.includes(plan.engagementId)) throw new GuardError('FORBIDDEN_SCOPE', 'Every audit plan assignee must have access to this engagement.');
+      const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+      if (!assignment.role.trim() || !validDate(assignment.scheduledStart) || !validDate(assignment.scheduledEnd) || assignment.scheduledStart > assignment.scheduledEnd) {
+        throw new GuardError('INVALID_STATE', 'Every audit plan assignment needs a role and a valid scheduled date range.');
+      }
+    }
+    if (latest) {
+      latest.status = 'Superseded';
+      if (reviewImpact) latest.supersededReason = reviewImpact;
+    }
     plan.preparedBy = this.state.currentPerson;
     plan.preparedByUserId = this.state.currentUserId;
     plan.preparedAt = new Date().toISOString();
@@ -4303,6 +4554,20 @@ class PrototypeStore {
     const eng = this.state.engagements.find(e => e.id === plan.engagementId);
     if (eng) {
       eng.planning = false;
+      if (reviewImpact) {
+        for (const program of this.state.auditPrograms.filter(item => item.engagementId === plan.engagementId || (!item.engagementId && plan.engagementId === this.state.engagements[0]?.id))) {
+          for (const procedure of program.procedures) {
+            const reason = `Approved audit plan v${latest!.version} changed — reassess planned procedure scope and conclusions.`;
+            procedure.scopeReassessmentHistory ||= [];
+            procedure.scopeReassessmentHistory.push({ reason, previousStatus: procedure.status, reviewedByUserId: procedure.reviewedByUserId, reviewedAt: procedure.reviewedAt, invalidatedAt: new Date().toISOString() });
+            procedure.scopeReassessmentRequired = true;
+            procedure.scopeReassessmentReason = reason;
+            if (procedure.status === 'Cleared' || procedure.status === 'Submitted') procedure.status = 'In progress';
+            procedure.reviewedByUserId = undefined;
+            procedure.reviewedAt = undefined;
+          }
+        }
+      }
       this.invalidateReleaseBasis(eng);
     }
     this.logEvent(`Audit plan ${plan.id} saved as v${plan.version} under review`, plan.engagementId);

@@ -4,6 +4,8 @@ import { RouteKey, EngagementRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
+import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
+import { InternalNotesPanel } from '../common/InternalNotesPanel';
 
 interface EngagementsViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -11,6 +13,10 @@ interface EngagementsViewProps {
 
 export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const visibleClients = visibleClientIds(state);
+  const visibleEngagements = visibleEngagementIds(state);
+  const scopedClients = state.clients.filter(client => visibleClients === 'ALL' || visibleClients.includes(client.id));
+  const scopedEngagements = state.engagements.filter(engagement => visibleEngagements === 'ALL' || visibleEngagements.includes(engagement.id));
   const [showNewEngModal, setShowNewEngModal] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
   const [showEditAdminModal, setShowEditAdminModal] = useState(false);
@@ -23,17 +29,17 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
   const [editTeam, setEditTeam] = useState<string[]>([]);
 
   // New engagement form
-  const [clientId, setClientId] = useState(state.clients[0]?.id || '');
+  const [clientId, setClientId] = useState(scopedClients[0]?.id || '');
   const [service, setService] = useState('External audit');
   const [year, setYear] = useState(2026);
   const [manager, setManager] = useState('Layla Rahman');
   const [partner, setPartner] = useState('Daniel James');
   const [fee, setFee] = useState(500000);
   const [proposalId, setProposalId] = useState('');
-  const acceptedProposals = state.proposals.filter(p => p.state === 'Accepted' && p.clientId && p.clientResponse?.evidenceRef && p.presentedSnapshot?.revision === p.revision);
+  const acceptedProposals = state.proposals.filter(p => p.state === 'Accepted' && p.clientId && (visibleClients === 'ALL' || visibleClients.includes(p.clientId)) && p.clientResponse?.evidenceRef && p.presentedSnapshot?.revision === p.revision);
 
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
-  const client = state.clients.find(c => c.id === selectedEng?.client);
+  const selectedEng = scopedEngagements.find(e => e.id === state.selectedEngagement) || scopedEngagements[0];
+  const client = scopedClients.find(c => c.id === selectedEng?.client);
   const lifecycleStatus = selectedEng?.lifecycleStatus || 'Active';
   const updateLifecycle = (status: NonNullable<EngagementRecord['lifecycleStatus']>) => {
     const reason = window.prompt(`Reason for ${status.toLowerCase()} engagement:`);
@@ -60,7 +66,12 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
       setShowEditAdminModal(false);
     } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   };
-  const assignedPeople = state.users.filter(user => user.status === 'Active' && user.group === 'Professional');
+  const assignedPeople = state.users.filter(user => {
+    const visible = visibleEngagementIds(state, user.id);
+    return user.status === 'Active' && user.group === 'Professional' && selectedEng && (visible === 'ALL' || visible.includes(selectedEng.id));
+  });
+  const engagementScopeChanged = Boolean(selectedEng && (editService !== selectedEng.service || editYear !== selectedEng.year || editPeriod !== selectedEng.period));
+  const engagementTeamChanged = Boolean(selectedEng && (editManager !== selectedEng.manager || editPartner !== selectedEng.partner || JSON.stringify(editTeam) !== JSON.stringify(selectedEng.team)));
 
   const steps = ['Acceptance', 'Planning', 'Production', 'Review', 'Release', 'Archive'];
   const currentStepIndex = selectedEng?.archive
@@ -72,6 +83,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
     : selectedEng?.stage === 'Review'
     ? 3
     : 2;
+
+  if (!scopedEngagements.length) return <div className="panel panel-pad"><h2>No engagement access</h2><p className="sub mt8">No engagements are available under the active scope grant.</p></div>;
 
   const handleCreateEngagement = (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,7 +223,10 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
                 <label>Signing partner<select aria-label="Signing partner" className="input" value={editPartner} onChange={event => setEditPartner(event.target.value)}>{assignedPeople.filter(user => user.role === 'partner').map(user => <option key={user.id}>{user.name}</option>)}</select></label>
               </div>
               <fieldset className="stack"><legend>Assigned professional team</legend>{assignedPeople.filter(user => ['manager', 'partner', 'preparer', 'reviewer', 'eqr'].includes(user.role)).map(user => <label key={user.id}><input type="checkbox" checked={editTeam.includes(user.name)} onChange={event => setEditTeam(current => event.target.checked ? [...new Set([...current, user.name])] : current.filter(name => name !== user.name))} /> {user.label} — {user.name}</label>)}</fieldset>
-              <p className="sub">Changes are recorded and invalidate prior release approvals. Team members need active access to this engagement.</p>
+               <p className="sub">Agreed fee and currency remain pinned to the accepted commercial proposal; this administrative edit does not amend them. Team members need active access to this engagement.</p>
+               {engagementScopeChanged && <div className="borderbox mt8" role="status" style={{ borderColor: '#d97706', background: '#fffbeb' }}><b>Scope or period change impact</b><p>Saving will clear planning, source acceptance and mapping approval; mark statement, reconciliation and cash-flow reviews stale; supersede the active audit plan; require reassessment of performed procedures; and invalidate release approvals.</p></div>}
+               {engagementTeamChanged && <div className="borderbox mt8" role="status" style={{ borderColor: '#d97706', background: '#fffbeb' }}><b>Team change impact</b><p>Saving will supersede the active audit-plan review and require reassessment of performed procedures. Existing records stay linked to this engagement; access is still checked for every assigned person.</p></div>}
+               <p className="sub">Any saved administration change is recorded in history and invalidates prior release approvals.</p>
             </div>
             <div className="modal-foot"><button type="button" className="btn sm ghost" onClick={() => setShowEditAdminModal(false)}>Cancel</button><button type="submit" className="btn sm primary">Save Engagement Details</button></div>
           </form>
@@ -220,7 +236,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
       {/* All Engagements Table */}
       <div className="panel">
         <div className="panel-head">
-          <h3>Engagement Portfolio ({state.engagements.length})</h3>
+          <h3>Engagement Portfolio ({scopedEngagements.length})</h3>
           <span className="caption">Multi-entity Practice Delivery</span>
         </div>
         <div className="tablewrap">
@@ -238,8 +254,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
               </tr>
             </thead>
             <tbody>
-              {state.engagements.map(eng => {
-                const c = state.clients.find(x => x.id === eng.client);
+              {scopedEngagements.map(eng => {
+                const c = scopedClients.find(x => x.id === eng.client);
                 return (
                   <tr key={eng.id}>
                     <td><b>{c?.name}</b></td>
@@ -267,6 +283,8 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
           </table>
         </div>
       </div>
+
+      {selectedEng && <InternalNotesPanel subjectType="engagement" subjectId={selectedEng.id} />}
 
       {/* Scope Modal */}
       {showScopeModal && selectedEng && (
@@ -322,7 +340,7 @@ export const EngagementsView: React.FC<EngagementsViewProps> = ({ onNavigate }) 
                     value={clientId}
                     onChange={e => setClientId(e.target.value)}
                   >
-                    {state.clients.map(c => (
+                    {scopedClients.map(c => (
                       <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
                     ))}
                   </select>

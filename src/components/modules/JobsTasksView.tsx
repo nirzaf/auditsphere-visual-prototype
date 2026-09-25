@@ -62,6 +62,16 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
     setTimeout(() => setNotice(null), 6000);
   };
 
+  const closeAddJobModal = () => {
+    setShowAddJobModal(false);
+    setNewJobTitle('');
+    setNewJobDescription('');
+    setNewJobClientId(scopedClients.find(client => client.id === scopedEngagements.find(engagement => engagement.id === state.selectedEngagement)?.client)?.id || scopedClients[0]?.id || '');
+    setNewJobEngId(scopedEngagements.find(engagement => engagement.id === state.selectedEngagement)?.id || scopedEngagements[0]?.id || '');
+    setNewJobOwner(state.currentPerson || 'Adam Khan');
+    setNewJobDueDate('2026-10-31');
+  };
+
   const filteredJobs = scopedJobs.filter(job =>
     (clientFilter === 'ALL' || job.clientId === clientFilter) &&
     (engagementFilter === 'ALL' || job.engagementId === engagementFilter) &&
@@ -179,9 +189,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
         order: 1
       });
       setSelectedJobId(newJobId);
-      setShowAddJobModal(false);
-      setNewJobTitle('');
-      setNewJobDescription('');
+      closeAddJobModal();
       triggerNotice('success', `Job "${newJob.title}" scheduled (${newJob.id}).`);
     } catch (err: any) {
       triggerNotice('error', err.message);
@@ -550,11 +558,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
       {/* New Job Modal */}
       {showAddJobModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddJobModal(false)}>
+        <div className="modal-backdrop" onClick={closeAddJobModal}>
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Schedule New Job</h2>
-              <button className="icon-btn" onClick={() => setShowAddJobModal(false)}>✕</button>
+              <button type="button" className="icon-btn" onClick={closeAddJobModal}>✕</button>
             </div>
             <form onSubmit={handleAddJobSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -637,7 +645,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddJobModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={closeAddJobModal}>Cancel</button>
                 <button type="submit" className="btn primary sm">Create Job</button>
               </div>
             </form>

@@ -27,6 +27,7 @@ The app is a native React + TypeScript single-page application; there is no lega
 - `src/main.tsx`: native React entrypoint; renders `<App />` in `React.StrictMode`.
 - `src/App.tsx`: route state, store subscription (with unsubscribe on unmount), modal focus trap and unsaved-form transition guard.
 - `src/store/prototypeStore.ts`: the single state authority (`prototypeStore`), with versioned localStorage persistence, storage-conflict guidance and role-scope guards.
+- `src/services/legacyRoutes.ts`: redirects historical hash links to current React routes; role checks still apply and denied destinations resolve to an allowed workspace.
 - `src/components/layout/Shell.tsx`: navigation shell, search and scenario controls.
 - `src/components/modules/*.tsx`: the 39-module route views.
 - `src/services/*.ts`: guards, migrations, artifact/IndexedDB storage, exports, calculations.

@@ -1,9 +1,10 @@
 // Module 02: Client Portfolio & CRM (VP-006, VP-007, VP-008)
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientRecord, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { visibleClientIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
+import { ClientProfileModal } from './ClientProfileModal';
 
 interface ClientsViewProps {
   onNavigate: (route: RouteKey) => void;
@@ -12,20 +13,45 @@ interface ClientsViewProps {
 
 export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectClientDetail }) => {
   const state = prototypeStore.getSnapshot();
-  const [filterText, setFilterText] = useState('');
+  const filterStorageKey = `ste-auditsphere-client-list-filters:${state.currentRole}`;
+  const [filterText, setFilterText] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(filterStorageKey) || '{}').filterText || ''; }
+    catch { return ''; }
+  });
+  const [statusFilter, setStatusFilter] = useState<ClientRecord['status'] | 'All'>(() => {
+    try {
+      const status = JSON.parse(sessionStorage.getItem(filterStorageKey) || '{}').statusFilter;
+      return ['All', 'Active', 'Suspended', 'Archived'].includes(status) ? status : 'All';
+    } catch { return 'All'; }
+  });
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const addClientButton = useRef<HTMLButtonElement>(null);
+  const modalTriggerId = useRef<string>('');
+  const restoreModalFocus = useCallback(() => {
+    const triggerId = modalTriggerId.current;
+    window.requestAnimationFrame(() => {
+      const trigger = triggerId ? document.getElementById(triggerId) : null;
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      else if (addClientButton.current?.isConnected) addClientButton.current.focus();
+    });
+  }, []);
+  const closeProfileModal = useCallback(() => {
+    setShowAddModal(false);
+    setEditingClient(null);
+    restoreModalFocus();
+  }, [restoreModalFocus]);
 
   useEffect(() => {
-    if (!showAddModal) return;
-    const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-labelledby="add-client-title"]');
+    if (!showAddModal && !editingClient) return;
+    const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-labelledby="client-profile-title"]');
     const controls = () => [...(modal?.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])]
       .filter(control => !control.hasAttribute('disabled') && control.getAttribute('aria-hidden') !== 'true');
     controls()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setShowAddModal(false);
+        closeProfileModal();
       } else if (event.key === 'Tab') {
         const items = controls();
         if (!items.length) return;
@@ -39,52 +65,27 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      if (addClientButton.current?.isConnected) addClientButton.current.focus();
     };
-  }, [showAddModal]);
-
-  // New client form state
-  const [name, setName] = useState('');
-  const [industry, setIndustry] = useState('Trading & distribution');
-  const [contact, setContact] = useState('');
-  const [email, setEmail] = useState('');
-  const [jurisdiction, setJurisdiction] = useState('State of Qatar');
-  const [risk, setRisk] = useState<'Low' | 'Moderate' | 'High'>('Moderate');
+  }, [showAddModal, editingClient, closeProfileModal]);
 
   const allowedClientIds = visibleClientIds(state);
   const canCreateClient = ['relationship', 'manager', 'partner'].includes(state.currentRole) && allowedClientIds === 'ALL';
   const filteredClients = state.clients.filter(c => {
     const q = filterText.toLowerCase();
     return (allowedClientIds === 'ALL' || allowedClientIds.includes(c.id))
+      && (statusFilter === 'All' || c.status === statusFilter)
       && (c.name.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
   });
 
-  const handleAddClient = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  useEffect(() => {
+    try { sessionStorage.setItem(filterStorageKey, JSON.stringify({ filterText, statusFilter })); }
+    catch { /* Keep the current in-memory filter when session storage is unavailable. */ }
+  }, [filterStorageKey, filterText, statusFilter]);
 
-    const newId = `CL-00${state.clients.length + 1}`;
-    const newCode = name.slice(0, 4).toUpperCase();
-    const newClient: ClientRecord = {
-      id: newId,
-      code: newCode,
-      name,
-      initials: name.slice(0, 2).toUpperCase(),
-      industry,
-      contact: contact || 'Primary Contact',
-      email,
-      jurisdiction,
-      status: 'Active',
-      risk,
-      revenue: 500000,
-      relationshipOwner: state.currentPerson
-    };
-
-    prototypeStore.addClient(newClient);
-    setShowAddModal(false);
-    setName('');
-    setContact('');
-    setEmail('');
+  const handleSaveClient = (draft: Omit<ClientRecord, 'accountingProfile' | 'customFields' | 'relationshipGroupId'>, expectedRevision?: number) => {
+    if (editingClient) prototypeStore.updateClient({ ...editingClient, ...draft }, expectedRevision ?? 0);
+    else prototypeStore.addClient(draft as ClientRecord);
+    closeProfileModal();
   };
 
   return (
@@ -95,7 +96,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
           <p>Separate legal relationships, entities, and multi-service engagement scopes.</p>
         </div>
         {canCreateClient && (
-          <button ref={addClientButton} className="btn primary sm" onClick={() => setShowAddModal(true)}>
+          <button id="add-client-profile-trigger" ref={addClientButton} className="btn primary sm" onClick={() => { modalTriggerId.current = 'add-client-profile-trigger'; setShowAddModal(true); }}>
             <Icon name="plus" />
             Add Client Profile
           </button>
@@ -113,6 +114,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
             onChange={e => setFilterText(e.target.value)}
           />
         </div>
+        <label className="caption">Status
+          <select className="input" aria-label="Client status filter" value={statusFilter} onChange={event => setStatusFilter(event.target.value as ClientRecord['status'] | 'All')}>
+            {(['All', 'Prospect', 'Active', 'Suspended', 'Archived'] as const).map(status => <option key={status}>{status}</option>)}
+          </select>
+        </label>
         <span className="tag gray">{filteredClients.length} clients registered</span>
       </div>
 
@@ -157,6 +163,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
               </div>
 
               <div className="between mt20">
+                {['relationship', 'manager', 'partner'].includes(state.currentRole) && (allowedClientIds === 'ALL' || allowedClientIds.includes(client.id)) && <button id={`client-edit-trigger-${client.id}`} className="btn sm ghost" onClick={() => { modalTriggerId.current = `client-edit-trigger-${client.id}`; setEditingClient(client); }}>
+                  Edit Profile
+                </button>}
                 <button
                   className="btn sm ghost"
                   onClick={() => onSelectClientDetail(client.id)}
@@ -182,94 +191,13 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
         {!filteredClients.length && <p className="caption">No client profiles are available under the current access scope.</p>}
       </div>
 
-      {/* Add Client Modal */}
-      {showAddModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-client-title" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-head">
-              <h2 id="add-client-title">Create Synthetic Client Profile</h2>
-              <button className="icon-btn" onClick={() => setShowAddModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleAddClient}>
-              <div className="modal-body stack" style={{ gap: 12 }}>
-                <div>
-                  <label className="caption">Legal Entity Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g. Al-Doha Logistics W.L.L."
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid2">
-                  <div>
-                    <label className="caption">Industry Sector</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={industry}
-                      onChange={e => setIndustry(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="caption">Jurisdiction</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={jurisdiction}
-                      onChange={e => setJurisdiction(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="grid2">
-                  <div>
-                    <label className="caption">Primary Contact Person</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="e.g. Tariq Al-Kuwari"
-                      value={contact}
-                      onChange={e => setContact(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="caption">Contact Email</label>
-                    <input
-                      type="email"
-                      className="input"
-                      placeholder="tariq@client.demo"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="caption">Risk Classification</label>
-                  <select
-                    className="input"
-                    value={risk}
-                    onChange={e => setRisk(e.target.value as any)}
-                  >
-                    <option value="Low">Low Risk</option>
-                    <option value="Moderate">Moderate Risk</option>
-                    <option value="High">High Risk</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn primary sm">
-                  Create Client
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {(showAddModal || editingClient) && <ClientProfileModal
+        existing={editingClient || undefined}
+        currentPerson={state.currentPerson}
+        state={state}
+        onClose={closeProfileModal}
+        onSave={handleSaveClient}
+      />}
     </div>
   );
 };

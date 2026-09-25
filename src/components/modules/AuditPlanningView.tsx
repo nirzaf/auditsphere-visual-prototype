@@ -26,18 +26,16 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
   const existingPlan = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version)[0];
   const planHistory = (state.auditPlans || []).filter(p => p.engagementId === selectedEng?.id).sort((a, b) => b.version - a.version);
 
-  // VP-048: every planning input starts empty (or from a real saved plan) and must be
-  // entered deliberately. The form invents no benchmark value, rationale, team member,
-  // milestone, significant area or review note.
+  // VP-048: quantitative assumptions start empty and must be entered deliberately.
+  // Historical plans without captured component rates remain visible as history; their
+  // missing rates are never inferred from rounded saved amounts.
   const [benchmarkType, setBenchmarkType] = useState<'profit' | 'revenue' | 'assets' | 'equity'>(
     (existingPlan?.benchmark as any) || 'revenue'
   );
   const [benchmarkValue, setBenchmarkValue] = useState<number | ''>(existingPlan?.benchmarkValue ?? '');
-  const [percentage, setPercentage] = useState<number>(
-    existingPlan?.materialityRate || 1.5
-  );
-  const [performanceRate, setPerformanceRate] = useState<number>(75);
-  const [trivialRate, setTrivialRate] = useState<number>(5);
+  const [percentage, setPercentage] = useState<number | ''>(existingPlan?.materialityRate ?? '');
+  const [performanceRate, setPerformanceRate] = useState<number | ''>(existingPlan?.performanceMaterialityRate ?? '');
+  const [trivialRate, setTrivialRate] = useState<number | ''>(existingPlan?.clearlyTrivialRate ?? '');
   const [scopeNotes, setScopeNotes] = useState(
     existingPlan?.rationales?.[0] || ''
   );
@@ -61,14 +59,19 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
     setTimeout(() => setNotice(null), 6000);
   };
 
-  const materiality = benchmarkValue === '' || Number(benchmarkValue) <= 0
+  const hasValidCalculationInputs = benchmarkValue !== '' && Number.isFinite(Number(benchmarkValue)) && Number(benchmarkValue) > 0 &&
+    percentage !== '' && Number.isFinite(Number(percentage)) && Number(percentage) > 0 && Number(percentage) <= 100 &&
+    performanceRate !== '' && Number.isFinite(Number(performanceRate)) && Number(performanceRate) > 0 && Number(performanceRate) <= 100 &&
+    trivialRate !== '' && Number.isFinite(Number(trivialRate)) && Number(trivialRate) >= 0 && Number(trivialRate) <= 100 &&
+    Boolean(scopeNotes.trim());
+  const materiality = !hasValidCalculationInputs
     ? null
     : calculateMateriality(
         Number(benchmarkValue),
-        percentage,
-        performanceRate,
-        trivialRate,
-        scopeNotes.trim() || 'Illustrative materiality based on selected benchmark'
+        Number(percentage),
+        Number(performanceRate),
+        Number(trivialRate),
+        scopeNotes.trim()
       );
 
   // VP-003: register the planning draft so route/persona/engagement changes cannot
@@ -118,8 +121,17 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
 
   const handleSavePlan = (): boolean => {
     try {
-      if (benchmarkValue === '' || Number(benchmarkValue) <= 0) {
+      if (benchmarkValue === '' || !Number.isFinite(Number(benchmarkValue)) || Number(benchmarkValue) <= 0) {
         throw new Error('Enter the benchmark value deliberately before saving; the form does not assume one.');
+      }
+      if (percentage === '' || !Number.isFinite(Number(percentage)) || Number(percentage) <= 0 || Number(percentage) > 100) {
+        throw new Error('Enter an applied benchmark rate greater than 0 and no more than 100 percent.');
+      }
+      if (performanceRate === '' || !Number.isFinite(Number(performanceRate)) || Number(performanceRate) <= 0 || Number(performanceRate) > 100) {
+        throw new Error('Enter a performance materiality rate greater than 0 and no more than 100 percent.');
+      }
+      if (trivialRate === '' || !Number.isFinite(Number(trivialRate)) || Number(trivialRate) < 0 || Number(trivialRate) > 100) {
+        throw new Error('Enter a clearly trivial rate from 0 through 100 percent.');
       }
       if (!scopeNotes.trim()) {
         throw new Error('Record the planning rationale (ISA 320 basis) before saving; the form does not prefill one.');
@@ -135,7 +147,9 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
         status: 'Under review',
         benchmark: benchmarkType,
         benchmarkValue: Number(benchmarkValue),
-        materialityRate: percentage,
+        materialityRate: Number(percentage),
+        performanceMaterialityRate: Number(performanceRate),
+        clearlyTrivialRate: Number(trivialRate),
         overallMateriality: materiality.overallMateriality,
         performanceMateriality: materiality.performanceMateriality,
         clearlyTrivialThreshold: materiality.clearlyTrivialThreshold,
@@ -263,33 +277,38 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
               )}
             </div>
             <div>
-              <label className="caption">Applied Benchmark Rate (%)</label>
+              <label className="caption">Applied Benchmark Rate (%) *</label>
               <input
                 type="number"
                 step={0.1}
+                min={0.1}
+                max={100}
                 className="input"
+                aria-label="Applied benchmark rate percentage"
+                placeholder="Enter deliberately"
                 value={percentage}
-                onChange={e => setPercentage(Number(e.target.value))}
+                onChange={e => setPercentage(e.target.value === '' ? '' : Number(e.target.value))}
               />
             </div>
           </div>
 
           <div className="grid3 mt12">
             <div>
-              <label className="caption">Performance Materiality Haircut (% of PM)</label>
+              <label className="caption">Performance Materiality (% of Overall Materiality) *</label>
               <input
                 type="number"
                 step={1}
                 min={1}
                 max={100}
                 className="input"
-                aria-label="Performance materiality haircut percentage"
+                aria-label="Performance materiality rate percentage"
+                placeholder="Enter deliberately"
                 value={performanceRate}
-                onChange={e => setPerformanceRate(Number(e.target.value))}
+                onChange={e => setPerformanceRate(e.target.value === '' ? '' : Number(e.target.value))}
               />
             </div>
             <div>
-              <label className="caption">Clearly Trivial Threshold (% of PM)</label>
+              <label className="caption">Clearly Trivial Threshold (% of Overall Materiality) *</label>
               <input
                 type="number"
                 step={0.5}
@@ -297,8 +316,9 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                 max={100}
                 className="input"
                 aria-label="Clearly trivial threshold percentage"
+                placeholder="Enter deliberately"
                 value={trivialRate}
-                onChange={e => setTrivialRate(Number(e.target.value))}
+                onChange={e => setTrivialRate(e.target.value === '' ? '' : Number(e.target.value))}
               />
             </div>
             <div>
@@ -337,8 +357,8 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
             </div>
           ) : (
             <div className="panel panel-pad mt20" role="status" style={{ background: '#fffbeb', borderLeft: '4px solid #d97706' }}>
-              <b>Enter a benchmark value to calculate the ISA 320 thresholds.</b>
-              <p className="sub mt4">Overall materiality, the performance haircut and the clearly-trivial threshold are all derived from the deliberately entered benchmark — the form does not prefill one.</p>
+              <b>Enter the benchmark, applied rate, performance rate, clearly trivial rate and rationale.</b>
+              <p className="sub mt4">The form does not prefill any quantitative planning assumption. Overall, performance and clearly-trivial amounts appear after all inputs are deliberately entered.</p>
             </div>
           )}
 

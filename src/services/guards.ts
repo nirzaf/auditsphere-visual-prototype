@@ -22,6 +22,11 @@ export class GuardError extends Error {
   }
 }
 
+/** Roles that carry professional assurance or client management-approval duties. */
+export function roleRequiresApprovalEvidence(role: RoleKey): boolean {
+  return ['partner', 'manager', 'preparer', 'reviewer', 'eqr', 'client'].includes(role);
+}
+
 const staleStates = new WeakSet<object>();
 
 export function markStateStale(state: PrototypeState, stale: boolean): void {
@@ -85,6 +90,30 @@ export function visibleEngagementIds(state: PrototypeState, userId = state.curre
     }
   }
   return [...engs];
+}
+
+/** A restored selection is valid only if it belongs to the active persona's engagement scope. */
+export function hasSelectedEngagementScope(state: PrototypeState): boolean {
+  const visible = visibleEngagementIds(state);
+  return visible === 'ALL' || Boolean(state.selectedEngagement && visible.includes(state.selectedEngagement));
+}
+
+/** Group grants expose only the named group reporting workspace, not its client or engagement routes. */
+export function hasConsolidationGroupScope(state: PrototypeState, groupId: string, userId = state.currentUserId): boolean {
+  const user = state.users.find(item => item.id === userId && item.status === 'Active');
+  if (!user || (userId === state.currentUserId && !activePersona(state).active)) return false;
+  const today = state.asOfDate || new Date().toISOString().slice(0, 10);
+  const grants = state.roleGrants.filter(grant => grant.userId === userId && grant.role === user.role && (!grant.effectiveFrom || grant.effectiveFrom <= today) && (!grant.expiresAt || grant.expiresAt >= today));
+  if (grants.some(grant => grant.scopeKind === 'Global')) return true;
+  if (grants.some(grant => grant.scopeKind === 'Group' && grant.scopeId === groupId)) return true;
+  const group = state.consolidationGroups.find(item => item.id === groupId);
+  if (!group) return false;
+  const visible = visibleEngagementIds(state, userId);
+  return group.components.length > 0 && (visible === 'ALL' || group.components.every(component => visible.includes(component.componentId)));
+}
+
+export function requireConsolidationGroupScope(state: PrototypeState, groupId: string): void {
+  if (!hasConsolidationGroupScope(state, groupId)) throw new GuardError('FORBIDDEN_SCOPE', `Consolidation group "${groupId}" is outside the current scoped grant.`);
 }
 
 export function eligibleReviewAssignees(state: PrototypeState, engagementId: string) {

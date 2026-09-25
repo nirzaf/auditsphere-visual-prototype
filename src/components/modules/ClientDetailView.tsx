@@ -7,6 +7,7 @@ import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
+import { InternalNotesPanel } from '../common/InternalNotesPanel';
 
 interface ClientDetailViewProps {
   clientId: string;
@@ -35,12 +36,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   >(searchContact ? 'contacts' : searchTargetId && state.engagements.some(engagement => engagement.client === clientId && engagement.pbc.some(request => request.id === searchTargetId)) ? 'requests' : 'overview');
 
   const [showAddContact, setShowAddContact] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [contactTitle, setContactTitle] = useState('');
   const [contactResponsibility, setContactResponsibility] = useState('');
   const [contactEffectiveFrom, setContactEffectiveFrom] = useState('');
   const [contactEffectiveTo, setContactEffectiveTo] = useState('');
+  const [contactActive, setContactActive] = useState(true);
   const contactForm = useRef<HTMLFormElement>(null);
   const [customFieldId, setCustomFieldId] = useState(state.customFields.find(f => f.enabled !== false)?.id || '');
   const [customFieldValue, setCustomFieldValue] = useState('');
@@ -73,6 +77,12 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const pbcRequests = engagements.flatMap(e => e.pbc.map(request => ({ ...request, engagementId: e.id })));
   const workpapers = engagements.flatMap(e => e.workpapers);
 
+  const navigateWithClientEngagement = (route: RouteKey) => {
+    const engagement = engagements.find(item => item.id === state.selectedEngagement) || engagements[0];
+    if (engagement) prototypeStore.setSelectedEngagement(engagement.id);
+    onNavigate(route);
+  };
+
   const tabs: Array<{ key: typeof activeTab; label: string; count?: number }> = [
     { key: 'overview', label: 'Overview' },
     { key: 'contacts', label: 'Contacts', count: contacts.length },
@@ -90,44 +100,60 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
 
   const saveContact = useCallback(() => {
     if (!showAddContact || !contactForm.current?.reportValidity() || !contactName.trim()) return false;
-    const newContact: ClientContact = {
-      id: `CNT-${crypto.randomUUID()}`,
-      clientId: client.id,
-      name: contactName,
-      email: contactEmail,
-      title: contactTitle,
-      responsibility: contactResponsibility,
-      effectiveFrom: contactEffectiveFrom || undefined,
-      effectiveTo: contactEffectiveTo || undefined,
-      isPrimary: contacts.length === 0,
-      active: true,
-      portalAccessRequested: false
-    };
-    try { prototypeStore.addContact(newContact); }
+    try {
+      if (editingContactId) {
+        prototypeStore.updateClientContact(client.id, editingContactId, { name: contactName, email: contactEmail, phone: contactPhone, title: contactTitle, responsibility: contactResponsibility, effectiveFrom: contactEffectiveFrom || undefined, effectiveTo: contactEffectiveTo || undefined, active: contactActive });
+      } else {
+        const newContact: ClientContact = {
+          id: `CNT-${crypto.randomUUID()}`,
+          clientId: client.id,
+          name: contactName,
+          email: contactEmail,
+          phone: contactPhone,
+          title: contactTitle,
+          responsibility: contactResponsibility,
+          effectiveFrom: contactEffectiveFrom || undefined,
+          effectiveTo: contactEffectiveTo || undefined,
+          isPrimary: contacts.length === 0,
+          active: true,
+          portalAccessRequested: false
+        };
+        prototypeStore.addContact(newContact);
+      }
+    }
     catch (error) { setClientNotice(error instanceof Error ? error.message : 'Contact could not be saved.'); return false; }
     setShowAddContact(false);
+    setEditingContactId(null);
     setContactName('');
     setContactEmail('');
+    setContactPhone('');
     setContactTitle('');
     setContactResponsibility('');
     setContactEffectiveFrom('');
     setContactEffectiveTo('');
+    setContactActive(true);
     return true;
-  }, [showAddContact, contactName, contactEmail, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, contacts.length, client.id]);
+  }, [showAddContact, editingContactId, contactName, contactEmail, contactPhone, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, contactActive, contacts.length, client.id]);
   const discardContact = useCallback(() => {
     setShowAddContact(false);
+    setEditingContactId(null);
     setContactName(''); setContactEmail(''); setContactTitle(''); setContactResponsibility('');
+    setContactPhone(''); setContactActive(true);
     setContactEffectiveFrom(''); setContactEffectiveTo('');
   }, []);
   useEffect(() => {
     onRegisterUnsavedForm({
       label: 'client contact',
-      isDirty: () => showAddContact && Boolean(contactName.trim() || contactEmail.trim() || contactTitle.trim() || contactResponsibility.trim() || contactEffectiveFrom || contactEffectiveTo),
+      isDirty: () => showAddContact && (Boolean(editingContactId) || Boolean(contactName.trim() || contactEmail.trim() || contactPhone.trim() || contactTitle.trim() || contactResponsibility.trim() || contactEffectiveFrom || contactEffectiveTo)),
       save: saveContact,
       discard: discardContact
     });
     return () => onRegisterUnsavedForm(null);
-  }, [onRegisterUnsavedForm, showAddContact, contactName, contactEmail, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, saveContact, discardContact]);
+  }, [onRegisterUnsavedForm, showAddContact, editingContactId, contactName, contactEmail, contactPhone, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, saveContact, discardContact]);
+  const editContact = (contact: ClientContact) => {
+    setEditingContactId(contact.id); setContactName(contact.name); setContactEmail(contact.email); setContactPhone(contact.phone || ''); setContactTitle(contact.title || ''); setContactResponsibility(contact.responsibility || ''); setContactEffectiveFrom(contact.effectiveFrom || ''); setContactEffectiveTo(contact.effectiveTo || ''); setContactActive(contact.active); setShowAddContact(true);
+  };
+  const openAddContact = () => { discardContact(); setShowAddContact(true); };
   const handleAddContact = (e: React.FormEvent) => { e.preventDefault(); saveContact(); };
 
   const handleSaveCustomField = (event: React.FormEvent) => {
@@ -341,7 +367,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Registered Contacts ({contacts.length})</h3>
-            <button className="btn primary sm" onClick={() => setShowAddContact(true)}>
+            <button className="btn primary sm" onClick={openAddContact}>
               <Icon name="plus" /> Add Contact
             </button>
           </div>
@@ -356,6 +382,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                   <th>Role</th>
                   <th>Responsibility period</th>
                   <th>Portal Access</th>
+                  <th>Status / actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -373,6 +400,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                       </span>
                       {!c.isPrimary && c.active && <button className="btn xs ghost ml8" onClick={() => prototypeStore.setPrimaryContact(client.id, c.id)}>Make primary</button>}
                     </td>
+                    <td><span className={`badge ${c.active ? 'green' : 'gray'}`}>{c.active ? 'Active' : 'Inactive'}</span><button className="btn xs ghost ml8" onClick={() => editContact(c)}>Edit</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -386,7 +414,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Active & Historical Engagements</h3>
-            <button className="btn primary sm" onClick={() => onNavigate('engagements')}>
+            <button className="btn primary sm" onClick={() => navigateWithClientEngagement('engagements')}>
               <Icon name="plus" /> New Engagement
             </button>
           </div>
@@ -436,7 +464,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Jobs & Delivery Containers</h3>
-            <button className="btn primary sm" onClick={() => onNavigate('jobs')}>
+            <button className="btn primary sm" onClick={() => navigateWithClientEngagement('jobs')}>
               <Icon name="plus" /> Go to Jobs
             </button>
           </div>
@@ -472,7 +500,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>SharePoint Document Repository</h3>
-            <button className="btn sm" onClick={() => onNavigate('documents')}>
+            <button className="btn sm" onClick={() => navigateWithClientEngagement('documents')}>
               <Icon name="folder" /> Open Document Browser
             </button>
           </div>
@@ -563,7 +591,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Client Communications Register</h3>
-            <button className="btn primary sm" onClick={() => onNavigate('communications')}>
+            <button className="btn primary sm" onClick={() => navigateWithClientEngagement('communications')}>
               <Icon name="message" /> Compose Email / Note
             </button>
           </div>
@@ -602,7 +630,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Invoices & Receipts</h3>
-            <button className="btn primary sm" onClick={() => onNavigate('billing')}>
+            <button className="btn primary sm" onClick={() => navigateWithClientEngagement('billing')}>
               <Icon name="receipt" /> Go to Billing Desk
             </button>
           </div>
@@ -640,7 +668,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel panel-pad">
           <h3>Trial Balance & Ledgers</h3>
           <p className="sub" style={{ marginBottom: 16 }}>Imported accounting books for active external audit.</p>
-          <button className="btn primary sm" onClick={() => onNavigate('accounting-setup')}>
+          <button className="btn primary sm" onClick={() => navigateWithClientEngagement('accounting-setup')}>
             <Icon name="calculator" /> Open Accounting Workbench
           </button>
         </div>
@@ -651,7 +679,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         <div className="panel">
           <div className="panel-head">
             <h3>Assurance Workpapers ({workpapers.length})</h3>
-            <button className="btn primary sm" onClick={() => onNavigate('audit')}>
+            <button className="btn primary sm" onClick={() => navigateWithClientEngagement('audit')}>
               <Icon name="checkboard" /> Open Workpaper Desk
             </button>
           </div>
@@ -684,7 +712,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
 
       {/* Tab 12: Activity */}
       {activeTab === 'activity' && (
-        <div className="panel panel-pad">
+        <div className="stack" style={{ gap: 16 }}>
+          <InternalNotesPanel subjectType="client" subjectId={client.id} />
+          <div className="panel panel-pad">
           <h3>Client Activity & Audit Events</h3>
           <div className="stack mt12" style={{ gap: 8 }}>
             {state.events.filter(e => e.ref.includes(client.id) || engagements.some(engagement => e.ref.includes(engagement.id))).map((ev, i) => (
@@ -698,15 +728,16 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
             ))}
           </div>
         </div>
+        </div>
       )}
 
       {/* Add Contact Modal */}
       {showAddContact && (
-        <div className="modal-backdrop" onClick={() => setShowAddContact(false)}>
+        <div className="modal-backdrop" onClick={discardContact}>
           <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Add Contact to {client.name}</h2>
-              <button className="icon-btn" onClick={() => setShowAddContact(false)}>✕</button>
+              <h2>{editingContactId ? 'Edit Contact' : 'Add Contact'} to {client.name}</h2>
+              <button className="icon-btn" onClick={discardContact}>✕</button>
             </div>
             <form ref={contactForm} onSubmit={handleAddContact}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -742,6 +773,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                     required
                   />
                 </div>
+                <label className="caption">Phone<input type="tel" className="input" aria-label="Contact phone" value={contactPhone} onChange={e => setContactPhone(e.target.value)} /></label>
                 <div>
                   <label className="caption">Responsibility</label>
                   <input type="text" className="input" aria-label="Contact responsibility" placeholder="e.g. Financial reporting" value={contactResponsibility} onChange={e => setContactResponsibility(e.target.value)} />
@@ -750,13 +782,14 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                   <label className="caption">Effective From<input type="date" className="input" aria-label="Contact effective from" value={contactEffectiveFrom} onChange={e => setContactEffectiveFrom(e.target.value)} /></label>
                   <label className="caption">Effective To<input type="date" className="input" aria-label="Contact effective to" value={contactEffectiveTo} onChange={e => setContactEffectiveTo(e.target.value)} /></label>
                 </div>
+                {editingContactId && <label className="caption">Contact status<select className="input" aria-label="Contact status" value={contactActive ? 'Active' : 'Inactive'} onChange={event => setContactActive(event.target.value === 'Active')}><option>Active</option><option>Inactive</option></select></label>}
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddContact(false)}>
+                <button type="button" className="btn ghost sm" onClick={discardContact}>
                   Cancel
                 </button>
                 <button type="submit" className="btn primary sm">
-                  Save Contact
+                  {editingContactId ? 'Save Contact Changes' : 'Save Contact'}
                 </button>
               </div>
             </form>

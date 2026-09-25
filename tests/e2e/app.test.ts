@@ -1,5 +1,5 @@
 // VP-063: static smoke checks plus real Chrome route and local-action checks.
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, Server, IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync, existsSync, readdirSync, statSync, mkdtempSync, rmSync } from 'node:fs';
@@ -10,7 +10,8 @@ import { spawn, ChildProcess } from 'node:child_process';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../src/services/calculations.js';
-import { visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
+import { canOpenRoute, visibleClientIds, visibleEngagementIds } from '../../src/services/guards.js';
+import { LEGACY_ROUTE_REDIRECTS } from '../../src/services/legacyRoutes.js';
 import { createInitialState } from '../../src/store/initialState.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -121,12 +122,20 @@ before(async () => {
     '--no-first-run', '--no-default-browser-check', 'about:blank'
   ], { stdio: 'ignore' });
   const activePortPath = join(profileDir, 'DevToolsActivePort');
-  for (let attempt = 0; attempt < 100 && !existsSync(activePortPath); attempt++) {
+  let debugPort: string | undefined;
+  for (let attempt = 0; attempt < 100 && !debugPort; attempt++) {
     if (chrome.exitCode !== null) throw new Error(`Chrome exited with code ${chrome.exitCode}`);
+    try {
+      const candidate = readFileSync(activePortPath, 'utf8').trim().split(/\r?\n/, 1)[0];
+      if (/^\d+$/.test(candidate)) debugPort = candidate;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!['ENOENT', 'EBUSY', 'EPERM'].includes(code || '')) throw error;
+    }
+    if (debugPort) break;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
-  assert.ok(existsSync(activePortPath), 'Chrome remote debugging endpoint did not start');
-  const [debugPort] = readFileSync(activePortPath, 'utf8').trim().split('\n');
+  assert.ok(debugPort, 'Chrome remote debugging endpoint did not start or expose a readable port');
   browserDebugPort = debugPort;
   let target: any;
   for (let attempt = 0; attempt < 50; attempt++) {
@@ -284,6 +293,10 @@ describe('vite build serves locally', () => {
 });
 
 describe('actual Chrome browser acceptance', { concurrency: false }, () => {
+  beforeEach(async () => {
+    await browserTab!.evaluate(`(() => {for(const key of Object.keys(sessionStorage))if(key.startsWith('ste-auditsphere-client-list-filters:'))sessionStorage.removeItem(key);})()`);
+  });
+
   it('AT-01/AT-03/AT-04: renders the app, keeps controls local, and presents scope disclosures', async () => {
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /SIMULATED IDENTITY \(NOT LIVE AUTH\)/);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Synthetic records\. No live external integrations/);
@@ -293,10 +306,30 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(external, [], `unexpected browser egress: ${external.join(', ')}`);
   });
 
+  it('VP-002-AC04: redirects former hash routes and supports browser back navigation', async () => {
+    for (const [oldRoute, targetRoute] of Object.entries(LEGACY_ROUTE_REDIRECTS)) {
+      const currentRoute = canOpenRoute('manager', targetRoute) ? targetRoute : 'overview';
+      await browserTab!.evaluate(`location.hash=${JSON.stringify(`#${oldRoute}`)}`);
+      assert.equal(await waitForBrowser(`location.hash==='#${currentRoute}'`), true, `#${oldRoute} should redirect to #${currentRoute}`);
+    }
+
+    await browserTab!.evaluate(`location.hash='#clients'`);
+    assert.equal(await waitForBrowser(`document.querySelector('h1')?.innerText==='Client Portfolio'`), true);
+    const openedJobs = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)return false;b.click();return true;})()`);
+    assert.equal(openedJobs, true, 'current navigation control should be available');
+    assert.equal(await waitForBrowser(`location.hash==='#jobs'`), true, 'current navigation should update the fragment and history');
+    await browserTab!.evaluate('history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#clients'&&document.querySelector('h1')?.innerText==='Client Portfolio'`), true, 'browser back should restore the prior routed view');
+    await browserTab!.evaluate(`location.hash='#overview'`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true, 'leave the shared browser on the default route for following journeys');
+  });
+
   it('VP-005: scopes dashboard records, metrics, attention and activity to the active grant', async () => {
     await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await browserTab!.evaluate(`location.hash='#overview'`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true, 'global manager dashboard has loaded');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,'group-user');role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='group-user'`), true);
     await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.selectedEngagement='ENG-26002';s.events.unshift({type:'message',text:'PRIVATE-SIBLING-ACTIVITY',ref:'ENG-26002',time:s.asOfDate});s.jobs.push({id:'JOB-PRIVATE-26002',clientId:'CL-002',engagementId:'ENG-26002',title:'PRIVATE-SIBLING-JOB',owner:'Layla Rahman',dueDate:s.asOfDate,status:'In progress',createdAt:s.asOfDate+'T00:00:00.000Z'});s.jobTasks.push({id:'TSK-PRIVATE-26002',jobId:'JOB-PRIVATE-26002',title:'PRIVATE-SIBLING-TASK',assignee:'Layla Rahman',status:'Not started',order:1});localStorage.setItem(key,JSON.stringify(s));location.reload();})()`);
@@ -328,7 +361,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const narrowJobs = await browserTab!.evaluate<string>('document.body.innerText');
     assert.equal(narrowJobs.includes('PRIVATE-SIBLING-JOB'), false, 'sibling jobs are excluded from the register');
     assert.equal(narrowJobs.includes('PRIVATE-SIBLING-TASK'), false, 'sibling tasks are excluded from the workspace');
-    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.currentUserId='manager';s.currentPerson='Layla Rahman';s.currentRole='manager';s.selectedEngagement='ENG-26001';localStorage.setItem(key,JSON.stringify(s));location.reload();})()`);
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));s.currentUserId='manager';s.currentPerson='Layla Rahman';s.currentRole='manager';s.selectedEngagement='ENG-26001';localStorage.setItem(key,JSON.stringify(s));location.hash='#overview';location.reload();})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='manager'`), true);
     assert.equal(await waitForBrowser(`document.querySelector('.panel table tbody')?.innerText.includes('ENG-26002')`), true, 'global manager dashboard has loaded');
     const globalRows = await browserTab!.evaluate<string[]>(`[...document.querySelectorAll('.panel table tbody tr')].map(r=>r.innerText)`);
@@ -350,6 +383,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(readyDrilldown.rows.length, readyDrilldown.value, `ready metric and drill-down must reconcile: ${JSON.stringify(readyDrilldown)}`);
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const rows=[...document.querySelectorAll('.panel')].find(x=>x.innerText.includes('Filtered work list'))?.querySelectorAll('tbody tr')||[];return [...rows].filter(r=>!r.innerText.includes('No matching records.')).every(r=>{const id=r.innerText.match(/ENG-\\d+/)?.[0];const e=s.engagements.find(x=>x.id===id);return e&&e.workpapers.length>0&&e.workpapers.every(w=>w.status==='Cleared')&&e.reviews.every(x=>x.status==='Cleared');});})()`), true, 'ready list contains only engagements with fully cleared workpapers and reviews');
     await browserTab!.evaluate(`document.querySelector('[aria-label^="Ready to Release"]')?.click()`);
+    const readMetricDrilldown = async (label: string) => {
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="${label}"]')?.click()`);
+      assert.equal(await waitForBrowser(`[...document.querySelectorAll('.panel')].some(panel=>panel.innerText.includes('Filtered work list'))`), true, `${label} metric opens its filtered list`);
+      const result = await browserTab!.evaluate<any>(`(() => {const card=document.querySelector('[aria-label^="${label}"]');const panel=[...document.querySelectorAll('.panel')].find(item=>item.innerText.includes('Filtered work list'));return {value:Number(card.querySelector('.metric-value').innerText),rows:[...(panel?.querySelectorAll('tbody tr')||[])].filter(row=>!row.innerText.includes('No matching records.')).map(row=>row.innerText)};})()`);
+      await browserTab!.evaluate(`document.querySelector('[aria-label^="${label}"]')?.click()`);
+      return result;
+    };
+    const reviewDrilldown = await readMetricDrilldown('Awaiting Review');
+    assert.equal(reviewDrilldown.rows.length, reviewDrilldown.value, `awaiting-review counter matches its filtered list: ${JSON.stringify(reviewDrilldown)}`);
+    assert.ok(reviewDrilldown.rows.every((row: string) => row.includes('Review point')), 'awaiting-review list contains review points only');
+    const pbcDrilldown = await readMetricDrilldown('Client Requests');
+    assert.equal(pbcDrilldown.rows.length, pbcDrilldown.value, `client-request counter matches its filtered list: ${JSON.stringify(pbcDrilldown)}`);
+    assert.ok(pbcDrilldown.rows.every((row: string) => row.includes('Client request')), 'client-request list contains requests only');
     assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Billing & Receivables')`), true, 'manager sees financial dashboard summaries');
     await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'preparer');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='preparer'`), true);
@@ -587,13 +633,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const foldersAfterRetry = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
     assert.equal(foldersAfterRetry, foldersAfter, 'retry remains idempotent');
 
-    const searchTarget = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id!==s.selectedEngagement);return {id:e.id,client:e.client,engagement:s.selectedEngagement,activeClient:s.engagements.find(x=>x.id===s.selectedEngagement)?.client};})()`);
-    assert.ok(searchTarget?.id && searchTarget.id !== searchTarget.engagement, 'fixture must have a second engagement for context switching');
+    const searchTarget = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26002');return {id:e.id,client:e.client,engagement:s.selectedEngagement,activeClient:s.engagements.find(x=>x.id===s.selectedEngagement)?.client};})()`);
+    assert.equal(searchTarget?.id, 'ENG-26002', 'the cross-client target fixture must remain exact');
+    assert.ok(searchTarget.client !== searchTarget.activeClient, 'fixture must switch both engagement and client context');
     const beforeSearch = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {engagement:s.selectedEngagement,tenant:s.m365Config.tenantId};})()`);
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Search draft');i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.search-trigger').click();})()`);
     assert.equal(await waitForBrowser('!!document.querySelector(\'.modal-backdrop input[placeholder^="Type to search"]\')'), true, 'global search opened from a dirty form');
     await browserTab!.evaluate(`(() => {const i=document.querySelector('.modal-backdrop input[placeholder^="Type to search"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,${JSON.stringify(searchTarget.id)});i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    assert.equal(await waitForBrowser(`[...document.querySelectorAll('.modal-backdrop button')].some(x=>x.innerText.includes(${JSON.stringify(searchTarget.id)}))`), true, `second engagement ${searchTarget.id} is available in scoped search`);
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('.modal-backdrop button')].some(x=>x.innerText.includes(${JSON.stringify(searchTarget.id)}))`), true, `cross-client engagement ${searchTarget.id} is available in scoped search`);
     const chooseSearchTarget = async () => {
       const found = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('.modal-backdrop button')].find(x=>x.innerText.includes(${JSON.stringify(searchTarget.id)}));if(!b)return false;b.click();return true;})()`);
       assert.equal(found, true, 'search target button is available');
@@ -680,6 +727,172 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Discard and continue');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='preparer'`), true);
       assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.some(x=>x.name==='Discarded Contact')`), true, 'Discard changes persona without creating the contact');
+
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-003-E02: guards the consolidation output draft across route changes', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButton('Group Consolidation');
+      await clickButton('Consolidated Balance Sheet Grid');
+      assert.equal(await waitForBrowser('!!document.querySelector(`[aria-label="Group output preparation evidence"]`)'), true, 'the reviewed fixture permits output preparation');
+      const setEvidence = async (value: string) => browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Group output preparation evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+
+      await setEvidence('GROUP-OUTPUT-STAY-AT57');
+      await clickButton('Practice Overview');
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true);
+      assert.match(await browserTab!.evaluate<string>('document.querySelector("[role=dialog]")?.innerText || ""'), /Consolidation output draft/);
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Group output preparation evidence"]')?.value`), 'GROUP-OUTPUT-STAY-AT57', 'Stay preserves the output evidence and group context');
+
+      await clickButton('Practice Overview');
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true);
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("A clear view of every engagement")'), true, await browserTab!.evaluate<string>('document.body.innerText'));
+      const savedEvidence = await browserTab!.evaluate<any>(`(() => {const g=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0];return {count:g.outputPackages.length,evidence:g.outputPackages.at(-1).evidenceRef,status:g.outputPackages.at(-1).status};})()`);
+      assert.deepEqual(savedEvidence,{count:1,evidence:'GROUP-OUTPUT-STAY-AT57',status:'Draft'});
+
+      await clickButton('Group Consolidation');
+      await clickButton('Consolidated Balance Sheet Grid');
+      await setEvidence('GROUP-OUTPUT-DISCARD-AT57');
+      await clickButton('Practice Overview');
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true);
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("A clear view of every engagement")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].outputPackages.every(p=>p.evidenceRef!=='GROUP-OUTPUT-DISCARD-AT57')`), true, 'Discard does not create or persist an output package');
+      await clickButton('Group Consolidation');
+      await clickButton('Consolidated Balance Sheet Grid');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Group output preparation evidence"]')?.value`), '', 'discarded evidence is absent when the consolidation context is reopened');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original === null) await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      else await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-58/VP-010-E02: returns, revises and redisplays a proposal without rewriting the earlier presented snapshot', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=${JSON.stringify(JSON.stringify(createInitialState()))};const state=JSON.parse(s);const p=state.proposals.find(x=>x.id==='PROP-001');p.state='Presented';p.commercialReview={reviewedBy:'Layla Rahman',reviewedAt:'2026-09-12T10:00:00Z',approved:true,notes:'Original commercial review.'};p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Amira Qasim',presentedAt:'2026-09-12T11:00:00Z'};delete p.clientResponse;localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      const selectPersona = async (userId: string) => browserTab!.evaluate<boolean>(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(x=>x.value===${JSON.stringify(userId)});if(!option)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+      assert.equal(await selectPersona('relationship'), true, 'proposal owner can create the next revision');
+      await clickButton('Proposals & Terms');
+      const originalSnapshot = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001').presentedSnapshot`);
+      assert.equal(originalSnapshot.currency, 'QAR');
+      assert.equal(originalSnapshot.totalAmount, 600000);
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PROP-001'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='New Revision');if(!button)throw Error('New Revision action missing');button.click();})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.some(p=>p.id==='PROP-001-R3'&&p.state==='Draft')`), true, 'revision 3 is a fresh draft');
+      await clickButton('Edit Draft');
+      const setProposalField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector('input,textarea,select');if(!e)throw Error('Missing proposal field '+${JSON.stringify(label)});const proto=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:e instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await setProposalField('Currency', 'USD');
+      await setProposalField('Scope', 'Revised scope for the FY2026 statutory audit.');
+      await setProposalField('Terms', 'Revised payment due within 45 days.');
+      await setProposalField('Rate', '525000');
+      await clickButton('Create Draft');
+      let revised = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001-R3')`);
+      assert.equal(revised.currency, 'USD');
+      assert.equal(revised.totalAmount, 625000);
+      assert.equal(revised.commercialReview, undefined, 'a fresh proposal revision has no inherited review');
+      assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001').presentedSnapshot`), originalSnapshot, 'editing the new revision cannot rewrite the old presented snapshot');
+
+      assert.equal(await selectPersona('manager'), true, 'independent commercial reviewer switches to Layla');
+      await clickButton('Independent Commercial Review');
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('.modal-backdrop select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'return');select.dispatchEvent(new Event('change',{bubbles:true}));const note=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(note,'Clarify the revised reporting period.');note.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Record Review Decision');
+      revised = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001-R3')`);
+      assert.equal(revised.state, 'Draft', 'returned proposal remains a draft for amendments');
+      assert.equal(revised.commercialReview.approved, false);
+      assert.equal(revised.commercialReview.notes, 'Clarify the revised reporting period.');
+
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PROP-001-R3'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Preview');if(!button)throw Error('revision preview action missing');button.click();})()`);
+      await clickButton('Edit Draft');
+      await setProposalField('Scope', 'Clarified revised scope for FY2026 statutory audit.');
+      await setProposalField('Rate', '540000');
+      await clickButton('Create Draft');
+      await clickButton('Independent Commercial Review');
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('.modal-backdrop select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'approve');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Record Review Decision');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001-R3')?.state==='Approved to send'`), true);
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PROP-001-R3'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Mark Presented');if(!button)throw Error('Mark Presented action missing');button.click();})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id==='PROP-001-R3')?.state==='Presented'`), true);
+      const finalState = await browserTab!.evaluate<any>(`(() => {const ps=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals;const old=ps.find(p=>p.id==='PROP-001');const next=ps.find(p=>p.id==='PROP-001-R3');return {oldState:old.state,oldSnapshot:old.presentedSnapshot,newState:next.state,newSnapshot:next.presentedSnapshot};})()`);
+      assert.equal(finalState.oldState, 'Superseded');
+      assert.deepEqual(finalState.oldSnapshot, originalSnapshot);
+      assert.equal(finalState.newState, 'Presented');
+      assert.equal(finalState.newSnapshot.revision, 3);
+      assert.equal(finalState.newSnapshot.currency, 'USD');
+      assert.equal(finalState.newSnapshot.totalAmount, 640000);
+      assert.match(finalState.newSnapshot.items[0].scope, /Clarified revised scope/);
+      assert.equal(finalState.newSnapshot.terms, 'Revised payment due within 45 days.');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PROP-001'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Preview');if(!button)throw Error('superseded proposal preview action missing');button.click();})()`);
+      const oldPreview = await browserTab!.evaluate<string>('document.querySelector(".proposal-preview")?.innerText||""');
+      assert.match(oldPreview, /Rev 2/);
+      assert.match(oldPreview, /QAR 600,000/);
+      assert.match(oldPreview, /Scope, Deliverables & Fees/);
+      assert.doesNotMatch(oldPreview, /Clarified revised scope/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original === null) await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      else await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-003-AC02: guards proposal, invoice, cash-flow and package drafts across route changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+
+      await clickButtonStartingWith('Proposals');
+      await clickButton('New Proposal');
+      await browserTab!.evaluate(`(() => {const x=document.querySelector('.modal input[required]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(x,'Guarded proposal');x.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Engagements');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'proposal draft blocks route changes');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('.modal input[required]')?.value`), 'Guarded proposal', 'Stay keeps proposal draft');
+      await clickButtonStartingWith('Engagements');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Engagements')`), true, 'Discard clears proposal form and changes route');
+      assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.some(x=>x.title==='Guarded proposal')`), true, 'discard does not persist proposal');
+
+      await clickButtonStartingWith('Billing');
+      await clickButtonStartingWith('Draft New Invoice');
+      await clickButtonStartingWith('Financial Statements');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'invoice draft blocks route changes');
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Financial Statements')`), true, 'saved invoice allows requested route change');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.some(x=>x.status==='Draft'&&x.invoiceNumber.startsWith('INV-'))`), true, 'invoice draft is persisted before route change');
+
+      await clickButton('Statement of Cash Flows');
+      const cashFlowReady = await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Opening cash"]')`);
+      assert.equal(cashFlowReady, true, 'financial statements cash flow editor is available');
+      await browserTab!.evaluate(`(() => {const x=document.querySelector('[aria-label="Opening cash"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(x,'123');x.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Financial Packages');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'cash-flow schedule blocks route changes');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Financial Reporting Package')`), true, 'cash-flow discard permits route change');
+      assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).cashFlowScheduleHistory?.some(x=>x.openingCash===123)`), true, 'discard does not persist cash-flow changes');
+      await browserTab!.evaluate(`(() => {const set=(x,value,proto)=>{Object.getOwnPropertyDescriptor(proto,'value').set.call(x,value);x.dispatchEvent(new Event('input',{bubbles:true}));};set(document.querySelector('[aria-label="Disclosure title"]'),'Guarded disclosure',HTMLInputElement.prototype);set(document.querySelector('textarea[aria-label$="disclosure text"]'),'Guarded disclosure text',HTMLTextAreaElement.prototype);set(document.querySelector('[aria-label="Evidence document ID"]'),'DOC-GUARD-01',HTMLInputElement.prototype);})()`);
+      await clickButtonStartingWith('Financial Statements');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'package disclosure draft blocks route changes');
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Financial Statements')`), true, 'disclosure draft saves and permits route change');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement).disclosureHistory.some(x=>x.text==='Guarded disclosure text')`), true, 'disclosure work is versioned before route change');
     } finally {
       await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
       await browserTab!.command('Page.reload');
@@ -730,6 +943,37 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(browserTab!.exceptions.length, 0);
   });
 
+  it('VP-003-AC01: blocks a restored engagement selection outside the active grant', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=${JSON.stringify(JSON.stringify(createInitialState()))};const state=JSON.parse(s);state.currentUserId='group-user';state.currentPerson=state.users.find(user=>user.id==='group-user').name;state.currentRole='manager';state.selectedEngagement='ENG-26002';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));location.hash='#financial-statements';})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")||"{}").currentUserId==="group-user"');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await browserTab!.evaluate('location.hash="#financial-statements"');
+      assert.equal(await waitForBrowser('location.hash==="#financial-statements"&&!!document.querySelector("[data-testid=engagement-context-unavailable]")'), true, 'restored inaccessible engagement shows a safe unavailable state');
+      const unavailableText = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""');
+      assert.match(unavailableText, /Engagement selection unavailable/);
+      assert.doesNotMatch(unavailableText, /ENG-26002|Northstar Services/, 'restricted engagement identifiers and client fields are not rendered');
+      await clickButtonStartingWith('Engagements');
+      assert.equal(await waitForBrowser('document.querySelector("main#main")?.innerText.includes("ENG-26001")'), true, 'authorized engagement list remains available');
+      assert.equal(await browserTab!.evaluate<boolean>(`!document.querySelector('main#main')?.innerText.includes('ENG-26002')`), true, 'authorized engagement list omits the restored restricted target');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.innerText.includes('ENG-26001'));const button=[...(row?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Select');if(!button)throw Error('permitted engagement opener missing');button.click();})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'user can explicitly restore an engagement inside the grant');
+      await browserTab!.evaluate('location.hash="#financial-statements"');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const permittedText = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""');
+      assert.equal(await browserTab!.evaluate<boolean>('!document.querySelector("[data-testid=engagement-context-unavailable]")'), true, 'permitted financial statement context is no longer blocked');
+      assert.match(permittedText, /Balance Sheet Equation Balanced/, 'permitted financial statement workspace loads');
+      assert.doesNotMatch(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""'), /ENG-26002|Northstar Services/);
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-17/AT-18: keeps identity mapping separate from a reviewed scoped access grant', async () => {
     await browserTab!.evaluate(`(() => {
       const role = document.querySelector('#role-select');
@@ -739,6 +983,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       role.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
     assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "admin"'), true);
+    await clickButtonStartingWith('Practice Overview');
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true);
+    assert.equal(await browserTab!.evaluate<boolean>(`!document.querySelector('main#main')?.innerText.includes('Billing & Receivables')`), true, 'technical administrator dashboard omits client receivables');
+    await browserTab!.evaluate(`location.hash='#financial-statements'`);
+    assert.equal(await waitForBrowser(`location.hash==='#overview'&&document.querySelector('.crumb')?.innerText.includes('OVERVIEW')`), true, 'technical administrator cannot open client financial statements by direct route');
     await clickButton('Firm Administration');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Practice Administration & Access Control")'), true);
     const opened = await browserTab!.evaluate<boolean>(`(() => {
@@ -758,12 +1007,26 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       target.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
     await browserTab!.evaluate(`(() => {const ref=document.querySelector('[aria-label="Approved access request reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(ref,'AR-2026-0041');ref.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Scoped engagement assignment');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Record approved grant');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('requires a separate approval-evidence reference')`), true, 'professional grant is rejected without separate credential evidence');
+    assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='group-user'&&g.scopeId==='ENG-26002')`), true, 'missing professional evidence does not create authority');
+    await browserTab!.evaluate(`(() => {const evidence=document.querySelector('[aria-label="Professional or management approval evidence reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'HR-CREDENTIAL-0041');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
     await clickButton('Record approved grant');
     const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')); return {grants:s.roleGrants.filter(g=>g.userId==='group-user'), mappings:s.m365Config.permittedUsers};})()`);
     assert.equal(before.grants.some((g: any) => g.scopeKind === 'Engagement' && g.scopeId === 'ENG-26002'), false);
-    assert.ok(after.grants.some((g: any) => g.scopeKind === 'Engagement' && g.scopeId === 'ENG-26002'), 'approved scope adds exactly the requested target');
+    assert.ok(after.grants.some((g: any) => g.scopeKind === 'Engagement' && g.scopeId === 'ENG-26002' && g.approvalEvidenceRef === 'HR-CREDENTIAL-0041'), 'approved scope adds exactly the requested target and distinct professional credential evidence');
     assert.deepEqual(after.mappings, before.mappings, 'administrative grant does not rewrite M365 identity mappings');
+    await clickButton('✕');
+    const groupGrantOpened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('Mona Khalil'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='+ Grant Scope');if(!button)return false;button.click();return true;})()`);
+    assert.equal(groupGrantOpened, true, 'group reporting grant authoring is available for a professional identity');
+    await browserTab!.evaluate(`(() => {const scope=document.querySelector('.modal-card select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(scope,'Group');scope.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="Target consolidation group"] option[value="GRP-01"]')`), true, 'only configured consolidation groups can be granted');
+    await browserTab!.evaluate(`(() => {const set=(selector,value,textarea=false)=>{const element=document.querySelector(selector);const proto=textarea?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));element.dispatchEvent(new Event('change',{bubbles:true}));};set('[aria-label="Grant effective from"]','2026-09-23');set('[aria-label="Approved access request reference"]','AR-GROUP-0041');set('[aria-label="Professional or management approval evidence reference"]','HR-CREDENTIAL-GROUP-0041');set('[aria-label="Access grant reason"]','Approved access for the named consolidation group',true);})()`);
+    const engagementGrantsBeforeGroup = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.filter(g=>g.userId==='group-user'&&g.scopeKind!=='Group').map(g=>[g.scopeKind,g.scopeId]))()`);
+    await clickButton('Record approved grant');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const g=s.roleGrants.find(g=>g.userId==='group-user'&&g.scopeKind==='Group');return g?.scopeId==='GRP-01'&&g?.requestRef==='AR-GROUP-0041'&&g?.approvalEvidenceRef==='HR-CREDENTIAL-GROUP-0041';})()`), true, 'group grant is pinned to the configured group and separately evidenced');
+    assert.deepEqual(await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.filter(g=>g.userId==='group-user'&&g.scopeKind!=='Group').map(g=>[g.scopeKind,g.scopeId]))()`), engagementGrantsBeforeGroup, 'group grant does not add client or engagement grants');
     await clickButton('✕');
     const clientGrantOpened = await browserTab!.evaluate<boolean>(`(() => {
       const row = [...document.querySelectorAll('tbody tr')].find(x => x.innerText.includes('Omar Nasser'));
@@ -785,19 +1048,33 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {
       const set=(selector,value)=>{const input=document.querySelector(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));};
       set('[aria-label="Approved access request reference"]','AR-2026-0042');
+      set('[aria-label="Professional or management approval evidence reference"]','CLIENT-AUTH-0042');
       set('[aria-label="Grant expiry date"]','2027-09-22');
       const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Quarterly management approval responsibility');reason.dispatchEvent(new Event('input',{bubbles:true}));
     })()`);
     await clickButton('Record approved grant');
-    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const g=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.find(g=>g.userId==='client'&&g.scopeKind==='Client'&&g.scopeId==='CL-002');return g?.requestRef==='AR-2026-0042'&&g?.expiresAt==='2027-09-22'&&g?.reason==='Quarterly management approval responsibility';})()`), true, 'approved request, reason, and expiry persist with the scope grant');
-    await clickButton('Access History (2)');
-    assert.equal(await waitForBrowser(`document.body.innerText.includes('AR-2026-0042')&&document.body.innerText.includes('Quarterly management approval responsibility')&&document.body.innerText.includes('Mona Khalil')`), true, 'grant events retain request, approver, target and recorded reason');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const g=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.find(g=>g.userId==='client'&&g.scopeKind==='Client'&&g.scopeId==='CL-002');return g?.requestRef==='AR-2026-0042'&&g?.approvalEvidenceRef==='CLIENT-AUTH-0042'&&g?.expiresAt==='2027-09-22'&&g?.reason==='Quarterly management approval responsibility';})()`), true, 'approved request, separate management authority evidence, reason, and expiry persist with the scope grant');
+    await clickButton('Access History (3)');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('AR-2026-0042')&&document.body.innerText.includes('CLIENT-AUTH-0042')&&document.body.innerText.includes('Quarterly management approval responsibility')&&document.body.innerText.includes('Mona Khalil')`), true, 'grant events retain access request, separate management approval evidence, actor, target and reason');
     await browserTab!.evaluate(`(() => [...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Active Access Grants')).click())()`);
     assert.equal(await waitForBrowser(`document.querySelector('.panel-head h3')?.innerText==='Explicit Access Grants Register'`), true, 'active grants table opened');
     await browserTab!.evaluate(`(() => {window.prompt=()=> 'Assignment ended';const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('group-user')&&x.innerText.includes('ENG-26002'));const revoke=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Revoke Grant');if(!revoke)throw Error('target grant not listed');revoke.click();})()`);
-    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.roleGrantHistory.length===3&&!s.roleGrants.some(g=>g.userId==='group-user'&&g.scopeId==='ENG-26002');})()`), true, 'revocation removes authority but appends a durable event');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.roleGrantHistory.length===4&&!s.roleGrants.some(g=>g.userId==='group-user'&&g.scopeKind==='Engagement'&&g.scopeId==='ENG-26002')&&s.roleGrants.some(g=>g.userId==='group-user'&&g.scopeKind==='Group'&&g.scopeId==='GRP-01');})()`), true, 'revocation removes only the engagement grant while retaining separately granted group reporting scope');
+    assert.deepEqual(await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrantHistory.filter(event=>event.userId==='group-user'&&event.scopeKind==='Engagement'&&event.scopeId==='ENG-26002').map(event=>[event.action,event.approvalEvidenceRef]))()`), [['Granted','HR-CREDENTIAL-0041'],['Revoked','HR-CREDENTIAL-0041']], 'revocation history retains the original professional approval-evidence reference');
     await browserTab!.evaluate(`(() => [...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Access History')).click())()`);
     assert.equal(await waitForBrowser(`document.body.innerText.includes('Assignment ended')&&document.body.innerText.includes('Revoked')`), true, 'revocation reason and event remain visible in history');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(option=>option.value==='group-user');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.deepEqual(await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {clients:s.clients.filter(c=>{const allowed=s.roleGrants.some(g=>g.userId==='group-user'&&g.role==='manager'&&((g.scopeKind==='Global')||(g.scopeKind==='Client'&&g.scopeId===c.id)||(g.scopeKind==='Engagement'&&s.engagements.some(e=>e.id===g.scopeId&&e.client===c.id))));return allowed;}).map(c=>c.id),engagements:s.roleGrants.filter(g=>g.userId==='group-user'&&g.role==='manager'&&g.scopeKind==='Engagement').map(g=>g.scopeId),group:s.roleGrants.some(g=>g.userId==='group-user'&&g.role==='manager'&&g.scopeKind==='Group'&&g.scopeId==='GRP-01')};})()`), { clients: ['CL-001'], engagements: ['ENG-26001'], group: true }, 'group grant stays separate from business client and engagement list grants');
+    await clickButton('Group Consolidation');
+    const groupWorkspaceReady = await waitForBrowser(`document.querySelector('main#main h1')?.innerText==='Group Consolidation Workbench'&&!document.querySelector('main#main')?.innerText.includes('Consolidated output is unavailable under your scoped grant.')`);
+    const groupWorkspace = await browserTab!.evaluate<string>(`document.querySelector('main#main')?.innerText||''`);
+    assert.equal(groupWorkspaceReady, true, `the named group scope reaches its reporting workspace: ${groupWorkspace.slice(0, 240)}`);
+    await clickButtonStartingWith('Client Portfolio');
+    assert.equal(await waitForBrowser(`document.querySelector('main#main')?.innerText.includes('Example Trading Entity')&&!document.querySelector('main#main')?.innerText.includes('Northstar')`), true, 'the group grant does not reveal another member client through Client Portfolio');
+    await clickButtonStartingWith('Engagements');
+    const engagementList = await browserTab!.evaluate<string>(`document.querySelector('main#main')?.innerText||''`);
+    const siblingVisible = await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('ENG-26002')||false`);
+    assert.equal(siblingVisible, false, `the group grant does not expose an ungranted component engagement (match index ${engagementList.indexOf('ENG-26002')}): ${engagementList.slice(0, 300)}`);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -835,7 +1112,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
         await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
         assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape cancels the dialog');
-        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement===document.querySelector('.pagehead button'))()`), true, 'closing the dialog restores focus to its trigger');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement===document.querySelector('.pagehead button'))()`), true, `closing the dialog restores focus to its trigger: ${await browserTab!.evaluate<string>('document.activeElement?.outerHTML||"no active element"')}`);
+
+        await clickButton('Add Client Profile');
+        await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Legal Entity Name"]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,'AT53 cancelled client draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+        await browserTab!.evaluate(`(() => {const cancel=[...document.querySelectorAll('[role="dialog"] button')].find(button=>button.innerText.trim()==='Cancel');if(!cancel)throw Error('Client profile Cancel button missing');cancel.click();})()`);
+        assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Cancel closes the client profile dialog');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.id==='add-client-profile-trigger')()`), true, 'Cancel restores focus to the client profile opener');
+        assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(client=>client.name==='AT53 cancelled client draft')`), true, 'Cancel does not persist the profile draft');
+
+        await clickButton('Add Client Profile');
+        await browserTab!.evaluate(`(() => {const backdrop=document.querySelector('.modal-backdrop');if(!backdrop)throw Error('Client profile backdrop missing');backdrop.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
+        assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'backdrop dismissal closes the client profile dialog');
+        assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.id==='add-client-profile-trigger')()`), true, 'backdrop dismissal restores focus to the client profile opener');
       }
     } finally {
       await browserTab!.command('Emulation.clearDeviceMetricsOverride');
@@ -852,6 +1141,20 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
     assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape cancels the module dialog');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.textContent?.trim().endsWith('New Job'))()`), true, 'closing restores focus to the opener');
+    const setNewJobTitle = async (title: string) => browserTab!.evaluate(`(() => {const input=document.querySelector('[role="dialog"] input[type="text"]');if(!input)throw Error('New Job title input missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(title)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const trigger=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().endsWith('New Job'));trigger?.click();})()`);
+    await setNewJobTitle('AT53 cancelled job draft');
+    await browserTab!.evaluate(`(() => {const cancel=[...document.querySelectorAll('[role="dialog"] button')].find(button=>button.innerText.trim()==='Cancel');if(!cancel)throw Error('New Job Cancel button missing');cancel.click();})()`);
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Cancel closes the New Job dialog');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.innerText?.trim().endsWith('New Job'))()`), true, 'Cancel restores focus to the New Job opener');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return !s.jobs.some(job=>job.title==='AT53 cancelled job draft');})()`), true, 'Cancel does not create the job');
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('button')].find(x=>x.innerText.trim().endsWith('New Job'))?.click())()`);
+    assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[role="dialog"] input[type="text"]')?.value`), '', 'reopening after Cancel starts with a clean draft');
+    await setNewJobTitle('AT53 backdrop job draft');
+    await browserTab!.evaluate(`(() => {const backdrop=document.querySelector('.modal-backdrop');if(!backdrop)throw Error('New Job backdrop missing');backdrop.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'backdrop dismissal closes the New Job dialog');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.innerText?.trim().endsWith('New Job'))()`), true, 'backdrop dismissal restores focus to the New Job opener');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return !s.jobs.some(job=>job.title==='AT53 backdrop job draft');})()`), true, 'backdrop dismissal does not create the job');
     const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
       await browserTab!.evaluate(`(() => {const trigger=[...document.querySelectorAll('button')].find(x=>x.innerText.trim().endsWith('New Job'));trigger?.focus();trigger?.click();})()`);
@@ -1001,11 +1304,30 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const manager=[...role.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,manager.value);role.dispatchEvent(new Event('change',{bubbles:true}));const e=document.querySelector('select[aria-label="Selected engagement"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'ENG-26001');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true);
     await clickButton('Audit Planning & Materiality');
-    // VP-048: the planning form no longer prefills benchmark or rationale assumptions;
-    // the journey enters them deliberately.
+    // VP-048: all planning assumptions, including the threshold percentages,
+    // start blank and must be recorded by the preparer.
+    const blankRates = await browserTab!.evaluate<any>(`(() => ({benchmark:document.querySelector('[aria-label="Benchmark value"]')?.value,rate:document.querySelector('[aria-label="Applied benchmark rate percentage"]')?.value,performance:document.querySelector('[aria-label="Performance materiality rate percentage"]')?.value,trivial:document.querySelector('[aria-label="Clearly trivial threshold percentage"]')?.value,calculated:!!document.querySelector('.metric-grid')}))()`);
+    assert.deepEqual(blankRates, { benchmark: '', rate: '', performance: '', trivial: '', calculated: false }, 'a new plan has no assumed benchmark or percentage inputs');
     await browserTab!.evaluate(`(() => {const setField=(sel,setter,val)=>{const f=document.querySelector(sel);if(!f)throw Error('Missing '+sel);Object.getOwnPropertyDescriptor(setter.prototype,'value').set.call(f,val);f.dispatchEvent(new Event('input',{bubbles:true}));};setField('input[aria-label="Benchmark value"]',HTMLInputElement,'2000000');setField('textarea[aria-label="Planning strategy memo and scope rationale"]',HTMLTextAreaElement,'Benchmark and rate entered deliberately for the demonstration plan.');})()`);
+    await clickButton('Save Version 1');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Enter an applied benchmark rate greater than 0 and no more than 100 percent.')`), true, 'saving with missing percentages returns a specific validation error');
+    assert.equal(await browserTab!.evaluate<boolean>(`!(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans||[]).some(p=>p.engagementId==='ENG-26001')`), true, 'missing percentages do not persist a plan');
+    await browserTab!.evaluate(`(() => {const setField=(sel,val)=>{const f=document.querySelector(sel);if(!f)throw Error('Missing '+sel);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(f,val);f.dispatchEvent(new Event('input',{bubbles:true}));};setField('[aria-label="Applied benchmark rate percentage"]','1.5');setField('[aria-label="Performance materiality rate percentage"]','75');setField('[aria-label="Clearly trivial threshold percentage"]','5');})()`);
+    const deliberateCalculation = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {inputs:[...document.querySelectorAll('[aria-label="Applied benchmark rate percentage"],[aria-label="Performance materiality rate percentage"],[aria-label="Clearly trivial threshold percentage"]')].map(x=>x.value),rationale:document.querySelector('[aria-label="Planning strategy memo and scope rationale"]')?.value,metrics:!!document.querySelector('.metric-grid'),plans:(s.auditPlans||[]).length};})()`);
+    assert.equal(deliberateCalculation.metrics && deliberateCalculation.plans === 0, true, `calculation appears only after deliberate rates are entered: ${JSON.stringify(deliberateCalculation)}`);
+    await browserTab!.evaluate(`(() => {const field=document.querySelector('[aria-label="Performance materiality rate percentage"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'0');field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    assert.equal(await browserTab!.evaluate<boolean>(`!document.querySelector('.metric-grid')`), true, 'out-of-range input does not calculate or crash the planning screen');
+    await clickButton('Save Version 1');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Enter a performance materiality rate greater than 0 and no more than 100 percent.')`), true, 'invalid rates receive a specific save error');
+    assert.equal(await browserTab!.evaluate<boolean>(`!(JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans||[]).some(p=>p.engagementId==='ENG-26001')`), true, 'invalid rates still do not persist a plan');
+    await browserTab!.evaluate(`(() => {const field=document.querySelector('[aria-label="Performance materiality rate percentage"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'75');field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('.metric-grid')`), true, 'valid replacement input restores the calculations');
+    await clickButton('Team & Section Allocations');
+    await clickButton('Add allocation');
+    await browserTab!.evaluate(`(() => {const set=(label,value)=>{const field=document.querySelector('[aria-label="'+label+'"]');if(!field)throw Error('Missing '+label);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));};set('Team member name 1','Layla Rahman');set('Team member role 1','Engagement Manager');set('Team member start 1','2026-09-25');set('Team member end 1','2026-10-31');})()`);
     await clickButtonStartingWith('Plan Versions & Review');
     await clickButton('Save Version 1');
+    assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).auditPlans.find(p=>p.engagementId==='ENG-26001');return p&&p.materialityRate===1.5&&p.performanceMaterialityRate===75&&p.clearlyTrivialRate===5&&p.overallMateriality===30000&&p.performanceMateriality===22500&&p.clearlyTrivialThreshold===1500&&p.teamAllocations.length===1&&p.teamAllocations[0].person==='Layla Rahman'&&p.teamAllocations[0].scheduledEnd==='2026-10-31';})()`), true, 'the saved plan retains explicit rates, calculated amounts and valid staff assignments');
     await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');const reviewer=[...role.options].find(o=>o.textContent.includes('Senior reviewer — Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,reviewer.value);role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     // VP-048: reviewer notes are a deliberate, recorded input for every decision.
     await browserTab!.evaluate(`(() => {const box=document.querySelector('textarea[aria-label="Review notes and sign-off basis"]');if(!box)throw Error('Review notes textarea missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Benchmarks and thresholds confirmed against the filed revenue figure.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -1046,26 +1368,71 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const box=document.querySelector('textarea[aria-label="Review notes and sign-off basis"]');if(!box)throw Error('Review notes textarea missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'Reworked revision accepted; gate restored.');box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Approve Audit Plan Strategy');
     assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.auditPlans.find(p=>p.version===4).status==='Approved'&&s.engagements.find(e=>e.id==='ENG-26001').planning;})()`), true, 'independent approval of the reworked revision restores the planning gate');
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const manager=[...s.options].find(o=>o.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,manager.value);s.dispatchEvent(new Event('change',{bubbles:true}));const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const procedure=state.auditPrograms.flatMap(p=>p.procedures).find(p=>p.id==='PRC-03');procedure.status='Cleared';procedure.reviewedByUserId='reviewer';procedure.reviewedAt='2026-09-24T00:00:00.000Z';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    await clickButton('Audit Planning & Materiality');
+    await browserTab!.evaluate(`(() => {const field=document.querySelector('[aria-label="Performance materiality rate percentage"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'70');field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Version 5');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const prior=s.auditPlans.find(p=>p.version===4);const next=s.auditPlans.find(p=>p.version===5);const procedure=s.auditPrograms.flatMap(p=>p.procedures).find(p=>p.id==='PRC-03');return prior.status==='Superseded'&&prior.supersededReason?.includes('reassess affected procedure scope and conclusions')&&next.status==='Under review'&&next.performanceMaterialityRate===70&&procedure.scopeReassessmentRequired&&procedure.status==='In progress'&&!procedure.reviewedByUserId&&procedure.scopeReassessmentHistory.at(-1).previousStatus==='Cleared'&&!s.engagements.find(e=>e.id==='ENG-26001').planning;})()`), true, 'editing approved materiality creates a revision, stales cleared fieldwork and withholds planning approval');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
   it('AT-05/AT-06: creates a client, primary contact, typed value and non-authorizing relationship group', async () => {
     const setPersona = async (name: string) => browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(name)}));if(!o)throw Error('Missing persona '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    const setLabeledField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.trim()==${JSON.stringify(label)});const e=l?.parentElement?.querySelector('input');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setLabeledField = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.trim().startsWith(${JSON.stringify(label)}));const e=l?.querySelector('input')||l?.parentElement?.querySelector('input');if(!e)throw Error('Missing '+${JSON.stringify(label)});const p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;p.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     const setSelect = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
 
     await setPersona('Engagement partner');
     const portfolio = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Client Portfolio'));if(!b)return false;b.click();return true;})()`);
     assert.equal(portfolio, true);
     await clickButton('Add Client Profile');
+    await setLabeledField('Client Code', 'AT05-JOURNEY');
     await setLabeledField('Legal Entity Name', 'AT05 Journey Entity');
     await setLabeledField('Primary Contact Person', 'Nora Journey');
     await setLabeledField('Contact Email', 'nora@journey.demo');
     await clickButton('Create Client');
     const clientId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.name==='AT05 Journey Entity')?.id`);
     assert.ok(clientId);
-    const opened = await browserTab!.evaluate<boolean>(`(() => {const c=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));const b=[...(c?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!b)return false;b.click();return true;})()`);
-    assert.equal(opened, true);
+    const edit = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Edit Profile');if(!button)return false;button.click();return true;})()`);
+    assert.equal(edit, true);
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[role="dialog"]')?.contains(document.activeElement)===true`), true, 'edit profile moves focus into its dialog');
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Escape dismisses profile edit');
+    assert.equal(await waitForBrowser(`document.activeElement?.id===${JSON.stringify(`client-edit-trigger-${clientId}`)}`), true, 'edit dismissal restores focus to the specific opener');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Edit Profile').click();})()`);
+    await setSelect('[aria-label="Client status"]', 'Suspended');
+    await setLabeledField('Trading name', 'AT05 Edited Trading Name');
+    await clickButton('Save Client Profile');
+    assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===${JSON.stringify(clientId)});return c.status==='Suspended'&&c.tradingName==='AT05 Edited Trading Name'&&c.profileRevision===1;})()`), true, 'edit updates lifecycle fields in place with a revision');
+    await setSelect('[aria-label="Client status filter"]', 'Suspended');
+    assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('.client-card')].some(x=>x.innerText.includes('AT05 Journey Entity'))`), true, 'suspended clients remain discoverable');
+    const suspendedWorkspace = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Client 360 Workspace').click();return true;})()`);
+    assert.equal(suspendedWorkspace, true);
+    assert.equal(await waitForBrowser(`document.querySelector('main#main')?.innerText.includes('Client ID: ${clientId}')`), true, 'suspended client workspace mounted');
+    await clickButtonStartingWith('Contacts');
+    await clickButton('Add Contact');
+    await setLabeledField('Full Name', 'Nora Archived Contact');
+    await setLabeledField('Email Address', 'nora.archived@journey.demo');
+    await clickButton('Save Contact');
+    await clickButton('Back to Portfolio');
+    await setSelect('[aria-label="Client status filter"]', 'Suspended');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Edit Profile').click();})()`);
+    await setSelect('[aria-label="Client status"]', 'Archived');
+    await clickButton('Save Client Profile');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(c=>c.id===${JSON.stringify(clientId)}&&c.status==='Archived')`), true, 'archive is a status transition, retaining the client record');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.some(c=>c.clientId===${JSON.stringify(clientId)})`), true, 'archiving retains historical contacts');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===${JSON.stringify(clientId)}).id==='${clientId}'`), true, 'archived profile retains the exact ID used by its historical records');
+    await setSelect('[aria-label="Client status filter"]', 'Archived');
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Edit Profile').click();})()`);
+    await setSelect('[aria-label="Client status"]', 'Active');
+    await clickButton('Save Client Profile');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.find(c=>c.id===${JSON.stringify(clientId)}).status==='Active'`), true, 'authorized edit can reactivate an archived client');
+    await setSelect('[aria-label="Client status filter"]', 'All');
+    const opened = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('AT05 Journey Entity'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!button)return false;button.click();return true;})()`);
+    assert.equal(opened, true, 'reactivated client workspace opens for authorized staff');
+    assert.equal(await waitForBrowser(`document.querySelector('main#main')?.innerText.includes('Client ID: ${clientId}')`), true, 'reactivated client workspace mounted');
     await setSelect('select[aria-label="Custom field"]', 'cf_entity_tier');
     await setSelect('select[aria-label="Custom field value"]', 'Tier 2 SME');
     await clickButton('Save custom value');
@@ -1088,7 +1455,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Create group');
     const groupId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).relationshipGroups.find(g=>g.name===${JSON.stringify(groupName)})?.id`);
     assert.ok(groupId);
-    await clickButton('Contacts');
+    await clickButtonStartingWith('Contacts');
     await clickButton('Add Contact');
     await setLabeledField('Full Name', 'Nora Secondary');
     await setLabeledField('Job Title', 'Controller');
@@ -1102,6 +1469,37 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(contact.effectiveFrom, '2026-01-01');
     assert.equal(contact.effectiveTo, '2026-12-31');
     assert.equal(contact.portalAccessRequested, false, 'a contact is not an account or access grant');
+    assert.equal(contact.revision, 1);
+    assert.deepEqual(contact.history, []);
+    const contactId = contact.id;
+    const contactUsersBeforeEdit = await browserTab!.evaluate<any[]>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).users');
+    const openContactEditor = async (name: string) => browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tr')].find(x=>x.innerText.includes(${JSON.stringify(name)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Edit');if(!b)throw Error('Missing contact editor for '+${JSON.stringify(name)});b.click();})()`);
+    await openContactEditor('Nora Secondary');
+    await setLabeledField('Full Name', 'Nora Secondary Updated');
+    await setSelect('[aria-label="Contact status"]', 'Inactive');
+    await clickButton('Save Contact Changes');
+    let editedContact = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.find(c=>c.id===${JSON.stringify(contactId)})`);
+    assert.equal(editedContact.name, 'Nora Secondary Updated');
+    assert.equal(editedContact.active, false);
+    assert.equal(editedContact.isPrimary, false);
+    assert.equal(editedContact.revision, 2);
+    assert.equal(editedContact.history.length, 1);
+    assert.equal(editedContact.history[0].before.name, 'Nora Secondary');
+    assert.equal(editedContact.history[0].before.active, true);
+    assert.equal(editedContact.history[0].after.name, 'Nora Secondary Updated');
+    assert.equal(editedContact.history[0].after.active, false);
+    assert.equal(editedContact.portalAccessRequested, false);
+    await openContactEditor('Nora Secondary Updated');
+    await setSelect('[aria-label="Contact status"]', 'Active');
+    await clickButton('Save Contact Changes');
+    editedContact = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.find(c=>c.id===${JSON.stringify(contactId)})`);
+    assert.equal(editedContact.id, contactId, 'contact edits retain the exact reference ID');
+    assert.equal(editedContact.active, true);
+    assert.equal(editedContact.revision, 3);
+    assert.equal(editedContact.history.length, 2);
+    assert.equal(editedContact.history[1].before.active, false);
+    assert.equal(editedContact.history[1].after.active, true);
+    assert.deepEqual(await browserTab!.evaluate<any[]>('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).users'), contactUsersBeforeEdit, 'contact edits do not create or alter identity records');
 
     await clickButton('Back to Portfolio');
     const linked = await browserTab!.evaluate<boolean>(`(() => {const c=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('CL-003'));const b=[...(c?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!b)return false;b.click();return true;})()`);
@@ -1119,6 +1517,67 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.ok(text.includes('Cedar Manufacturing'), `client workspace context was lost on ${tab}`);
       assert.doesNotMatch(text, /ENG-26001|ENG-26002/, `${tab} leaked another client's engagement`);
     }
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('VP-008-E01: preserves filtered portfolio and exact engagement context across two client workspaces', async () => {
+    await browserTab!.evaluate(`(() => {localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))});sessionStorage.removeItem('clients-portfolio:manager');})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    const setSelect = async (selector: string, value: string) => browserTab!.evaluate(`(() => {const field=document.querySelector(${JSON.stringify(selector)});if(!field)throw Error('Missing '+${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(field,${JSON.stringify(value)});field.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const setClientFilter = async (value: string) => browserTab!.evaluate(`(() => {const field=document.querySelector('input[placeholder="Filter clients by name, code or industry..."]');if(!field)throw Error('Client portfolio filter missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,${JSON.stringify(value)});field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    const openWorkspace = async (clientId: string) => browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(item=>item.innerText.includes(${JSON.stringify(clientId)}));const button=[...(card?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Client 360 Workspace');if(!button)return false;button.click();return true;})()`);
+    const clickWorkspaceTab = async (label: string) => browserTab!.evaluate<boolean>(`(() => {const button=[...document.querySelectorAll('.tab-btn')].find(item=>item.innerText.trim().startsWith(${JSON.stringify(label)}));if(!button)return false;button.click();return true;})()`).then(found => { assert.equal(found, true, `workspace tab not found: ${label}`); });
+    const tabs = ['Overview','Contacts','Engagements','Jobs','Documents','PBC Requests','Communications','Time & Budgets','Billing & AR','Accounting','Audit & Reviews','Audit Log'];
+
+    await clickButtonStartingWith('Client Portfolio');
+    await setSelect('[aria-label="Client status filter"]', 'Active');
+    await setClientFilter('Example');
+    assert.equal(await openWorkspace('CL-001'), true, 'first client workspace opens from the filtered portfolio');
+    for (const tab of tabs) {
+      await clickWorkspaceTab(tab);
+      const main = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""');
+      assert.match(main, /Client ID: CL-001/, `client context was lost in ${tab}`);
+      assert.doesNotMatch(main, /ENG-26002/, `${tab} exposed the other client's engagement`);
+    }
+    await clickWorkspaceTab('Engagements');
+    const openEngagement = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.innerText.includes('ENG-26001'));const button=[...(row?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Open');if(!button)return false;button.click();return true;})()`);
+    assert.equal(openEngagement, true, 'workspace opens the exact selected client engagement');
+    assert.equal(await waitForBrowser(`location.hash==='#engagements'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'child navigation selects the exact engagement');
+    await browserTab!.evaluate('history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&document.querySelector('main#main')?.innerText.includes('Client ID: CL-001')`), true, 'browser back restores the same client workspace');
+    await browserTab!.evaluate('history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#clients'&&document.querySelector('input[placeholder="Filter clients by name, code or industry..."]')?.value==='Example'&&document.querySelector('[aria-label="Client status filter"]')?.value==='Active'`), true, 'back navigation restores the portfolio query and status filter');
+    await browserTab!.evaluate('history.forward()');
+    assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&document.querySelector('main#main')?.innerText.includes('Client ID: CL-001')`), true, 'browser forward restores the selected client');
+    await browserTab!.evaluate('history.forward()');
+    assert.equal(await waitForBrowser(`location.hash==='#engagements'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26001'`), true, 'browser forward restores the exact engagement');
+    await browserTab!.evaluate('history.back();history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#clients'`), true);
+
+    await setClientFilter('Northstar');
+    assert.equal(await openWorkspace('CL-002'), true, 'second client workspace opens from a different filtered scope');
+    for (const tab of tabs) {
+      await clickWorkspaceTab(tab);
+      const main = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""');
+      assert.match(main, /Client ID: CL-002/, `client context was lost in ${tab}`);
+      assert.doesNotMatch(main, /ENG-26001|ENG-26003/, `${tab} exposed another client's engagement`);
+    }
+    await clickWorkspaceTab('Jobs');
+    await clickButton('Go to Jobs');
+    assert.equal(await waitForBrowser(`location.hash==='#jobs'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26002'`), true, 'Jobs action pins the current client engagement before navigation');
+    await browserTab!.evaluate(`(() => {const trigger=[...document.querySelectorAll('button')].find(item=>item.innerText.trim().endsWith('New Job'));if(!trigger)throw Error('New Job action unavailable');trigger.click();})()`);
+    const newJobContext = await browserTab!.evaluate<string[]>(`[...document.querySelectorAll('.modal-backdrop select')].slice(0,2).map(field=>field.value)`);
+    assert.deepEqual(newJobContext, ['CL-002','ENG-26002'], 'a job created from the client tab defaults to that client and engagement');
+    await browserTab!.evaluate(`(() => [...document.querySelectorAll('.modal-backdrop button')].find(button=>button.innerText.trim()==='Cancel')?.click())()`);
+    await browserTab!.evaluate('history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&document.querySelector('main#main')?.innerText.includes('Client ID: CL-002')`), true, 'closing the job flow returns to its originating client workspace');
+    await clickWorkspaceTab('Engagements');
+    const openSecondEngagement = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(item=>item.innerText.includes('ENG-26002'));const button=[...(row?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Open');if(!button)return false;button.click();return true;})()`);
+    assert.equal(openSecondEngagement, true, 'second workspace opens its exact child engagement');
+    assert.equal(await waitForBrowser(`location.hash==='#engagements'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement==='ENG-26002'`), true);
+    await browserTab!.evaluate('history.back()');
+    assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&document.querySelector('main#main')?.innerText.includes('Client ID: CL-002')`), true, 'second client is restored on browser back');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1253,23 +1712,150 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-010-E01: authors reusable service/template defaults and prints a complete branded proposal preview', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      await clickButtonStartingWith('Proposals');
+      const setText = async (label: string, value: string, container = '.modal-backdrop') => browserTab!.evaluate(`(() => {const root=document.querySelector(${JSON.stringify(container)});const field=[...(root?.querySelectorAll('label')||[])].find(item=>item.innerText.trim().startsWith(${JSON.stringify(label)}))?.querySelector('input,textarea');if(!field)throw Error('Missing '+${JSON.stringify(label)});const setter=Object.getOwnPropertyDescriptor(field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set;setter.call(field,${JSON.stringify(value)});field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Services & Templates');
+      const openServiceEditor = await browserTab!.evaluate<boolean>(`(() => {const box=[...document.querySelectorAll('.grid2 > section')].find(section=>section.innerText.includes('Supported Service Catalogue'));const card=[...(box?.querySelectorAll('.borderbox')||[])].find(item=>item.innerText.includes('External audit'));const button=[...(card?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Edit');if(!button)return false;button.click();return true;})()`);
+      assert.equal(openServiceEditor, true);
+      await setText('Description', 'Updated supported audit service for VP-010 verification.');
+      await clickButton('Save Service');
+      let authored = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {service:s.proposalServices.find(x=>x.id==='SVC-AUDIT'),history:s.proposalServiceHistory};})()`);
+      assert.equal(authored.service.revision, 2);
+      assert.equal(authored.history.at(-1).revision, 1, 'service revision is preserved in history');
+      const openTemplateEditor = await browserTab!.evaluate<boolean>(`(() => {const box=[...document.querySelectorAll('.grid2 > section')].find(section=>section.innerText.includes('Proposal Content Templates'));const card=[...(box?.querySelectorAll('.borderbox')||[])].find(item=>item.innerText.includes('Statutory audit proposal'));const button=[...(card?.querySelectorAll('button')||[])].find(item=>item.innerText.trim()==='Edit');if(!button)return false;button.click();return true;})()`);
+      assert.equal(openTemplateEditor, true);
+      await setText('Template name', 'Statutory audit proposal revised');
+      await setText('Scope', 'Template source: audit of agreed historical financial statements.');
+      await clickButton('Save Template');
+      authored = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {template:s.proposalTemplates.find(x=>x.id==='PT-AUDIT-BASE'),history:s.proposalTemplateHistory};})()`);
+      assert.equal(authored.template.revision, 2);
+      assert.equal(authored.history.at(-1).revision, 1, 'template revision is preserved in history');
+      await clickButton('New Proposal');
+      const chooseTemplate = await browserTab!.evaluate<boolean>(`(() => {const field=[...document.querySelectorAll('.modal-backdrop select')].find(item=>[...item.options].some(option=>option.value==='PT-AUDIT-BASE'));if(!field)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(field,'PT-AUDIT-BASE');field.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+      assert.equal(chooseTemplate, true);
+      const copied = await browserTab!.evaluate<any>(`(() => {const value=(name)=>[...document.querySelectorAll('.modal-backdrop label')].find(label=>label.innerText.trim().startsWith(name))?.querySelector('input,textarea,select')?.value;return {title:value('Title'),period:value('Reporting period'),feeModel:value('Fee model')}})()`);
+      assert.match(copied.title, /Statutory Audit Proposal/);
+      assert.equal(copied.period, 'Year ended 31 December 2026');
+      assert.equal(copied.feeModel, 'Fixed');
+      await setText('Title', 'VP010 Branded Proposal');
+      await setText('Scope', 'Proposal copy edited independently from its reusable template.');
+      await setText('Exclusions', 'Tax and payroll processing.', '.modal-backdrop');
+      await setText('Terms', 'Payment within 30 days; changes require written agreement.', '.modal-backdrop');
+      await clickButton('Add Service Line');
+      await browserTab!.evaluate(`(() => {const line=document.querySelector('.modal-backdrop fieldset');const service=line?.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(service,'SVC-ACCOUNTING');service.dispatchEvent(new Event('change',{bubbles:true}));const quantity=[...line.querySelectorAll('label')].find(label=>label.innerText.trim().startsWith('Quantity'))?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(quantity,'3');quantity.dispatchEvent(new Event('input',{bubbles:true}));quantity.dispatchEvent(new Event('change',{bubbles:true}));const rate=[...line.querySelectorAll('label')].find(label=>label.innerText.trim().startsWith('Rate'))?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(rate,'200');rate.dispatchEvent(new Event('input',{bubbles:true}));rate.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const feeReconciliation = await browserTab!.evaluate<number[]>(`(() => {const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const service=state.proposalServices.find(item=>item.id==='SVC-ACCOUNTING');return [service.quantity,service.rate,...[...document.querySelectorAll('.modal-backdrop fieldset')].map(fieldset=>fieldset.innerText.includes('Line total:')?Number(fieldset.innerText.match(/Line total:[^0-9]*([0-9,.]+)/)?.[1]?.replace(/,/g,'')):NaN)];})()`);
+      assert.deepEqual(feeReconciliation.slice(-1), [600], 'time-and-materials line recalculates quantity times rate');
+      await clickButton('Create Draft');
+      const proposal = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(item=>item.title==='VP010 Branded Proposal'))()`);
+      assert.equal(proposal.period, 'Year ended 31 December 2026');
+      assert.equal(proposal.templateId, 'PT-AUDIT-BASE');
+      assert.equal(proposal.templateRevision, 2);
+      assert.equal(proposal.items.length, 2, 'proposal supports multiple service lines');
+      assert.equal(proposal.items[1].amount, proposal.items[1].rate * proposal.items[1].quantity);
+      assert.equal(proposal.totalAmount, proposal.items.reduce((sum,line)=>sum+line.amount,0), 'proposal total reconciles to its complete line set');
+      const preview = await browserTab!.evaluate<string>('document.querySelector(".proposal-preview")?.innerText||""');
+      assert.match(preview, /STE Audit & Assurance/);
+      assert.match(preview, /Dependencies/);
+      assert.match(preview, /Client responsibilities/);
+      assert.match(preview, /Tax and payroll processing/);
+      assert.match(preview, /Demonstration firm identity placeholder/);
+      const printInvoked = await browserTab!.evaluate<boolean>(`(() => {let printed=false;window.print=()=>{printed=true};const button=[...document.querySelectorAll('.proposal-preview button')].find(item=>item.innerText.trim()==='Print Proposal');button?.click();return printed;})()`);
+      assert.equal(printInvoked, true);
+      await browserTab!.evaluate('delete window.print');
+      const proposalPdf = await browserTab!.command('Page.printToPDF', { printBackground: true, preferCSSPageSize: true });
+      const proposalPdfBytes = Buffer.from(proposalPdf.data, 'base64');
+      assert.equal(proposalPdfBytes.subarray(0, 4).toString(), '%PDF', 'proposal print styling should produce a browser PDF');
+      assert.ok(proposalPdfBytes.length > 1500, 'printed proposal should contain the branded proposal content');
+      assert.ok((proposalPdfBytes.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length >= 1, 'printed proposal PDF should contain at least one page');
+      const sourceTemplate = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposalTemplates.find(item=>item.id==='PT-AUDIT-BASE')`);
+      assert.equal(sourceTemplate.scope, 'Template source: audit of agreed historical financial statements.', 'proposal edits never mutate the source template');
+      const beforeInvalidRange = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.length`);
+      await clickButton('New Proposal');
+      await setText('Title', 'VP010 Invalid Period Proposal');
+      await setText('Period start', '2026-12-31');
+      await setText('Period end', '2026-01-01');
+      await clickButton('Create Draft');
+      const invalidRangeBlocked = await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.proposals.length===${beforeInvalidRange}&&document.body.innerText.includes('Proposal requires a period')&&Boolean(document.querySelector('.modal-backdrop'));})()`);
+      assert.equal(invalidRangeBlocked, true, 'reversed proposal dates leave the form open and create no record');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-09: client records a presented proposal response with evidence without auto-creating an engagement', async () => {
-    const before = await browserTab!.evaluate<any>(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));const p=s.proposals.find(x=>x.id==='PROP-001');p.state='Presented';p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Layla Rahman',presentedAt:'2026-09-23T10:00:00Z'};delete p.clientResponse;localStorage.setItem(key,JSON.stringify(s));return {engagements:s.engagements.length};})()`);
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    const before = await browserTab!.evaluate<any>(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));const p=s.proposals.find(x=>x.id==='PROP-001');p.state='Presented';p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Layla Rahman',presentedAt:'2026-09-23T10:00:00Z'};delete p.clientResponse;localStorage.setItem(key,JSON.stringify(s));return {engagements:s.engagements.length,revision:p.revision};})()`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
     const changed = await browserTab!.evaluate<boolean>(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Management approver'));if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
     assert.equal(changed, true);
     await clickButton('Proposals & Terms');
-    const setLabel = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector('input,textarea');if(!e)throw Error('Missing '+${JSON.stringify(label)});const proto=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await setLabel('Authorized signatory', 'Omar Nasser');
+    const setLabel = async (label: string, value: string) => browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(${JSON.stringify(label)}));const e=l?.querySelector('input,textarea,select');if(!e)throw Error('Missing '+${JSON.stringify(label)});const proto=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:e instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setLabel('Client contact', 'Omar Nasser');
+    await browserTab!.evaluate(`(() => {const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes('Response method'));const e=l?.querySelector('select');if(!e)throw Error('Missing response method selector');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'Meeting');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await setLabel('Evidence reference', 'MAIL-AT09-2026-09-23');
     await setLabel('Response notes', 'Accepted the presented scope and fee.',);
     await clickButton('Record Acceptance');
     const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.proposals.find(x=>x.id==='PROP-001');return {state:p.state,response:p.clientResponse,engagements:s.engagements.length};})()`);
     assert.equal(after.state, 'Accepted');
     assert.equal(after.response.evidenceRef, 'MAIL-AT09-2026-09-23');
+    assert.equal(after.response.method, 'Meeting');
+    assert.equal(after.response.recordedBy, 'Omar Nasser');
+    assert.equal(after.response.revision, before.revision);
+    assert.ok(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Meeting')&&document.body.innerText.includes('MAIL-AT09-2026-09-23')&&document.body.innerText.includes(${JSON.stringify(after.response.date)})`), 'staff response summary exposes method, date and evidence reference');
     assert.equal(after.engagements, before.engagements);
     assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original === null) await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      else await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('AT-56: staff records a dated withdrawn client response with active contact and correspondence evidence', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      const before = await browserTab!.evaluate<any>(`(() => {const key='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(key));const p=s.proposals.find(x=>x.id==='PROP-001');p.state='Presented';p.commercialReview={reviewedBy:'Layla Rahman',reviewedAt:'2026-09-22T10:00:00Z',approved:true};p.presentedSnapshot={revision:p.revision,title:p.title,currency:p.currency,totalAmount:p.totalAmount,items:structuredClone(p.items),terms:p.terms,presentedBy:'Layla Rahman',presentedAt:'2026-09-22T11:00:00Z'};delete p.clientResponse;localStorage.setItem(key,JSON.stringify(s));return {engagements:s.engagements.length,revision:p.revision};})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+      const selected = await browserTab!.evaluate<boolean>(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Amira Qasim'));if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+      assert.equal(selected, true);
+      await clickButton('Proposals & Terms');
+      await waitForBrowser(`document.body.innerText.includes('PROP-001')`);
+      const responseButtonVisible = await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(button=>button.innerText.trim()==='Record Client Response')`);
+      assert.equal(responseButtonVisible, true, await browserTab!.evaluate<string>('document.body.innerText'));
+      await clickButton('Record Client Response');
+      await browserTab!.evaluate(`(() => {const set=(label,value,tag='input')=>{const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(label));const e=l?.querySelector(tag);if(!e)throw Error('Missing '+label);const proto=tag==='textarea'?HTMLTextAreaElement.prototype:tag==='select'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};set('Client Response Type','Withdrawn','select');set('Response date','2026-09-22');set('Response method','Letter','select');set('Response notes','Client withdrew its response pending revised scope.','textarea');set('Document or communication evidence reference','MAIL-AT56-WITHDRAWAL-001');})()`);
+      await clickButton('Record Response');
+      const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.proposals.find(x=>x.id==='PROP-001');return {state:p.state,response:p.clientResponse,engagements:s.engagements.length,activeContactId:s.contacts.find(c=>c.clientId===p.clientId&&c.name==='Omar Nasser'&&c.active)?.id};})()`);
+      assert.equal(after.state, 'Withdrawn');
+      assert.deepEqual(after.response, {responseType:'Withdrawn',contact:'Omar Nasser',date:'2026-09-22',method:'Letter',notes:'Client withdrew its response pending revised scope.',evidenceRef:'MAIL-AT56-WITHDRAWAL-001',recordedBy:'Amira Qasim',recordedRole:'relationship',contactId:after.activeContactId,revision:before.revision});
+      assert.equal(after.engagements, before.engagements);
+      assert.ok(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('MAIL-AT56-WITHDRAWAL-001')&&document.body.innerText.includes('Letter')`));
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original === null) await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      else await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
   });
 
   it('AT-10: creates a draft once from accepted proposal terms then requires partner activation evidence', async () => {
@@ -1302,7 +1888,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
   it('AT-11/AT-12: blocks parent completion until subtasks finish and records an actual task reassignment', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    const expectedProgress = await browserTab!.evaluate<any>(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k));s.selectedEngagement='ENG-26001';const task=s.jobTasks.find(t=>t.id==='TSK-103');const job=s.jobs.find(j=>j.id===task.jobId);const leaves=s.jobTasks.filter(t=>t.jobId===job.id&&t.status!=='Cancelled'&&!s.jobTasks.some(sub=>sub.parentTaskId===t.id&&sub.status!=='Cancelled'));const expected={total:leaves.length,completed:leaves.filter(t=>t.status==='Completed').length};s.jobTasks.push({id:'TSK-AT11-CANCELLED-LEAF',jobId:job.id,title:'Cancelled leaf does not count',assignee:'Layla Rahman',status:'Cancelled',order:99});s.jobs.push({id:'JOB-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Safe Cancellation Fixture',owner:'Layla Rahman',dueDate:'2026-09-20',status:'In progress',createdAt:'2026-09-01T00:00:00.000Z'},{id:'JOB-AT11-EMPTY',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Empty Work Fixture',owner:'Layla Rahman',dueDate:'2026-10-31',status:'Not started',createdAt:'2026-09-01T00:00:00.000Z'});s.jobTasks.push({id:'TSK-AT11-CANCEL',jobId:'JOB-AT11-CANCEL',title:'Retained task',assignee:'Layla Rahman',status:'In progress',order:1});s.documents.push({id:'DOC-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',name:'Retained job document.pdf',folderPath:'/Engagements/2026/Audit/',version:1,size:100,classification:'Client provided',visibility:'Internal',source:'SharePoint',linkedJobId:'JOB-AT11-CANCEL',uploadedBy:'Layla Rahman',uploadedAt:'2026-09-22T10:00:00.000Z'});s.times.push({id:'TIME-AT11-CANCEL',person:'Layla Rahman',clientId:'CL-001',engagementId:'ENG-26001',jobId:'JOB-AT11-CANCEL',taskId:'TSK-AT11-CANCEL',taskTitle:'Retained task',date:'2026-09-20',durationMinutes:60,billable:true,activity:'Testing',status:'Draft'});localStorage.setItem(k,JSON.stringify(s));return expected;})()`);
+    const expectedProgress = await browserTab!.evaluate<any>(`(() => {const k='ste-auditsphere-role-portals-v2';const s=JSON.parse(localStorage.getItem(k));s.selectedEngagement='ENG-26001';const task=s.jobTasks.find(t=>t.id==='TSK-103');const job=s.jobs.find(j=>j.id===task.jobId);const leaves=s.jobTasks.filter(t=>t.jobId===job.id&&t.status!=='Cancelled'&&!s.jobTasks.some(sub=>sub.parentTaskId===t.id&&sub.status!=='Cancelled'));const expected={total:leaves.length,completed:leaves.filter(t=>t.status==='Completed').length};s.jobTasks.push({id:'TSK-AT11-CANCELLED-LEAF',jobId:job.id,title:'Cancelled leaf does not count',assignee:'Layla Rahman',status:'Cancelled',order:99});s.jobs.push({id:'JOB-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Safe Cancellation Fixture',owner:'Layla Rahman',dueDate:'2026-09-20',status:'In progress',createdAt:'2026-09-01T00:00:00.000Z'},{id:'JOB-AT11-EMPTY',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Empty Work Fixture',owner:'Layla Rahman',dueDate:'2026-10-31',status:'Not started',createdAt:'2026-09-01T00:00:00.000Z'},{id:'JOB-AT11-COMPLETION',clientId:'CL-001',engagementId:'ENG-26001',title:'AT-11 Completion Fixture',owner:'Layla Rahman',dueDate:'2026-10-31',status:'In progress',createdAt:'2026-09-01T00:00:00.000Z'});s.jobTasks.push({id:'TSK-AT11-CANCEL',jobId:'JOB-AT11-CANCEL',title:'Retained task',assignee:'Layla Rahman',status:'In progress',order:1},{id:'TSK-AT11-COMPLETION',jobId:'JOB-AT11-COMPLETION',title:'Required completion task',assignee:'Layla Rahman',status:'Not started',order:1});s.documents.push({id:'DOC-AT11-CANCEL',clientId:'CL-001',engagementId:'ENG-26001',name:'Retained job document.pdf',folderPath:'/Engagements/2026/Audit/',version:1,size:100,classification:'Client provided',visibility:'Internal',source:'SharePoint',linkedJobId:'JOB-AT11-CANCEL',uploadedBy:'Layla Rahman',uploadedAt:'2026-09-22T10:00:00.000Z'});s.times.push({id:'TIME-AT11-CANCEL',person:'Layla Rahman',clientId:'CL-001',engagementId:'ENG-26001',jobId:'JOB-AT11-CANCEL',taskId:'TSK-AT11-CANCEL',taskTitle:'Retained task',date:'2026-09-20',durationMinutes:60,billable:true,activity:'Testing',status:'Draft'});localStorage.setItem(k,JSON.stringify(s));return expected;})()`);
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
@@ -1381,6 +1967,23 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTasks.find(t=>t.id==='TSK-104').status==='In progress'`), true, 'task status survives reload');
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-EMPTY'));if(!row)throw Error('Empty-work job is missing');row.click();})()`);
     assert.equal(await waitForBrowser("document.body.innerText.includes('No active leaf tasks (0%)')&&document.body.innerText.includes('No tasks defined for this job yet.')"), true, 'empty work is shown as no tasks rather than an unexplained zero');
+    await browserTab!.evaluate(`(() => {const button=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Client Portfolio'));if(!button)throw Error('Missing client portfolio route');button.click();})()`);
+    const openedClient = await browserTab!.evaluate<boolean>(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('CL-001'));const button=[...(card?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Client 360 Workspace');if(!button)return false;button.click();return true;})()`);
+    assert.equal(openedClient, true, 'the client workspace can be opened for the job client');
+    await clickButtonStartingWith('Jobs & Tasks');
+    assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr')].some(row=>row.innerText.includes('JOB-AT11-CANCEL')&&row.innerText.includes('AT-11 Cancellation Fixture'))`), true, 'the cancelled job remains visible in the same client workspace');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(r=>r.innerText.includes('JOB-AT11-COMPLETION'));if(!row)throw Error('Completion fixture missing');row.click();})()`);
+    const beforeCompletion = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');return {approvals:structuredClone(e.approvals),releases:structuredClone(e.releases),invoices:s.invoices.length};})()`);
+    await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Completed');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('required tasks are unfinished')`), true, 'the UI reports why premature job completion is rejected');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id==='JOB-AT11-COMPLETION').status`), 'In progress', 'a rejected UI transition leaves the job unchanged');
+    await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Task status TSK-AT11-COMPLETION"]');if(!status)throw Error('Required task status control missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Completed');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Selected job status"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Completed');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.id==='JOB-AT11-COMPLETION').status==='Completed'`), true, 'the UI completes the job after its required task is complete');
+    const afterCompletion = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');return {approvals:e.approvals,releases:e.releases,invoices:s.invoices.length};})()`);
+    assert.deepEqual(afterCompletion.approvals, beforeCompletion.approvals, 'job completion does not approve engagement evidence');
+    assert.deepEqual(afterCompletion.releases, beforeCompletion.releases, 'job completion does not release a package');
+    assert.equal(afterCompletion.invoices, beforeCompletion.invoices, 'job completion does not issue an invoice');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1390,7 +1993,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const before = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const t=s.jobTemplates.find(x=>x.id==='TPL-JOB-01');return {jobs:s.jobs.length,tasks:s.jobTasks.length,jobIds:s.jobs.map(j=>j.id),template:t};})()`);
     const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('TPL-JOB-01'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Use Template');if(!b)return false;b.click();return true;})()`);
     assert.equal(opened, true);
-    await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('.modal-backdrop select')].find(x=>[...x.options].some(o=>o.value==='ENG-26001'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'ENG-26001');s.dispatchEvent(new Event('change',{bubbles:true}));const d=document.querySelector('.modal-backdrop input[type=date]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(d,'2026-11-01');d.dispatchEvent(new Event('input',{bubbles:true}));d.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Cancel');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), before.jobs, 'cancelling template application creates no job');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('TPL-JOB-01'));[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Use Template').click();})()`);
+    await browserTab!.evaluate(`(() => {const selects=[...document.querySelectorAll('.modal-backdrop select')];const engagement=selects.find(x=>[...x.options].some(o=>o.value==='ENG-26001'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(engagement,'ENG-26001');engagement.dispatchEvent(new Event('change',{bubbles:true}));const owner=selects.find(x=>[...x.options].some(o=>o.value==='Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(owner,'Sara Malik');owner.dispatchEvent(new Event('change',{bubbles:true}));const dates=[...document.querySelectorAll('.modal-backdrop input[type=date]')];if(dates.length!==2)throw Error('Expected deliberate start and delivery date fields');for(const [i,value] of ['2026-10-01','2026-11-01'].entries()){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(dates[i],value);dates[i].dispatchEvent(new Event('input',{bubbles:true}));dates[i].dispatchEvent(new Event('change',{bubbles:true}));}})()`);
     await clickButton('Instantiate Job');
     const after = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const j=s.jobs.find(x=>x.fromTemplateId==='TPL-JOB-01'&&!${JSON.stringify(before.jobIds)}.includes(x.id));return {jobs:s.jobs.length,tasks:s.jobTasks.length,job:j,tree:j?s.jobTasks.filter(t=>t.jobId===j.id):[]};})()`);
     assert.equal(after.jobs, before.jobs + 1);
@@ -1400,6 +2006,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(after.tasks > before.tasks, true);
     assert.equal(after.tree.length, before.template.tasks.reduce((n: number, t: any) => n + 1 + (t.subtasks?.length || 0), 0));
     assert.ok(after.tree.every((task: any) => task.status === 'Not started'), 'template application does not copy prior task state');
+    assert.ok(after.tree.every((task: any) => task.assignee === after.job.owner), 'role suggestions do not automatically allocate people');
     assert.ok(after.tree.every((task: any) => task.jobId === after.job.id && task.id !== 'TSK-103'), 'template application assigns a fresh job/task tree');
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));if(!b)throw Error('Missing job templates route');b.click();})()`);
     await clickButton('Author New Template');
@@ -1412,10 +2019,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Publish Template');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTemplates.find(t=>t.id===${JSON.stringify(authored.id)}).status==='Published'`), true);
     await clickButton('Create Job from Template');
+    await browserTab!.evaluate(`(() => {const dates=[...document.querySelectorAll('.modal-backdrop input[type=date]')];if(dates.length!==2)throw Error('Expected deliberate start and delivery date fields');for(const [i,value] of ['2026-10-02','2026-10-16'].entries()){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(dates[i],value);dates[i].dispatchEvent(new Event('input',{bubbles:true}));dates[i].dispatchEvent(new Event('change',{bubbles:true}));}const owner=[...document.querySelectorAll('.modal-backdrop select')].find(select=>[...select.options].some(option=>option.value==='Sara Malik'));if(!owner)throw Error('Active accountable owner option missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(owner,'Sara Malik');owner.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Instantiate Job');
     const lifecycleJob = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.fromTemplateId===${JSON.stringify(authored.id)})`);
     assert.ok(lifecycleJob);
     assert.equal(lifecycleJob.status, 'Not started');
+    assert.equal(lifecycleJob.startDate, '2026-10-02', 'job start date is explicitly selected');
+    assert.equal(lifecycleJob.dueDate, '2026-10-16', 'job delivery date is explicitly selected');
+    assert.equal(lifecycleJob.owner, 'Sara Malik', 'accountable owner is deliberately selected');
+    assert.ok((await browserTab!.evaluate<any[]>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobTasks.filter(task=>task.jobId===${JSON.stringify(lifecycleJob.id)})`)).every(task => task.assignee === 'Sara Malik'), 'copied task assignees use the deliberate owner, not role suggestions');
     assert.equal(lifecycleJob.fromTemplateRevision, authored.revision, 'job pins the exact published template revision');
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), jobsBeforeLifecycle + 1);
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Job Templates'));b.click();})()`);
@@ -1435,7 +2047,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButton('Publish Template');
     const jobsBeforeRevision = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`);
     await clickButton('Create Job from Template');
-    await browserTab!.evaluate(`(() => {const form=document.querySelector('.modal-backdrop form');if(!form)throw Error('Template instantiation form missing');form.requestSubmit();form.requestSubmit();})()`);
+    await browserTab!.evaluate(`(() => {const d=[...document.querySelectorAll('.modal-backdrop input[type=date]')];for(const [i,v] of ['2026-10-03','2026-10-17'].entries()){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(d[i],v);d[i].dispatchEvent(new Event('input',{bubbles:true}));d[i].dispatchEvent(new Event('change',{bubbles:true}));}const o=[...document.querySelectorAll('.modal-backdrop select')].find(s=>[...s.options].some(option=>option.value==='Sara Malik'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(o,'Sara Malik');o.dispatchEvent(new Event('change',{bubbles:true}));const form=document.querySelector('.modal-backdrop form');if(!form)throw Error('Template instantiation form missing');form.requestSubmit();form.requestSubmit();})()`);
     const jobFromRevision = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.find(j=>j.fromTemplateId===${JSON.stringify(revised.id)})`);
     assert.equal(jobFromRevision.fromTemplateRevision, 2);
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).jobs.length`), jobsBeforeRevision + 1);
@@ -1449,8 +2061,17 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('AT-14: keeps job notes internal and records only scope-authorized local mentions', async () => {
+    if (!await browserTab!.evaluate<boolean>(`Boolean(localStorage.getItem('ste-auditsphere-role-portals-v2'))`)) {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'seeded collaboration fixture loads');
+    }
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
     await clickButton('Add Internal Note');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('.modal-backdrop form').checkValidity()`), false, 'empty internal notes fail required-field validation');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'x'.repeat(5001));t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Internal Note');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.filter(c=>c.text.length>5000).length`), 0, 'oversized note does not persist');
     await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 staff-only coordination note.');t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}));const s=document.querySelector('.modal-backdrop select[multiple]');for(const name of ['Daniel James','Adam Khan']){const o=[...s.options].find(x=>x.textContent.includes(name));if(!o)throw Error('No authorized staff mention option for '+name);o.selected=true;}s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Save Internal Note');
     const comment = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.text==='AT14 staff-only coordination note.')`);
@@ -1459,6 +2080,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(comment.mentions.length, 2);
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.localNotices.filter(n=>n.commentId===${JSON.stringify(comment.id)}).length===2&&s.localNotices.filter(n=>n.commentId===${JSON.stringify(comment.id)}).every(n=>${JSON.stringify(comment.mentions)}.includes(n.recipientUserId));})()`), true, 'mention notices are persisted only for the selected recipients');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 staff-only coordination note/);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'internal-note reload renders the application');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route after reload');b.click();})()`);
+    assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 staff-only coordination note/, 'saved subject comment survives reload and remains in its job activity view');
     await browserTab!.evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>x.getAttribute('aria-label')?.startsWith('Edit internal note'));if(!button)throw Error('Internal note edit control missing');button.click();})()`);
     await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 revised staff-only coordination note.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save Note Changes');
@@ -1466,6 +2091,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(editedComment.editedBy, comment.author);
     assert.ok(editedComment.editedAt);
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT14 revised staff-only coordination note/);
+    await browserTab!.evaluate(`(() => {window.__at14UnsafeMarkupExecuted=0;const t=document.querySelector('[aria-label="Edit internal note ${comment.id}"]');if(!t)throw Error('Edited note control not visible');t.click();})()`);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await browserTab!.evaluate(`(() => {const textarea=document.querySelector('.modal-backdrop textarea');if(!textarea)throw Error('Unsafe-markup edit form did not open');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(textarea,'AT14 literal <img src=x onerror="window.__at14UnsafeMarkupExecuted=1"> <script>window.__at14UnsafeMarkupExecuted=2</script>');textarea.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Note Changes');
+    assert.equal(await browserTab!.evaluate<number>('window.__at14UnsafeMarkupExecuted'), 0, 'unsafe markup is displayed as text and does not execute');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('[aria-label="Edit internal note ${comment.id}"]')?.parentElement?.querySelector('img,script')===null`), true, 'unsafe markup does not create executable elements');
     await clickButton('Add task note');
     await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 internal task note.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save Internal Note');
@@ -1479,7 +2110,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`document.body.innerText.includes('My Local Notices')&&document.body.innerText.includes('Layla Rahman mentioned you on job')`), true, 'recipient sees a local notice without the comment text in the notice preview');
     await clickButton('Mark read');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).localNotices.some(n=>n.commentId===${JSON.stringify(comment.id)}&&n.recipientUserId===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId&&n.readAt)`), true, 'only the signed-in mention recipient can mark their notice read');
-    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Mariam Saeed'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();const card=[...document.querySelectorAll('.borderbox')].find(x=>x.innerText.includes('AT14 revised staff-only coordination note.'));window.prompt=()=> 'Contains information that should not remain in a staff comment.';[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Moderate').click();})()`);
+    await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Mariam Saeed'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();const card=[...document.querySelectorAll('.borderbox')].find(x=>x.innerText.includes('AT14 literal <img'));if(!card)throw Error('Unsafe note not visible to moderator');window.prompt=()=> 'Contains information that should not remain in a staff comment.';[...card.querySelectorAll('button')].find(x=>x.innerText.trim()==='Moderate').click();})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.id===${JSON.stringify(comment.id)}).moderationHistory.at(-1).action==='Hidden'`), true, 'moderator hides the note with attributable history');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Audit preparer'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));b.click();})()`);
     assert.equal(await waitForBrowser("document.body.innerText.includes('My Local Notices')"), true, 'another named recipient sees their own notice');
@@ -1488,7 +2119,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const clientView = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(clientView, /CLIENT SECURE PORTAL/);
     assert.doesNotMatch(clientView, /AT14 revised staff-only coordination note/);
+    assert.doesNotMatch(clientView, /AT14 literal <img|My Local Notices|mentioned you on job|internal note count/i, 'client portal has no internal note text, count or mention-notice projection');
     assert.doesNotMatch(clientView, /AT14 internal task note/);
+    assert.equal(comment.attachments, undefined, 'internal comments do not carry client-visible attachment references');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1723,11 +2356,38 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=text]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'INV-AT30');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.match(await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop input[type=number]")?.value || ""'), /^600$/, 'three approved hours at QAR 200/hour should total QAR 600');
     await clickButton('Create Draft');
-    const result = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const i=s.invoices.find(x=>x.invoiceNumber==='INV-AT30');const t=s.times.find(x=>x.id==='TIME-01');return {invoice:i,time:t};})()`);
+    const result = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const i=s.invoices.find(x=>x.invoiceNumber==='INV-AT30');const t=s.times.find(x=>x.id==='TIME-01');const c=s.clients.find(x=>x.id===i.clientId);return {invoice:i,time:t,client:c};})()`);
     assert.equal(result.invoice.status, 'Draft');
     assert.equal(result.invoice.amount, 600);
     assert.deepEqual(result.invoice.lines.map((line: any) => [line.sourceType,line.sourceId,line.quantity,line.rate,line.amount]), [['Time entry','TIME-01',3,200,600]]);
     assert.equal(result.time.billedInvoiceId, result.invoice.id);
+    assert.deepEqual(result.invoice.billingDetails, Object.fromEntries(Object.entries({
+      accountName: result.client.name,
+      contactName: result.client.contact,
+      email: result.client.email,
+      phone: result.client.phone,
+      address: result.client.address,
+      registrationNumber: result.client.registrationNumber
+    }).filter(([, value]) => value !== undefined)), 'invoice captures the client billing account and contact snapshot at draft creation');
+    const cancelled = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('INV-AT30'));const button=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Cancel Draft');if(!button)return false;button.click();return true;})()`);
+    assert.equal(cancelled, true, 'billing can deliberately cancel an unapproved draft');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.invoiceNumber==='INV-AT30').status==='Cancelled'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id==='TIME-01').billedInvoiceId===undefined`), true, 'draft cancellation keeps invoice history and releases its unissued time reservation');
+    await clickButton('Draft New Invoice');
+    const timeAvailableAgain = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Bank reconciliations & circularisations'));const input=label?.querySelector('input[type=checkbox]');if(!input)return false;input.click();return input.checked;})()`);
+    assert.equal(timeAvailableAgain, true, 'the released source must be explicitly selected again');
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=text]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'INV-AT30-REISSUE');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Create Draft');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.invoiceNumber==='INV-AT30-REISSUE').lines[0].sourceId==='TIME-01'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).times.find(t=>t.id==='TIME-01').billedInvoiceId===JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.invoiceNumber==='INV-AT30-REISSUE').id`), true, 'the replacement draft reserves the source as a new invoice record');
+    await clickButton('Draft New Invoice');
+    await browserTab!.evaluate(`(() => {const text=[...document.querySelectorAll('.modal-backdrop input[type=text]')];const number=text[0];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(number,'INV-AT30-MULTI');number.dispatchEvent(new Event('input',{bubbles:true}));const description=text[1];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(description,'Manual consulting');description.dispatchEvent(new Event('input',{bubbles:true}));const amount=[...document.querySelectorAll('.modal-backdrop input[type=number]')][0];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(amount,'100');amount.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Add ad-hoc line');
+    await browserTab!.evaluate(`(() => {for(const [selector,value] of [['[aria-label="Ad hoc line 1 description"]','Additional review'],['[aria-label="Ad hoc line 1 quantity"]','2'],['[aria-label="Ad hoc line 1 rate"]','50']]){const input=document.querySelector(selector);if(!input)throw Error('Missing '+selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+    await clickButton('Create Draft');
+    const manual = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(x=>x.invoiceNumber==='INV-AT30-MULTI')`);
+    assert.equal(manual.amount, 200, 'manual ad-hoc lines reconcile their quantity/rate extensions');
+    assert.deepEqual(manual.lines.map((line: any) => [line.description,line.quantity,line.rate,line.amount,line.sourceType]), [
+      ['Manual consulting',1,100,100,'Ad hoc'], ['Additional review',2,50,100,'Ad hoc']
+    ]);
     await clickButton('Draft New Invoice');
     assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('.modal-backdrop label')].some(x=>x.innerText.includes('Bank reconciliations & circularisations'))`), false, 'reserved time source must disappear from future draft choices');
     const fixedSelected = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Accepted fixed-fee services'));const input=label?.querySelector('input[type=checkbox]');if(!input)return false;input.click();return input.checked;})()`);
@@ -1775,13 +2435,30 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)}).status==='Approved'`), true);
     await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'manager');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await browserTab!.evaluate(`window.prompt=()=> 'Attach the approved fee calculation';`);
+    assert.equal(await invoiceAction(credit.creditNumber,'Return'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)}).returnReason==='Attach the approved fee calculation'`), true);
+    assert.equal(await invoiceAction(credit.creditNumber,'Revise'), true);
+    assert.equal(await waitForBrowser('!!document.querySelector(".modal-backdrop form")'), true);
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=number]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'5000');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));const reason=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Revised partial adjustment');reason.dispatchEvent(new Event('input',{bubbles:true}));reason.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Resubmit Credit Note');
+    const revised = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)})`);
+    assert.equal(revised.revision, 2);
+    assert.equal(revised.reviewedBy, undefined);
+    await setPersona('billing');
+    assert.equal(await invoiceAction(credit.creditNumber,'Approve'), true);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).creditNotes.find(c=>c.id===${JSON.stringify(credit.id)}).reviewedRevision===2`), true);
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'manager');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`);
     assert.equal(await invoiceAction(credit.creditNumber,'Issue'), true);
     const final = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {invoice:s.invoices.find(i=>i.id===${JSON.stringify(invoice.id)}),credit:s.creditNotes.find(c=>c.id===${JSON.stringify(credit.id)})};})()`);
     assert.equal(final.credit.status, 'Issued');
     assert.equal(final.credit.reviewedBy, 'Leila Hassan');
     assert.equal(final.credit.issuedBy, 'Layla Rahman');
-    assert.equal(final.invoice.creditsApplied, credit.amount);
-    assert.equal(final.invoice.amount-final.invoice.creditsApplied, 75000);
+    assert.equal(final.credit.amount, 5000);
+    assert.equal(final.credit.revision, 2);
+    assert.equal(final.invoice.creditsApplied, final.credit.amount);
+    assert.equal(final.invoice.amount-final.invoice.creditsApplied, 95000);
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -1855,10 +2532,11 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('AUDIT')`), true, 'workpaper result opens Audit');
     assert.equal(await waitForBrowser(`[...document.querySelectorAll('tbody tr.selected-row')].some(row=>row.innerText.includes(${JSON.stringify(workpaperId)}))`), true, 'workpaper result selects the matching workpaper');
     const contactId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts[0].id`);
+    const contactName = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).contacts.find(contact=>contact.id===${JSON.stringify(contactId)}).name`);
     await search(contactId);
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('Contact · ')}));if(!result)throw Error('Contact result missing');result.click();})()`);
     assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('CLIENT DETAIL')`), true, 'contact result opens its client detail');
-    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"]')?.innerText.includes(document.querySelector('[data-search-target="true"]')?.querySelector('td')?.innerText)`), true, 'contact result opens the Contacts tab and selects the matching contact');
+    assert.equal(await waitForBrowser(`document.querySelector('[data-search-target="true"].selected-row')?.innerText.includes(${JSON.stringify(contactName)})`), true, 'contact result opens the Contacts tab and selects the matching contact');
     const pbcId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.flatMap(engagement=>engagement.pbc).find(Boolean).id`);
     await search(pbcId);
     await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify('PBC · ' + pbcId)}));if(!result)throw Error('PBC result missing');result.click();})()`);
@@ -1997,6 +2675,57 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(snapshot.timeRate,200,'approved time retains its original pinned billing rate');
     assert.equal(snapshot.timeBudgetVersion,1);
     assert.deepEqual(browserTab!.exceptions,[]);
+  });
+
+  it('AT-59/VP-029-E01/E02: aggregates each engagement once using approved time rate snapshots by currency', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`(() => {const s=${JSON.stringify(JSON.stringify(createInitialState()))};const state=JSON.parse(s);const budget=state.budgets.find(b=>b.engagementId==='ENG-26001');budget.lines.forEach(line=>line.billingRatePerHour=999);const reviewTime=state.times.find(t=>t.id==='TIME-03');reviewTime.billingRatePerHour=350;reviewTime.costRatePerHour=140;reviewTime.currency='QAR';state.budgets.push({id:'BDG-ENG26001-JOB-AT59',engagementId:'ENG-26001',jobId:'JOB-AT59',version:1,currency:'QAR',status:'Approved',lines:[{id:'BL-JOB-AT59',roleOrActivity:'Audit fieldwork',plannedMinutes:600,billingRatePerHour:999,costRatePerHour:500}]});const usd=structuredClone(state.engagements.find(e=>e.id==='ENG-26002'));usd.id='ENG-AT59-USD';usd.currency='USD';usd.agreedFee=1000;state.engagements.push(usd);state.budgets.push({id:'BDG-ENG-AT59-USD',engagementId:usd.id,version:1,currency:'USD',status:'Approved',lines:[{id:'BL-ENG-AT59-USD',roleOrActivity:'Audit fieldwork',plannedMinutes:60,billingRatePerHour:900,costRatePerHour:300}]});state.times.push({id:'TIME-AT59-USD',person:'Adam Khan',clientId:usd.client,engagementId:usd.id,taskTitle:'USD audit fieldwork',date:'2026-09-22',durationMinutes:60,budgetVersion:1,billingRatePerHour:100,costRatePerHour:40,currency:'USD',billable:true,activity:'Audit fieldwork',narrative:'Approved snapshot uses USD 100 per hour.',status:'Approved',reviewedBy:'Layla Rahman',reviewedAt:'2026-09-23T08:00:00Z'});state.currentUserId='manager';state.currentPerson='Layla Rahman';state.currentRole='manager';state.selectedEngagement='ENG-26001';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(state));})()`);
+      const aggregateFixture = await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-role-portals-v2')||''`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Budgets & Variances');
+      await clickButtonStartingWith('Practice-Wide Budget Aggregation');
+      const aggregate = await browserTab!.evaluate<any>(`(() => {const rows=[...document.querySelectorAll('.panel table tbody tr')];return {qar:rows.filter(r=>r.innerText.includes('ENG-26001')).map(r=>r.innerText),usd:rows.find(r=>r.innerText.includes('ENG-AT59-USD'))?.innerText,qarRows:rows.filter(r=>r.innerText.includes('ENG-26001')).length};})()`);
+      assert.equal(aggregate.qarRows, 1, 'engagement work is shown once even when a job budget also exists');
+      assert.match(aggregate.qar[0], /QAR 1,900\.00/, 'QAR aggregation uses approved time rate snapshots (6h × 200 + 2h × 350), not current budget rates');
+      assert.match(aggregate.usd, /USD 100\.00/, 'USD snapshot value stays in its own engagement currency');
+
+      await browserTab!.evaluate(`(() => {const s=JSON.parse(${JSON.stringify(aggregateFixture)});const t=s.times.find(x=>x.id==='TIME-01');t.currency='USD';localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Budgets & Variances');
+      await clickButtonStartingWith('Practice-Wide Budget Aggregation');
+      const mixedCurrency = await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel table tbody tr')].find(r=>r.innerText.includes('ENG-26001'))?.innerText||''`);
+      assert.match(mixedCurrency, /Unknown \(missing billing rate\)/, 'an approved time snapshot in another currency is never silently added to QAR');
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(aggregateFixture)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButton('Budgets & Variances');
+      await clickButtonStartingWith('Practice-Wide Budget Aggregation');
+
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('.panel table tbody tr')].find(r=>r.innerText.includes('ENG-26001'));const button=[...(row?.querySelectorAll('button')||[])].find(b=>b.innerText.trim()==='Drill Down');if(!button)throw Error('ENG-26001 drill-down action missing');button.click();})()`);
+      await clickButton('Author New Budget Version');
+      await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('.modal-overlay label')].find(x=>x.innerText.trim()==='Billing Rate (/hr)');const input=label?.parentElement?.querySelector('input');if(!input)throw Error('Budget billing-rate field missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'300');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Save Version 2');
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).budgets.find(b=>b.engagementId==='ENG-26001').version===2`), true);
+      const actuals = await browserTab!.evaluate<string>(`document.querySelector('.metric.green')?.innerText||''`);
+      assert.match(actuals, /QAR 1,900\.00/, 'a new budget version does not rewrite the current approved time valuation');
+      const switched = await browserTab!.evaluate<boolean>(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(x=>x.value==='billing');if(!option)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);
+      assert.equal(switched, true);
+      assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Engagement Budgets")'), true, 'billing role can open its permitted budget workspace');
+      const billingBudget = await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""');
+      assert.doesNotMatch(billingBudget, /Current Cost Rate|Actual Cost|QAR 80\.00|QAR 140\.00/, 'billing-only budget view does not reveal internal cost rates or totals');
+      await clickButton('Author New Budget Version');
+      assert.doesNotMatch(await browserTab!.evaluate<string>('document.querySelector(".modal-overlay")?.innerText||""'), /Cost Rate \(\/hr\)/, 'billing-only authoring does not reveal cost-rate fields');
+      await clickButton('Cancel');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original === null) await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      else await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(original)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
   });
 
   it('AT-44/VP-047: records independent acceptance and creates a clean next-period draft', async () => {
@@ -2973,6 +3702,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Approve elimination');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /cannot review their own group elimination/);
       await setRole('partner');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(x=>x.innerText.includes("Unsaved changes"))'), true, 'review rationale draft is guarded across persona change');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('document.querySelector("#role-select")?.value==="partner"'), true, 'Discard applies the requested reviewer persona');
+      await setReviewFields('Amounts need a second-party reconciliation.','AT45-IC-RETURN-01');
       await clickButton('Return for rework');
       const returned = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).consolidationGroups[0].eliminations.find(e=>e.id===${JSON.stringify(created.id)})`);
       assert.equal(returned.status, 'Returned');
@@ -3611,7 +4344,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButtonStartingWith('Client Portfolio');
       await clickButton('Add Client Profile');
       await browserTab!.evaluate(`(() => {
-        const input = [...document.querySelectorAll('.modal input')].find(x => x.placeholder.includes('Al-Doha'));
+        const input = document.querySelector('.modal input[aria-label="Legal Entity Name"]');
+        if (!input) throw Error('Legal Entity Name field missing in client profile form');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Blocked stale-tab client');
         input.dispatchEvent(new Event('input', { bubbles: true }));
       })()`);
@@ -3619,7 +4353,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         const key = 'ste-auditsphere-role-portals-v2';
         const newer = JSON.parse(localStorage.getItem(key));
         newer.asOfDate = '2026-09-24';
-        const grant = newer.roleGrants[0];
+        const grant = newer.roleGrants.find(g => g.userId === 'relationship' && g.role === 'relationship' && g.scopeKind === 'Global');
         if (!grant) throw Error('fixture must contain a grant to revoke');
         newer.roleGrants = newer.roleGrants.filter(g => g !== grant);
         newer.roleGrantHistory.push({id:crypto.randomUUID(),action:'Revoked',userId:grant.userId,role:grant.role,scopeKind:grant.scopeKind,scopeId:grant.scopeId,actorUserId:'admin',at:new Date().toISOString(),reason:'Assignment ended while edit dialog remained open',effectiveFrom:grant.effectiveFrom,expiresAt:grant.expiresAt,requestRef:grant.requestRef});
@@ -3631,6 +4365,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Keep this tab and replace newer state');
       const backup = await browserTab!.evaluate<string>('localStorage.getItem("ste-auditsphere-role-portals-v2.backup") || ""');
       assert.equal(JSON.parse(backup).roleGrantHistory.at(-1).reason, 'Assignment ended while edit dialog remained open', 'the revoked grant state is preserved before local state wins');
+      await secondTab.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true, 'second tab reloads the preserved relationship grant');
+      if (await browserTab!.evaluate<boolean>('!!document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")')) {
+        await clickButton('Reload newer state');
+        assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      }
 
       await browserTab!.evaluate(`(() => {
         window.__nativeSetItem = Storage.prototype.setItem;
@@ -3642,9 +4382,70 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('document.querySelector("[role=status]")?.innerText.includes("Browser storage is unavailable; changes last only for this session")'), true);
       await browserTab!.evaluate('Storage.prototype.setItem = window.__nativeSetItem');
 
+      await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));state.currentUserId='manager';state.currentPerson=state.users.find(user=>user.id==='manager').name;state.currentRole='manager';localStorage.setItem(key,JSON.stringify(state));})()`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await secondTab.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true);
+      await clickButton('Report Centre');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Practice Reporting Centre')`), true, 'manager report controls are in scope before revocation');
+      await browserTab!.evaluate(`document.querySelector('.search-trigger')?.click()`);
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] input")'), true, 'search dialog remains open over scoped report controls');
+      const reportControlsBeforeRevoke = await browserTab!.evaluate<any>(`(() => ({searchDialog:!!document.querySelector('[role=dialog]'),searchTrigger:!!document.querySelector('.search-trigger'),reportFilters:document.querySelectorAll('#report-client-filter,#practice-report').length,metricCards:document.querySelectorAll('main#main .metric').length,export:!![...document.querySelectorAll('main#main button')].find(button=>button.innerText.includes('Export Active Report (CSV)')),reportRows:document.querySelectorAll('main#main table tbody tr').length}))()`);
+      assert.ok(reportControlsBeforeRevoke.searchDialog && reportControlsBeforeRevoke.searchTrigger && reportControlsBeforeRevoke.reportFilters === 2 && reportControlsBeforeRevoke.metricCards > 0 && reportControlsBeforeRevoke.export && reportControlsBeforeRevoke.reportRows > 0, `search, counts, filters, exports and report rows must be present before revoke: ${JSON.stringify(reportControlsBeforeRevoke)}`);
+      await secondTab.evaluate(`(() => {
+        const key = 'ste-auditsphere-role-portals-v2';
+        const newer = JSON.parse(localStorage.getItem(key));
+        newer.asOfDate = '2026-09-24';
+        const grant = newer.roleGrants.find(g => g.userId === 'manager' && g.role === 'manager' && g.scopeKind === 'Global');
+        if (!grant) throw Error('fixture must contain the current manager Global grant');
+        newer.roleGrants = newer.roleGrants.filter(g => g !== grant);
+        newer.roleGrantHistory.push({id:crypto.randomUUID(),action:'Revoked',userId:grant.userId,role:grant.role,scopeKind:grant.scopeKind,scopeId:grant.scopeId,actorUserId:'admin',at:new Date().toISOString(),reason:'Manager assignment ended while report/search controls remained open',effectiveFrom:grant.effectiveFrom,expiresAt:grant.expiresAt,requestRef:grant.requestRef});
+        localStorage.setItem(key, JSON.stringify(newer));
+      })()`);
+      assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
+      const controlsAfterRevoke = await browserTab!.evaluate<any>(`(() => ({searchDialog:!!document.querySelector('[role=dialog]'),searchTrigger:!!document.querySelector('.search-trigger'),reportFilters:document.querySelectorAll('#report-client-filter,#practice-report').length,metricCards:document.querySelectorAll('main#main .metric').length,export:!![...document.querySelectorAll('main#main button')].find(button=>button.innerText.includes('Export Active Report (CSV)')),reportRows:document.querySelectorAll('main#main table tbody tr').length}))()`);
+      assert.deepEqual(controlsAfterRevoke, { searchDialog: false, searchTrigger: false, reportFilters: 0, metricCards: 0, export: false, reportRows: 0 }, 'revoked scope hides the open search dialog, counts, filters, exports and report rows');
+      await clickButton('Reload newer state');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+
+      await secondTab.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true);
+      await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const state=JSON.parse(localStorage.getItem(key));state.currentUserId='manager-2';state.currentPerson=state.users.find(user=>user.id==='manager-2').name;state.currentRole='manager';localStorage.setItem(key,JSON.stringify(state));})()`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await secondTab.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 8000, secondTab), true);
+      await clickButton('Report Centre');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main h1')?.innerText.includes('Practice Reporting Centre')`), true, 'second manager has report access before grant expiry');
+      await browserTab!.evaluate(`document.querySelector('.search-trigger')?.click()`);
+      assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] input")'), true, 'search dialog remains open before expiry');
+      const reportControlsBeforeExpiry = await browserTab!.evaluate<any>(`(() => ({reportFilters:document.querySelectorAll('#report-client-filter,#practice-report').length,metricCards:document.querySelectorAll('main#main .metric').length,export:!![...document.querySelectorAll('main#main button')].find(button=>button.innerText.includes('Export Active Report (CSV)')),reportRows:document.querySelectorAll('main#main table tbody tr').length}))()`);
+      assert.ok(reportControlsBeforeExpiry.reportFilters === 2 && reportControlsBeforeExpiry.metricCards > 0 && reportControlsBeforeExpiry.export && reportControlsBeforeExpiry.reportRows > 0, `scoped report controls must exist before expiry: ${JSON.stringify(reportControlsBeforeExpiry)}`);
+      await secondTab.evaluate(`(() => {
+        const key = 'ste-auditsphere-role-portals-v2';
+        const newer = JSON.parse(localStorage.getItem(key));
+        newer.asOfDate = '2026-09-24';
+        const grant = newer.roleGrants.find(g => g.userId === 'manager-2' && g.role === 'manager' && g.scopeKind === 'Global');
+        if (!grant) throw Error('fixture must contain manager-2 Global grant');
+        grant.expiresAt = '2026-09-23';
+        newer.roleGrantHistory.push({id:crypto.randomUUID(),action:'Expired',userId:grant.userId,role:grant.role,scopeKind:grant.scopeKind,scopeId:grant.scopeId,actorUserId:'admin',at:new Date().toISOString(),reason:'Manager assignment expired while report/search controls remained open',effectiveFrom:grant.effectiveFrom,expiresAt:grant.expiresAt,requestRef:grant.requestRef});
+        localStorage.setItem(key, JSON.stringify(newer));
+      })()`);
+      assert.equal(await waitForBrowser('document.querySelector("[role=alert]")?.innerText.includes("Another tab saved newer demo data")'), true);
+      const controlsAfterExpiry = await browserTab!.evaluate<any>(`(() => ({searchDialog:!!document.querySelector('[role=dialog]'),searchTrigger:!!document.querySelector('.search-trigger'),reportFilters:document.querySelectorAll('#report-client-filter,#practice-report').length,metricCards:document.querySelectorAll('main#main .metric').length,export:!![...document.querySelectorAll('main#main button')].find(button=>button.innerText.includes('Export Active Report (CSV)')),reportRows:document.querySelectorAll('main#main table tbody tr').length}))()`);
+      assert.deepEqual(controlsAfterExpiry, { searchDialog: false, searchTrigger: false, reportFilters: 0, metricCards: 0, export: false, reportRows: 0 }, 'expired scope hides the open search dialog, counts, filters, exports and report rows');
+      await clickButton('Reload newer state');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'relationship');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='relationship'`), true);
+      await clickButtonStartingWith('Client Portfolio');
+
       await clickButton('Add Client Profile');
       await browserTab!.evaluate(`(() => {
-        const input = [...document.querySelectorAll('.modal input')].find(x => x.placeholder.includes('Al-Doha'));
+        const input = document.querySelector('.modal input[aria-label="Legal Entity Name"]');
+        if (!input) throw Error('Legal Entity Name field missing in client profile form');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Blocked expired-scope client');
         input.dispatchEvent(new Event('input', { bubbles: true }));
       })()`);
@@ -3708,14 +4509,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const backupKey = `${key}.backup`;
     const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
     const futureState = createInitialState() as any;
-    futureState.schema = 24;
+    futureState.schema = 26;
     const futurePayload = JSON.stringify(futureState);
     const downloadDir = mkdtempSync(join(tmpdir(), 'auditsphere-preserved-export-'));
     try {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v24, newer than supported v23/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v26, newer than supported v25/);
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
       assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
@@ -3734,11 +4535,26 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'rejected import keeps the preserved backup unchanged');
       const validPayload = JSON.stringify(createInitialState());
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(validPayload)}],'recovered-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v23')`), true, 'successful import clears the recovery error');
+      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v25')`), true, 'successful import clears the recovery error');
       const restored = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(restored.schema, 23);
+      assert.equal(restored.schema, 25);
       assert.ok(restored.engagements > 0);
       assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await browserTab!.evaluate('window.confirm = () => false');
+      await clickButton('Reset to default');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'declining reset preserves the unsupported payload');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'declining reset leaves the exact backup intact');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v26, newer than supported v25/);
+      await browserTab!.evaluate('window.confirm = () => true');
+      await clickButton('Reset to default');
+      assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v25")'), true, 'confirmed reset returns to a usable baseline');
+      const resetState = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
+      assert.equal(resetState.schema, 25);
+      assert.ok(resetState.engagements > 0);
+      assert.equal(resetState.backup, futurePayload, 'reset preserves the unsupported payload for later export');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
@@ -4205,10 +5021,33 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(timingReconciled.statementBalance + timingReconciled.items[0].amount, timingReconciled.glBalance, 'statement plus dated timing item reproduces the source balance');
       assert.equal(timingReconciled.revision, 2);
       await clickButton('Edit schedule');
+      await browserTab!.evaluate(`(() => {const evidence=document.querySelector('[aria-label="Reconciliation evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'DOC-OUT-OF-SCOPE');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save Reconciliation Draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickPanelButton('AT-39 browser schedule', 'Approve schedule');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /in-scope evidence/i, 'out-of-scope schedule evidence blocks approval');
+      const evidenceDenied = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
+      assert.equal(evidenceDenied.status, 'Draft', 'evidence rejection preserves the draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Edit schedule');
+      await browserTab!.evaluate(`(() => {const evidence=document.querySelector('[aria-label="Reconciliation evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'DOC-002');evidence.dispatchEvent(new Event('input',{bubbles:true}));const type=document.querySelector('[aria-label="Reconciliation item type 1"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(type,'Proposed correction');type.dispatchEvent(new Event('change',{bubbles:true}));const itemEvidence=document.querySelector('[aria-label="Reconciliation item evidence 1"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(itemEvidence,'DOC-002');itemEvidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save Reconciliation Draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickPanelButton('AT-39 browser schedule', 'Approve schedule');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /proposed corrections must link/i, 'unlinked proposed correction blocks approval');
+      const correctionDenied = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
+      assert.equal(correctionDenied.status, 'Draft', 'correction rejection preserves the draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Edit schedule');
+      await browserTab!.evaluate(`(() => {const type=document.querySelector('[aria-label="Reconciliation item type 1"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(type,'Timing item');type.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Save Reconciliation Draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Edit schedule');
       await browserTab!.evaluate(`(() => {const statement=document.querySelector('[aria-label="Reconciliation statement balance"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(statement,'1000000');statement.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Save Reconciliation Draft');
       const residual = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
-      assert.equal(residual.revision, 3);
+      assert.equal(residual.revision, 6);
       await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       await clickButton('Approve schedule');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /residual .* blocks approval/i, 'a nonzero unexplained residual blocks independent approval');
@@ -4217,7 +5056,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.evaluate(`(() => {const statement=document.querySelector('[aria-label="Reconciliation statement balance"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(statement,'999900');statement.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Save Reconciliation Draft');
       const readyForReview = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
-      assert.equal(readyForReview.revision, 4);
+      assert.equal(readyForReview.revision, 7);
       assert.equal(readyForReview.statementBalance + readyForReview.items[0].amount, readyForReview.glBalance);
       await clickButton('Approve schedule');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /manager cannot review their reconciliation schedule/);
@@ -4233,7 +5072,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Save Reconciliation Draft');
       const reworked = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
       assert.equal(reworked.status, 'Draft');
-      assert.equal(reworked.revision, 5);
+      assert.equal(reworked.revision, 8);
       assert.equal(reworked.asOfDate, '2026-09-24');
       assert.equal(reworked.history.at(-1).status, 'Returned');
       assert.equal(reworked.history.at(-1).reviewNote, 'Statement date and scope need correction.');
@@ -4243,7 +5082,22 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       const approved = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id===s.selectedEngagement).reconciliations.find(r=>r.name==='AT-39 browser schedule')})()`);
       assert.equal(approved.status, 'Approved');
       assert.equal(approved.reviewedByUserId, 'reviewer');
-      assert.equal(approved.revision, 5);
+      assert.equal(approved.revision, 8);
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
+      const openStatement = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Open in M365');if(!b)return false;b.click();return true;})()`);
+      assert.equal(openStatement, true, 'the referenced bank statement can be opened for replacement');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');if(!input)throw Error('Replacement file input missing');const transfer=new DataTransfer();transfer.items.add(new File(['AT-39 replacement bank statement'], 'AT39_Bank_Statement_v2.pdf', {type:'application/pdf'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Record Replacement v2');
+      const staleAfterReplacement = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id==='ENG-26001');const r=e.reconciliations.find(x=>x.name==='AT-39 browser schedule');return {schedule:r,replacement:s.documents.find(d=>d.name==='AT39_Bank_Statement_v2.pdf')};})()`);
+      assert.equal(staleAfterReplacement.schedule.status, 'Stale', 'replacing referenced evidence stales the approved schedule');
+      assert.ok(staleAfterReplacement.schedule.history.some((item: any) => item.status === 'Approved' && item.revision === 8), 'prior approved schedule snapshot is retained');
+      assert.ok(staleAfterReplacement.replacement?.supersedesDocumentId === 'DOC-002', 'replacement document preserves lineage to the referenced source');
+      await clickButtonStartingWith('Accounting Workbench');
+      await clickButtonStartingWith('Reconciliations');
+      await browserTab!.evaluate(`(() => {const panel=[...document.querySelectorAll('.panel.panel-pad')].find(x=>x.querySelector('h3')?.innerText==='AT-39 browser schedule');const history=[...panel.querySelectorAll('summary')].find(x=>x.innerText.startsWith('Prior reconciliation revisions'));history?.click();})()`);
+      const staleText = await browserTab!.evaluate<string>('document.body.innerText');
+      assert.match(staleText, /AT-39 browser schedule[\s\S]*?Stale/);
+      assert.match(staleText, /v8 · Approved/);
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
@@ -4507,6 +5361,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await setPersona('Relationship owner');
       await clickButtonStartingWith('Client Portfolio');
       await clickButton('Add Client Profile');
+      await setField('Client Code', 'AT52-MANUAL');
       await setField('Legal Entity Name', 'AT52 Manually Entered Entity');
       await setField('Primary Contact Person', 'Omar Nasser');
       await setField('Contact Email', 'omar.nasser@example-trading.demo');
@@ -4531,7 +5386,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Proposals & Terms');
       await clickButton('New Proposal');
       await setField('Title', 'AT52 Manual Client Proposal');
-      await setSelect('.modal-backdrop select', leadId);
+      await browserTab!.evaluate(`(() => {const field=[...document.querySelectorAll('.modal-backdrop select')].find(item=>[...item.options].some(option=>option.value===${JSON.stringify(leadId)}));if(!field)throw Error('Proposal opportunity selector missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(field,${JSON.stringify(leadId)});field.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       await setField('Scope', 'Annual audit of the manually entered client financial statements.', 'textarea');
       await setField('Exclusions', 'Tax and payroll services.', 'textarea');
       await setField('Deliverables', 'Reviewed financial statements and audit report.', 'textarea');
@@ -4553,7 +5408,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(userRow, true, 'management approver receives an explicit client grant');
       await setSelect('.modal-card select', 'Client');
       await browserTab!.evaluate(`(() => {const e=[...document.querySelectorAll('.modal-card select')].find(s=>[...s.options].some(o=>o.value===${JSON.stringify(clientId)}));if(!e)throw Error('Missing target client grant selector');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(clientId)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      await browserTab!.evaluate(`(() => {const from=document.querySelector('[aria-label="Grant effective from"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(from,'2026-09-23');from.dispatchEvent(new Event('input',{bubbles:true}));from.dispatchEvent(new Event('change',{bubbles:true}));const ref=document.querySelector('[aria-label="Approved access request reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(ref,'AT52-ACCESS-001');ref.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Permit this client management approver to respond to its proposal.');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await browserTab!.evaluate(`(() => {const from=document.querySelector('[aria-label="Grant effective from"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(from,'2026-09-23');from.dispatchEvent(new Event('input',{bubbles:true}));from.dispatchEvent(new Event('change',{bubbles:true}));const ref=document.querySelector('[aria-label="Approved access request reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(ref,'AT52-ACCESS-001');ref.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Professional or management approval evidence reference"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'AT52-CLIENT-AUTH-001');evidence.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('[aria-label="Access grant reason"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Permit this client management approver to respond to its proposal.');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await clickButton('Record approved grant');
       assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).roleGrants.some(g=>g.userId==='client'&&g.scopeKind==='Client'&&g.scopeId===${JSON.stringify(clientId)})`), true);
       await setPersona('Omar Nasser');
@@ -4561,9 +5416,10 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(e=>[...e.options].some(o=>o.value===${JSON.stringify(clientId)}));if(!s)throw Error('Client portal cannot select its granted entity');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(clientId)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /AT52 Manual Client Proposal/);
       assert.equal(await browserTab!.evaluate<boolean>(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Record Acceptance')`), true, 'the granted client portal displays its presented proposal');
-      await browserTab!.evaluate(`(() => {const set=(label,value,textarea=false)=>{const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(label));const e=l?.querySelector(textarea?'textarea':'input');if(!e)throw Error('Missing portal field '+label);Object.getOwnPropertyDescriptor(textarea?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};set('Authorized signatory','Omar Nasser');set('Evidence reference (email','AT52-CLIENT-ACCEPTANCE-001');set('Response notes','Approved the presented scope for the current reporting period.',true);})()`);
+      await browserTab!.evaluate(`(() => {const set=(label,value,selector='input')=>{const l=[...document.querySelectorAll('label')].find(x=>x.textContent.includes(label));const e=l?.querySelector(selector);if(!e)throw Error('Missing portal field '+label);const proto=selector==='textarea'?HTMLTextAreaElement.prototype:selector==='select'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};set('Client contact','Omar Nasser','select');const method=[...document.querySelectorAll('label')].find(x=>x.textContent.includes('Response method'))?.querySelector('select');if(!method)throw Error('Missing portal response method');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(method,'Letter');method.dispatchEvent(new Event('change',{bubbles:true}));set('Evidence reference (email','AT52-CLIENT-ACCEPTANCE-001');set('Response notes','Approved the presented scope for the current reporting period.','textarea');})()`);
       await clickButton('Record Acceptance');
-      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id===${JSON.stringify(proposalId)}).state==='Accepted'`), true);
+      assert.deepEqual(await browserTab!.evaluate<any>(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).proposals.find(p=>p.id===${JSON.stringify(proposalId)});return {state:p.state,method:p.clientResponse.method,evidenceRef:p.clientResponse.evidenceRef};})()`), {state:'Accepted',method:'Letter',evidenceRef:'AT52-CLIENT-ACCEPTANCE-001'});
+      assert.ok(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('Letter')&&document.body.innerText.includes('AT52-CLIENT-ACCEPTANCE-001')`), 'client portal response summary exposes the method and reference');
 
       await setPersona('Engagement partner');
       await clickButtonStartingWith('Engagements');
@@ -4628,13 +5484,64 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('VP-012: suspends and resumes an engagement with reasoned persisted history', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
+      const vp012Seed = createInitialState();
+      const vp012Engagement = vp012Seed.engagements[0];
+      vp012Engagement.planning = true;
+      vp012Engagement.sourceAccepted = true;
+      vp012Engagement.mappingApproved = true;
+      vp012Engagement.approvals.partner = { by: 'Daniel James', at: '2026-09-23T10:00:00.000Z', generation: vp012Engagement.generation } as any;
+      vp012Engagement.candidate = { generation: vp012Engagement.generation } as any;
+      if (vp012Engagement.reconciliations[0]) vp012Engagement.reconciliations[0].status = 'Approved' as any;
+      vp012Engagement.cashFlowScheduleHistory = [{ id: 'VP012-CF', engagementId: vp012Engagement.id, revision: 1, sourceVersion: vp012Engagement.sourceVersion, mappingRevision: 1, openingCash: 0, closingCash: 0, movements: [], status: 'Reviewed', preparedByUserId: vp012Seed.users[0].id } as any];
+      const vp012Procedure = vp012Seed.auditPrograms.flatMap(program => program.procedures).find(procedure => procedure.id === 'PRC-01')!;
+      vp012Procedure.status = 'Cleared';
+      vp012Procedure.workPerformed = 'Previously performed period work';
+      vp012Procedure.conclusion = 'Previously reviewed conclusion';
+      vp012Procedure.reviewedByUserId = 'reviewer';
+      (vp012Seed as any).statementSetRevisions = [{ id: 'VP012-STATEMENT', engagementId: vp012Engagement.id, revision: 1, sourceVersion: vp012Engagement.sourceVersion, mappingRevision: 1, status: 'Reviewed', preparedByUserId: vp012Seed.users[0].id }];
+      (vp012Seed as any).auditPlans = [{ id: 'VP012-PLAN', engagementId: vp012Engagement.id, version: 1, status: 'Approved' }];
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(vp012Seed))})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButtonStartingWith('Engagements');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Engagement Portfolio")'), true);
       const engagementId = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement`);
+      const lineageBefore = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(engagementId)});const ids=(items,key='id')=>items.map(item=>item[key]).sort();return {fee:e.agreedFee,currency:e.currency,releases:ids(e.releases||[]),workpapers:ids(e.workpapers||[]),requests:ids(e.pbc||[]),jobs:ids(s.jobs.filter(x=>x.engagementId===e.id)),documents:ids(s.documents.filter(x=>x.engagementId===e.id)),invoices:ids(s.invoices.filter(x=>(x.engagementId||x.eng)===e.id)),archives:ids((s.archives||[]).filter(x=>x.engagementId===e.id)),packages:ids(e.packageHistory||[])};})()`);
       await clickButton('Edit Engagement Details');
       await browserTab!.evaluate(`(() => {const set=(label,value,kind='input')=>{const input=document.querySelector('[aria-label="'+label+'"]');if(!input)throw Error('Missing '+label);Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input),'value').set.call(input,value);input.dispatchEvent(new Event(kind,{bubbles:true}));};set('Engagement service','Annual accounts','change');set('Engagement reporting year','2027');set('Engagement reporting period','01 Jan – 31 Dec 2027');set('Engagement target date','2026-10-05');const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.innerText.includes('Nadia Rahman'));const checkbox=label?.querySelector('input[type=checkbox]');if(!checkbox)throw Error('Missing Nadia team assignment');checkbox.click();})()`);
+      const impactPreview = await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop")?.innerText || ""');
+      assert.match(impactPreview, /Scope or period change impact/);
+      assert.match(impactPreview, /Team change impact/);
+      assert.match(impactPreview, /Agreed fee and currency remain pinned to the accepted commercial proposal/);
       await clickButton('Save Engagement Details');
-      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)});return e.service==='Annual accounts'&&e.year===2027&&e.period==='01 Jan – 31 Dec 2027'&&e.due==='2026-10-05'&&e.team.includes('Nadia Rahman')&&e.events.some(x=>x.text.includes('service, year, period, due, team'));})()`), true, 'service, period, due date and team edits persist with history');
+      const impactAfterSave = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(e=>e.id===${JSON.stringify(engagementId)});const procedure=s.auditPrograms.flatMap(p=>p.procedures).find(p=>p.id==='PRC-01');return {service:e.service,year:e.year,period:e.period,due:e.due,team:e.team,events:e.events,planning:e.planning,sourceAccepted:e.sourceAccepted,mappingApproved:e.mappingApproved,partnerApproval:e.approvals.partner,candidate:e.candidate,fee:e.agreedFee,currency:e.currency,statement:s.statementSetRevisions?.find(r=>r.id==='VP012-STATEMENT')?.status,reconciliation:e.reconciliations[0]?.status,cashFlow:e.cashFlowScheduleHistory[0]?.status,plan:s.auditPlans?.find(p=>p.id==='VP012-PLAN'),procedure:{status:procedure.status,scopeReassessmentRequired:procedure.scopeReassessmentRequired,reviewedByUserId:procedure.reviewedByUserId}};})()`);
+      assert.equal(impactAfterSave.service, 'Annual accounts');
+      assert.equal(impactAfterSave.year, 2027);
+      assert.equal(impactAfterSave.period, '01 Jan – 31 Dec 2027');
+      assert.equal(impactAfterSave.due, '2026-10-05');
+      assert.ok(impactAfterSave.team.includes('Nadia Rahman'));
+      assert.ok(impactAfterSave.events.some((event: any) => event.text.includes('service, year, period, due, team')));
+      assert.equal(impactAfterSave.planning, false);
+      assert.equal(impactAfterSave.sourceAccepted, false);
+      assert.equal(impactAfterSave.mappingApproved, false);
+      assert.equal(impactAfterSave.partnerApproval, null);
+      assert.equal(impactAfterSave.candidate, null);
+      assert.equal(impactAfterSave.statement, 'Stale');
+      assert.equal(impactAfterSave.reconciliation, 'Stale');
+      assert.equal(impactAfterSave.cashFlow, 'Stale');
+      assert.equal(impactAfterSave.plan.status, 'Superseded');
+      assert.equal(impactAfterSave.procedure.status, 'In progress');
+      assert.equal(impactAfterSave.procedure.scopeReassessmentRequired, true);
+      assert.equal(impactAfterSave.procedure.reviewedByUserId, undefined);
+      assert.equal(impactAfterSave.fee, lineageBefore.fee, 'accepted fee snapshot is unchanged by administrative edits');
+      assert.equal(impactAfterSave.currency, lineageBefore.currency, 'accepted currency snapshot is unchanged by administrative edits');
+      await clickButtonStartingWith('Financial Statements');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Latest: v1 · Stale")'), true, 'financial statements explain that the old reviewed revision is stale');
+      await clickButtonStartingWith('Audit Planning & Materiality');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Superseded")'), true, 'audit plan history visibly marks the prior approval superseded');
+      await clickButtonStartingWith('Risks & Audit Programs');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("reassessment required")'), true, 'performed procedures visibly require reassessment');
+      await clickButtonStartingWith('Engagements');
       await browserTab!.evaluate(`window.prompt=()=> 'Temporary conflict review.'`);
       await clickButton('Suspend Engagement');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Suspended'`), true);
@@ -4646,6 +5553,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Cancel Engagement');
       assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).lifecycleStatus==='Cancelled'`), true);
       assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id===${JSON.stringify(engagementId)}).events.filter(e=>e.type==='lifecycle').length===3`), true);
+      const lineageAfter = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===${JSON.stringify(engagementId)});const ids=(items,key='id')=>items.map(item=>item[key]).sort();return {fee:e.agreedFee,currency:e.currency,releases:ids(e.releases||[]),workpapers:ids(e.workpapers||[]),requests:ids(e.pbc||[]),jobs:ids(s.jobs.filter(x=>x.engagementId===e.id)),documents:ids(s.documents.filter(x=>x.engagementId===e.id)),invoices:ids(s.invoices.filter(x=>(x.engagementId||x.eng)===e.id)),archives:ids((s.archives||[]).filter(x=>x.engagementId===e.id)),packages:ids(e.packageHistory||[])};})()`);
+      assert.deepEqual(lineageAfter, lineageBefore, 'lifecycle transitions preserve historical outputs and linked work across modules');
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButtonStartingWith('Engagements');

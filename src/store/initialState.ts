@@ -77,6 +77,8 @@ export function createInitialState(): PrototypeState {
         id: 'CL-001',
         code: 'EXP-TRAD',
         name: 'Example Trading Entity',
+        clientType: 'Company',
+        profileRevision: 0,
         tradingName: 'Example Trading Co. W.L.L.',
         initials: 'ET',
         industry: 'Trading & distribution',
@@ -99,6 +101,8 @@ export function createInitialState(): PrototypeState {
         id: 'CL-002',
         code: 'NORTH-SRV',
         name: 'Northstar Services',
+        clientType: 'Company',
+        profileRevision: 0,
         tradingName: 'Northstar IT Consulting',
         initials: 'NS',
         color: 'purple',
@@ -120,6 +124,8 @@ export function createInitialState(): PrototypeState {
         id: 'CL-003',
         code: 'CEDAR-MFG',
         name: 'Cedar Manufacturing',
+        clientType: 'Company',
+        profileRevision: 0,
         tradingName: 'Cedar Industrial Plants',
         initials: 'CM',
         color: 'blue',
@@ -141,6 +147,8 @@ export function createInitialState(): PrototypeState {
         id: 'CL-004',
         code: 'HARBOR-LOG',
         name: 'Harbor Logistics',
+        clientType: 'Company',
+        profileRevision: 0,
         tradingName: 'Harbor Freight & Customs',
         initials: 'HL',
         color: 'amber',
@@ -163,6 +171,8 @@ export function createInitialState(): PrototypeState {
         id: 'CL-005',
         code: 'EXP-TRAD-SVC',
         name: 'Example Trading Services',
+        clientType: 'Company',
+        profileRevision: 0,
         tradingName: 'Example Trading Services W.L.L.',
         initials: 'ES',
         color: 'teal',
@@ -220,14 +230,25 @@ export function createInitialState(): PrototypeState {
         currency: 'QAR',
         totalAmount: 600000,
         terms: 'Payment 30 days upon milestone issue. Scope limited to agreed audit program.',
+        period: 'Year ended 31 December 2026', periodStart: '2026-01-01', periodEnd: '2026-12-31',
+        templateId: 'PT-AUDIT-BASE', templateRevision: 1,
         state: 'Accepted',
         items: [
-          { id: 'PI-01', serviceName: 'Statutory Financial Statement Audit', description: 'Full scope audit under ISA & QFC regulations', scope: 'Financial statements year ended 31 Dec 2026', deliverables: 'Independent Auditor Report, Management Letter', feeModel: 'Fixed', amount: 500000 },
-          { id: 'PI-02', serviceName: 'Interim Review Procedures', description: 'Mid-year analytical review', scope: 'Q2 2026 statements', deliverables: 'Interim Review Memorandum', feeModel: 'Fixed', amount: 100000 }
+          { id: 'PI-01', serviceId: 'SVC-AUDIT', serviceName: 'Statutory Financial Statement Audit', description: 'Full scope audit under ISA & QFC regulations', scope: 'Financial statements year ended 31 Dec 2026', exclusions: 'Tax preparation, payroll processing, bookkeeping and future-period recurring work.', deliverables: 'Independent Auditor Report, Management Letter', clientResponsibilities: 'Provide complete accounting records and timely management responses.', dependencies: 'Engagement acceptance and complete supporting records.', period: 'Year ended 31 December 2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', feeModel: 'Fixed', quantity: 1, rate: 500000, amount: 500000 },
+          { id: 'PI-02', serviceId: 'SVC-REVIEW', serviceName: 'Interim Review Procedures', description: 'Mid-year analytical review', scope: 'Q2 2026 statements', exclusions: 'Audit opinion, tax preparation and payroll processing.', deliverables: 'Interim Review Memorandum', clientResponsibilities: 'Provide interim records and management explanations.', dependencies: 'Current interim ledger.', period: 'Quarter ended 30 June 2026', periodStart: '2026-04-01', periodEnd: '2026-06-30', feeModel: 'Fixed', quantity: 1, rate: 100000, amount: 100000 }
         ],
         commercialReview: { reviewedBy: 'Layla Rahman', reviewedAt: '2026-09-12', approved: true, notes: 'Fee conforms to approved firm schedule.' },
         clientResponse: { responseType: 'Accepted', contact: 'Omar Nasser', date: '2026-09-14', method: 'Email', notes: 'Confirmed acceptance of scope and fees.', evidenceRef: 'DOC-PROP-ACC-01' }
       }
+    ],
+    proposalServices: [
+      { id: 'SVC-AUDIT', name: 'External audit', description: 'Independent audit of historical financial statements.', scope: 'Audit of the financial statements for the reporting period stated in the proposal.', exclusions: 'Tax preparation, payroll processing, bookkeeping and future-period recurring work.', deliverables: 'Independent auditor report and management letter.', clientResponsibilities: 'Provide complete accounting records, supporting documents and timely management responses.', dependencies: 'Engagement acceptance, complete records and access to responsible client contacts.', period: 'Year ended 31 December 2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', feeModel: 'Fixed', quantity: 1, rate: 12500, currency: 'QAR', active: true, revision: 1 },
+      { id: 'SVC-REVIEW', name: 'Interim review', description: 'Limited review procedures over interim financial information.', scope: 'Review of interim financial information for the agreed period.', exclusions: 'Audit opinion, tax preparation and payroll processing.', deliverables: 'Interim review memorandum.', clientResponsibilities: 'Provide interim trial balance, schedules and management explanations.', dependencies: 'Current interim ledger and timely responses.', period: 'Quarter ended 30 June 2026', periodStart: '2026-04-01', periodEnd: '2026-06-30', feeModel: 'Fixed', quantity: 1, rate: 5000, currency: 'QAR', active: true, revision: 1 },
+      { id: 'SVC-ACCOUNTING', name: 'Accounting support', description: 'Client accounting records support for an agreed period.', scope: 'Specified accounting support tasks for the period and records identified in this proposal.', exclusions: 'Audit or assurance conclusion, tax filing and payroll processing.', deliverables: 'Agreed accounting schedules and issue log.', clientResponsibilities: 'Provide source records and approve management judgments.', dependencies: 'Availability of complete source records and client approvals.', period: '01 January – 31 December 2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', feeModel: 'Time & Materials', quantity: 10, rate: 250, currency: 'QAR', active: true, revision: 1 }
+    ],
+    proposalTemplates: [
+      { id: 'PT-AUDIT-BASE', name: 'Statutory audit proposal', description: 'Base commercial content for a historical-period audit engagement.', serviceId: 'SVC-AUDIT', serviceRevision: 1, title: 'Statutory Audit Proposal', scope: 'Audit of the financial statements for the stated reporting period.', exclusions: 'Tax preparation, payroll processing, bookkeeping and future-period recurring work.', deliverables: 'Independent auditor report and management letter.', clientResponsibilities: 'Provide complete accounting records, supporting documents and timely management responses.', dependencies: 'Engagement acceptance, complete records and access to responsible client contacts.', period: 'Year ended 31 December 2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', feeModel: 'Fixed', quantity: 1, rate: 12500, currency: 'QAR', terms: 'Fees are stated in the selected currency. Payment is due within 30 days of invoice. Scope changes require written agreement.', revision: 1, active: true },
+      { id: 'PT-REVIEW-BASE', name: 'Interim review proposal', description: 'Base content for a limited interim review.', serviceId: 'SVC-REVIEW', serviceRevision: 1, title: 'Interim Review Proposal', scope: 'Review of interim financial information for the stated period.', exclusions: 'Audit opinion, tax preparation and payroll processing.', deliverables: 'Interim review memorandum.', clientResponsibilities: 'Provide interim trial balance, schedules and management explanations.', dependencies: 'Current interim ledger and timely responses.', period: 'Quarter ended 30 June 2026', periodStart: '2026-04-01', periodEnd: '2026-06-30', feeModel: 'Fixed', quantity: 1, rate: 5000, currency: 'QAR', terms: 'Fees are stated in the selected currency. Payment is due within 30 days of invoice. Scope changes require written agreement.', revision: 1, active: true }
     ],
 
     // Module 04: Engagements

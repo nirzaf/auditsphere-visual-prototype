@@ -121,6 +121,19 @@ describe('budget fixed example (AT-29)', () => {
     const a = calculateBudgetVsActual(budget, times, 'E');
     assert.equal(a.knownDeliveryCost, null);
   });
+
+  it('keeps approved time in a different currency out of budget totals', () => {
+    const budget: any = {
+      id: 'B', engagementId: 'E', version: 1, currency: 'QAR', status: 'Approved',
+      lines: [{ id: 'L', roleOrActivity: 'Audit fieldwork', plannedMinutes: 60, billingRatePerHour: 200, costRatePerHour: 80 }]
+    };
+    const times: any[] = [{ engagementId: 'E', status: 'Approved', durationMinutes: 60, billable: true, activity: 'Audit fieldwork', billingRatePerHour: 100, costRatePerHour: 40, currency: 'USD' }];
+    const a = calculateBudgetVsActual(budget, times, 'E');
+    assert.equal(a.approvedMinutes, 60, 'time remains visible in effort totals');
+    assert.equal(a.actualBillableValue, null, 'the USD snapshot is not added to a QAR budget');
+    assert.equal(a.knownDeliveryCost, null, 'the USD cost snapshot is not added to QAR cost');
+    assert.equal(a.varianceFees, null, 'a mixed-currency fee variance is unknown');
+  });
 });
 
 describe('recorded WIP report rates (VP-060)', () => {
@@ -242,11 +255,18 @@ describe('consolidation fixed example (AT-42)', () => {
 });
 
 describe('materiality math (AT-44)', () => {
-  it('computes overall / performance (75%) / trivial (5%) deterministically', () => {
-    const m = calculateMateriality(1000000, 5);
+  it('computes explicit overall / performance / trivial rates deterministically', () => {
+    const m = calculateMateriality(1000000, 5, 75, 5, 'Fixed calculation fixture.');
     assert.equal(m.overallMateriality, 50000);
     assert.equal(m.performanceMateriality, 37500);
     assert.equal(m.clearlyTrivialThreshold, 2500);
+  });
+
+  it('rejects missing, invalid, or unsupported assumed rates', () => {
+    assert.throws(() => calculateMateriality(1000000, Number.NaN, 75, 5, 'Fixture.'));
+    assert.throws(() => calculateMateriality(1000000, 5, 0, 5, 'Fixture.'));
+    assert.throws(() => calculateMateriality(1000000, 5, 75, 101, 'Fixture.'));
+    assert.throws(() => calculateMateriality(1000000, 5, 75, 5, '  '));
   });
 });
 

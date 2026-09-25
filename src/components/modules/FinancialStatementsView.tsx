@@ -1,16 +1,19 @@
 // Module 24: Financial Statements Generation & Export (VP-040, VP-041)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CashFlowScheduleRevision, RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { applyReportingAdjustments, calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
+import { visibleEngagementIds } from '../../services/guards';
 
 interface FinancialStatementsViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = ({ onNavigate }) => {
+export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [statementType, setStatementType] = useState<'bs' | 'is' | 'equity' | 'cashflow'>('bs');
   const [comparativeEngagementId, setComparativeEngagementId] = useState('');
@@ -24,9 +27,42 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     openingEquity: latestCashFlow?.openingEquity ?? 0,
     movements: latestCashFlow?.movements.map(item => ({ ...item })) ?? [{ id: crypto.randomUUID(), description: '', category: 'Operating' as const, amount: 0, evidenceRef: '' }]
   }));
+  const initialCashFlowDraft = useRef(JSON.stringify(cashFlowDraft));
 
-  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
+  const visibleEngagements = visibleEngagementIds(state);
+  const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement && (visibleEngagements === 'ALL' || visibleEngagements.includes(e.id)));
   const client = state.clients.find(c => c.id === selectedEng?.client);
+  const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id);
+  const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
+  const saveCashFlow = () => {
+    if (!selectedEng || !currentMapping) return false;
+    try {
+      setCashFlowError('');
+      prototypeStore.saveCashFlowSchedule({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping.revision, ...structuredClone(cashFlowDraft) });
+      const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.cashFlowScheduleHistory?.at(-1);
+      if (!saved) return false;
+      const nextDraft = { openingCash: saved.openingCash, closingCash: saved.closingCash, openingEquity: saved.openingEquity ?? 0, movements: saved.movements.map(item => ({ ...item })) };
+      setCashFlowDraft(nextDraft);
+      initialCashFlowDraft.current = JSON.stringify(nextDraft);
+      refreshRevisionHistory(value => value + 1);
+      return true;
+    } catch (error) {
+      setCashFlowError(error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  };
+  useEffect(() => {
+    const key = 'financial-statements-cash-flow';
+    if (!onRegisterUnsavedForm || !selectedEng) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Cash flow schedule',
+      isDirty: () => JSON.stringify(cashFlowDraft) !== initialCashFlowDraft.current,
+      save: saveCashFlow,
+      discard: () => setCashFlowDraft(JSON.parse(initialCashFlowDraft.current))
+    };
+    onRegisterUnsavedForm(guard, key);
+    return () => onRegisterUnsavedForm(null, key);
+  }, [cashFlowDraft, selectedEng?.id, currentMapping?.revision, onRegisterUnsavedForm]);
 
   if (!selectedEng) {
     return (
@@ -44,8 +80,6 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   }
 
   const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
-  const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng.id);
-  const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
   const mappedAccounts = currentMapping?.mappings || [];
   const unmappedRows = selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code));
   const mappingReady = Boolean(currentMapping?.status === 'Approved' && !unmappedRows.length);
@@ -55,15 +89,6 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const equityMovementLines = currentCashFlowRevision?.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)) || [];
   const equityMovementTotal = equityMovementLines.reduce((sum, item) => sum + item.amount, 0);
   const updateCashFlowMovement = (id: string, changes: Partial<CashFlowScheduleRevision['movements'][number]>) => setCashFlowDraft(current => ({ ...current, movements: current.movements.map(item => item.id === id ? { ...item, ...changes } : item) }));
-  const saveCashFlow = () => {
-    try {
-      setCashFlowError('');
-      prototypeStore.saveCashFlowSchedule({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, ...structuredClone(cashFlowDraft) });
-      const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.cashFlowScheduleHistory?.at(-1);
-      if (saved) setCashFlowDraft({ openingCash: saved.openingCash, closingCash: saved.closingCash, openingEquity: saved.openingEquity ?? 0, movements: saved.movements.map(item => ({ ...item })) });
-      refreshRevisionHistory(value => value + 1);
-    } catch (error) { setCashFlowError(error instanceof Error ? error.message : String(error)); }
-  };
   const reviewCashFlow = () => {
     try { setCashFlowError(''); prototypeStore.reviewCashFlowSchedule(selectedEng.id, currentCashFlowRevision!.revision); refreshRevisionHistory(value => value + 1); }
     catch (error) { setCashFlowError(error instanceof Error ? error.message : String(error)); }

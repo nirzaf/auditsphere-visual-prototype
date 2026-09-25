@@ -28,6 +28,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const [proposalContact, setProposalContact] = useState('');
   const [proposalEvidenceRef, setProposalEvidenceRef] = useState('');
   const [proposalResponseNotes, setProposalResponseNotes] = useState('');
+  const [proposalResponseMethod, setProposalResponseMethod] = useState<'Email' | 'Meeting' | 'Letter'>('Email');
   const [packageRationale, setPackageRationale] = useState('');
   const [packageEvidence, setPackageEvidence] = useState('');
 
@@ -167,8 +168,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
 
   const handleProposalResponse = (proposalId: string, responseType: 'Accepted' | 'Declined' | 'Withdrawn') => {
     try {
-      prototypeStore.recordProposalResponse(proposalId, { responseType, contact: proposalContact.trim(), date: new Date().toISOString().slice(0, 10), method: 'Email', notes: proposalResponseNotes.trim(), evidenceRef: proposalEvidenceRef.trim() });
-      setProposalContact(''); setProposalEvidenceRef(''); setProposalResponseNotes('');
+      prototypeStore.recordProposalResponse(proposalId, { responseType, contact: proposalContact.trim(), date: new Date().toISOString().slice(0, 10), method: proposalResponseMethod, notes: proposalResponseNotes.trim(), evidenceRef: proposalEvidenceRef.trim() });
+      setProposalContact(''); setProposalEvidenceRef(''); setProposalResponseNotes(''); setProposalResponseMethod('Email');
       triggerNotice(`Proposal ${proposalId} ${responseType.toLowerCase()} response recorded with evidence reference.`);
     } catch (err) { triggerNotice(err instanceof Error ? err.message : 'Proposal response could not be recorded.'); }
   };
@@ -542,9 +543,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
               <div className="cell-sub mt4">{item.id} · {snapshot ? formatCurrency(snapshot.totalAmount, snapshot.currency) : 'No presentation snapshot'}</div>
               {snapshot?.items.map(line => <div className="mt12" key={line.id}><b>{line.serviceName}</b><p className="sub mt4">Scope: {line.scope}</p><p className="sub">Exclusions: {line.exclusions || 'None stated'}</p><p className="sub">Deliverables: {line.deliverables}</p><p className="sub">Client responsibilities: {line.clientResponsibilities}</p></div>)}
               {snapshot && <p className="sub mt8">Terms: {snapshot.terms}</p>}
-              {item.clientResponse && <div className="banner green mt12">{item.clientResponse.responseType} by {item.clientResponse.contact} · Evidence {item.clientResponse.evidenceRef}</div>}
+              {item.clientResponse && <div className="banner green mt12">{item.clientResponse.responseType} by {item.clientResponse.contact} · {item.clientResponse.method} · {item.clientResponse.date} · Evidence {item.clientResponse.evidenceRef}</div>}
               {item.state === 'Presented' && snapshot && snapshot.revision === item.revision && <div className="stack mt12">
-                <label className="caption">Authorized signatory<input className="input" value={proposalContact} onChange={e => setProposalContact(e.target.value)} required /></label>
+                <label className="caption">Client contact<select className="input" value={proposalContact} onChange={e => setProposalContact(e.target.value)} required><option value="" disabled>Select an active contact</option>{state.contacts.filter(contact => contact.clientId === item.clientId && contact.active).map(contact => <option key={contact.id} value={contact.name}>{contact.name}{contact.isPrimary ? ' · Primary' : ''}</option>)}</select></label>
+                <label className="caption">Response method<select className="input" value={proposalResponseMethod} onChange={e => setProposalResponseMethod(e.target.value as 'Email' | 'Meeting' | 'Letter')}><option>Email</option><option>Meeting</option><option>Letter</option></select></label>
                 <label className="caption">Evidence reference (email, letter or meeting record)<input className="input" value={proposalEvidenceRef} onChange={e => setProposalEvidenceRef(e.target.value)} required /></label>
                 <label className="caption">Response notes<textarea className="input" rows={2} value={proposalResponseNotes} onChange={e => setProposalResponseNotes(e.target.value)} required /></label>
                 <div className="row"><button className="btn primary sm" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Accepted')}>Record Acceptance</button><button className="btn sm ghost" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Declined')}>Record Decline</button><button className="btn sm ghost" disabled={!proposalContact.trim() || !proposalEvidenceRef.trim() || !proposalResponseNotes.trim()} onClick={() => handleProposalResponse(item.id, 'Withdrawn')}>Record Withdrawal</button></div>

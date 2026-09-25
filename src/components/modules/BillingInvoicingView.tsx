@@ -1,33 +1,41 @@
 // Module 14: Invoicing, Billing & Credit Notes (VP-030, VP-031)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, InvoiceRecord, InvoiceLineItem, CreditNoteRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface BillingInvoicingViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNavigate }) => {
+export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedTimeSourceIds, setSelectedTimeSourceIds] = useState<string[]>([]);
   const [selectedFixedServiceSource, setSelectedFixedServiceSource] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
+  const [editingCreditId, setEditingCreditId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New draft invoice form
   const [invNumber, setInvNumber] = useState(`INV-2600${state.invoices.length + 1}`);
   const [description, setDescription] = useState('Interim audit fee billing - Phase 1 Fieldwork');
   const [amount, setAmount] = useState(200000);
+  const [additionalLines, setAdditionalLines] = useState<Array<{ description: string; quantity: number; rate: number }>>([]);
   const [due, setDue] = useState('2026-10-31');
 
   // Credit note form
   const [creditAmount, setCreditAmount] = useState(25000);
   const [creditReason, setCreditReason] = useState('Commercial fee adjustment approved by partner');
+  const invoiceDraft = { invNumber, description, amount, additionalLines, due, selectedTimeSourceIds, selectedFixedServiceSource };
+  const initialInvoiceDraft = useRef(JSON.stringify(invoiceDraft));
+  const creditDraft = { creditAmount, creditReason };
+  const initialCreditDraft = useRef(JSON.stringify(creditDraft));
 
   const invoices = state.invoices;
   const selectedEngagement = state.engagements.find(e => e.id === state.selectedEngagement);
@@ -37,7 +45,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     time.status === 'Approved' && time.billable && !time.supersedesId && !time.billedInvoiceId &&
     time.clientId === client?.id && time.engagementId === selectedEngagement?.id &&
     time.currency === selectedEngagement?.currency && Number.isFinite(time.billingRatePerHour) && (time.billingRatePerHour || 0) > 0 &&
-    !invoices.some(invoice => invoice.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === time.id))
+    !invoices.some(invoice => invoice.status !== 'Cancelled' && invoice.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === time.id))
   );
   const acceptedProposal = state.proposals.find(proposal => proposal.id === selectedEngagement?.proposalId && proposal.state === 'Accepted' && proposal.items.some(item => item.feeModel === 'Fixed'));
   const fixedServiceTotal = acceptedProposal?.items.filter(item => item.feeModel === 'Fixed').reduce((sum, item) => sum + item.amount, 0) || 0;
@@ -48,6 +56,31 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const selectedFixedService = selectedFixedServiceSource && fixedServiceRemaining > 0;
   const sourcedTotal = Math.round((selectedTimeSources.reduce((sum, time) => sum + time.durationMinutes / 60 * (time.billingRatePerHour || 0), 0) + (selectedFixedService ? fixedServiceRemaining : 0)) * 100) / 100;
   const hasSources = selectedTimeSources.length > 0 || selectedFixedService;
+
+  const saveInvoiceDraft = () => {
+    if (!showDraftModal) return true;
+    handleCreateDraft(new Event('submit') as unknown as React.FormEvent);
+    const saved = prototypeStore.getSnapshot().invoices.length > invoices.length;
+    if (saved) initialInvoiceDraft.current = JSON.stringify(invoiceDraft);
+    return saved;
+  };
+  const saveCreditDraft = () => {
+    if (!showCreditModal || !selectedInvoice) return true;
+    handleCreateCredit(new Event('submit') as unknown as React.FormEvent);
+    const saved = prototypeStore.getSnapshot().creditNotes.length > state.creditNotes.length;
+    if (saved) initialCreditDraft.current = JSON.stringify(creditDraft);
+    return saved;
+  };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const guards: UnsavedFormGuard[] = [
+      { label: 'Invoice draft', isDirty: () => showDraftModal, save: saveInvoiceDraft, discard: () => { setShowDraftModal(false); setSelectedTimeSourceIds([]); setSelectedFixedServiceSource(false); } },
+      { label: 'Credit note draft', isDirty: () => showCreditModal, save: saveCreditDraft, discard: () => { setShowCreditModal(false); setSelectedInvoice(null); } }
+    ];
+    onRegisterUnsavedForm(guards[0], 'billing-invoice-draft');
+    onRegisterUnsavedForm(guards[1], 'billing-credit-draft');
+    return () => { onRegisterUnsavedForm(null, 'billing-invoice-draft'); onRegisterUnsavedForm(null, 'billing-credit-draft'); };
+  }, [showDraftModal, showCreditModal, selectedInvoice, invoiceDraft, creditDraft, onRegisterUnsavedForm]);
 
   const handleCreateDraft = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +105,18 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       sourceType: 'Fixed service' as const,
       sourceId: fixedServiceSourceId
     });
-    if (lines.length === 0) lines.push({ id: `LINE-${Date.now()}`, description, quantity: 1, rate: amount, amount, sourceType: 'Ad hoc' as const });
+    if (lines.length === 0) {
+      lines.push({ id: 'LINE-ADHOC-1', description: description.trim(), quantity: 1, rate: amount, amount: Math.round(amount * 100) / 100, sourceType: 'Ad hoc' as const });
+      additionalLines.forEach((line, index) => lines.push({
+        id: `LINE-ADHOC-${index + 2}`,
+        description: line.description.trim(),
+        quantity: line.quantity,
+        rate: line.rate,
+        amount: Math.round(line.quantity * line.rate * 100) / 100,
+        sourceType: 'Ad hoc'
+      }));
+    }
+    const adHocTotal = lines.filter(line => line.sourceType === 'Ad hoc').reduce((sum, line) => sum + line.amount, 0);
 
     const newInv: InvoiceRecord = {
       id: `INV-${Date.now().toString().slice(-4)}`,
@@ -81,10 +125,18 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       engagementId: state.selectedEngagement,
       invoiceNumber: invNumber,
       description: hasSources ? `Approved source billing · ${lines.length} lines` : description,
-      amount: hasSources ? sourcedTotal : amount,
+      amount: hasSources ? sourcedTotal : adHocTotal,
       paid: 0,
       creditsApplied: 0,
       currency,
+      billingDetails: client ? {
+        accountName: client.name,
+        contactName: client.contact,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        registrationNumber: client.registrationNumber
+      } : undefined,
       issueDate: new Date().toISOString().split('T')[0],
       due,
       status: 'Draft',
@@ -117,10 +169,28 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     prototypeStore.issueInvoice(inv.id);
   };
 
+  const handleCancelDraft = (inv: InvoiceRecord) => {
+    try {
+      prototypeStore.cancelInvoiceDraft(inv.id);
+      setNotice({ type: 'success', text: `Draft invoice ${inv.invoiceNumber} cancelled; unissued time sources are available again.` });
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.message });
+    }
+  };
+
   const handleCreateCredit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInvoice) return;
 
+    const existingCredit = editingCreditId ? state.creditNotes.find(item => item.id === editingCreditId) : undefined;
+    if (existingCredit) {
+      try {
+        prototypeStore.reviseCreditNote(existingCredit.id, { amount: creditAmount, reason: creditReason });
+        setNotice({ type: 'success', text: `Credit note ${existingCredit.creditNumber} revised and returned for independent review.` });
+        setShowCreditModal(false); setSelectedInvoice(null); setEditingCreditId(null);
+      } catch (err: any) { setNotice({ type: 'error', text: err.message }); }
+      return;
+    }
     const newCredit: CreditNoteRecord = {
       id: `CN-${Date.now().toString().slice(-4)}`,
       clientId: selectedInvoice.clientId,
@@ -141,6 +211,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       setNotice({ type: 'success', text: `Credit note ${newCredit.creditNumber} saved as a draft for independent review.` });
       setShowCreditModal(false);
       setSelectedInvoice(null);
+      setEditingCreditId(null);
     } catch (err: any) {
       setNotice({ type: 'error', text: err.message });
     }
@@ -149,6 +220,21 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const handleReviewCredit = (creditId: string) => {
     try { prototypeStore.reviewCreditNote(creditId, true); setNotice({ type: 'success', text: 'Credit note approved for issue.' }); }
     catch (err: any) { setNotice({ type: 'error', text: err.message }); }
+  };
+
+  const handleReturnCredit = (creditId: string) => {
+    const reason = window.prompt('Reason for returning this credit note for revision:');
+    if (!reason?.trim()) return;
+    try { prototypeStore.reviewCreditNote(creditId, false, reason); setNotice({ type: 'success', text: 'Credit note returned with a recorded reason.' }); }
+    catch (err: any) { setNotice({ type: 'error', text: err.message }); }
+  };
+
+  const handleReviseCredit = (credit: CreditNoteRecord) => {
+    setEditingCreditId(credit.id);
+    setSelectedInvoice(invoices.find(invoice => invoice.id === credit.invoiceId) || null);
+    setCreditAmount(credit.amount);
+    setCreditReason(credit.reason);
+    setShowCreditModal(true);
   };
 
   const handleIssueCredit = (creditId: string) => {
@@ -161,7 +247,12 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       `${inv.invoiceNumber}_Document`,
       `Tax Invoice: ${inv.invoiceNumber}`,
       [
-        `Client Legal Name: ${client?.name || 'Example Trading Entity'}`,
+        `Client Legal Name: ${inv.billingDetails?.accountName || client?.name || 'Example Trading Entity'}`,
+        `Billing Contact: ${inv.billingDetails?.contactName || client?.contact || 'Not recorded'}`,
+        `Billing Email: ${inv.billingDetails?.email || client?.email || 'Not recorded'}`,
+        `Billing Phone: ${inv.billingDetails?.phone || client?.phone || 'Not recorded'}`,
+        `Billing Address: ${inv.billingDetails?.address || client?.address || 'Not recorded'}`,
+        `Registration Number: ${inv.billingDetails?.registrationNumber || client?.registrationNumber || 'Not recorded'}`,
         `Client Jurisdiction: ${client?.jurisdiction || 'State of Qatar'}`,
         `Billing Description: ${inv.description}`,
         `Billed Amount: ${formatCurrency(inv.amount, inv.currency)}`,
@@ -180,7 +271,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
           <h1>Billing, Invoicing & Credit Notes</h1>
           <p>Multi-currency professional fee invoicing, independent approval, and local PDF billing records.</p>
         </div>
-        <button className="btn primary sm" onClick={() => setShowDraftModal(true)}>
+        <button className="btn primary sm" onClick={() => { setAdditionalLines([]); setShowDraftModal(true); }}>
           <Icon name="plus" /> Draft New Invoice
         </button>
       </div>
@@ -238,12 +329,10 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                           <Icon name="download" size="sm" /> PDF
                         </button>
                         {inv.status === 'Draft' && (
-                          <button
-                            className="btn sm ghost"
-                            onClick={() => handleApprove(inv)}
-                          >
-                            Approve
-                          </button>
+                          <>
+                            <button className="btn sm ghost" onClick={() => handleApprove(inv)}>Approve</button>
+                            {['billing', 'manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
+                          </>
                         )}
                         {inv.status === 'Approved' && (
                           <button
@@ -305,8 +394,15 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                     <td>{cn.status}</td>
                     <td>{[cn.preparedBy, cn.reviewedBy, cn.issuedBy].filter(Boolean).join(' / ') || '—'}</td>
                     <td>
-                      {cn.status === 'Draft' && <button className="btn sm" onClick={() => handleReviewCredit(cn.id)}>Approve</button>}
-                      {cn.status === 'Approved' && <button className="btn sm primary" onClick={() => handleIssueCredit(cn.id)}>Issue</button>}
+                      {cn.status === 'Draft' && <>
+                        <button className="btn sm" onClick={() => handleReturnCredit(cn.id)}>Return</button>
+                        <button className="btn sm" onClick={() => handleReviewCredit(cn.id)}>Approve</button>
+                        {cn.returnReason && <button className="btn sm ghost" onClick={() => handleReviseCredit(cn)}>Revise</button>}
+                      </>}
+                      {cn.status === 'Approved' && <>
+                        <button className="btn sm" onClick={() => handleReturnCredit(cn.id)}>Return</button>
+                        <button className="btn sm primary" onClick={() => handleIssueCredit(cn.id)}>Issue</button>
+                      </>}
                     </td>
                   </tr>
                 ))}
@@ -340,6 +436,16 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   </label>}
                   {hasSources && <div className="caption">Sources are pinned to this draft; duplicate or over-contract billing is rejected. Total: <b>{formatCurrency(sourcedTotal, selectedTimeSources[0]?.currency || acceptedProposal?.currency || currency)}</b></div>}
                 </fieldset>
+                {client && <fieldset className="stack" style={{ gap: 4, border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <legend className="caption">Bill to — client profile snapshot</legend>
+                  <b>{client.name}</b>
+                  <span>{client.contact}</span>
+                  {client.email && <span>{client.email}</span>}
+                  {client.phone && <span>{client.phone}</span>}
+                  {client.address && <span>{client.address}</span>}
+                  {client.registrationNumber && <span>Registration: {client.registrationNumber}</span>}
+                  <span className="caption">These values are captured on the draft and stay attached to its invoice record.</span>
+                </fieldset>}
                 <div className="grid2">
                   <div>
                     <label className="caption">Invoice Number</label>
@@ -383,6 +489,29 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                     required
                   />
                 </div>
+                {!hasSources && <div className="stack" style={{ gap: 8 }}>
+                  {additionalLines.map((line, index) => <fieldset key={index} className="grid2" style={{ gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                    <legend className="caption">Additional ad-hoc line {index + 1}</legend>
+                    <div>
+                      <label className="caption">Line Description</label>
+                      <input className="input" aria-label={`Ad hoc line ${index + 1} description`} value={line.description} onChange={e => setAdditionalLines(lines => lines.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} required />
+                    </div>
+                    <div>
+                      <label className="caption">Quantity</label>
+                      <input className="input" aria-label={`Ad hoc line ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={line.quantity} onChange={e => setAdditionalLines(lines => lines.map((item, i) => i === index ? { ...item, quantity: Number(e.target.value) } : item))} required />
+                    </div>
+                    <div>
+                      <label className="caption">Rate ({currency})</label>
+                      <input className="input" aria-label={`Ad hoc line ${index + 1} rate`} type="number" min="0" step="0.01" value={line.rate} onChange={e => setAdditionalLines(lines => lines.map((item, i) => i === index ? { ...item, rate: Number(e.target.value) } : item))} required />
+                    </div>
+                    <div className="row" style={{ alignItems: 'end', justifyContent: 'space-between' }}>
+                      <span className="caption">Line total: {formatCurrency(Math.round(line.quantity * line.rate * 100) / 100, currency)}</span>
+                      <button className="btn ghost sm" type="button" onClick={() => setAdditionalLines(lines => lines.filter((_, i) => i !== index))}>Remove line</button>
+                    </div>
+                  </fieldset>)}
+                  <button className="btn sm" type="button" onClick={() => setAdditionalLines(lines => [...lines, { description: '', quantity: 1, rate: 0 }])}>Add ad-hoc line</button>
+                  {additionalLines.length > 0 && <b>Ad-hoc total: {formatCurrency(Math.round((amount + additionalLines.reduce((sum, line) => sum + line.quantity * line.rate, 0)) * 100) / 100, currency)}</b>}
+                </div>}
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowDraftModal(false)}>Cancel</button>
@@ -398,7 +527,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
         <div className="modal-backdrop" onClick={() => setShowCreditModal(false)}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Draft Credit Note for {selectedInvoice.invoiceNumber}</h2>
+              <h2>{editingCreditId ? 'Revise' : 'Draft'} Credit Note for {selectedInvoice.invoiceNumber}</h2>
               <button className="icon-btn" onClick={() => setShowCreditModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateCredit}>
@@ -431,7 +560,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
               </div>
               <div className="modal-foot">
                 <button type="button" className="btn ghost sm" onClick={() => setShowCreditModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Create Draft Credit Note</button>
+                <button type="submit" className="btn primary sm">{editingCreditId ? 'Resubmit Credit Note' : 'Create Draft Credit Note'}</button>
               </div>
             </form>
           </div>

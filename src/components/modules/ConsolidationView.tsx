@@ -1,34 +1,45 @@
 // Module 26: Multi-Entity Consolidation & Eliminations (VP-043 through VP-046)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { visibleEngagementIds } from '../../services/guards';
+import { hasConsolidationGroupScope, visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { calculateConsolidatedBalanceSheet, formatCurrency } from '../../services/calculations';
 import { artifactSha256, downloadVerifiedArtifact, persistArtifact } from '../../services/artifactStore';
 import { consolidationOutputFingerprint } from '../../services/consolidationOutput';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ConsolidationViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-const FxRateEditor: React.FC<{ group: NonNullable<ReturnType<typeof prototypeStore.getSnapshot>['consolidationGroups'][number]> }> = ({ group }) => {
+const FxRateEditor: React.FC<{ group: NonNullable<ReturnType<typeof prototypeStore.getSnapshot>['consolidationGroups'][number]>; onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void }> = ({ group, onRegisterUnsavedForm }) => {
   const currencies = [...new Set(group.components.map(component => component.currency).filter(currency => currency !== (group.presentationCurrency || group.currency)))];
   const [currency, setCurrency] = useState(currencies[0] || '');
   const [rate, setRate] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('2026-09-23');
   const [notice, setNotice] = useState('');
+  const saveRate = () => {
+    try {
+      if (!rate.trim()) return false;
+      prototypeStore.updateConsolidationFxRate(group.id, currency, Number(rate), effectiveDate);
+      setNotice(`${currency} closing rate saved.`);
+      setRate('');
+      return true;
+    } catch (error: any) { setNotice(error.message); return false; }
+  };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const key = `consolidation-fx-${group.id}`;
+    const guard: UnsavedFormGuard = { label: 'Consolidation FX rate', isDirty: () => Boolean(rate.trim()), save: saveRate, discard: () => setRate('') };
+    onRegisterUnsavedForm(guard, key);
+    return () => onRegisterUnsavedForm(null, key);
+  }, [rate, currency, effectiveDate, group.id, onRegisterUnsavedForm]);
   return <div className="panel panel-pad">
     <h3>Versioned closing rates</h3>
     <p className="sub">The supported synthetic profile translates every balance-sheet line at the entered closing rate. Average and historical translation methods are unsupported and produce no result.</p>
-    {currencies.length === 0 ? <p className="caption">All components use the presentation currency; no foreign rate is required.</p> : <form className="grid4 mt12" onSubmit={event => {
-      event.preventDefault();
-      try {
-        prototypeStore.updateConsolidationFxRate(group.id, currency, Number(rate), effectiveDate);
-        setNotice(`${currency} closing rate v${group.fxRateHistory?.[currency]?.length || 1} saved.`);
-        setRate('');
-      } catch (error: any) { setNotice(error.message); }
-    }}>
+    {currencies.length === 0 ? <p className="caption">All components use the presentation currency; no foreign rate is required.</p> : <form className="grid4 mt12" onSubmit={event => { event.preventDefault(); saveRate(); }}>
       <label className="caption">Component currency<select className="input mt4" aria-label="FX component currency" value={currency} onChange={event => setCurrency(event.target.value)}>{currencies.map(value => <option key={value}>{value}</option>)}</select></label>
       <label className="caption">Closing rate to {group.presentationCurrency || group.currency}<input className="input mt4" aria-label="FX closing rate" type="number" min="0" step="any" required value={rate} onChange={event => setRate(event.target.value)} /></label>
       <label className="caption">Effective date<input className="input mt4" aria-label="FX effective date" type="date" required value={effectiveDate} onChange={event => setEffectiveDate(event.target.value)} /></label>
@@ -57,25 +68,36 @@ const eliminationApprovalIsCurrent = (group: ConsolidationGroup, elimination: Co
   });
 };
 
-const EliminationEditor: React.FC<{ group: ConsolidationGroup; state: ReturnType<typeof prototypeStore.getSnapshot> }> = ({ group, state }) => {
-  const [draft, setDraft] = useState({ id: '', title: '', counterpartyA: group.components[0]?.componentId || '', counterpartyB: group.components[1]?.componentId || '', amount: '', debitAccount: '', creditAccount: '', explanation: '', evidenceRef: '', reason: '' });
+const EliminationEditor: React.FC<{ group: ConsolidationGroup; state: ReturnType<typeof prototypeStore.getSnapshot>; onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void }> = ({ group, state, onRegisterUnsavedForm }) => {
+  const emptyDraft = () => ({ id: '', title: '', counterpartyA: group.components[0]?.componentId || '', counterpartyB: group.components[1]?.componentId || '', amount: '', debitAccount: '', creditAccount: '', explanation: '', evidenceRef: '', reason: '' });
+  const [draft, setDraft] = useState(emptyDraft);
+  const initialDraft = useRef(JSON.stringify(draft));
   const [reviewNote, setReviewNote] = useState('');
   const [reviewEvidence, setReviewEvidence] = useState('');
   const [notice, setNotice] = useState('');
+  const saveDraft = () => {
+    try {
+      const amount = Number(draft.amount);
+      const id = prototypeStore.saveConsolidationElimination(group.id, { id: draft.id, title: draft.title, counterpartyA: draft.counterpartyA, counterpartyB: draft.counterpartyB, amount, currency: group.presentationCurrency || group.currency, status: 'Draft', explanation: draft.explanation, evidenceRef: draft.evidenceRef, debitAccount: draft.debitAccount, creditAccount: draft.creditAccount, lines: [{ account: draft.debitAccount, type: 'debit', amount }, { account: draft.creditAccount, type: 'credit', amount }] }, draft.reason);
+      setNotice(`Saved ${id} as a draft.`);
+      const next = emptyDraft(); setDraft(next); initialDraft.current = JSON.stringify(next);
+      return true;
+    } catch (error: any) { setNotice(error.message); return false; }
+  };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const draftKey = `consolidation-elimination-${group.id}`;
+    const reviewKey = `consolidation-elimination-review-${group.id}`;
+    onRegisterUnsavedForm({ label: 'Consolidation elimination', isDirty: () => JSON.stringify(draft) !== initialDraft.current, save: saveDraft, discard: () => { const next = emptyDraft(); setDraft(next); initialDraft.current = JSON.stringify(next); } }, draftKey);
+    onRegisterUnsavedForm({ label: 'Consolidation elimination review', isDirty: () => Boolean(reviewNote || reviewEvidence), save: () => false, discard: () => { setReviewNote(''); setReviewEvidence(''); } }, reviewKey);
+    return () => { onRegisterUnsavedForm(null, draftKey); onRegisterUnsavedForm(null, reviewKey); };
+  }, [draft, reviewNote, reviewEvidence, group.id, onRegisterUnsavedForm]);
   const accounts = [...new Map(group.components.flatMap(component => component.packageRows || []).map(row => [row.code, row])).values()];
-  const edit = (entry: ConsolidationGroup['eliminations'][number]) => setDraft({ id: entry.id, title: entry.title, counterpartyA: entry.counterpartyA, counterpartyB: entry.counterpartyB, amount: String(entry.amount), debitAccount: entry.lines.find(line => line.type === 'debit')?.account || '', creditAccount: entry.lines.find(line => line.type === 'credit')?.account || '', explanation: entry.explanation, evidenceRef: entry.evidenceRef || '', reason: '' });
+  const edit = (entry: ConsolidationGroup['eliminations'][number]) => { const next = { id: entry.id, title: entry.title, counterpartyA: entry.counterpartyA, counterpartyB: entry.counterpartyB, amount: String(entry.amount), debitAccount: entry.lines.find(line => line.type === 'debit')?.account || '', creditAccount: entry.lines.find(line => line.type === 'credit')?.account || '', explanation: entry.explanation, evidenceRef: entry.evidenceRef || '', reason: '' }; setDraft(next); initialDraft.current = JSON.stringify(next); };
   return <div className="borderbox panel-pad mt12">
     <h4>Manual elimination journal</h4>
     <p className="caption">Draft a group-only adjustment between the selected entities. It affects the group calculation only after an independent review bound to the current component pins and closing rates.</p>
-    <form className="mt8" onSubmit={event => {
-      event.preventDefault();
-      try {
-        const amount = Number(draft.amount);
-        const id = prototypeStore.saveConsolidationElimination(group.id, { id: draft.id, title: draft.title, counterpartyA: draft.counterpartyA, counterpartyB: draft.counterpartyB, amount, currency: group.presentationCurrency || group.currency, status: 'Draft', explanation: draft.explanation, evidenceRef: draft.evidenceRef, debitAccount: draft.debitAccount, creditAccount: draft.creditAccount, lines: [{ account: draft.debitAccount, type: 'debit', amount }, { account: draft.creditAccount, type: 'credit', amount }] }, draft.reason);
-        setNotice(`Saved ${id} as a draft.`);
-        setDraft({ id: '', title: '', counterpartyA: group.components[0]?.componentId || '', counterpartyB: group.components[1]?.componentId || '', amount: '', debitAccount: '', creditAccount: '', explanation: '', evidenceRef: '', reason: '' });
-      } catch (error: any) { setNotice(error.message); }
-    }}>
+    <form className="mt8" onSubmit={event => { event.preventDefault(); saveDraft(); }}>
       <div className="grid2">
         <label className="caption">Journal title<input className="input mt4" aria-label="Elimination title" value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} required /></label>
         <label className="caption">Amount ({group.presentationCurrency || group.currency})<input className="input mt4" aria-label="Elimination amount" type="number" min="0.01" step="0.01" value={draft.amount} onChange={event => setDraft({ ...draft, amount: event.target.value })} required /></label>
@@ -104,7 +126,7 @@ const EliminationEditor: React.FC<{ group: ConsolidationGroup; state: ReturnType
   </div>;
 };
 
-const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => {
+const PerimeterEditor: React.FC<{ group: ConsolidationGroup; onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void }> = ({ group, onRegisterUnsavedForm }) => {
   const snapshot = prototypeStore.getSnapshot();
   const periodYear = Number(group.period.match(/\d{4}/)?.[0]);
   const subComp = group.components.find(c => c.role === 'Subsidiary');
@@ -153,8 +175,10 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
       setNotice('Pinned component packages reviewed against the selected basis and period.');
     } catch (error: any) { setNotice(error.message); }
   };
-  const save = (event: React.FormEvent) => {
-    event.preventDefault();
+  const perimeterDraft = { reportingBasis, dates, subsidiaryId, reason, reviewEvidence };
+  const initialPerimeterDraft = useRef(JSON.stringify(perimeterDraft));
+  const save = (event?: React.FormEvent) => {
+    event?.preventDefault();
     try {
       const next = structuredClone(group);
       for (const component of next.components) {
@@ -181,8 +205,22 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
       prototypeStore.updateConsolidationGroup(next, { reason });
       const saved = prototypeStore.getSnapshot().consolidationGroups.find(g => g.id === group.id);
       setNotice(`Perimeter revision ${saved?.perimeterRevision || 'updated'} saved; prior perimeter retained in history.`);
-    } catch (error: any) { setNotice(error.message); }
+      initialPerimeterDraft.current = JSON.stringify(perimeterDraft);
+      return true;
+    } catch (error: any) { setNotice(error.message); return false; }
   };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const key = `consolidation-perimeter-${group.id}`;
+    const guard: UnsavedFormGuard = {
+      label: 'Consolidation perimeter',
+      isDirty: () => JSON.stringify(perimeterDraft) !== initialPerimeterDraft.current,
+      save: () => save(),
+      discard: () => { setReportingBasis(group.reportingBasis || ''); setDates(Object.fromEntries(group.components.map(component => [component.componentId, component.effectiveDate || '']))); setSubsidiaryId(subComp?.componentId || ''); setReason(''); setReviewEvidence(''); }
+    };
+    onRegisterUnsavedForm(guard, key);
+    return () => onRegisterUnsavedForm(null, key);
+  }, [reportingBasis, dates, subsidiaryId, reason, reviewEvidence, group.id, group.perimeterRevision, onRegisterUnsavedForm]);
   const revert = (revision: number) => {
     try {
       prototypeStore.revertConsolidationPerimeter(group.id, revision, reason);
@@ -217,13 +255,32 @@ const PerimeterEditor: React.FC<{ group: ConsolidationGroup }> = ({ group }) => 
   </div>;
 };
 
-export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate }) => {
+export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [activeTab, setActiveTab] = useState<'perimeter' | 'grid' | 'eliminations' | 'fx'>('grid');
   const [outputEvidence, setOutputEvidence] = useState('');
   const [outputReviewNote, setOutputReviewNote] = useState('');
   const [outputReviewEvidence, setOutputReviewEvidence] = useState('');
   const [outputNotice, setOutputNotice] = useState('');
+  const initialOutputDraft = useRef(JSON.stringify({ outputEvidence, outputReviewNote, outputReviewEvidence }));
+  useEffect(() => {
+    const key = 'consolidation-output-draft';
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: outputEvidence ? 'Consolidation output draft' : 'Consolidation output review draft',
+      isDirty: () => Boolean(outputEvidence || outputReviewNote || outputReviewEvidence),
+      save: async () => {
+        if (!outputEvidence.trim()) {
+          setOutputNotice('An independent review draft must be completed with Approve or Return before leaving.');
+          return false;
+        }
+        return prepareGroupOutput();
+      },
+      discard: () => { setOutputEvidence(''); setOutputReviewNote(''); setOutputReviewEvidence(''); }
+    };
+    onRegisterUnsavedForm(guard, key);
+    return () => onRegisterUnsavedForm(null, key);
+  }, [outputEvidence, outputReviewNote, outputReviewEvidence, onRegisterUnsavedForm]);
 
   const group = state.consolidationGroups[0];
   if (!group) return <div className="panel panel-pad"><h3>No consolidation group is configured.</h3><p className="sub">Create a group and select its component packages before reviewing an output.</p></div>;
@@ -245,8 +302,9 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
     </p>
   </div>;
   const visibleIds = visibleEngagementIds(state);
-  const isGranted = (componentId: string) => visibleIds === 'ALL' || visibleIds.includes(componentId);
-  const fullyGranted = group.components.every(component => isGranted(component.componentId));
+  const namedGroupGranted = hasConsolidationGroupScope(state, group.id);
+  const isGranted = (componentId: string) => namedGroupGranted || visibleIds === 'ALL' || visibleIds.includes(componentId);
+  const fullyGranted = namedGroupGranted || group.components.every(component => isGranted(component.componentId));
   if (!fullyGranted) {
     const ungrantedRoles = group.components.filter(component => !isGranted(component.componentId)).map(component => component.role || 'Component').join(' and ');
     return (
@@ -342,7 +400,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
             : `No valid rate is configured to translate each component into ${groupCurrency}.`}
           {' '}Live engagement balances are never substituted for missing pinned data.
         </p>
-        {missingRate && <div className="max-w-md mx-auto mt16"><FxRateEditor group={group} /></div>}
+        {missingRate && <div className="max-w-md mx-auto mt16"><FxRateEditor group={group} onRegisterUnsavedForm={onRegisterUnsavedForm} /></div>}
         {(missingPackage || incompatibleBasis.length > 0) && <button className="btn primary sm mt16" onClick={() => onNavigate(incompatibleBasis.length > 0 ? 'accounting-setup' : 'engagements')}>{incompatibleBasis.length > 0 ? 'Review Accounting Setup' : 'Go to Engagements'}</button>}
       </div>
     );
@@ -367,7 +425,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
   const outputFingerprint = consolidationOutputFingerprint(group, state);
   const latestOutput = group.outputPackages?.at(-1);
   const outputIsCurrent = latestOutput?.fingerprint === outputFingerprint;
-  const prepareGroupOutput = async () => {
+  const prepareGroupOutput = async (): Promise<boolean> => {
     try {
       if (!outputEvidence.trim()) throw new Error('Enter the group-output preparation evidence reference.');
       const payload = {
@@ -387,7 +445,8 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       prototypeStore.saveConsolidationOutputPackage(group.id, record);
       setOutputEvidence('');
       setOutputNotice(`Group output revision ${revision} saved for independent review.`);
-    } catch (error: any) { setOutputNotice(error.message); }
+      return true;
+    } catch (error: any) { setOutputNotice(error.message); return false; }
   };
 
   return (
@@ -599,7 +658,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
             </table>
           </div>
         </div>
-        <PerimeterEditor key={`${group.id}-rev-${group.perimeterRevision || 1}`} group={group} />
+        <PerimeterEditor key={`${group.id}-rev-${group.perimeterRevision || 1}`} group={group} onRegisterUnsavedForm={onRegisterUnsavedForm} />
         {lastPerimeterChange && <p role="status" className="caption">Perimeter revision {group.perimeterRevision} saved — {lastPerimeterChange.reason} by {lastPerimeterChange.changedBy}.</p>}
         </div>
       )}
@@ -608,7 +667,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {activeTab === 'eliminations' && (
         <div className="panel panel-pad">
           <h3>Intercompany Elimination Entries</h3>
-          <EliminationEditor group={group} state={state} />
+          <EliminationEditor group={group} state={state} onRegisterUnsavedForm={onRegisterUnsavedForm} />
           <div className="stack mt12" style={{ gap: 10 }}>
             {group.eliminations.map((e: any) => (
               <div key={e.id} className="borderbox" style={{ padding: 12 }}>
@@ -631,7 +690,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
       {/* FX Tab */}
       {activeTab === 'fx' && (
         <div className="stack" style={{ gap: 12 }}>
-          <FxRateEditor group={group} />
+          <FxRateEditor group={group} onRegisterUnsavedForm={onRegisterUnsavedForm} />
           <div className="panel panel-pad">
             <h3>Translation balancing check</h3>
             <p className="sub">Before group eliminations, translated assets less liabilities and equity: <b>{formatCurrency(Math.abs(translationCheck.totalAssets - (translationCheck.totalLiabilities + translationCheck.totalEquity)), groupCurrency)}</b>. {translationCheck.isBalanced ? 'Translated components reconcile.' : 'The difference remains unallocated; no plug is added.'}</p>

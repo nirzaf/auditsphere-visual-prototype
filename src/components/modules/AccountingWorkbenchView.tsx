@@ -107,7 +107,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     if (!onRegisterUnsavedForm) return;
     const guard: UnsavedFormGuard = {
       label: 'Accounting workbench',
-      isDirty: () => recDraft !== null || editRowCode !== null || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
+      isDirty: () => recDraft !== null || editRowCode !== null || showAddAdjModal || amendAdjustment !== null || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
       save: () => {
         try {
           const snapshot = prototypeStore.getSnapshot();
@@ -126,6 +126,18 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
             prototypeStore.saveReconciliationSchedule(eng.id, recDraft);
             setRecDraft(null);
           }
+          if (showAddAdjModal || amendAdjustment) {
+            if (!selectedEng || !adjTitle.trim() || !adjRationale.trim() || !Number.isFinite(adjAmount) || adjAmount <= 0) return false;
+            const lines: AdjustmentJournalItem['lines'] = [
+              { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
+              { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
+            ];
+            if (amendAdjustment) {
+              prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale }, amendmentReason);
+              setAmendAdjustment(null);
+            } else prototypeStore.addAdjustmentJournal({ id: `AJ-${crypto.randomUUID().slice(0, 8)}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale });
+            setShowAddAdjModal(false);
+          }
           return true;
         } catch {
           return false;
@@ -135,11 +147,13 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         setRecDraft(null);
         setEditRowCode(null);
         setReflectionEvidenceDrafts({});
+        setShowAddAdjModal(false);
+        setAmendAdjustment(null);
       },
     };
     onRegisterUnsavedForm(guard, 'accounting-workbench');
     return () => onRegisterUnsavedForm(null, 'accounting-workbench');
-  }, [recDraft, editRowCode, editBalance, reflectionEvidenceDrafts, onRegisterUnsavedForm]);
+  }, [recDraft, editRowCode, editBalance, reflectionEvidenceDrafts, showAddAdjModal, amendAdjustment, adjTitle, adjDebitAccount, adjCreditAccount, adjAmount, adjRationale, amendmentReason, selectedEng, state.currentPerson, onRegisterUnsavedForm]);
 
   if (!selectedEng) {
     return (

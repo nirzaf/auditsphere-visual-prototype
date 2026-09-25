@@ -22,8 +22,9 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
   // Instantiation form
   const [targetEngId, setTargetEngId] = useState(state.selectedEngagement);
   const [jobTitle, setJobTitle] = useState('');
-  const [dueDate, setDueDate] = useState('2026-10-15');
-  const [owner, setOwner] = useState('Layla Rahman');
+  const [startDate, setStartDate] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [owner, setOwner] = useState('');
 
   // New Template form
   const [newTplName, setNewTplName] = useState('');
@@ -35,6 +36,16 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
     setTimeout(() => setNotice(null), 6000);
+  };
+
+  const openInstantiation = (template: JobTemplateItem) => {
+    setSelectedTemplateId(template.id);
+    setJobTitle(template.defaultJobTitle);
+    setTemplateOperationId(crypto.randomUUID());
+    setStartDate('');
+    setDueDate('');
+    setOwner('');
+    setShowInstantiateModal(true);
   };
 
   const templates = state.jobTemplates;
@@ -51,7 +62,8 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
         jobTitle || selectedTemplate.defaultJobTitle,
         dueDate,
         owner,
-        templateOperationId
+        templateOperationId,
+        startDate
       );
       setShowInstantiateModal(false);
       onNavigate('jobs');
@@ -203,10 +215,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                               triggerNotice('error', 'Only Published templates can be instantiated (VP-015).');
                               return;
                             }
-                            setSelectedTemplateId(tpl.id);
-                            setJobTitle(tpl.defaultJobTitle);
-                            setTemplateOperationId(crypto.randomUUID());
-                            setShowInstantiateModal(true);
+                            openInstantiation(tpl);
                           }}
                         >
                           Use Template
@@ -243,11 +252,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                     <>
                       <button
                         className="btn primary sm"
-                        onClick={() => {
-                          setJobTitle(selectedTemplate.defaultJobTitle);
-                          setTemplateOperationId(crypto.randomUUID());
-                          setShowInstantiateModal(true);
-                        }}
+                        onClick={() => openInstantiation(selectedTemplate)}
                       >
                         <Icon name="plus" /> Create Job from Template
                       </button>
@@ -336,6 +341,17 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                 </div>
                 <div className="grid2">
                   <div>
+                    <label className="caption">Start Date</label>
+                    <input
+                      type="date"
+                      className="input"
+                      aria-label="Job start date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
                     <label className="caption">Target Delivery Date</label>
                     <input
                       type="date"
@@ -349,9 +365,11 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                     <label className="caption">Accountable Owner</label>
                     <select
                       className="input"
+                      required
                       value={owner}
                       onChange={e => setOwner(e.target.value)}
                     >
+                      <option value="">Select an owner</option>
                       {state.users.map(u => (
                         <option key={u.id} value={u.name}>{u.name} ({u.label})</option>
                       ))}

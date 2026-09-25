@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 23;
+export const CURRENT_SCHEMA = 25;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -161,6 +161,29 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   const p = parsed as Record<string, unknown>;
   const from = typeof p?.schema === 'number' ? (p.schema as number) : 0;
   let state: PrototypeState = { ...fresh, ...(parsed as Partial<PrototypeState>) };
+  if (!Array.isArray(state.proposalServices)) state.proposalServices = structuredClone(fresh.proposalServices || []);
+  if (!Array.isArray(state.proposalServiceHistory)) state.proposalServiceHistory = [];
+  if (!Array.isArray(state.proposalTemplates)) state.proposalTemplates = structuredClone(fresh.proposalTemplates || []);
+  if (!Array.isArray(state.proposalTemplateHistory)) state.proposalTemplateHistory = [];
+  for (const proposal of state.proposals || []) {
+    proposal.period ||= proposal.items.find(item => item.period)?.period;
+    for (const item of proposal.items || []) {
+      item.quantity ??= 1;
+      item.rate ??= item.amount;
+      item.exclusions ||= 'Not specified in this historical proposal.';
+      item.clientResponsibilities ||= 'Not specified in this historical proposal.';
+      item.dependencies ||= 'Not specified in this historical proposal.';
+      item.period ||= proposal.period || 'Historical period not recorded';
+    }
+    proposal.period ||= 'Historical period not recorded';
+    if (proposal.presentedSnapshot) {
+      for (const item of proposal.presentedSnapshot.items || []) {
+        item.quantity ??= 1;
+        item.rate ??= item.amount;
+        item.dependencies ||= '';
+      }
+    }
+  }
   if (from < 3) {
     warnings.push(`Migrated legacy schema v${from} to v${CURRENT_SCHEMA}: preserved engagements, PBC, workpapers, reviews and releases.`);
     state.asOfDate = state.asOfDate || '2026-09-23';
@@ -371,6 +394,13 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       }
     }
     warnings.push('Pinned prior consolidation snapshots for explicit basis, period and package-review revalidation (v23).');
+  }
+  if (from < 24) {
+    for (const client of state.clients || []) {
+      client.clientType ||= 'Company';
+      client.profileRevision ??= 0;
+    }
+    warnings.push('Initialized client entity types and profile revisions while preserving client IDs and linked work (v24).');
   }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];

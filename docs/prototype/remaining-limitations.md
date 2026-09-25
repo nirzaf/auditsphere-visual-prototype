@@ -1,12 +1,55 @@
 # AuditSphere Visual Prototype — Remaining Limitations
 
-Updated 2026-09-24. Selected R01–R14 defects received code and regression
+Updated 2026-09-25. Selected R01–R14 defects received code and regression
 coverage, but that does not constitute full acceptance. VP-009, VP-014, VP-018,
 VP-035, VP-037, VP-047, VP-051, VP-052, VP-053, VP-055, VP-056, VP-057,
 VP-043, VP-058, VP-059 and VP-060 are Verified; 48 of 64 stories and 29 of 39 modules remain
 Partial.
-Automated sources explicitly trace AT-01 through AT-55. See
+Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT-56 through AT-58 are listed separately. See
 `verification.md` for exact executed checks.
+
+- **VP-003 — shared dialogs (Partial):** App-wide dialogs now restore focus to
+  the clicked opener even when it was opened through a programmatic click.
+  Chrome verifies Escape from the client edit dialog returns focus to its Edit
+  Profile button and New Job dismissal returns focus to its trigger. Save,
+  cancel, and dismissal paths for every active dialog still need direct
+  evidence. The shared dirty-form registry covers M365/client contact, proposal,
+  invoice, cash-flow schedule, package disclosures, planning, risk/program,
+  accounting, TB staging, and consolidation perimeter/elimination/review/output/
+  FX forms. A focused Chrome journey verifies Stay/Save/Discard on proposal,
+  invoice, cash-flow and disclosure drafts. M365 dirty-form global search now
+  exercises switching to a different client's ENG-26002, with Stay and Discard
+  behavior covered. AT-57 verifies Stay/Save/Discard for a consolidation output draft across route changes; Save prepares and persists the output package before transition. Other draft combinations and context changes remain open. Chrome now verifies a restored
+  out-of-scope ENG-26002 selection renders no restricted details, then selecting
+  permitted ENG-26001 opens Financial Statements. The broader route and grant
+  matrix remains open. Latest full suite before the current VP-031 changes passed 189/189 unit and 83/83 E2E;
+  the latest full E2E suite passed 83/83 (5 static + 78 Chrome) and unit
+  checks passed 191/191. AT-53
+  focus wrap, AT-37 mapping navigation and AT-45 persona-change all pass.
+
+- **VP-005 — practice dashboard (Partial):** Focused Chrome coverage now spans
+  manager, partner, billing, records, preparer and narrow/no-grant scopes. All
+  six metric cards open filtered lists whose row counts reconcile to their
+  displayed metrics; empty, completed, cancelled, blocked, archived and
+  no-access states are covered. Criterion-level sign-off and exhaustive
+  role/grant/filter combinations remain open.
+
+- **VP-011 — proposal response evidence (Partial):** Staff and client views record response type, active contact, date, Email/Meeting/Letter method, notes and correspondence reference. The store retains actor, actor role, contact identity and presented revision; rejects unsupported values, inactive or cross-client contacts, bad dates, missing evidence, duplicate responses and stale revisions; and requires a reason for commercial returns. AT-09/AT-52 cover client-portal Meeting and Letter; AT-56 covers a staff-recorded dated Letter withdrawal with no automatic engagement. Stale-dialog and full actor/resource matrices and story-level acceptance remain open.
+
+- **VP-012 — engagement change rework (Partial):** Service/year/period changes stale statement, reconciliation and cash-flow revisions; supersede active audit plans; flag performed procedures for reassessment; and clear release approvals/candidates. Team changes supersede active plans and flag performed procedures. AT-12 now explains these effects before save and verifies stale statement, superseded plan and procedure reassessment states afterward. The accepted proposal fee/currency remain unchanged by engagement administration; AC04 does not require a fee amendment. The evidence action is closed; other VP-012 criteria and story-level acceptance remain open.
+
+- **VP-016 — contextual internal notes/comments (Partial):** AT-14 covers scoped job/task notes, authorized recipient-only local mentions, edit attribution, reasoned moderation, reload persistence, empty/oversized rejection, inert unsafe markup and client-portal exclusion of note text, counts, attachment references and mention notices. Cross-subject activity linkage and proof historical approval/review records cannot be edited through the note panel remain open.
+
+- **VP-010 — proposals (Partial):** Reusable supported-service and content-template
+  editors, revision histories, default copying, editable multi-line pricing and
+  dated proposal periods are implemented. VP-010-E01 passed in Chrome, and unit
+  checks reject reversed or invalid ranges. Pixel-level print-layout review,
+  every original field/criterion, and browser return/revise/redisplay preservation
+  evidence remain open. Chromium renders a real PDF and the test checks its
+  signature and page object.
+
+- **VP-029 — budgets (Partial):** AT-29 verifies the fixed 600/660-minute example, missing cost as unknown, and excludes mismatched-currency time from fee/cost totals while retaining its effort. AT-59 confirms engagement-once aggregation, approved-time rate snapshots, separate QAR/USD totals, retained budget history and billing-role cost privacy. The broader unallocated-line, review, rate-change and variance matrix remains open.
+- **VP-030/031 — invoice drafting and correction (Partial):** AT-30 captures client account/contact details, reserves approved time once, supports quantity/rate ad-hoc lines, and retains cancelled draft history while releasing only its matching unissued time source. The store rejects zero quantity and cancellation after approval. Post-create draft editing, stale-source revisions, issued correction lineage and broader cross-client/currency matrices remain open.
 
 - **VP-040/041 equity rollforward (Partial):** Opening total equity and evidenced
   contributions/distributions now reconcile to mapped equity and current-period
@@ -76,9 +119,11 @@ Automated sources explicitly trace AT-01 through AT-55. See
 - **VP-039 — manual reconciliation:** preparers can save source-version-pinned
   schedules with dated, typed items; reviewers must be independent, return
   decisions need a reason, and approval blocks unexplained residuals, missing
-  evidence and unlinked proposed corrections. Unit coverage verifies a saved
-  approved revision is retained and TB or referenced-document replacement
-  stales the live schedule; Chrome verifies draft creation, self-approval
+  evidence and unlinked proposed corrections. AT-39 Chrome now verifies that
+  out-of-scope schedule evidence and an unlinked proposed correction each leave
+  the draft unapproved. AT-39 also verifies that replacing referenced DOC-002
+  stales the live schedule while the prior Approved revision remains visible.
+  Unit coverage verifies TB replacement staleness; Chrome verifies draft creation, self-approval
   denial, reasoned return, manager rework as a new revision, retained return
   rationale and independent approval against scoped evidence. Fully external
   statement provenance and subsequent bank reconciliation remain outside the
@@ -158,12 +203,14 @@ Automated sources explicitly trace AT-01 through AT-55. See
   and displays linked job files and time entries while preserving assignment
   history. Task-level comments/attachments and the broader job/task return/reopen
   matrix remain incomplete.
-- **AT-13 — job templates:** Chrome authors and publishes a Draft, applies it
-  to a fresh job/tree, then creates and publishes a separate edited revision.
-  The existing job and prior published template remain unchanged, and jobs pin
-  the exact source revision. Chrome submits the same instantiation form twice
-  with one operation ID and observes only one created job; unit checks reject
-  reuse of that ID with changed details.
+- **AT-13 — job templates:** Chrome authors and publishes a Draft, cancels an
+  instantiation without side effects, then applies the template with explicitly
+  selected start/delivery dates and owner. Fresh task IDs use that owner rather
+  than role suggestions. A separately edited revision leaves the existing job
+  and prior template unchanged; retiring blocks new instantiations. Double
+  submission with one operation ID creates one job; unit checks reject changed
+  details with that ID and invalid/untitled template structures. Technical
+  evidence is complete; the acceptance owner's story sign-off remains pending.
 
 - **VP-050 — audit fieldwork:** Chrome records work performed against PRC-01,
   submits it with a linked current adequate evidence revision, denies preparer
@@ -206,9 +253,16 @@ Automated sources explicitly trace AT-01 through AT-55. See
   dialogs, search/navigation controls and all business projections until the
   conflict is explicitly resolved; a shared command guard rejects stale writes.
   Chrome verifies a grant revocation while an unsaved client form is open and
-  confirms no stale client is persisted. Expiry-specific projection checks and
-  the wider professional/management approval and group-scope matrices remain
-  incomplete, so VP-019 and Module 19 stay Partial.
+  confirms no stale client is persisted. Relationship-group membership is
+  covered as non-authorizing; an administrator cannot self-grant, sees no
+  receivables summary, and is denied a direct financial-statement route.
+  Grant authoring now requires a distinct approval-evidence reference for
+  professional and management-approver roles, retaining it through revocation.
+  A named consolidation Group grant exposes that reporting workspace without
+  widening client or engagement lists; Chrome covers the group report and keeps
+  sibling client/engagement details hidden. VP-019-R03 is reconciled, while
+  compatible-role changes and the wider approval, expiry and group/component
+  combination matrices remain incomplete, so VP-019 and Module 19 stay Partial.
   The M365 wizard also saves permitted-person and initial role mappings without
   creating access grants. Local identity creation, disable/reactivate history, disabled-route restriction,
   and simulated invite/expiry/revoke/accept actions are covered; external invitations
@@ -391,15 +445,13 @@ Automated sources explicitly trace AT-01 through AT-55. See
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,296.28 kB,
-  635.98 kB gzip in the current build).
+- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,455.98 kB, 677.91 kB gzip in the 2026-09-25 local verification build).
 
 ## Verification snapshot
 
-Latest recorded full run: 172/172 unit checks and 74/74 E2E checks passed at
-test HEAD `804ccc8` / application source `188ee3b`.
-E2E includes five static checks and 69 Chrome journeys. The VP-042 AT-38/40 package
-subcase confirms internal-only disclosure/comment/workpaper references do not
+Latest local verification: 191/191 unit checks and 83/83 E2E checks passed on
+2026-09-25 at base commit `0077cc6` plus current uncommitted changes. AT-30 covers invoice account/contact snapshots, multiple ad-hoc lines, approved-time source reservation, explicit draft cancellation and re-reservation; approved invoice cancellation is rejected. AT-31 also covers return with reason, credit revision 2, independent reapproval of that exact revision, local issue and no payment movement. AT-32 covers receipt split, selective allocation reversal and balances; store guards reject malformed metadata, seeded allocations and stale receipt caches atomically. AT-34 verifies client-wide profile revision, sibling mapping/statement/package invalidation, retained prior package state, and closed-period TB/GL import denial. AT-36 verifies mapped GL tie-out and store guards reject unrecognized or inactive posting chart accounts before committing a GL revision. VP-006 supports full profile fields, revision-checked editing, soft archive/reactivation, duplicate and similar-entity checks, scoped profile editing and blocks new active work for suspended/archived clients. AT-05/AT-06 browser lifecycle covers edit, suspension, retained contacts, archive and reactivation; a store test confirms established engagement, invoice, document and workpaper links remain. VP-007 contact revision history and non-authorizing group behavior pass. VP-008 opens all 12 tabs under CL-001/CL-002, preserves portfolio filters and context on back/forward, and defaults a job from CL-002 to its own engagement. AT-02/AT-54 cross-tab conflict, expiry and storage-denial checks now pass with the new profile form. VP-048 requires deliberate benchmark and percentage inputs, validates assigned staff and dates, and invalidates cleared fieldwork after approved materiality changes. VP-002 redirects every former role-view hash route into the React application and preserves browser history with current role guards.
+The VP-042 AT-38/40 package subcase confirms internal-only disclosure/comment/workpaper references do not
 appear in generated XLSX, DOCX, PDF bytes, or the client portal. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was
 attempted by the exercised flows. The built HTML also enforces same-origin

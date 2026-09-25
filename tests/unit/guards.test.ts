@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition, seedManagementAcknowledgement } from './packageFixture.js';
@@ -30,6 +30,19 @@ function addAmiraManagerPersona(state: PrototypeState) {
 }
 
 describe('scope guards (AT-18)', () => {
+  it('rejects a restored selected engagement outside the current grant', () => {
+    state.currentUserId = 'group-user';
+    state.currentRole = 'manager';
+    state.currentPerson = 'Mona Khalil';
+    assert.equal(state.currentUserId, 'group-user');
+    state.selectedEngagement = 'ENG-26001';
+    assert.equal(hasSelectedEngagementScope(state), true);
+    state.selectedEngagement = 'ENG-26002';
+    assert.equal(hasSelectedEngagementScope(state), false);
+    state.selectedEngagement = '';
+    assert.equal(hasSelectedEngagementScope(state), false, 'missing context is not an authorized selection');
+  });
+
   it('global manager sees all; narrow group user sees one engagement only', () => {
     setPersona(state, 'Layla Rahman');
     assert.equal(visibleEngagementIds(state), 'ALL');
@@ -53,6 +66,68 @@ describe('scope guards (AT-18)', () => {
 });
 
 describe('safe job cancellation (VP-013)', () => {
+  it('requires an active, in-scope staff owner when creating or editing a job', () => {
+    state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const source = state.jobs[0];
+    const candidate = { ...source, id: 'JOB-OWNER-SCOPE', title: 'Scoped owner check' };
+
+    assert.throws(() => prototypeStore.addJob({ ...candidate, owner: 'Unknown Person' }), /active staff user with job access/);
+    assert.throws(() => prototypeStore.addJob({ ...candidate, owner: 'Omar Nasser' }), /active staff user with job access/);
+    assert.throws(() => prototypeStore.updateJob({ ...source, owner: 'Unknown Person' }), /active staff user with job access/);
+
+    const limitedUser = state.users.find(user => user.id === 'group-user')!;
+    const foreignEngagement = state.engagements.find(engagement => engagement.id !== 'ENG-26001')!;
+    assert.throws(() => prototypeStore.addJob({
+      ...candidate,
+      clientId: foreignEngagement.client,
+      engagementId: foreignEngagement.id,
+      owner: limitedUser.name
+    }), /must have access to this engagement/);
+
+    assert.equal(state.jobs.some(job => job.id === candidate.id), false, 'invalid owners do not create jobs');
+    assert.equal(state.jobs[0].owner, source.owner, 'invalid edits leave the existing owner unchanged');
+  });
+
+  it('blocks completion until all required tasks finish and does not trigger professional or billing actions', () => {
+    state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const existingJob = state.jobs[0];
+    const job = {
+      ...existingJob,
+      id: 'JOB-COMPLETION-GATE',
+      title: 'Completion gate fixture',
+      status: 'Not started' as const
+    };
+    prototypeStore.addJob(job);
+    const engagement = state.engagements.find(item => item.id === job.engagementId)!;
+    const task = {
+      id: 'TASK-JOB-COMPLETE-GATE',
+      jobId: job.id,
+      title: 'Required completion gate',
+      assignee: 'Layla Rahman',
+      status: 'Not started' as const,
+      order: 99
+    };
+    prototypeStore.addTask(task);
+    const approvals = structuredClone(engagement.approvals);
+    const releases = structuredClone(engagement.releases);
+    const invoiceCount = state.invoices.length;
+
+    assert.throws(() => prototypeStore.updateJob({ ...job, status: 'Completed' }), /required tasks are unfinished/);
+    assert.equal(state.jobs.find(item => item.id === job.id)!.status, job.status);
+
+    prototypeStore.updateTask({ ...task, status: 'Completed' });
+    prototypeStore.updateJob({ ...job, status: 'Completed' });
+
+    assert.equal(state.jobs.find(item => item.id === job.id)!.status, 'Completed');
+    assert.deepEqual(engagement.approvals, approvals, 'job completion does not approve engagement evidence');
+    assert.deepEqual(engagement.releases, releases, 'job completion does not release a package');
+    assert.equal(state.invoices.length, invoiceCount, 'job completion does not issue an invoice');
+  });
+
   it('requires a reason, retains linked work and prevents reopening', () => {
     state = createInitialState();
     (prototypeStore as any).state = state;
@@ -117,6 +192,11 @@ describe('accounting setup guards (AT-34)', () => {
     assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, [{ ...engagement.rows[0], dimensions: { dept: 'Unknown' } }], { fileName: 'unknown-dimension.csv', format: 'CSV', sha256: 'c'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net', dimension: { id: 'dept', index: 4 } } }), /dimension values/);
     assert.equal(engagement.sourceVersion, before);
     assert.deepEqual(engagement.rows, priorRows, 'invalid dimension values leave the accepted trial balance unchanged');
+    client.accountingProfile!.periodBooks.find(item => item.id === book.id)!.status = 'Closed';
+    assert.throws(() => prototypeStore.updateTrialBalanceRows(engagement.id, priorRows, { fileName: 'closed-book.csv', format: 'CSV', sha256: 'd'.repeat(64), mapping: { code: 0, name: 1, debit: 2, credit: 3, signed: 2, convention: 'signed-net' } }), /open period book/);
+    assert.equal(engagement.sourceVersion, before, 'closed-book import leaves the prior source revision intact');
+    (prototypeStore as any).isSessionOnly = false;
+    assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'closed-book.csv', format: 'CSV', sha256: 'e'.repeat(64), openingBalances: {}, transactions: [] }), /open accounting period book/);
   });
 });
 
@@ -219,7 +299,26 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 23);
+    assert.equal(migrated.schema, 25);
+  });
+  it('adds proposal catalogue and historical period/fee metadata when upgrading pre-v25 state', () => {
+    const legacy = structuredClone(createInitialState()) as any;
+    legacy.schema = 24;
+    delete legacy.proposalServices;
+    delete legacy.proposalTemplates;
+    delete legacy.proposalServiceHistory;
+    delete legacy.proposalTemplateHistory;
+    const proposal = legacy.proposals[0];
+    delete proposal.period;
+    for (const item of proposal.items) { delete item.period; delete item.dependencies; delete item.rate; delete item.quantity; }
+    const { state: migrated } = migratePersistedState(legacy, createInitialState());
+    assert.ok(migrated.proposalServices?.length);
+    assert.ok(migrated.proposalTemplates?.length);
+    assert.equal(proposal.period, 'Historical period not recorded');
+    assert.equal(proposal.items[0].quantity, 1);
+    assert.equal(proposal.items[0].rate, proposal.items[0].amount);
+    assert.equal(proposal.items[0].period, 'Historical period not recorded');
+    assert.equal(proposal.items[0].dependencies, 'Not specified in this historical proposal.');
   });
   it('keeps prior acceptance decisions as history but removes unsupported active authority', () => {
     const legacy = createInitialState() as any;
@@ -238,9 +337,9 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v23 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v25 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 22; version++) {
+    for (let version = 0; version <= 24; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 22) {
@@ -267,17 +366,19 @@ describe('fixture integrity (AT-02/AT-54)', () => {
         legacy.clients.forEach((client: any) => delete client.accountingProfile);
         legacy.engagements.forEach((engagement: any) => { delete engagement.accountingPeriodBookId; delete engagement.accountingProfileRevision; delete engagement.accountingChartRevision; engagement.sourceHistory?.forEach((item: any) => { delete item.accountingProfileRevision; delete item.accountingChartRevision; delete item.periodBookId; }); });
       }
+      if (version < 24) legacy.clients.forEach((client: any) => { delete client.clientType; delete client.profileRevision; });
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       if (version < 23) for (const group of legacy.consolidationGroups) { delete group.reportingBasis; group.components.forEach((component: any) => delete component.packageReview); }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 23, `schema ${version} should reach v23`);
+      assert.equal(migrated.schema, 25, `schema ${version} should reach v25`);
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
-      assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, 'Pending');
+      assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, version < 23 ? 'Pending' : seed.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status);
       assert.ok(Array.isArray(migrated.statementSetRevisions));
       assert.ok(migrated.evidenceCatalogue.every(item => Array.isArray(item.linkedProcedureHistory) && Array.isArray(item.adequacyHistory)));
       assert.ok(migrated.findings.every(item => Array.isArray(item.dispositionHistory)));
       assert.equal(migrated.engagements[0].id, seed.engagements[0].id);
       assert.ok(migrated.clients.every(client => Boolean(client.accountingProfile)));
+      assert.ok(migrated.clients.every(client => client.clientType === 'Company' && client.profileRevision === 0));
       assert.deepEqual(migrated.engagements[0].pbc.map(p => p.id), seed.engagements[0].pbc.map(p => p.id));
       assert.deepEqual(migrated.engagements[0].reviews.map(r => r.id), seed.engagements[0].reviews.map(r => r.id));
       assert.deepEqual(migrated.engagements[0].releases.map(r => r.id), seed.engagements[0].releases.map(r => r.id));
@@ -518,10 +619,28 @@ describe('access grant history (VP-018/019)', () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     prototypeStore.resetState();
     prototypeStore.setPersona('admin');
+    assert.throws(() => prototypeStore.grantAccess('admin', 'admin', 'Global', undefined, 'Self promotion', { requestRef: 'AR-SELF' }), /cannot grant access to their own person/);
     assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment'), /request reference/);
     assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2027-09-23', expiresAt: '2027-09-22', requestRef: 'AR-42' }), /expiry cannot precede/);
     assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2026-02-30', requestRef: 'AR-42' }), /valid/);
-    prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2999-01-01', expiresAt: '2999-12-31', requestRef: 'AR-42' });
+    assert.throws(() => prototypeStore.grantAccess('client', 'client', 'Client', 'CL-002', 'Management authority assignment', { requestRef: 'AR-CLIENT-42' }), /separate approval-evidence reference/);
+    assert.throws(() => prototypeStore.grantAccess('client', 'client', 'Client', 'CL-002', 'Management authority assignment', { requestRef: 'AR-CLIENT-42', approvalEvidenceRef: 'AR-CLIENT-42' }), /separate reference/);
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Group', 'GRP-MISSING', 'Group assignment', { requestRef: 'AR-GROUP-42', approvalEvidenceRef: 'HR-CREDENTIAL-GROUP-42' }), /consolidation group does not exist/);
+    prototypeStore.grantAccess('group-user', 'manager', 'Group', 'GRP-01', 'Group reporting assignment', { requestRef: 'AR-GROUP-42', approvalEvidenceRef: 'HR-CREDENTIAL-GROUP-42' });
+    const groupScopedState = prototypeStore.getSnapshot();
+    assert.equal(hasConsolidationGroupScope(groupScopedState, 'GRP-01', 'group-user'), true);
+    assert.deepEqual(visibleEngagementIds(groupScopedState, 'group-user'), ['ENG-26001'], "group reporting scope does not add sibling engagements to the user's engagement list");
+    assert.deepEqual(visibleClientIds(groupScopedState, 'group-user'), ['CL-001'], "group reporting scope does not add member clients to the user's client list");
+    prototypeStore.setPersona('group-user');
+    assert.throws(() => requireEngagementScope(prototypeStore.getSnapshot(), 'ENG-26002'), /outside the current scoped grant/);
+    const groupEdit = structuredClone(prototypeStore.getSnapshot().consolidationGroups[0]);
+    groupEdit.name = 'Example Group Holdings scoped edit';
+    prototypeStore.updateConsolidationGroup(groupEdit, { reason: 'Update authorized named group' });
+    assert.equal(prototypeStore.getSnapshot().consolidationGroups[0].name, groupEdit.name, 'named group grant authorizes a reporting configuration command');
+    prototypeStore.setPersona('admin');
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { requestRef: 'AR-42' }), /separate approval-evidence reference/);
+    assert.throws(() => prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { requestRef: 'AR-42', approvalEvidenceRef: 'AR-42' }), /separate reference/);
+    prototypeStore.grantAccess('group-user', 'manager', 'Engagement', 'ENG-26002', 'Quarterly assignment', { effectiveFrom: '2999-01-01', expiresAt: '2999-12-31', requestRef: 'AR-42', approvalEvidenceRef: 'HR-CREDENTIAL-42' });
     assert.equal(visibleEngagementIds(prototypeStore.getSnapshot(), 'group-user').includes('ENG-26002'), false, 'scheduled grant does not authorize before its effective date');
     assert.throws(() => prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', ''), /revocation reason/);
     prototypeStore.revokeAccess('group-user', 'manager', 'ENG-26002', 'Assignment ended');
@@ -531,6 +650,7 @@ describe('access grant history (VP-018/019)', () => {
       ['Revoked', 'admin', 'group-user', 'ENG-26002', 'Assignment ended']
     ]);
     assert.deepEqual([history[0].requestRef, history[0].effectiveFrom, history[0].expiresAt], ['AR-42', '2999-01-01', '2999-12-31']);
+    assert.deepEqual(history.map(event => event.approvalEvidenceRef), ['HR-CREDENTIAL-42', 'HR-CREDENTIAL-42'], 'the separate credential evidence reference survives grant and revocation history');
     assert.ok(history.every(event => Number.isFinite(Date.parse(event.at))));
     assert.equal(prototypeStore.getSnapshot().roleGrants.some(grant => grant.userId === 'group-user' && grant.scopeId === 'ENG-26002'), false);
   });
@@ -542,9 +662,72 @@ describe('client rules (AT-05)', () => {
     (prototypeStore as any).state = createInitialState();
     setPersona((prototypeStore as any).state, 'Amira Qasim');
     assert.throws(
-      () => prototypeStore.addClient({ id: 'CL-X', code: 'exp-trad', name: 'Dup', initials: 'D', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
+      () => prototypeStore.addClient({ id: 'CL-X', code: 'exp-trad', name: 'Dup', clientType: 'Company', initials: 'D', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
       /Duplicate client code/
     );
+  });
+
+  it('creates and revision-checks client profiles without changing linked identity or accounting data', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Amira Qasim');
+    const created = prototypeStore.addClient({ id: 'CL-AT06', code: '  at06  ', name: 'Cedar Test Industries', clientType: 'Company', initials: 'CT', industry: 'Manufacturing', contact: 'Amina', email: 'a@example.demo', jurisdiction: 'Qatar', status: 'Prospect', risk: 'Low', revenue: 0, relationshipOwner: 'Amira Qasim' });
+    assert.deepEqual(created, []);
+    const client = state.clients.find(item => item.id === 'CL-AT06')!;
+    assert.equal(state.contacts.find(item => item.clientId === client.id)?.name, 'Amina', 'the profile primary contact becomes an active contact record');
+    client.customFields = { preserved: 'yes' };
+    const accountProfile = client.accountingProfile;
+    const group = client.relationshipGroupId = 'GROUP-AT06';
+    const linkedId = state.engagements[0].client;
+    const before = structuredClone(client);
+    assert.throws(() => prototypeStore.updateClient({ ...client, name: 'Stale edit' }, 9), /Stale client profile/);
+    assert.deepEqual(client, before, 'a stale write leaves the profile unchanged');
+    const warnings = prototypeStore.updateClient({ ...client, name: 'Cedar Manufacturing LLC' }, 0);
+    const updated = state.clients.find(item => item.id === 'CL-AT06')!;
+    assert.equal(client.id, 'CL-AT06');
+    assert.equal(updated.profileRevision, 1);
+    assert.equal(updated.accountingProfile, accountProfile);
+    assert.equal(updated.customFields?.preserved, 'yes');
+    assert.equal(updated.relationshipGroupId, group);
+    assert.ok(warnings.some(warning => warning.includes('similar')));
+    assert.equal(state.engagements[0].client, linkedId, 'existing client links are unaffected');
+    assert.throws(() => prototypeStore.updateClient({ ...updated, email: 'bad-email' }, 1), /valid client email/);
+    assert.equal(updated.profileRevision, 1, 'invalid edits are atomic');
+    assert.throws(() => prototypeStore.updateClient({ ...updated, relationshipOwner: 'unknown' }, 1), /active relationship/);
+  });
+
+  it('soft-archives an established client without changing engagement, invoice or evidence references', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Amira Qasim');
+    const client = state.clients.find(item => item.id === 'CL-001')!;
+    const engagementIds = state.engagements.filter(item => item.client === client.id).map(item => item.id).sort();
+    const invoiceIds = state.invoices.filter(item => item.clientId === client.id).map(item => item.id).sort();
+    const documentIds = state.documents.filter(item => item.clientId === client.id).map(item => item.id).sort();
+    const workpaperIds = state.engagements.filter(item => item.client === client.id).flatMap(item => item.workpapers).map(item => item.id).sort();
+    assert.ok(engagementIds.length > 0 && invoiceIds.length > 0 && documentIds.length > 0 && workpaperIds.length > 0, 'fixture contains established client history');
+    const updated = prototypeStore.updateClient({ ...client, status: 'Archived' }, client.profileRevision || 0);
+    assert.ok(Array.isArray(updated));
+    assert.equal(state.clients.some(item => item.id === client.id), true);
+    assert.equal(state.clients.find(item => item.id === client.id)?.status, 'Archived');
+    assert.deepEqual(state.engagements.filter(item => item.client === client.id).map(item => item.id).sort(), engagementIds);
+    assert.deepEqual(state.invoices.filter(item => item.clientId === client.id).map(item => item.id).sort(), invoiceIds);
+    assert.deepEqual(state.documents.filter(item => item.clientId === client.id).map(item => item.id).sort(), documentIds);
+    assert.deepEqual(state.engagements.filter(item => item.client === client.id).flatMap(item => item.workpapers).map(item => item.id).sort(), workpaperIds);
+  });
+
+  it('blocks new active work for suspended and archived clients while preserving draft work', () => {
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Layla Rahman');
+    const client = state.clients.find(item => item.id === 'CL-001')!;
+    const sample = structuredClone(state.engagements[0]);
+    delete sample.proposalId;
+    const draft = { ...sample, id: 'ENG-AT06-DRAFT', client: client.id, stage: 'Draft', acceptance: true, terms: true };
+    client.status = 'Suspended';
+    assert.equal(prototypeStore.addEngagement(draft).id, draft.id);
+    const active = { ...sample, id: 'ENG-AT06-ACTIVE', client: client.id, stage: 'Planning', acceptance: true, terms: true };
+    assert.throws(() => prototypeStore.addEngagement(active), /reactivate the client/);
+    client.status = 'Archived';
+    assert.throws(() => prototypeStore.addEngagement({ ...draft, id: 'ENG-AT06-ARCHIVED', stage: 'Planning' }), /reactivate the client/);
+    assert.equal(state.engagements.some(item => item.id === 'ENG-AT06-ARCHIVED'), false);
   });
 
   it('client list and create commands require the active Global client grant', async () => {
@@ -557,7 +740,7 @@ describe('client rules (AT-05)', () => {
     (prototypeStore as any).state = state;
     assert.deepEqual(visibleClientIds(state), []);
     assert.throws(
-      () => prototypeStore.addClient({ id: 'CL-X', code: 'NEW', name: 'Out of scope', initials: 'OS', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
+      () => prototypeStore.addClient({ id: 'CL-X', code: 'NEW', name: 'Out of scope', clientType: 'Company', initials: 'OS', industry: 'x', contact: 'c', jurisdiction: 'Q', status: 'Active', risk: 'Low', revenue: 1, relationshipOwner: 'Amira Qasim' }),
       /active Global client grant/
     );
     assert.equal(prototypeStore.getSnapshot().clients.some(client => client.id === 'CL-X'), false);
@@ -584,6 +767,21 @@ describe('client rules (AT-05)', () => {
     prototypeStore.addContact(newContact);
     assert.equal(newContact.portalAccessRequested, false);
     assert.equal(state.contacts.find(c => c.id === newContact.id)?.responsibility, 'Financial reporting');
+    const createdContactId = newContact.id;
+    const usersBeforeContactEdit = structuredClone(state.users);
+    const contactRevision = prototypeStore.updateClientContact('CL-001', createdContactId, { name: 'Nora Test Revised', active: false });
+    const revisedContact = state.contacts.find(c => c.id === createdContactId)!;
+    assert.equal(contactRevision, 2);
+    assert.equal(revisedContact.id, createdContactId, 'editing retains the contact identity used by historical links');
+    assert.equal(revisedContact.active, false);
+    assert.equal(revisedContact.isPrimary, false, 'inactivating a primary contact removes primary status');
+    assert.equal(revisedContact.history?.[0].before.name, 'Nora Test');
+    assert.equal(revisedContact.history?.[0].after.name, 'Nora Test Revised');
+    assert.equal(revisedContact.history?.[0].after.active, false);
+    assert.equal(revisedContact.portalAccessRequested, false);
+    assert.deepEqual(state.users, usersBeforeContactEdit, 'contact edits never create an account identity');
+    prototypeStore.updateClientContact('CL-001', createdContactId, { active: true });
+    assert.equal(state.contacts.find(c => c.id === createdContactId)?.history?.length, 2, 'reactivation appends a revision without replacing the contact');
     assert.equal(state.contacts.find(c => c.id === 'CNT-01')?.isPrimary, false);
     prototypeStore.setPrimaryContact('CL-001', 'CNT-02');
     assert.equal(state.contacts.find(c => c.id === 'CNT-02')?.isPrimary, true);
@@ -740,6 +938,29 @@ describe('review-note assignment (VP-055)', () => {
 });
 
 describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
+  it('revises supported service and proposal templates without rewriting copied proposal defaults', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const target = prototypeStore as any;
+    target.state = createInitialState();
+    setPersona(target.state, 'Layla Rahman');
+    const service = structuredClone(target.state.proposalServices[0]);
+    service.description = 'Updated supported service description.';
+    const savedService = target.saveProposalService(service, service.revision);
+    assert.equal(savedService.revision, 2);
+    assert.equal(target.state.proposalServiceHistory.at(-1).revision, 1);
+    const template = structuredClone(target.state.proposalTemplates[0]);
+    template.scope = 'Template source scope revision two.';
+    const savedTemplate = target.saveProposalTemplate(template, template.revision);
+    assert.equal(savedTemplate.revision, 2);
+    assert.equal(target.state.proposalTemplateHistory.at(-1).revision, 1);
+    assert.throws(() => target.saveProposalTemplate({ ...savedTemplate, quantity: 0 }, savedTemplate.revision), /positive quantity/);
+    assert.throws(() => target.saveProposalService({ ...savedService, rate: -1 }, savedService.revision), /nonnegative rate/);
+    assert.throws(() => target.saveProposalService({ ...savedService, periodStart: '2026-12-31', periodEnd: '2026-01-01' }, savedService.revision), /valid reporting period/);
+    assert.throws(() => target.saveProposalTemplate({ ...savedTemplate, periodStart: '2026-12-31', periodEnd: '2026-01-01' }, savedTemplate.revision), /valid reporting period/);
+    assert.throws(() => target.saveProposalService({ ...savedService, id: 'SVC-TAX', name: 'Tax filing', revision: 0 }), /in-scope offering/);
+    assert.throws(() => target.saveProposalTemplate(savedTemplate, 1), /changed in another view/);
+  });
+
   it('requires a loss reason and retains opportunity stage history', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const target = prototypeStore as any;
@@ -788,9 +1009,16 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     target.state = createInitialState();
     addAmiraManagerPersona(target.state);
     const id = 'PROP-AT07';
-    target.addProposal({ id, title: 'Test proposal', revision: 1, preparedBy: 'Amira Qasim', preparedAt: '2026-09-23', currency: 'QAR', totalAmount: 100, items: [{ id: `${id}-1`, serviceName: 'Audit', description: 'Annual audit', scope: 'Audit of FY2026 statements', exclusions: 'Tax services', deliverables: 'Audit opinion', clientResponsibilities: 'Provide records', feeModel: 'Fixed', amount: 100 }], terms: 'Payment within 30 days.', state: 'Draft' });
+    const validProposal = { id, title: 'Test proposal', revision: 1, preparedBy: 'Amira Qasim', preparedAt: '2026-09-23', currency: 'QAR', period: 'FY2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', totalAmount: 100, items: [{ id: `${id}-1`, serviceName: 'Audit', description: 'Annual audit', scope: 'Audit of FY2026 statements', exclusions: 'Tax services', deliverables: 'Audit opinion', clientResponsibilities: 'Provide records', dependencies: 'Access to books', period: 'FY2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', feeModel: 'Fixed', quantity: 1, rate: 100, amount: 100 }], terms: 'Payment within 30 days.', state: 'Draft' };
+    assert.throws(() => target.addProposal({ ...validProposal, periodEnd: '2025-12-31' }), /period/i, 'reversed proposal dates are rejected');
+    assert.throws(() => target.addProposal({ ...validProposal, items: [{ ...validProposal.items[0], periodEnd: '2025-12-31' }] }), /period/i, 'reversed service-line dates are rejected');
+    target.addProposal(validProposal);
     assert.throws(() => target.reviewProposal(id, true), /same person|Separation of duties/i);
     setPersona(target.state, 'Layla Rahman');
+    assert.throws(() => target.reviewProposal(id, false, '   '), /return reason is required/i);
+    target.reviewProposal(id, false, '  Clarify the period and deliverables.  ');
+    assert.equal(target.state.proposals.find((item: any) => item.id === id).commercialReview.notes, 'Clarify the period and deliverables.');
+    assert.equal(target.state.proposals.find((item: any) => item.id === id).commercialReview.approved, false);
     target.reviewProposal(id, true);
     target.presentProposal(id);
     const old = structuredClone(target.state.proposals.find((item: any) => item.id === id));
@@ -801,6 +1029,15 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     assert.equal(revision.predecessorId, id);
     assert.equal(revision.state, 'Draft');
     assert.equal(revision.commercialReview, undefined);
+    const revisedDraft = structuredClone(revision);
+    revisedDraft.currency = 'USD';
+    revisedDraft.totalAmount = 125;
+    revisedDraft.items[0].rate = 125;
+    revisedDraft.items[0].amount = 125;
+    target.updateProposal(revisedDraft);
+    assert.equal(target.state.proposals.find((item: any) => item.id === revision.id).currency, 'USD');
+    assert.equal(target.state.proposals.find((item: any) => item.id === revision.id).items.reduce((sum: number, item: any) => sum + item.amount, 0), 125);
+    assert.deepEqual(target.state.proposals.find((item: any) => item.id === id).presentedSnapshot, old.presentedSnapshot, 'editing the revised draft cannot rewrite the exact earlier presented currency and fee');
   });
 
   it('requires client response evidence and does not create an engagement', async () => {
@@ -814,9 +1051,49 @@ describe('opportunity and proposal lifecycle (AT-07/AT-08)', () => {
     setPersona(target.state, 'Omar Nasser');
     const response = { responseType: 'Accepted', contact: 'Omar Nasser', date: '2026-09-23', method: 'Email', notes: 'Approved for acceptance.', evidenceRef: '' } as const;
     assert.throws(() => target.recordProposalResponse(prop.id, response), /evidence reference/);
-    target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'MAIL-ACCEPT-2026-09-23' });
-    assert.equal(prop.state, 'Accepted');
-    assert.equal(prop.clientResponse.evidenceRef, 'MAIL-ACCEPT-2026-09-23');
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, method: 'Chat', evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /allowed method/);
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, date: '2026-02-30', evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /valid date/);
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, responseType: 'Signed' as any, evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /allowed response type/);
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, contact: 'Unlisted Signatory', evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /active client contact/);
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, contact: 'Aisha Saleh', evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /active client contact/);
+    prop.state = 'Superseded';
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /approved, presented proposal/);
+    prop.state = 'Presented';
+    prop.revision += 1;
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'MAIL-ACCEPT-2026-09-23' }), /current presented revision/);
+    prop.revision -= 1;
+    for (const method of ['Email', 'Meeting', 'Letter'] as const) {
+      prop.state = 'Presented';
+      prop.clientResponse = undefined;
+      target.recordProposalResponse(prop.id, { ...response, method, evidenceRef: `REF-${method}` });
+      assert.equal(prop.state, 'Accepted');
+      assert.equal(prop.clientResponse.method, method);
+      assert.equal(prop.clientResponse.evidenceRef, `REF-${method}`);
+      assert.equal(prop.clientResponse.recordedBy, 'Omar Nasser');
+      assert.equal(prop.clientResponse.revision, prop.presentedSnapshot.revision);
+    }
+    for (const responseType of ['Accepted', 'Declined', 'Withdrawn'] as const) {
+      prop.state = 'Presented';
+      prop.clientResponse = undefined;
+      target.recordProposalResponse(prop.id, { ...response, responseType, evidenceRef: `REF-${responseType}` });
+      assert.equal(prop.state, responseType);
+      assert.equal(prop.clientResponse.responseType, responseType);
+      assert.equal(prop.clientResponse.revision, prop.presentedSnapshot.revision);
+      assert.throws(() => target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'REF-DUPLICATE' }), /approved, presented proposal/);
+    }
+    setPersona(target.state, 'Layla Rahman');
+    prop.state = 'Presented';
+    prop.clientResponse = undefined;
+    target.recordProposalResponse(prop.id, { ...response, responseType: 'Withdrawn', method: 'Letter', evidenceRef: 'LETTER-STAFF-001' });
+    assert.equal(prop.clientResponse.recordedBy, 'Layla Rahman');
+    assert.equal(prop.clientResponse.recordedRole, 'manager');
+    assert.ok(prop.clientResponse.contactId, 'staff response retains the linked active contact identity');
+    const withdrawnResponse = structuredClone(prop.clientResponse);
+    const revisedAfterWithdrawal = target.createProposalRevision(prop.id);
+    assert.equal(prop.state, 'Superseded');
+    assert.deepEqual(prop.clientResponse, withdrawnResponse, 'the withdrawn response remains attached to its historical revision');
+    assert.equal(revisedAfterWithdrawal.clientResponse, undefined, 'the new revision cannot inherit an earlier response');
+    assert.throws(() => target.recordProposalResponse(prop.id, { ...response, evidenceRef: 'REF-STALE-AFTER-WITHDRAWAL' }), /approved, presented proposal/);
     assert.equal(target.state.engagements.length, engagementCount, 'accepted proposal does not itself create an engagement');
   });
 });
@@ -866,16 +1143,34 @@ describe('engagement lifecycle suspension (VP-012)', () => {
     const procedure = target.state.auditPrograms.flatMap((program: any) => program.procedures).find((item: any) => item.id === 'PRC-01');
     procedure.status = 'Cleared'; procedure.workPerformed = 'Prior-period work'; procedure.conclusion = 'Prior-period conclusion'; procedure.evidenceLimitation = 'Recheck period relevance'; procedure.reviewedByUserId = 'reviewer';
     updated.planning = true; updated.sourceAccepted = true; updated.mappingApproved = true;
+    updated.approvals.partner = { by: 'partner', at: '2026-09-23T10:00:00Z', generation: updated.generation };
+    updated.candidate = { generation: updated.generation };
     target.state.statementSetRevisions = [{ id: 'STALE-SCOPE', engagementId: updated.id, status: 'Reviewed' }];
+    target.state.auditPlans = [{ id: 'PLAN-SCOPE', engagementId: updated.id, version: 3, status: 'Approved' }];
+    updated.cashFlowScheduleHistory = [{ id: 'CF-SCOPE', engagementId: updated.id, revision: 1, sourceVersion: updated.sourceVersion, mappingRevision: 1, openingCash: 0, closingCash: 0, movements: [], status: 'Reviewed' }];
     const scopeEdit = structuredClone(updated); scopeEdit.service = 'Annual accounts'; scopeEdit.year = 2027; scopeEdit.period = '01 Jan – 31 Dec 2027';
     target.updateEngagement(scopeEdit);
     const scoped = target.state.engagements.find((item: any) => item.id === updated.id);
     assert.equal(scoped.planning, false); assert.equal(scoped.sourceAccepted, false); assert.equal(scoped.mappingApproved, false);
     assert.equal(target.state.statementSetRevisions[0].status, 'Stale');
+    assert.equal(scoped.reconciliations[0].status, 'Stale', 'scope change stales reviewed account reconciliations');
+    assert.equal(scoped.cashFlowScheduleHistory[0].status, 'Stale', 'scope change stales reviewed cash-flow schedules');
+    assert.equal(target.state.auditPlans[0].status, 'Superseded', 'approved plan is visibly superseded after a scope change');
+    assert.equal(target.state.auditPlans[0].supersededReason.includes('reporting period changed'), true);
+    assert.equal(scoped.candidate, null); assert.equal(scoped.approvals.partner, null);
     assert.equal(procedure.scopeReassessmentRequired, true); assert.equal(procedure.status, 'In progress'); assert.equal(procedure.reviewedByUserId, undefined);
     assert.throws(() => target.updateAuditProcedureStatus(updated.id, procedure.id, 'Submitted'), /re-record this procedure/);
     target.updateAuditProcedureExecution(updated.id, procedure.id, 'Updated period work', 'Updated scope conclusion', 'Recheck period relevance');
     assert.equal(procedure.scopeReassessmentRequired, false);
+    const teamPlan = { id: 'PLAN-TEAM', engagementId: updated.id, version: 4, status: 'Under review' };
+    target.state.auditPlans.push(teamPlan);
+    scoped.planning = true; procedure.status = 'Cleared'; procedure.workPerformed = 'Reconfirmed under updated period'; procedure.conclusion = 'Scope is current'; procedure.reviewedByUserId = 'reviewer';
+    const teamEdit = structuredClone(scoped); teamEdit.team = [scoped.manager, scoped.partner];
+    target.updateEngagement(teamEdit);
+    assert.equal(target.state.auditPlans.find((plan: any) => plan.id === teamPlan.id).status, 'Superseded', 'team change blocks an in-flight plan review against obsolete assignments');
+    assert.equal(target.state.engagements.find((item: any) => item.id === updated.id).planning, false);
+    assert.equal(procedure.scopeReassessmentRequired, true, 'team change prompts reassessment of performed procedures');
+    assert.equal(procedure.scopeReassessmentReason, 'Engagement team changed');
     const sibling = target.state.engagements.find((item: any) => item.id === 'ENG-26002');
     const invalidTeam = structuredClone(sibling);
     invalidTeam.team = [...invalidTeam.team, 'Mona Khalil'];
@@ -1292,6 +1587,53 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
     assert.equal(source.billedInvoiceId, invoice.id, 'a duplicate attempt cannot move the reservation');
   });
 
+  it('VP-030 accepts reconciled ad-hoc invoice lines and rejects invalid quantities', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    setPersona(isolated, 'Leila Hassan');
+    isolated.currentRole = 'billing';
+    const invoice = {
+      id: 'INV-ADHOC-01', clientId: 'CL-001', eng: 'ENG-26001', engagementId: 'ENG-26001',
+      invoiceNumber: 'INV-ADHOC-01', description: 'Ad-hoc services', amount: 200, paid: 0,
+      currency: 'QAR', status: 'Draft' as const, due: '2026-10-31', preparedBy: 'Leila Hassan',
+      lines: [
+        { id: 'LINE-1', description: 'Consulting', quantity: 1, rate: 100, amount: 100, sourceType: 'Ad hoc' as const },
+        { id: 'LINE-2', description: 'Additional review', quantity: 2, rate: 50, amount: 100, sourceType: 'Ad hoc' as const }
+      ]
+    };
+    prototypeStore.addInvoice(invoice);
+    assert.equal(isolated.invoices.find(item => item.id === invoice.id)?.amount, 200);
+    assert.throws(() => prototypeStore.addInvoice({
+      ...invoice, id: 'INV-ADHOC-02', invoiceNumber: 'INV-ADHOC-02',
+      lines: [{ id: 'LINE-BAD', description: 'Invalid quantity', quantity: 0, rate: 100, amount: 200, sourceType: 'Ad hoc' }]
+    }), /positive quantity/);
+  });
+
+  it('VP-031 cancels only an unapproved draft and releases its reserved time source', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    setPersona(isolated, 'Leila Hassan');
+    isolated.currentRole = 'billing';
+    const source = isolated.times.find(time => time.id === 'TIME-01')!;
+    const line = { id: 'LINE-TIME-CANCEL', description: 'Approved time', quantity: source.durationMinutes / 60, rate: source.billingRatePerHour!, amount: source.durationMinutes / 60 * source.billingRatePerHour!, sourceType: 'Time entry' as const, sourceId: source.id };
+    const invoice = { id: 'INV-CANCEL-01', clientId: source.clientId, eng: source.engagementId, engagementId: source.engagementId, invoiceNumber: 'INV-CANCEL-01', description: 'Draft to cancel', amount: line.amount, paid: 0, currency: source.currency!, status: 'Draft' as const, due: '2026-10-31', preparedBy: 'Leila Hassan', lines: [line] };
+    prototypeStore.addInvoice(invoice);
+    assert.equal(source.billedInvoiceId, invoice.id);
+    prototypeStore.cancelInvoiceDraft(invoice.id);
+    assert.equal(isolated.invoices.find(item => item.id === invoice.id)?.status, 'Cancelled');
+    assert.equal(source.billedInvoiceId, undefined);
+
+    const replacement = { ...invoice, id: 'INV-CANCEL-02', invoiceNumber: 'INV-CANCEL-02', status: 'Draft' as const };
+    prototypeStore.addInvoice(replacement);
+    assert.equal(source.billedInvoiceId, replacement.id, 'the released source can be deliberately reserved by a replacement draft');
+    setPersona(isolated, 'Layla Rahman');
+    prototypeStore.reviewInvoice(replacement.id, true);
+    assert.throws(() => prototypeStore.cancelInvoiceDraft(replacement.id), /Only unapproved invoice drafts/);
+    assert.equal(source.billedInvoiceId, replacement.id, 'approval keeps the source reserved');
+  });
+
   it('VP-030 caps fixed-service billing at the unbilled accepted proposal balance', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
@@ -1321,6 +1663,30 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
       () => prototypeStore.addCreditNote({ id: 'C-X', invoiceId: 'INV-26002', clientId: 'CL-001', creditNumber: 'CRN-X', amount: 999999, reason: 'too big', status: 'Issued', issueDate: '2026-09-23', preparedBy: 'Leila Hassan' }),
       /remaining creditable/
     );
+  });
+
+  it('VP-031 returns and revises credit notes by revision and requires review of the current revision', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    const invoice = isolated.invoices.find(item => item.id === 'INV-26002')!;
+    setPersona(isolated, 'Leila Hassan');
+    isolated.currentRole = 'billing';
+    const credit = { id: 'CR-REV-01', invoiceId: invoice.id, clientId: invoice.clientId, creditNumber: 'CR-REV-01', amount: 1000, currency: invoice.currency, reason: 'Initial adjustment', status: 'Draft' as const, issueDate: isolated.asOfDate, preparedBy: isolated.currentPerson };
+    prototypeStore.addCreditNote(credit);
+    assert.throws(() => prototypeStore.reviewCreditNote(credit.id, false), /requires a reason/);
+    setPersona(isolated, 'Layla Rahman');
+    prototypeStore.reviewCreditNote(credit.id, false, 'Provide supporting commercial calculation.');
+    assert.equal(credit.returnReason, 'Provide supporting commercial calculation.');
+    setPersona(isolated, 'Leila Hassan');
+    prototypeStore.reviseCreditNote(credit.id, { amount: 1200, reason: 'Revised adjustment with calculation' });
+    assert.equal(credit.revision, 2);
+    assert.equal(credit.reviewedBy, undefined);
+    setPersona(isolated, 'Layla Rahman');
+    prototypeStore.reviewCreditNote(credit.id, true);
+    assert.equal(credit.reviewedRevision, 2);
+    assert.throws(() => prototypeStore.reviseCreditNote(credit.id, { amount: 1300, reason: 'Attempt after approval' }), /Only a returned draft/);
+    assert.equal(invoice.creditsApplied || 0, 0, 'approval and revision do not move or settle money');
   });
 
   // Isolated Acceptance Reproductions (EX13 - EX18)
@@ -1402,6 +1768,28 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
       () => prototypeStore.allocateReceipt('RCPT-02', 'INV-26002', unallocated + 1000),
       /exceeds available unallocated/
     );
+  });
+
+  it('VP-032 rejects malformed receipts and stale allocation caches atomically', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    setPersona(current, 'Leila Hassan');
+    current.currentRole = 'billing';
+    const malformed = { id: 'RCP-BAD', clientId: 'CL-001', receiptNumber: 'RCP-BAD', amount: 500, currency: 'QAR', date: '2026-02-30', method: 'Bank transfer' as const, externalRef: '', allocatedAmount: 0, allocations: [] };
+    assert.throws(() => prototypeStore.addReceipt(malformed), /valid date/);
+    malformed.date = '2026-09-25';
+    assert.throws(() => prototypeStore.addReceipt({ ...malformed, allocations: [{ invoiceId: 'INV-26002', amount: 100, allocatedAt: '2026-09-25T00:00:00Z' }], allocatedAmount: 100 }), /start with no allocations/);
+    assert.equal(current.receipts.some(item => item.id === malformed.id), false, 'rejected receipt remains unrecorded');
+
+    const invoice = current.invoices.find(item => item.id === 'INV-26002')!;
+    const receipt = { id: 'RCP-AT32-STALE', clientId: 'CL-001', receiptNumber: 'RCP-AT32-STALE', amount: 1000, currency: 'QAR', date: '2026-09-25', method: 'Other' as const, externalRef: 'LOCAL-01', allocatedAmount: 0, allocations: [] };
+    prototypeStore.addReceipt(receipt);
+    receipt.allocatedAmount = 1;
+    const paidBefore = invoice.paid;
+    assert.throws(() => prototypeStore.allocateReceipt(receipt.id, invoice.id, 100), /allocation balance is stale/);
+    assert.equal(receipt.allocations.length, 0);
+    assert.equal(invoice.paid, paidBefore, 'stale cache failure does not alter invoice settlement');
   });
 });
 
@@ -1822,7 +2210,7 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.ok(current.auditPrograms.flatMap((program: any) => program.procedures).find((procedure: any) => procedure.id === 'PRC-03').linkedRiskIds.includes('RSK-01'));
     assert.throws(() => prototypeStore.setAuditRiskProcedureLink('ENG-26002', 'RSK-01', 'PRC-03', true), /both belong to the selected engagement/);
     const engagement = current.engagements.find((item: any) => item.id === 'ENG-26001');
-    prototypeStore.saveAuditPlan({ id: 'PLAN-ENG-26001-V1', engagementId: engagement.id, version: 1, status: 'Under review', benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5, overallMateriality: 30_000, performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Initial plan basis.'], teamAllocations: [], timingMilestones: [], significantAreas: ['Revenue & Receivables'] });
+    prototypeStore.saveAuditPlan({ id: 'PLAN-ENG-26001-V1', engagementId: engagement.id, version: 1, status: 'Under review', benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5, performanceMaterialityRate: 75, clearlyTrivialRate: 5, overallMateriality: 30_000, performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Initial plan basis.'], teamAllocations: [{ person: 'Layla Rahman', role: 'Engagement Manager', scheduledStart: '2026-09-25', scheduledEnd: '2026-10-31' }], timingMilestones: [], significantAreas: ['Revenue & Receivables'] });
     prototypeStore.setPersona('reviewer');
     prototypeStore.reviewAuditPlan('PLAN-ENG-26001-V1', true, 'Approved initial risk response.');
     prototypeStore.setPersona('manager');
@@ -2000,6 +2388,36 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(secondInvoice.paid, 70_000);
   });
 
+  it('audit plans require explicit rates and rate-consistent threshold amounts', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    const current = createInitialState();
+    (prototypeStore as any).state = current;
+    const engagement = current.engagements[0];
+    const planningBefore = engagement.planning;
+    setPersona(current, 'Layla Rahman');
+    const plan = {
+      id: `PLAN-${engagement.id}-V1`, engagementId: engagement.id, version: 1, status: 'Under review' as const,
+      benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5,
+      performanceMaterialityRate: 75, clearlyTrivialRate: 5, overallMateriality: 30_000,
+      performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500,
+      rationales: ['Entered fixture basis.'], teamAllocations: [{ person: 'Layla Rahman', role: 'Engagement Manager', scheduledStart: '2026-09-25', scheduledEnd: '2026-10-31' }], timingMilestones: [], significantAreas: []
+    };
+
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, performanceMaterialityRate: undefined }), /explicit valid materiality rates/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, clearlyTrivialRate: 101 }), /explicit valid materiality rates/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, clearlyTrivialThreshold: 1_499 }), /must match its saved benchmark and explicit rates/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, teamAllocations: [] }), /Assign at least one in-scope staff member/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, teamAllocations: [{ ...plan.teamAllocations[0], person: 'Unknown Person' }] }), /active staff user/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, teamAllocations: [{ ...plan.teamAllocations[0], scheduledStart: '2026-02-30' }] }), /valid scheduled date range/);
+    assert.throws(() => prototypeStore.saveAuditPlan({ ...plan, teamAllocations: [{ ...plan.teamAllocations[0], scheduledStart: '2026-11-01' }] }), /valid scheduled date range/);
+    assert.equal(current.auditPlans?.length ?? 0, 0, 'invalid plans do not append a revision');
+    assert.equal(engagement.planning, planningBefore, 'invalid plans do not change the planning gate');
+
+    prototypeStore.saveAuditPlan(plan);
+    assert.equal(current.auditPlans?.[0].performanceMaterialityRate, 75);
+    assert.equal(current.auditPlans?.[0].clearlyTrivialRate, 5);
+  });
+
   it('audit plans retain revisions and require a different reviewer', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     const current = createInitialState();
@@ -2008,8 +2426,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const plan = (version: number) => ({
       id: `PLAN-${eng.id}-V${version}`, engagementId: eng.id, version, status: 'Under review' as const,
       benchmark: 'revenue', benchmarkValue: 2_000_000, materialityRate: 1.5, overallMateriality: 30_000,
-      performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Revenue is the selected benchmark.'],
-      teamAllocations: [], timingMilestones: [], significantAreas: []
+      performanceMaterialityRate: 75, clearlyTrivialRate: 5, performanceMateriality: 22_500, clearlyTrivialThreshold: 1_500, rationales: ['Revenue is the selected benchmark.'],
+      teamAllocations: [{ person: 'Layla Rahman', role: 'Engagement Manager', scheduledStart: '2026-09-25', scheduledEnd: '2026-10-31' }], timingMilestones: [], significantAreas: []
     });
     setPersona(current, 'Layla Rahman');
     prototypeStore.saveAuditPlan(plan(1));
@@ -2019,9 +2437,18 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     prototypeStore.reviewAuditPlan(`PLAN-${eng.id}-V1`, true, 'Reviewed and approved.');
     assert.equal(eng.planning, true);
     setPersona(current, 'Layla Rahman');
+    const affectedProcedure = current.auditPrograms.flatMap(program => program.procedures).find(procedure => procedure.id === 'PRC-03')!;
+    affectedProcedure.status = 'Cleared';
+    affectedProcedure.reviewedByUserId = 'reviewer';
+    affectedProcedure.reviewedAt = '2026-09-24T00:00:00.000Z';
     prototypeStore.saveAuditPlan(plan(2));
     assert.deepEqual(prototypeStore.getSnapshot().auditPlans?.map(p => p.status), ['Superseded', 'Under review']);
     assert.equal(eng.planning, false);
+    assert.equal(affectedProcedure.status, 'In progress', 'approved-plan revision reopens cleared fieldwork');
+    assert.equal(affectedProcedure.scopeReassessmentRequired, true, 'approved-plan revision requires scope reassessment');
+    assert.match(affectedProcedure.scopeReassessmentReason || '', /reassess planned procedure scope and conclusions/);
+    assert.equal(affectedProcedure.scopeReassessmentHistory?.at(-1)?.previousStatus, 'Cleared');
+    assert.equal(affectedProcedure.reviewedByUserId, undefined, 'stale reviewer attribution is cleared from the live procedure');
   });
 
   it('Job template lifecycle: draft templates cannot be instantiated; publishing allows (VP-015 / F06)', async () => {
@@ -2043,6 +2470,10 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
 
     prototypeStore.addJobTemplate(draftTpl);
 
+    assert.throws(() => prototypeStore.addJobTemplate({ ...draftTpl, id: 'TPL-EMPTY-TASKS', tasks: [] }), /requires a name, default job title, and titled phases/);
+    assert.throws(() => prototypeStore.addJobTemplate({ ...draftTpl, id: 'TPL-UNTITLED-TASK', tasks: [{ title: '  ' }] }), /requires a name, default job title, and titled phases/);
+    assert.throws(() => prototypeStore.addJobTemplate({ ...draftTpl, id: 'TPL-UNTITLED-SUBTASK', tasks: [{ title: 'Phase', subtasks: ['  '] }] }), /requires a name, default job title, and titled phases/);
+
     assert.throws(
       () => prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman'),
       /Only Published templates/
@@ -2051,10 +2482,11 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     // Publish template
     prototypeStore.publishJobTemplate(draftTpl.id);
     const beforeCount = (prototypeStore as any).state.jobs.length;
-    prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman');
+    prototypeStore.applyJobTemplate(draftTpl.id, 'ENG-26001', 'Test Job', '2026-10-31', 'Layla Rahman', undefined, '2026-10-01');
     assert.strictEqual((prototypeStore as any).state.jobs.length, beforeCount + 1);
     const sourceJob = (prototypeStore as any).state.jobs.at(-1);
     assert.equal(sourceJob.fromTemplateRevision, 1);
+    assert.equal(sourceJob.startDate, '2026-10-01');
     const originalTasks = structuredClone(draftTpl.tasks);
     const revision = prototypeStore.createJobTemplateRevision(draftTpl.id, { name: 'Revised Template', service: draftTpl.service, description: draftTpl.description, defaultJobTitle: 'Revised Job', tasks: [{ title: 'Revised Phase', subtasks: ['New Subtask'] }] });
     assert.equal(revision.revision, 2);
@@ -2070,6 +2502,8 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal((prototypeStore as any).state.jobs.length, jobsBeforeRetry + 1);
     assert.equal((prototypeStore as any).state.jobs.at(-1).fromTemplateRevision, 2);
     assert.throws(() => prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Changed Job', '2026-11-01', 'Layla Rahman', idempotencyKey), /already used for different job details/);
+    assert.throws(() => prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Invalid Date Job', '2026-11-01', 'Layla Rahman', undefined, '2026-02-31'), /valid start and delivery dates/);
+    assert.throws(() => prototypeStore.applyJobTemplate(revision.id, 'ENG-26001', 'Reversed Job', '2026-10-31', 'Layla Rahman', undefined, '2026-11-01'), /valid start and delivery dates/);
 
     // Retire template
     prototypeStore.retireJobTemplate(draftTpl.id);

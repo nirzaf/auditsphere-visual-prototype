@@ -15,6 +15,7 @@ interface BudgetsViewProps {
 
 export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const canViewInternalCosts = state.currentRole !== 'billing';
   const [activeTab, setActiveTab] = useState<'single' | 'aggregation'>('single');
   const [showAuthorModal, setShowAuthorModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -67,7 +68,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
         roleOrActivity: l.roleOrActivity.trim(),
         plannedMinutes: Math.round(l.plannedHours * 60),
         billingRatePerHour: l.billingRatePerHour,
-        costRatePerHour: l.costRatePerHour === '' ? undefined : l.costRatePerHour
+        costRatePerHour: canViewInternalCosts
+          ? l.costRatePerHour === '' ? undefined : l.costRatePerHour
+          : rawBudget?.lines.find(prior => prior.roleOrActivity.trim().toLowerCase() === l.roleOrActivity.trim().toLowerCase())?.costRatePerHour
       }));
 
       const newBudget: BudgetRecord = {
@@ -121,6 +124,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
     const actualMinutes = mine.reduce((s, t) => s + t.durationMinutes, 0);
     const billableEntries = mine.filter(t => t.billable);
     const actualValue = billableEntries.some(t => t.billingRatePerHour === undefined || !Number.isFinite(t.billingRatePerHour))
+      || billableEntries.some(t => t.currency && t.currency !== currency)
       ? null
       : Math.round(billableEntries.reduce((s, t) => s + (t.durationMinutes / 60) * t.billingRatePerHour!, 0) * 100) / 100;
     return {
@@ -130,7 +134,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
       costRate,
       actualMinutes,
       actualValue,
-      actualCost: mine.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour))
+      actualCost: mine.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour) || (t.currency && t.currency !== currency))
         ? null
         : Math.round(mine.reduce((s, t) => s + (t.durationMinutes / 60) * t.costRatePerHour!, 0) * 100) / 100
     };
@@ -140,10 +144,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
   const totalActualMinutes = approvedEntries.reduce((s, t) => s + t.durationMinutes, 0);
   const unmatchedEntries = approvedEntries.filter(t => !budgetLines.some(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase()));
   const totalPlannedBilling = Math.round(lineActuals.reduce((s, l) => s + (l.plannedMinutes / 60) * l.billingRate, 0) * 100) / 100;
-  const totalActualBilling = approvedEntries.some(t => t.billable && (t.billingRatePerHour === undefined || !Number.isFinite(t.billingRatePerHour)))
+  const totalActualBilling = approvedEntries.some(t => t.billable && (t.billingRatePerHour === undefined || !Number.isFinite(t.billingRatePerHour) || (t.currency && t.currency !== currency)))
     ? null
     : Math.round(approvedEntries.filter(t => t.billable).reduce((s, t) => s + (t.durationMinutes / 60) * t.billingRatePerHour!, 0) * 100) / 100;
-  const hasUnknownCost = approvedEntries.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour));
+  const hasUnknownCost = approvedEntries.some(t => t.costRatePerHour === undefined || !Number.isFinite(t.costRatePerHour) || (t.currency && t.currency !== currency));
   const totalActualCost = Math.round(approvedEntries.reduce((s, t) => s + (t.durationMinutes / 60) * (t.costRatePerHour || 0), 0) * 100) / 100;
   const varianceMinutes = totalActualMinutes - totalPlannedMinutes;
 
@@ -230,7 +234,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                   <span className="metric-label">Actual Approved Hours</span>
                   <div className="metric-val">{formatMinutesToHours(totalActualMinutes)}</div>
                   <span className="metric-sub">
-                    Delivery Cost: {hasUnknownCost ? 'Unknown (missing rate)' : formatCurrency(totalActualCost, currency)}
+                    Delivery Cost: {!canViewInternalCosts ? 'Not available for this role' : hasUnknownCost ? 'Unknown (missing rate)' : formatCurrency(totalActualCost, currency)}
                   </span>
                 </div>
                 <div className="metric green">
@@ -257,7 +261,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                     <tr>
                       <th>Role / Activity</th>
                       <th>Current Billing Rate</th>
-                      <th>Current Cost Rate</th>
+                      {canViewInternalCosts && <th>Current Cost Rate</th>}
                       <th>Planned</th>
                       <th>Actual (approved)</th>
                       <th>Variance</th>
@@ -272,7 +276,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                         <tr key={i}>
                           <td><b>{l.label}</b></td>
                           <td>{formatCurrency(l.billingRate, currency)} / hr</td>
-                          <td>{l.costRate === undefined || l.costRate === null ? 'Unknown' : `${formatCurrency(l.costRate, currency)} / hr`}</td>
+                          {canViewInternalCosts && <td>{l.costRate === undefined || l.costRate === null ? 'Unknown' : `${formatCurrency(l.costRate, currency)} / hr`}</td>}
                           <td>{formatMinutesToHours(l.plannedMinutes)}</td>
                           <td><b>{formatMinutesToHours(l.actualMinutes)}</b></td>
                           <td>
@@ -280,7 +284,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                               {varMin > 0 ? `+${varMin} min` : `${varMin} min`}
                             </span>
                           </td>
-                          <td>{l.actualCost === null ? 'Unknown' : formatCurrency(l.actualCost, currency)}</td>
+                          {canViewInternalCosts && <td>{l.actualCost === null ? 'Unknown' : formatCurrency(l.actualCost, currency)}</td>}
                           <td><b>{l.actualValue === null ? 'Unknown' : formatCurrency(l.actualValue, currency)}</b></td>
                         </tr>
                       );
@@ -298,7 +302,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                           {varianceMinutes} min
                         </span>
                       </td>
-                      <td><b>{hasUnknownCost ? 'Unknown' : formatCurrency(totalActualCost, currency)}</b></td>
+                      {canViewInternalCosts && <td><b>{hasUnknownCost ? 'Unknown' : formatCurrency(totalActualCost, currency)}</b></td>}
                       <td><b>{totalActualBilling === null ? 'Unknown' : formatCurrency(totalActualBilling, currency)}</b></td>
                     </tr>
                   </tfoot>
@@ -347,10 +351,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                   const bdg = state.budgets.find(b => b.engagementId === eng.id);
                   const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
                   const actualMins = approvedTimes.reduce((s, t) => s + t.durationMinutes, 0);
-                  const values = approvedTimes.filter(t => t.billable).map(t => {
-                    const line = bdg?.lines.find(l => l.roleOrActivity.trim().toLowerCase() === t.activity.trim().toLowerCase());
-                    return line ? (t.durationMinutes / 60) * line.billingRatePerHour : null;
-                  });
+                  const values = approvedTimes.filter(t => t.billable).map(t =>
+                    (!t.currency || t.currency === eng.currency) && Number.isFinite(t.billingRatePerHour) && t.billingRatePerHour! >= 0
+                      ? (t.durationMinutes / 60) * t.billingRatePerHour!
+                      : null
+                  );
                   const billableVal = values.some(v => v === null) ? null : Math.round((values as number[]).reduce((s, value) => s + value, 0) * 100) / 100;
 
                   return (
@@ -361,7 +366,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                       <td><span className="badge gray">v{bdg?.version || 1}</span></td>
                       <td><b>{formatCurrency(eng.agreedFee, eng.currency)}</b></td>
                       <td>{formatMinutesToHours(actualMins)}</td>
-                      <td><b>{billableVal === null ? 'Unknown (unmapped activity)' : formatCurrency(billableVal, eng.currency)}</b></td>
+                      <td><b>{billableVal === null ? 'Unknown (missing billing rate)' : formatCurrency(billableVal, eng.currency)}</b></td>
                       <td>
                         <button
                           className="btn sm"
@@ -442,16 +447,18 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                     </div>
                   </div>
                   <div className="mt8" style={{ maxWidth: 220 }}>
-                    <label className="caption">Cost Rate (/hr)</label>
-                    <input
-                      type="number"
-                      className="input"
-                      value={line.costRatePerHour}
-                    onChange={e => {
-                        const val = e.target.value === '' ? '' : Number(e.target.value);
-                        setEditLines(prev => prev.map((item, i) => i === idx ? { ...item, costRatePerHour: val } : item));
-                      }}
-                    />
+                    {canViewInternalCosts && <>
+                      <label className="caption">Cost Rate (/hr)</label>
+                      <input
+                        type="number"
+                        className="input"
+                        value={line.costRatePerHour}
+                        onChange={e => {
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          setEditLines(prev => prev.map((item, i) => i === idx ? { ...item, costRatePerHour: val } : item));
+                        }}
+                      />
+                    </>}
                   </div>
                 </div>
               ))}

@@ -275,15 +275,16 @@ export function calculateBudgetVsActual(
   engApprovedTimes.forEach(entry => {
     approvedMinutes += entry.durationMinutes;
     const hours = entry.durationMinutes / 60;
+    const currencyMismatch = Boolean(entry.currency && entry.currency !== budget.currency);
     if (entry.billable) {
-      if (entry.billingRatePerHour !== undefined && Number.isFinite(entry.billingRatePerHour) && entry.billingRatePerHour >= 0) {
+      if (!currencyMismatch && entry.billingRatePerHour !== undefined && Number.isFinite(entry.billingRatePerHour) && entry.billingRatePerHour >= 0) {
         actualBillableValue += roundMoney(hours * entry.billingRatePerHour);
       } else {
         hasMissingBillingRate = true;
       }
     }
 
-    if (entry.costRatePerHour !== undefined && Number.isFinite(entry.costRatePerHour) && entry.costRatePerHour >= 0) {
+    if (!currencyMismatch && entry.costRatePerHour !== undefined && Number.isFinite(entry.costRatePerHour) && entry.costRatePerHour >= 0) {
       totalCost += roundMoney(hours * entry.costRatePerHour);
     } else {
       hasMissingCostRate = true;
@@ -671,10 +672,15 @@ export function calculateConsolidatedBalanceSheet(
 export function calculateMateriality(
   benchmarkValue: number,
   percentage: number,
-  performancePct = 75,
-  trivialPct = 5,
-  rationale = 'Illustrative materiality based on selected benchmark'
+  performancePct: number,
+  trivialPct: number,
+  rationale: string
 ) {
+  if (!Number.isFinite(benchmarkValue) || benchmarkValue <= 0) throw new RangeError('Benchmark value must be a positive finite amount.');
+  if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) throw new RangeError('Applied benchmark rate must be greater than 0 and no more than 100 percent.');
+  if (!Number.isFinite(performancePct) || performancePct <= 0 || performancePct > 100) throw new RangeError('Performance materiality rate must be greater than 0 and no more than 100 percent.');
+  if (!Number.isFinite(trivialPct) || trivialPct < 0 || trivialPct > 100) throw new RangeError('Clearly trivial rate must be from 0 through 100 percent.');
+  if (!rationale.trim()) throw new RangeError('A planning rationale is required to calculate materiality.');
   const overallMateriality = Math.round(benchmarkValue * (percentage / 100));
   const performanceMateriality = Math.round(overallMateriality * (performancePct / 100));
   const clearlyTrivialThreshold = Math.round(overallMateriality * (trivialPct / 100));

@@ -44,7 +44,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   const allowedEngagementIds = visibleEngagementIds(state);
   const scopedClients = state.clients.filter(c => allowedClientIds === 'ALL' || allowedClientIds.includes(c.id));
   const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
-  const selectedEng = scopedEngagements.find(e => e.id === state.selectedEngagement) || scopedEngagements[0];
+  const selectedEng = scopedEngagements.find(e => e.id === state.selectedEngagement);
   const selectedClient = state.clients.find(c => c.id === selectedEng?.client);
   const currentPersona = state.users.find(u => u.id === state.currentUserId) || state.users[0];
 

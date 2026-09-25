@@ -68,6 +68,16 @@ describe('VP-036 GL source intake', () => {
     assert.equal(engagement.glSourceHistory?.length || 0, 0, 'an incomplete batch cannot be partially committed');
   });
 
+  it('rejects GL movements and opening balances outside the active posting chart atomically', () => {
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const preparer = state.users.find(user => user.role === 'preparer')!;
+    state.currentRole = 'preparer'; state.currentUserId = preparer.id; state.currentPerson = preparer.name;
+    const parsed = parseGLWorkbook('gl.csv', bytes(valid), 'QAR', '2026-01-01', '2026-12-31');
+    assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'unknown-account.csv', format: 'CSV', sha256: 'd'.repeat(64), openingBalances: parsed.openingBalances, transactions: [{ ...parsed.transactions[0], accountCode: '9999' }, ...parsed.transactions.slice(1)] }), /active posting accounts/);
+    assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'unknown-opening.csv', format: 'CSV', sha256: 'e'.repeat(64), openingBalances: { ...parsed.openingBalances, '9999': 1 }, transactions: parsed.transactions }), /opening balances must reference active posting accounts/);
+    assert.equal(engagement.glSourceHistory?.length || 0, 0, 'unknown chart codes do not create any GL revision');
+  });
+
   it('commits engagement-bound immutable revisions and invalidates dependent approvals', () => {
     const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
     const priorGeneration = engagement.generation;

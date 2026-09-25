@@ -2,7 +2,7 @@
 // Package assembly, section selection and ordering, multi-revision lineage,
 // interactive validation summary, and genuine Word / PDF deliverable exports.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
@@ -10,6 +10,7 @@ import { exportService } from '../../services/exportService';
 import { applyReportingAdjustments, calculateIncomeStatement } from '../../services/calculations';
 import { artifactSha256, downloadVerifiedArtifact, persistArtifacts } from '../../services/artifactStore';
 import { FinancialPackageRevision, GeneratedArtifactRecord } from '../../types';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 const DEFAULT_SECTIONS = [
   { id: 'rpt', title: 'Independent Auditor Report', desc: 'Standard unmodified opinion under ISA 700 with key audit matters.', enabled: true },
@@ -22,9 +23,10 @@ const DEFAULT_SECTIONS = [
 
 interface FinancialPackagesViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ onNavigate }) => {
+export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -42,6 +44,33 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const [disclosures, setDisclosures] = useState(selectedEng?.disclosureHistory?.length ? selectedEng.disclosureHistory : [{ id: 'DISC-01', title: 'Significant accounting policies', applicability: 'Applicable' as const, text: '', sharedWithClient: false, revision: 0, status: 'Draft' as const, preparedByUserId: '' }]);
   const [sections, setSections] = useState(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(section => ({ ...section, enabled: section.enabled && (section.id === 'cf' ? cashFlowReady : section.id === 'eq' ? equityReady : true) })) || DEFAULT_SECTIONS.map(section => section.id === 'cf' ? { ...section, desc: 'Requires a current independently reviewed cash-flow schedule.', enabled: cashFlowReady } : section.id === 'eq' ? { ...section, enabled: equityReady } : section));
   const [assembling, setAssembling] = useState(false);
+  const initialDraft = useRef(JSON.stringify({ packageNotes, noteApplicability, disclosures, sections }));
+  useEffect(() => {
+    const key = 'financial-package-draft';
+    if (!onRegisterUnsavedForm) return;
+    const guard: UnsavedFormGuard = {
+      label: 'Financial package and disclosures',
+      isDirty: () => JSON.stringify({ packageNotes, noteApplicability, disclosures, sections }) !== initialDraft.current,
+      save: () => {
+        try {
+          const current = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id);
+          if (selectedEng && !current) return false;
+          if (selectedEng) disclosures.filter(item => item.status === 'Draft' && item.title.trim()).forEach(item => prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }));
+          initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures, sections });
+          return true;
+        } catch (error: any) { triggerNotice('error', error.message); return false; }
+      },
+      discard: () => {
+        const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === selectedEng.id)?.disclosureHistory || [];
+        setDisclosures(saved);
+        setPackageNotes(savedPackage?.notes || '');
+        setNoteApplicability(savedPackage?.noteApplicability || 'Not assessed');
+        setSections(savedPackage?.sections.slice().sort((a, b) => a.order - b.order).map(section => ({ ...section })) || DEFAULT_SECTIONS.map(section => ({ ...section })));
+      }
+    };
+    onRegisterUnsavedForm(guard, key);
+    return () => onRegisterUnsavedForm(null, key);
+  }, [packageNotes, noteApplicability, disclosures, sections, selectedEng?.id, onRegisterUnsavedForm]);
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -413,8 +442,8 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
             {item.applicability === 'Applicable' ? <><textarea className="input mt8" aria-label={`${item.title} disclosure text`} value={item.text} disabled={item.status === 'Reviewed'} placeholder="Prepared disclosure content" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, text: e.target.value } : row))} /><label className="caption mt8">Evidence document ID<input aria-label="Evidence document ID" className="input mt4" value={item.evidenceRef || ''} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, evidenceRef: e.target.value } : row))} /></label></> : <textarea className="input mt8" aria-label={`${item.title} not-applicable rationale`} value={item.rationale || ''} disabled={item.status === 'Reviewed'} placeholder="Reason this disclosure is not applicable" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, rationale: e.target.value } : row))} />}
             <label className="caption mt8"><input type="checkbox" aria-label={`${item.title} client sharing`} checked={item.sharedWithClient} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, sharedWithClient: e.target.checked } : row))} /> Include this note in the client package</label>
             {item.status === 'Reviewed' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, status: 'Draft', reviewedByUserId: undefined, reviewedAt: undefined } : row))}>Revise disclosure</button>}
-            {item.status === 'Draft' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }); setDisclosures(prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []); triggerNotice('success', 'Disclosure saved as a new draft revision.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Save preparer draft</button>}
-            {item.status === 'Draft' && ['reviewer', 'partner', 'eqr'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.reviewDisclosure(selectedEng.id, item.id, item.revision); setDisclosures(prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []); triggerNotice('success', 'Disclosure independently reviewed.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Review independently</button>}
+            {item.status === 'Draft' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure saved as a new draft revision.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Save preparer draft</button>}
+            {item.status === 'Draft' && ['reviewer', 'partner', 'eqr'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.reviewDisclosure(selectedEng.id, item.id, item.revision); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure independently reviewed.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Review independently</button>}
           </div>)}
           {['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => [...items, { id: crypto.randomUUID(), title: '', applicability: 'Applicable', text: '', sharedWithClient: false, revision: 0, status: 'Draft', preparedByUserId: '' }])}>Add disclosure</button>}
         </div>

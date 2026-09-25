@@ -107,6 +107,26 @@ export type RouteKey =
   | 'requirements';
 
 // Module 02: Clients & CRM
+export interface ClientContactSnapshot {
+  name: string;
+  email: string;
+  phone?: string;
+  title?: string;
+  responsibility?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  isPrimary: boolean;
+  active: boolean;
+}
+
+export interface ClientContactHistoryEntry {
+  revision: number;
+  changedAt: string;
+  changedByUserId: string;
+  before: ClientContactSnapshot;
+  after: ClientContactSnapshot;
+}
+
 export interface ClientContact {
   id: string;
   clientId: string;
@@ -120,6 +140,8 @@ export interface ClientContact {
   isPrimary: boolean;
   active: boolean;
   portalAccessRequested?: boolean;
+  revision?: number;
+  history?: ClientContactHistoryEntry[];
 }
 
 export interface ClientRelationshipGroup {
@@ -141,6 +163,9 @@ export interface ClientRecord {
   id: string;
   code: string;
   name: string;
+  /** Added in local-state schema v24; v23 records migrate to Company. */
+  clientType?: 'Company' | 'Individual' | 'Partnership' | 'Government' | 'Nonprofit' | 'Other';
+  profileRevision?: number;
   tradingName?: string;
   initials: string;
   color?: string;
@@ -148,6 +173,8 @@ export interface ClientRecord {
   contact: string;
   email?: string;
   phone?: string;
+  address?: string;
+  website?: string;
   jurisdiction: string;
   registrationNumber?: string;
   status: 'Prospect' | 'Active' | 'Suspended' | 'Archived';
@@ -237,7 +264,59 @@ export interface ProposalItem {
   deliverables: string;
   clientResponsibilities?: string;
   feeModel: 'Fixed' | 'Time & Materials' | 'Retainer';
-  amount: number; // QAR
+  amount: number;
+  period?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  dependencies?: string;
+  quantity?: number;
+  rate?: number;
+  serviceId?: string;
+  serviceRevision?: number;
+}
+
+export interface ProposalServiceDefinition {
+  id: string;
+  name: string;
+  description: string;
+  scope: string;
+  exclusions: string;
+  deliverables: string;
+  clientResponsibilities: string;
+  dependencies: string;
+  period: string;
+  periodStart?: string;
+  periodEnd?: string;
+  feeModel: ProposalItem['feeModel'];
+  quantity: number;
+  rate: number;
+  currency: string;
+  active: boolean;
+  revision: number;
+}
+
+export interface ProposalContentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  serviceId: string;
+  serviceRevision?: number;
+  title: string;
+  scope: string;
+  exclusions: string;
+  deliverables: string;
+  clientResponsibilities: string;
+  dependencies: string;
+  period: string;
+  periodStart?: string;
+  periodEnd?: string;
+  feeModel: ProposalItem['feeModel'];
+  quantity: number;
+  rate: number;
+  currency: string;
+  terms: string;
+  revision: number;
+  active: boolean;
 }
 
 export interface ProposalRecord {
@@ -252,6 +331,11 @@ export interface ProposalRecord {
   totalAmount: number;
   items: ProposalItem[];
   terms: string;
+  period?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  templateId?: string;
+  templateRevision?: number;
   predecessorId?: string;
   presentedSnapshot?: { revision: number; title: string; currency: string; totalAmount: number; items: ProposalItem[]; terms: string; presentedBy: string; presentedAt: string };
   state:
@@ -276,6 +360,11 @@ export interface ProposalRecord {
     method: 'Email' | 'Meeting' | 'Letter';
     notes: string;
     evidenceRef?: string;
+    /** Actor and proposal revision captured when the client response was recorded. */
+    recordedBy?: string;
+    recordedRole?: RoleKey;
+    revision?: number;
+    contactId?: string;
   };
 }
 
@@ -768,6 +857,15 @@ export interface InvoiceRecord {
   amount: number; // QAR integer minor units (or cash units)
   paid: number;
   currency: string;
+  /** Client billing-account/contact values captured when this invoice draft is authored. */
+  billingDetails?: {
+    accountName: string;
+    contactName: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    registrationNumber?: string;
+  };
   status: 'Draft' | 'In review' | 'Approved' | 'Issued' | 'Paid' | 'Cancelled';
   due: string;
   issueDate?: string;
@@ -793,7 +891,10 @@ export interface CreditNoteRecord {
   issueDate: string;
   date?: string;
   preparedBy: string;
+  revision?: number;
+  returnReason?: string;
   reviewedBy?: string;
+  reviewedRevision?: number;
   issuedBy?: string;
 }
 
@@ -1397,6 +1498,10 @@ export interface AuditPlanRecord {
   benchmark: string;
   benchmarkValue: number;
   materialityRate: number;
+  /** Omitted only on historical revisions that predate explicit rate capture. */
+  performanceMaterialityRate?: number;
+  /** Omitted only on historical revisions that predate explicit rate capture. */
+  clearlyTrivialRate?: number;
   overallMateriality: number;
   performanceMateriality: number;
   clearlyTrivialThreshold: number;
@@ -1460,6 +1565,10 @@ export interface PrototypeState {
   customFields: CustomFieldDefinition[];
   leads: LeadOpportunity[];
   proposals: ProposalRecord[];
+  proposalServices?: ProposalServiceDefinition[];
+  proposalServiceHistory?: ProposalServiceDefinition[];
+  proposalTemplates?: ProposalContentTemplate[];
+  proposalTemplateHistory?: ProposalContentTemplate[];
   engagements: EngagementRecord[];
   jobs: JobRecord[];
   jobTasks: JobTaskItem[];
@@ -1506,11 +1615,12 @@ export interface PrototypeState {
   roleGrants: Array<{
     userId: string;
     role: RoleKey;
-    scopeKind: 'Global' | 'Client' | 'Engagement';
+    scopeKind: 'Global' | 'Client' | 'Engagement' | 'Group';
     scopeId?: string;
     effectiveFrom?: string;
     expiresAt?: string;
     requestRef?: string;
+    approvalEvidenceRef?: string;
     grantedAt?: string;
     grantedBy?: string;
     reason?: string;
@@ -1520,7 +1630,7 @@ export interface PrototypeState {
     action: 'Granted' | 'Revoked';
     userId: string;
     role: RoleKey;
-    scopeKind: 'Global' | 'Client' | 'Engagement';
+    scopeKind: 'Global' | 'Client' | 'Engagement' | 'Group';
     scopeId?: string;
     actorUserId: string;
     at: string;
@@ -1528,6 +1638,7 @@ export interface PrototypeState {
     effectiveFrom?: string;
     expiresAt?: string;
     requestRef?: string;
+    approvalEvidenceRef?: string;
   }>;
   folders?: Array<{
     path: string;

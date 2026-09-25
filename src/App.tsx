@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RouteKey } from './types';
 import { prototypeStore } from './store/prototypeStore';
-import { canOpenRoute, isClientRole } from './services/guards';
+import { canOpenRoute, isClientRole, hasSelectedEngagementScope } from './services/guards';
 import { Shell } from './components/layout/Shell';
 
 // Practice & CRM Modules
@@ -54,15 +54,26 @@ import { M365SetupView } from './components/modules/M365SetupView';
 import { RequirementsView } from './components/modules/RequirementsView';
 import { ModuleCatalogueView } from './components/modules/ModuleCatalogueView';
 import { UnsavedFormGuard } from './services/unsavedFormGuard';
+import { resolveRouteHash } from './services/legacyRoutes';
+
+const ENGAGEMENT_CONTEXT_ROUTES = new Set<string>([
+  'onboarding', 'audit-acceptance', 'jobs', 'job-templates', 'documents', 'communications',
+  'my-time', 'time-tracking', 'budgets', 'billing', 'receivables', 'accounting-setup',
+  'trial-balance', 'gl-transactions', 'account-mappings', 'adjustments', 'reconciliations',
+  'financial-statements', 'financial-packages', 'audit-planning', 'audit-risks',
+  'audit-fieldwork', 'sampling', 'audit', 'evidence', 'findings', 'reviews', 'approvals',
+  'quality', 'delivery', 'records', 'm365-setup'
+]);
 
 export const App: React.FC = () => {
-  const [currentRoute, setCurrentRoute] = useState<RouteKey>('overview');
+  const [currentRoute, setCurrentRoute] = useState<RouteKey>(() => resolveRouteHash(window.location.hash)?.route || 'overview');
   const [selectedClientId, setSelectedClientId] = useState<string>('CLI-001');
   const [searchTargetId, setSearchTargetId] = useState<string | undefined>();
   const [, setTick] = useState(0);
   const [guideOrigin, setGuideOrigin] = useState<RouteKey>('overview');
   const unsavedForms = useRef<Map<string, UnsavedFormGuard>>(new Map());
   const [pendingTransition, setPendingTransition] = useState<{ run: () => void; label: string } | null>(null);
+  const [transitionError, setTransitionError] = useState('');
 
   const registerUnsavedForm = useCallback((guard: UnsavedFormGuard | null, key = 'default') => {
     if (guard) unsavedForms.current.set(key, guard);
@@ -70,20 +81,32 @@ export const App: React.FC = () => {
   }, []);
   const requestContextChange = useCallback((run: () => void) => {
     const dirty = [...unsavedForms.current.values()].filter(guard => guard.isDirty());
+    setTransitionError('');
     if (dirty.length) setPendingTransition({ run, label: [...new Set(dirty.map(guard => guard.label))].join(' and ') });
     else run();
   }, []);
-  const resolveTransition = (choice: 'save' | 'discard') => {
+  const resolveTransition = async (choice: 'save' | 'discard') => {
     const pending = pendingTransition;
     const dirty = [...unsavedForms.current.values()].filter(guard => guard.isDirty());
     if (!pending || !dirty.length) return;
     if (choice === 'save') {
       // A rejected save keeps the user, the remaining drafts and the context unchanged.
-      for (const guard of dirty) { if (!guard.save()) return; }
+      for (const guard of dirty) {
+        try {
+          if (!await guard.save()) {
+            setTransitionError(`${guard.label} could not be saved. Check its message, or stay here and finish or discard the draft.`);
+            return;
+          }
+        } catch (error: any) {
+          setTransitionError(`${guard.label} could not be saved: ${error?.message || 'unexpected error'}`);
+          return;
+        }
+      }
     } else {
       dirty.forEach(guard => guard.discard());
     }
     setPendingTransition(null);
+    setTransitionError('');
     pending.run();
   };
 
@@ -96,8 +119,32 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const syncFromLocation = () => {
+      const resolved = resolveRouteHash(window.location.hash);
+      if (!resolved) return;
+      requestContextChange(() => {
+        const snapshot = prototypeStore.getSnapshot();
+        const active = snapshot.users.find(user => user.id === snapshot.currentUserId)?.status === 'Active';
+        const allowedRoute = canOpenRoute(snapshot.currentRole, resolved.route, active)
+          ? resolved.route
+          : active && isClientRole(snapshot.currentRole) ? 'portal' : active ? 'overview' : 'requirements';
+        setCurrentRoute(allowedRoute);
+        if (window.location.hash !== `#${allowedRoute}`) window.history.replaceState(null, '', `#${allowedRoute}`);
+      });
+    };
+    window.addEventListener('hashchange', syncFromLocation);
+    window.addEventListener('popstate', syncFromLocation);
+    syncFromLocation();
+    return () => {
+      window.removeEventListener('hashchange', syncFromLocation);
+      window.removeEventListener('popstate', syncFromLocation);
+    };
+  }, [requestContextChange]);
+
+  useEffect(() => {
     let activeDialog: HTMLElement | null = null;
     let returnFocus: HTMLElement | null = null;
+    let lastDialogTrigger: HTMLElement | null = null;
     let dialogSequence = 0;
     const focusable = (dialog: HTMLElement) => [...dialog.querySelectorAll<HTMLElement>(
       'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -121,7 +168,12 @@ export const App: React.FC = () => {
       const previous = activeDialog;
       activeDialog = next;
       if (next) {
-        if (!previous) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        if (!previous) {
+          returnFocus = lastDialogTrigger?.isConnected
+            ? lastDialogTrigger
+            : document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          lastDialogTrigger = null;
+        }
         (focusable(next)[0] || next).focus();
       } else {
         const target = returnFocus;
@@ -151,13 +203,20 @@ export const App: React.FC = () => {
     const onFocus = (event: FocusEvent) => {
       if (activeDialog && event.target instanceof Node && !activeDialog.contains(event.target)) (focusable(activeDialog)[0] || activeDialog).focus();
     };
+    const rememberDialogTrigger = (event: MouseEvent) => {
+      if (activeDialog || !(event.target instanceof Element)) return;
+      const trigger = event.target.closest<HTMLElement>('button:not([disabled]),a[href],[role="button"],input[type="button"],input[type="submit"]');
+      if (trigger) lastDialogTrigger = trigger;
+    };
     const observer = new MutationObserver(syncDialogs);
     observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', rememberDialogTrigger, true);
     document.addEventListener('keydown', onKeyDown, true);
     document.addEventListener('focusin', onFocus, true);
     syncDialogs();
     return () => {
       observer.disconnect();
+      document.removeEventListener('click', rememberDialogTrigger, true);
       document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('focusin', onFocus, true);
     };
@@ -172,7 +231,9 @@ export const App: React.FC = () => {
       const current = prototypeStore.getSnapshot();
       const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
       setSearchTargetId(targetId);
-      setCurrentRoute(canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements');
+      const nextRoute = canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements';
+      setCurrentRoute(nextRoute);
+      if (window.location.hash !== `#${nextRoute}`) window.history.pushState(null, '', `#${nextRoute}`);
     });
   };
   const effectiveRoute: RouteKey = !activeIdentity
@@ -182,6 +243,12 @@ export const App: React.FC = () => {
     : canOpenRoute(state.currentRole, currentRoute, activeIdentity) ? currentRoute : 'overview';
 
   const renderModule = () => {
+    if (ENGAGEMENT_CONTEXT_ROUTES.has(effectiveRoute) && !hasSelectedEngagementScope(state)) {
+      return <div className="panel panel-pad" role="alert" data-testid="engagement-context-unavailable">
+        <h2>Engagement selection unavailable</h2>
+        <p className="sub mt8">The current engagement selection is outside your access scope or has expired. Engagement records and counts have not been loaded. Return to an authorized workspace and select a permitted engagement.</p>
+      </div>;
+    }
     switch (effectiveRoute) {
       // Practice & CRM
       case 'overview':
@@ -202,7 +269,7 @@ export const App: React.FC = () => {
             key={`${selectedClientId}:${searchTargetId || ''}`}
             clientId={selectedClientId}
             searchTargetId={searchTargetId}
-            onBack={() => setCurrentRoute('clients')}
+            onBack={() => navigate('clients')}
             onNavigate={navigate}
             onRegisterUnsavedForm={registerUnsavedForm}
           />
@@ -211,7 +278,7 @@ export const App: React.FC = () => {
       case 'crm' as any:
         return <LeadsPipelineView onNavigate={navigate} />;
       case 'proposals':
-        return <ProposalsView onNavigate={navigate} />;
+        return <ProposalsView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'engagements':
         return <EngagementsView onNavigate={navigate} />;
       case 'onboarding':
@@ -235,7 +302,7 @@ export const App: React.FC = () => {
       case 'budgets':
         return <BudgetsView onNavigate={navigate} />;
       case 'billing':
-        return <BillingInvoicingView onNavigate={navigate} />;
+        return <BillingInvoicingView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'receivables':
         return <ReceivablesView onNavigate={navigate} />;
 
@@ -248,12 +315,12 @@ export const App: React.FC = () => {
       case 'reconciliations':
         return <AccountingWorkbenchView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'financial-statements':
-        return <FinancialStatementsView onNavigate={navigate} />;
+        return <FinancialStatementsView key={state.selectedEngagement} onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'financial-packages':
       case 'packages' as any:
-        return <FinancialPackagesView key={state.selectedEngagement} onNavigate={navigate} />;
+        return <FinancialPackagesView key={state.selectedEngagement} onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'consolidation':
-        return <ConsolidationView onNavigate={navigate} />;
+        return <ConsolidationView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
 
       // Audit & Assurance
       case 'audit-planning':
@@ -305,10 +372,10 @@ export const App: React.FC = () => {
   return (
     <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={(clientId) => requestContextChange(() => setSelectedClientId(clientId))} onBeforeContextChange={requestContextChange}>
       {renderModule()}
-      {pendingTransition && <div className="modal-backdrop" onClick={() => setPendingTransition(null)}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
-        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={() => setPendingTransition(null)}>✕</button></div>
-        <div className="modal-body"><p>{pendingTransition.label} has unsaved changes. Save them before leaving, discard them, or stay here.</p></div>
-        <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={() => setPendingTransition(null)}>Stay</button><button type="button" className="btn primary sm" onClick={() => resolveTransition('save')}>Save and continue</button></div>
+      {pendingTransition && <div className="modal-backdrop" onClick={() => { setPendingTransition(null); setTransitionError(''); }}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
+        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={() => { setPendingTransition(null); setTransitionError(''); }}>✕</button></div>
+        <div className="modal-body"><p>{pendingTransition.label} has unsaved changes. Save them before leaving, discard them, or stay here.</p>{transitionError && <p className="banner amber mt12" role="alert">{transitionError}</p>}</div>
+        <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={() => { setPendingTransition(null); setTransitionError(''); }}>Stay</button><button type="button" className="btn primary sm" onClick={() => void resolveTransition('save')}>Save and continue</button></div>
       </section></div>}
     </Shell>
   );
