@@ -2381,6 +2381,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   });
 
   it('VP-021: keeps stable document identity through rename, move and unavailable-reference recovery', async () => {
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';sessionStorage.setItem('vp021-prior-state',localStorage.getItem(key)||'');localStorage.removeItem(key);})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'VP-021 starts from a deterministic initial fixture');
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));b.click();})()`);
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));window.prompt=()=> 'Client requested temporary withdrawal pending review.';[...row.querySelectorAll('button')].find(x=>x.innerText==='Withdraw sharing').click();})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').visibility==='Internal'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').sharingHistory.at(-1).reason.includes('temporary withdrawal')`), true, 'withdrawal records actor, time, direction and reason');
@@ -2394,8 +2397,25 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').brokenLink===true`), true, 'unavailable reference state is persisted');
     const blocked = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));return row.innerText.includes('Reference unavailable')&&row.querySelector('button').disabled&&row.querySelector('button').innerText==='Unavailable';})()`);
     assert.equal(blocked, true, 'unavailable item cannot be opened');
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'unavailable-reference state survives reload');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav[aria-label="Main navigation"] button')].find(x=>x.innerText.trim().startsWith('Evidence Catalogue'));b.click();})()`);
+    const evidenceProjection = await browserTab!.evaluate<any>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('EVD-01'));return {text:row?.innerText,buttons:[...(row?.querySelectorAll('button')||[])].map(x=>({text:x.innerText,disabled:x.disabled}))};})()`);
+    assert.equal(evidenceProjection.text?.includes('DOC-002')&&evidenceProjection.text?.includes('Reference unavailable')&&evidenceProjection.text?.includes('Unavailable')&&evidenceProjection.buttons.some((button:any)=>button.disabled), true, JSON.stringify(evidenceProjection));
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Audit Workpapers'));if(!b)throw Error('Audit Workpapers route missing');b.click();})()`);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.includes('Pinned Evidence'));if(!b)throw Error('Pinned Evidence tab missing');b.click();})()`);
+    const workpaperProjection = await browserTab!.evaluate<any>(`(() => {const row=[...document.querySelectorAll('.between.borderbox')].find(x=>x.innerText.includes('DOC-002'));return {text:row?.innerText,route:location.hash};})()`);
+    assert.equal(workpaperProjection.text?.includes('Reference unavailable')&&workpaperProjection.text?.includes('Unavailable')&&!workpaperProjection.text?.includes('Adequate'), true, JSON.stringify(workpaperProjection));
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Client Portfolio'));if(!b)throw Error('Client Portfolio route missing');b.click();})()`);
+    await browserTab!.evaluate(`(() => {const card=[...document.querySelectorAll('.client-card')].find(x=>x.innerText.includes('Example Trading Entity'));const b=[...card.querySelectorAll('button')].find(x=>x.innerText.includes('Client 360 Workspace'));if(!b)throw Error('Example Trading client workspace action missing');b.click();})()`);
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('PBC Requests'));if(!b)throw Error('PBC Requests tab missing');b.click();})()`);
+    assert.equal(await waitForBrowser(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('PBC-02'));return row?.innerText.includes('Reference unavailable');})()`), true, 'client PBC row exposes its unavailable linked document reference');
+    await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));b.click();})()`);
     await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));[...row.querySelectorAll('button')].find(x=>x.innerText==='Restore reference').click();})()`);
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(x=>x.id==='DOC-002').brokenLink===false`), true, 'restoring reference re-enables the existing stable identity');
+    await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const prior=sessionStorage.getItem('vp021-prior-state');if(prior)localStorage.setItem(key,prior);sessionStorage.removeItem('vp021-prior-state');})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'VP-021 restores the caller fixture for subsequent journeys');
   });
 
   it('VP-053: records reasoned evidence unlink history and keeps the linked procedure stale', async () => {

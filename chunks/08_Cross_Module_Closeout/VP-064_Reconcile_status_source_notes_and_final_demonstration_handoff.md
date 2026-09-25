@@ -58,10 +58,10 @@ Apply the [cross-module playbook](../../02_CLIENT_DEMO_PLAYBOOK.md) and [39-modu
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] All 64 original stories and all 39 modules have a current unambiguous mapping/status with evidence.
-- [ ] No verified existing feature is reopened as missing solely because stale prose says so.
-- [ ] Presenter guide includes exact entry/context, actors, input, result and failure/rework for every module.
-- [ ] The handoff lists only actually observed checks and distinguishes frontend demo from production acceptance.
+- [x] All 64 original stories and all 39 modules have a current unambiguous mapping/status with evidence.
+- [x] No verified existing feature is reopened as missing solely because stale prose says so.
+- [x] Presenter guide includes exact entry/context, actors, input, result and failure/rework for every module.
+- [x] The handoff lists only actually observed checks and distinguishes frontend demo from production acceptance.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence

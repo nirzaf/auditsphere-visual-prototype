@@ -468,9 +468,10 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
                           <div>
                             <b>{ref}</b>
                             <div className="cell-sub">Document v{wp.evidenceRevisions?.[ref] ?? state.documents.find(d => d.id === ref)?.version ?? 'unknown'} · {state.documents.find(d => d.id === ref)?.sha ? 'Recorded SHA-256 for in-session source file' : 'Sample evidence metadata · original bytes not available'}</div>
+                            {state.documents.find(d => d.id === ref)?.brokenLink && <div className="tag red" role="status">Reference unavailable</div>}
                           </div>
                         </div>
-                        <span className="badge green">Adequate</span>
+                        {state.documents.find(d => d.id === ref)?.brokenLink ? <span className="badge red">Unavailable</span> : <span className="badge green">Adequate</span>}
                         <button className="btn sm ghost" aria-label={`Unpin ${ref} from ${wp.id}`} onClick={() => handleUnlinkEvidence(ref)}>Unpin</button>
                       </div>
                     ))

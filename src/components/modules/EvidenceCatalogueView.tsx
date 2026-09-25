@@ -21,6 +21,7 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
     }
     return undefined;
   };
+  const pinnedDocument = (documentId: string) => state.documents.find(doc => doc.id === documentId);
   const linkableProcedures = (item: EvidenceItem): AuditProcedureItem[] => {
     const document = state.documents.find(doc => doc.id === item.documentId);
     if (!document || document.version !== item.version || item.adequacyStatus !== 'Adequate') return [];
@@ -128,7 +129,7 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                   </td>
                   <td>
                     <span className="mono">{item.documentId}</span>
-                    <div className="cell-sub">Pinned v{item.version}{(latestDocument(item.documentId)?.version ?? item.version) > item.version && <span className="tag amber"> Newer version available</span>}</div>
+                    <div className="cell-sub">Pinned v{item.version}{pinnedDocument(item.documentId)?.brokenLink && <span className="tag red" role="status"> Reference unavailable</span>}{(latestDocument(item.documentId)?.version ?? item.version) > item.version && <span className="tag amber"> Newer version available</span>}</div>
                   </td>
                   <td>{item.provider || item.owner}</td>
                   <td><span className="mono" style={{ fontSize: 10 }}>{item.sha ? `${item.sha.slice(0, 16)}…` : 'No file digest recorded'}</span></td>
@@ -146,13 +147,14 @@ export const EvidenceCatalogueView: React.FC<EvidenceCatalogueViewProps> = ({ on
                     </div>}
                   </td>
                   <td>
-                    <span className={`badge ${item.adequacyStatus === 'Adequate' ? 'green' : 'amber'}`}>
-                      {item.adequacyStatus}
+                    <span className={`badge ${pinnedDocument(item.documentId)?.brokenLink ? 'red' : item.adequacyStatus === 'Adequate' ? 'green' : 'amber'}`}>
+                      {pinnedDocument(item.documentId)?.brokenLink ? 'Unavailable' : item.adequacyStatus}
                     </span>
                   </td>
                   <td>
                     <button
                       className="btn sm ghost"
+                      disabled={!!pinnedDocument(item.documentId)?.brokenLink}
                       onClick={() => handleToggleAdequacy(item.id, item.adequacyStatus)}
                     >
                       {item.adequacyStatus === 'Adequate' ? 'Flag Deficient' : 'Mark Adequate'}

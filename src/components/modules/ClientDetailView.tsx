@@ -604,7 +604,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                     <td>{p.category}</td>
                     <td>{p.due}</td>
                     <td><span className={`badge ${p.status === 'Accepted' ? 'green' : p.status === 'Received' ? 'blue' : 'amber'}`}>{p.status}</span></td>
-                    <td>{p.file || 'Awaiting upload'}</td>
+                    <td>{p.file || 'Awaiting upload'}{state.documents.some(document => document.linkedPbcId === p.id && document.clientId === client.id && document.engagementId === p.engagementId && document.brokenLink) && <div className="tag red" role="status">Reference unavailable</div>}</td>
                     <td>
                       <div className="row" style={{ gap: 6 }}>
                         {p.status === 'Draft' && <button className="btn sm" onClick={() => handlePresentPbc(p.engagementId, p.id)}>Present request</button>}

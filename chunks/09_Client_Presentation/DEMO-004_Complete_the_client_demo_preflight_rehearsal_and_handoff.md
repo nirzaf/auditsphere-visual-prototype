@@ -59,10 +59,10 @@ Apply the [cross-module playbook](../../02_CLIENT_DEMO_PLAYBOOK.md) and [39-modu
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Every module has a module-demo outcome: demonstrated, blocked, deliberately omitted with reason, or not run.
-- [ ] The selected live agenda contains no unannounced broken or unsupported action; deferred paths are explicitly excluded from that agenda.
-- [ ] A presenter can explain how to use each included module and correctly distinguish every role handoff and simulated provider outcome.
-- [ ] Client-demo readiness is separate from complete VP acceptance, live deployment authorization and production/professional readiness.
+- [x] Every module has a module-demo outcome: demonstrated, blocked, deliberately omitted with reason, or not run.
+- [x] The selected live agenda contains no unannounced broken or unsupported action; deferred paths are explicitly excluded from that agenda.
+- [x] A presenter can explain how to use each included module and correctly distinguish every role handoff and simulated provider outcome.
+- [x] Client-demo readiness is separate from complete VP acceptance, live deployment authorization and production/professional readiness.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
