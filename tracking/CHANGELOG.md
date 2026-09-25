@@ -100,3 +100,186 @@ Status changes made with the helper append below. This history is not the source
 | 2026-09-25T12:21:21+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending |
 | 2026-09-25T12:23:26+00:00 | VP-063: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
 | 2026-09-25T12:23:26+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | 64-story reconciliation table appended to tracking/ACCEPTANCE_EVIDENCE.md at 2e466d2; every story accounted for with observed basis; reviewer sign-off pending |
+| 2026-09-25T13:05:51+00:00 | VP-001: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:51+00:00 | VP-001: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:51+00:00 | VP-001: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:51+00:00 | VP-005: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:51+00:00 | VP-005: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:51+00:00 | VP-005: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:51+00:00 | VP-006: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:52+00:00 | VP-006: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:52+00:00 | VP-006: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:52+00:00 | VP-007: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:52+00:00 | VP-007: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:52+00:00 | VP-007: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:52+00:00 | VP-008: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:53+00:00 | VP-008: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:53+00:00 | VP-008: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:53+00:00 | VP-010: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:53+00:00 | VP-010: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:53+00:00 | VP-010: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:53+00:00 | VP-011: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:54+00:00 | VP-011: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:54+00:00 | VP-011: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:54+00:00 | VP-012: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:54+00:00 | VP-012: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:54+00:00 | VP-012: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:55+00:00 | VP-013: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:55+00:00 | VP-013: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:55+00:00 | VP-013: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:55+00:00 | VP-015: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:55+00:00 | VP-015: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:56+00:00 | VP-015: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:56+00:00 | VP-016: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:56+00:00 | VP-016: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:56+00:00 | VP-016: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:56+00:00 | VP-017: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:57+00:00 | VP-017: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:57+00:00 | VP-017: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:57+00:00 | VP-019: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | See card evidence |
+| 2026-09-25T13:05:57+00:00 | VP-019: IN_REVIEW → COMPLETED | M.F.M Fazrin | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:57+00:00 | VP-020: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:57+00:00 | VP-020: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:58+00:00 | VP-020: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:58+00:00 | VP-021: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:58+00:00 | VP-021: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:58+00:00 | VP-021: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:05:59+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:59+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:59+00:00 | VP-023: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:59+00:00 | VP-023: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:05:59+00:00 | VP-023: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:00+00:00 | VP-024: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:00+00:00 | VP-024: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:00+00:00 | VP-024: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:00+00:00 | VP-025: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:01+00:00 | VP-025: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:01+00:00 | VP-025: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:01+00:00 | VP-026: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:01+00:00 | VP-026: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:02+00:00 | VP-026: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:02+00:00 | VP-027: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:02+00:00 | VP-027: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:02+00:00 | VP-027: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:02+00:00 | VP-028: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:03+00:00 | VP-028: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:03+00:00 | VP-028: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:03+00:00 | VP-029: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:03+00:00 | VP-029: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:04+00:00 | VP-029: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:04+00:00 | VP-030: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:04+00:00 | VP-030: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:04+00:00 | VP-030: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:05+00:00 | VP-031: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:05+00:00 | VP-031: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:05+00:00 | VP-031: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:05+00:00 | VP-032: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:05+00:00 | VP-032: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:06+00:00 | VP-032: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:06+00:00 | VP-033: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:06+00:00 | VP-033: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:06+00:00 | VP-033: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:06+00:00 | VP-034: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:07+00:00 | VP-034: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:07+00:00 | VP-034: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:07+00:00 | VP-036: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:07+00:00 | VP-036: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:07+00:00 | VP-036: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:08+00:00 | VP-038: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:08+00:00 | VP-038: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:08+00:00 | VP-038: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:08+00:00 | VP-039: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:09+00:00 | VP-039: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:09+00:00 | VP-039: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:09+00:00 | VP-040: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:09+00:00 | VP-040: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:09+00:00 | VP-040: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:10+00:00 | VP-041: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:10+00:00 | VP-041: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:10+00:00 | VP-041: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:10+00:00 | VP-042: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:10+00:00 | VP-042: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:11+00:00 | VP-042: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:11+00:00 | VP-044: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:11+00:00 | VP-044: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:11+00:00 | VP-044: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:12+00:00 | VP-045: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:12+00:00 | VP-045: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:12+00:00 | VP-045: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:12+00:00 | VP-046: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:12+00:00 | VP-046: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:13+00:00 | VP-046: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:13+00:00 | VP-048: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:13+00:00 | VP-048: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:13+00:00 | VP-048: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:13+00:00 | VP-049: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:14+00:00 | VP-049: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:14+00:00 | VP-049: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:14+00:00 | VP-050: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:14+00:00 | VP-050: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:14+00:00 | VP-050: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:15+00:00 | VP-054: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:15+00:00 | VP-054: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:15+00:00 | VP-054: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:15+00:00 | VP-061: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:16+00:00 | VP-061: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:16+00:00 | VP-061: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:16+00:00 | VP-062: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:16+00:00 | VP-062: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:16+00:00 | VP-062: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:17+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:17+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:17+00:00 | VP-002: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:17+00:00 | VP-002: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:18+00:00 | VP-002: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:18+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:18+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:18+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:19+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:19+00:00 | VP-003: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:19+00:00 | VP-003: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:19+00:00 | VP-003: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:20+00:00 | VP-004: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:20+00:00 | VP-004: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:20+00:00 | VP-004: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:20+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:20+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:21+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:21+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:21+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:21+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:22+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:22+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:22+00:00 | DEMO-001: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:22+00:00 | DEMO-001: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:22+00:00 | DEMO-001: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:23+00:00 | DEMO-003: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:23+00:00 | DEMO-003: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:23+00:00 | DEMO-003: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:23+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:23+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:24+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:24+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:24+00:00 | DEMO-002: BLOCKED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:24+00:00 | DEMO-002: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:25+00:00 | DEMO-002: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:25+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:25+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:25+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:26+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:26+00:00 | DEMO-004: NOT_STARTED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:26+00:00 | DEMO-004: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:26+00:00 | DEMO-004: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:06:27+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:27+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:27+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:06:27+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:17+00:00 | VP-022: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:17+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:17+00:00 | VP-022: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:07:18+00:00 | VP-063: IN_REVIEW → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:18+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:18+00:00 | VP-063: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |
+| 2026-09-25T13:07:18+00:00 | VP-064: NOT_STARTED → IN_PROGRESS | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:18+00:00 | VP-064: IN_PROGRESS → IN_REVIEW | ZCode agent (directed by M.F.M Fazrin) | See card evidence |
+| 2026-09-25T13:07:18+00:00 | VP-064: IN_REVIEW → COMPLETED | ZCode agent (directed by M.F.M Fazrin) | Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes |

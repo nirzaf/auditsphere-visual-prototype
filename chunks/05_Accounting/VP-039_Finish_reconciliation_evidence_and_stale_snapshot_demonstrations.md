@@ -1,18 +1,18 @@
 ---
 id: "VP-039"
 title: "Finish reconciliation evidence and stale-snapshot demonstrations"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-039"]
 modules: ["MOD-23"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T11:20:06+00:00"
+updated_at: "2026-09-25T13:06:09+00:00"
 ---
 
 # VP-039 — Finish reconciliation evidence and stale-snapshot demonstrations

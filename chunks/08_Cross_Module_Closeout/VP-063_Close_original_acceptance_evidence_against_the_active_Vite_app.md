@@ -1,18 +1,18 @@
 ---
 id: "VP-063"
 title: "Close original acceptance evidence against the active Vite app"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-063"]
 modules: ["MOD-01", "MOD-02", "MOD-03", "MOD-04", "MOD-05", "MOD-06", "MOD-07", "MOD-08", "MOD-09", "MOD-10", "MOD-11", "MOD-12", "MOD-13", "MOD-14", "MOD-15", "MOD-16", "MOD-17", "MOD-18", "MOD-19", "MOD-20", "MOD-21", "MOD-22", "MOD-23", "MOD-24", "MOD-25", "MOD-26", "MOD-27", "MOD-28", "MOD-29", "MOD-30", "MOD-31", "MOD-32", "MOD-33", "MOD-34", "MOD-35", "MOD-36", "MOD-37", "MOD-38", "MOD-39"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "64-story reconciliation table appended to tracking/ACCEPTANCE_EVIDENCE.md at 2e466d2; every story accounted for with observed basis; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T12:23:26+00:00"
+updated_at: "2026-09-25T13:07:18+00:00"
 ---
 
 # VP-063 — Close original acceptance evidence against the active Vite app
@@ -57,10 +57,10 @@ Apply the [cross-module playbook](../../02_CLIENT_DEMO_PLAYBOOK.md) and [39-modu
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Every original criterion is accounted for as observed pass, fail, blocked or not run with a precise reason.
-- [ ] A test-name/AT mention never substitutes for matching expected outcomes.
-- [ ] Current-app tests use the actual Vite build and isolated synthetic data.
-- [ ] No live M365/email/payment/AI or production AuditSphere action is performed.
+- [x] Every original criterion is accounted for as observed pass, fail, blocked or not run with a precise reason.
+- [x] A test-name/AT mention never substitutes for matching expected outcomes.
+- [x] Current-app tests use the actual Vite build and isolated synthetic data.
+- [x] No live M365/email/payment/AI or production AuditSphere action is performed.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence

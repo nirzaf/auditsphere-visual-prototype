@@ -1,18 +1,18 @@
 ---
 id: "VP-022"
 title: "Finish simulated provider failure and reconnect paths"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-022"]
 modules: ["MOD-18"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T12:21:21+00:00"
+updated_at: "2026-09-25T13:07:17+00:00"
 ---
 
 # VP-022 — Finish simulated provider failure and reconnect paths
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Provider-dependent controls reflect disconnected/stale status.
-- [ ] Existing local business work remains usable where unrelated.
-- [ ] Old verification cannot silently validate new settings.
-- [ ] No real provider request or automatic retry occurs.
+- [x] Provider-dependent controls reflect disconnected/stale status.
+- [x] Existing local business work remains usable where unrelated.
+- [x] Old verification cannot silently validate new settings.
+- [x] No real provider request or automatic retry occurs.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence

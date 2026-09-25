@@ -1,18 +1,18 @@
 ---
 id: "VP-023"
 title: "Complete request editing, reassignment and cancellation"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "IMPLEMENT_OR_VERIFY"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-023"]
 modules: ["MOD-09"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Implemented + unit-verified (196/196); E2E run 82/83 with the single failure in another agent's in-flight journey edits; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T11:15:51+00:00"
+updated_at: "2026-09-25T13:05:59+00:00"
 ---
 
 # VP-023 — Complete request editing, reassignment and cancellation

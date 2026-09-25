@@ -1,18 +1,18 @@
 ---
 id: "DEMO-003"
 title: "Rehearse client-facing visual, responsive and keyboard usability"
-status: "BLOCKED"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "PROPOSED_PRESENTATION_WORK"
 source_stories: ["VP-003", "VP-063", "VP-064"]
 modules: ["MOD-01", "MOD-02", "MOD-03", "MOD-04", "MOD-05", "MOD-06", "MOD-07", "MOD-08", "MOD-09", "MOD-10", "MOD-11", "MOD-12", "MOD-13", "MOD-14", "MOD-15", "MOD-16", "MOD-17", "MOD-18", "MOD-19", "MOD-20", "MOD-21", "MOD-22", "MOD-23", "MOD-24", "MOD-25", "MOD-26", "MOD-27", "MOD-28", "MOD-29", "MOD-30", "MOD-31", "MOD-32", "MOD-33", "MOD-34", "MOD-35", "MOD-36", "MOD-37", "MOD-38", "MOD-39"]
 depends_on: ["VP-003"]
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: ""
-blocked_reason: "Implementation and rehearsal evidence are complete (see card + verification record 2026-09-25); transition gated by upstream VP-003 awaiting the VP-001/VP-002 reviewer sign-off chain"
-updated_at: "2026-09-24T22:39:07+00:00"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
+blocked_reason: ""
+updated_at: "2026-09-25T13:06:23+00:00"
 ---
 
 # DEMO-003 — Rehearse client-facing visual, responsive and keyboard usability

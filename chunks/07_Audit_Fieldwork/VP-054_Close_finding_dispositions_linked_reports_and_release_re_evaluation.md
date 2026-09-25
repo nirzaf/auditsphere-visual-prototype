@@ -1,18 +1,18 @@
 ---
 id: "VP-054"
 title: "Close finding dispositions, linked reports and release re-evaluation"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-054"]
 modules: ["MOD-34"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T11:22:09+00:00"
+updated_at: "2026-09-25T13:06:15+00:00"
 ---
 
 # VP-054 — Close finding dispositions, linked reports and release re-evaluation

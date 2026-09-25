@@ -1,7 +1,7 @@
 ---
 id: "VP-019"
 title: "Close professional-role, expiry and group-scope demonstrations"
-status: "IN_PROGRESS"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
@@ -9,10 +9,10 @@ source_stories: ["VP-019"]
 modules: ["MOD-19", "MOD-39"]
 depends_on: []
 owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T11:20:11+00:00"
+updated_at: "2026-09-25T13:05:57+00:00"
 ---
 
 # VP-019 — Close professional-role, expiry and group-scope demonstrations

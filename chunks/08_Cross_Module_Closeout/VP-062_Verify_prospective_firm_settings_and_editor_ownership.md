@@ -1,18 +1,18 @@
 ---
 id: "VP-062"
 title: "Verify prospective firm settings and editor ownership"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-062"]
 modules: ["MOD-39"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T11:22:11+00:00"
+updated_at: "2026-09-25T13:06:16+00:00"
 ---
 
 # VP-062 — Verify prospective firm settings and editor ownership

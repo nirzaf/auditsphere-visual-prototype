@@ -1,18 +1,18 @@
 ---
 id: "VP-017"
 title: "Complete the Microsoft setup wizard demonstration"
-status: "IN_REVIEW"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-017"]
 modules: ["MOD-18"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: "Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
 blocked_reason: ""
-updated_at: "2026-09-25T12:21:19+00:00"
+updated_at: "2026-09-25T13:05:57+00:00"
 ---
 
 # VP-017 — Complete the Microsoft setup wizard demonstration

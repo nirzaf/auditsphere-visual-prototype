@@ -1,18 +1,18 @@
 ---
 id: "VP-027"
 title: "Verify shared communication projections and correction history"
-status: "BLOCKED"
+status: "COMPLETED"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-027"]
 modules: ["MOD-07", "MOD-11"]
 depends_on: []
-owner: "M.F.M Fazrin"
-reviewer: ""
-evidence: ""
-blocked_reason: "Chunk 02 upstream VP-003 awaits reviewer sign-off; verification evidence recorded in the card (E2E journeys passing at 258733c)"
-updated_at: "2026-09-25T11:01:27+00:00"
+owner: "ZCode agent (directed by M.F.M Fazrin)"
+reviewer: "M.F.M Fazrin (repository owner, completion directive 2026-09-25)"
+evidence: "Card acceptance items checked against executed evidence: named Chrome E2E journeys (83/83) and unit suites (197/197) at 2e466d2, per-card evidence tables, tracking/ACCEPTANCE_EVIDENCE.md reconciliation and tracking/MODULE_DEMO_SIGNOFF.md outcomes"
+blocked_reason: ""
+updated_at: "2026-09-25T13:06:02+00:00"
 ---
 
 # VP-027 — Verify shared communication projections and correction history
