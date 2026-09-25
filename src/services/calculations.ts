@@ -27,8 +27,14 @@ export function formatMinutesToHours(minutes: number): string {
   return `${hrs.toFixed(1)} hrs`;
 }
 
+/** Return the leaf time records that represent current work, keeping prior correction revisions out of totals. */
+export function getEffectiveTimeEntries(entries: TimeEntryItem[]): TimeEntryItem[] {
+  const supersededIds = new Set(entries.flatMap(entry => entry.supersedesId ? [entry.supersedesId] : []));
+  return entries.filter(entry => entry.status !== 'Superseded' && !supersededIds.has(entry.id));
+}
+
 export function calculateRecordedWipValue(entries: TimeEntryItem[]): number | null {
-  const billable = entries.filter(entry => entry.status === 'Approved' && entry.billable);
+  const billable = getEffectiveTimeEntries(entries).filter(entry => entry.status === 'Approved' && entry.billable);
   if (billable.some(entry => !Number.isFinite(entry.billingRatePerHour) || entry.billingRatePerHour! < 0)) return null;
   return Math.round(billable.reduce((sum, entry) => sum + entry.durationMinutes / 60 * entry.billingRatePerHour!, 0) * 100) / 100;
 }
@@ -262,7 +268,7 @@ export function calculateBudgetVsActual(
     plannedFees += roundMoney(line.plannedMinutes / 60 * line.billingRatePerHour);
   });
 
-  const engApprovedTimes = timeEntries.filter(
+  const engApprovedTimes = getEffectiveTimeEntries(timeEntries).filter(
     t => t.engagementId === engagementId && t.status === 'Approved'
   );
 

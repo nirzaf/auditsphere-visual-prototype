@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, InvoiceRecord, InvoiceLineItem, CreditNoteRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { formatCurrency } from '../../services/calculations';
+import { formatCurrency, getEffectiveTimeEntries } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
@@ -17,6 +17,8 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedTimeSourceIds, setSelectedTimeSourceIds] = useState<string[]>([]);
   const [selectedFixedServiceSource, setSelectedFixedServiceSource] = useState(false);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [invoiceEditReason, setInvoiceEditReason] = useState('');
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [editingCreditId, setEditingCreditId] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   // Credit note form
   const [creditAmount, setCreditAmount] = useState(25000);
   const [creditReason, setCreditReason] = useState('Commercial fee adjustment approved by partner');
-  const invoiceDraft = { invNumber, description, amount, additionalLines, due, selectedTimeSourceIds, selectedFixedServiceSource };
+  const invoiceDraft = { invNumber, description, amount, additionalLines, due, selectedTimeSourceIds, selectedFixedServiceSource, editingInvoiceId, invoiceEditReason };
   const initialInvoiceDraft = useRef(JSON.stringify(invoiceDraft));
   const creditDraft = { creditAmount, creditReason };
   const initialCreditDraft = useRef(JSON.stringify(creditDraft));
@@ -41,7 +43,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const selectedEngagement = state.engagements.find(e => e.id === state.selectedEngagement);
   const client = state.clients.find(c => c.id === selectedEngagement?.client);
   const currency = selectedEngagement?.currency || 'QAR';
-  const availableTimeSources = state.times.filter(time =>
+  const availableTimeSources = getEffectiveTimeEntries(state.times).filter(time =>
     time.status === 'Approved' && time.billable && !time.supersedesId && !time.billedInvoiceId &&
     time.clientId === client?.id && time.engagementId === selectedEngagement?.id &&
     time.currency === selectedEngagement?.currency && Number.isFinite(time.billingRatePerHour) && (time.billingRatePerHour || 0) > 0 &&
@@ -59,8 +61,12 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
 
   const saveInvoiceDraft = () => {
     if (!showDraftModal) return true;
+    const previousRevision = editingInvoiceId ? state.invoices.find(item => item.id === editingInvoiceId)?.revision || 1 : undefined;
     handleCreateDraft(new Event('submit') as unknown as React.FormEvent);
-    const saved = prototypeStore.getSnapshot().invoices.length > invoices.length;
+    const latest = prototypeStore.getSnapshot();
+    const saved = editingInvoiceId
+      ? (latest.invoices.find(item => item.id === editingInvoiceId)?.revision || 1) > (previousRevision || 1)
+      : latest.invoices.length > invoices.length;
     if (saved) initialInvoiceDraft.current = JSON.stringify(invoiceDraft);
     return saved;
   };
@@ -118,37 +124,43 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     }
     const adHocTotal = lines.filter(line => line.sourceType === 'Ad hoc').reduce((sum, line) => sum + line.amount, 0);
 
+    const originalInvoice = editingInvoiceId ? state.invoices.find(item => item.id === editingInvoiceId) : undefined;
     const newInv: InvoiceRecord = {
-      id: `INV-${Date.now().toString().slice(-4)}`,
-      clientId: client?.id || 'CL-001',
-      eng: state.selectedEngagement,
-      engagementId: state.selectedEngagement,
+      id: originalInvoice?.id || `INV-${Date.now().toString().slice(-4)}`,
+      clientId: originalInvoice?.clientId || client?.id || 'CL-001',
+      eng: originalInvoice?.eng || state.selectedEngagement,
+      engagementId: originalInvoice?.engagementId || state.selectedEngagement,
       invoiceNumber: invNumber,
       description: hasSources ? `Approved source billing · ${lines.length} lines` : description,
       amount: hasSources ? sourcedTotal : adHocTotal,
-      paid: 0,
-      creditsApplied: 0,
-      currency,
-      billingDetails: client ? {
+      paid: originalInvoice?.paid || 0,
+      creditsApplied: originalInvoice?.creditsApplied || 0,
+      currency: originalInvoice?.currency || currency,
+      billingDetails: originalInvoice?.billingDetails || (client ? {
         accountName: client.name,
         contactName: client.contact,
         email: client.email,
         phone: client.phone,
         address: client.address,
         registrationNumber: client.registrationNumber
-      } : undefined,
+      } : undefined),
       issueDate: new Date().toISOString().split('T')[0],
       due,
       status: 'Draft',
-      preparedBy: state.currentPerson,
+      preparedBy: originalInvoice?.preparedBy || state.currentPerson,
       lines
     };
 
     try {
-      prototypeStore.addInvoice(newInv);
+      if (originalInvoice) {
+        prototypeStore.reviseInvoiceDraft(originalInvoice.id, { description: newInv.description, due: newInv.due, amount: newInv.amount, lines: newInv.lines, reason: invoiceEditReason });
+        setNotice({ type: 'success', text: `Invoice ${originalInvoice.invoiceNumber} saved as revision ${(originalInvoice.revision || 1) + 1}; independent review is required again.` });
+      } else prototypeStore.addInvoice(newInv);
       setSelectedTimeSourceIds([]);
       setSelectedFixedServiceSource(false);
       setShowDraftModal(false);
+      setEditingInvoiceId(null);
+      setInvoiceEditReason('');
     } catch (err: any) {
       setNotice({ type: 'error', text: err.message });
     }
@@ -167,6 +179,22 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
 
   const handleIssue = (inv: InvoiceRecord) => {
     prototypeStore.issueInvoice(inv.id);
+  };
+
+  const canReviseAdHocInvoice = (inv: InvoiceRecord) => inv.lines.length > 0 && inv.lines[0].quantity === 1 && inv.lines.every(line => line.sourceType === 'Ad hoc');
+
+  const handleReviseInvoice = (inv: InvoiceRecord) => {
+    if (!canReviseAdHocInvoice(inv)) return;
+    setEditingInvoiceId(inv.id);
+    setInvNumber(inv.invoiceNumber);
+    setDescription(inv.lines[0]?.description || inv.description);
+    setAmount(inv.lines[0]?.amount || inv.amount);
+    setAdditionalLines(inv.lines.slice(1).map(line => ({ description: line.description, quantity: line.quantity, rate: line.rate })));
+    setDue(inv.due);
+    setSelectedTimeSourceIds([]);
+    setSelectedFixedServiceSource(false);
+    setInvoiceEditReason('');
+    setShowDraftModal(true);
   };
 
   const handleCancelDraft = (inv: InvoiceRecord) => {
@@ -271,7 +299,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
           <h1>Billing, Invoicing & Credit Notes</h1>
           <p>Multi-currency professional fee invoicing, independent approval, and local PDF billing records.</p>
         </div>
-        <button className="btn primary sm" onClick={() => { setAdditionalLines([]); setShowDraftModal(true); }}>
+        <button className="btn primary sm" onClick={() => { setEditingInvoiceId(null); setInvoiceEditReason(''); setAdditionalLines([]); setInvNumber(`INV-2600${state.invoices.length + 1}`); setShowDraftModal(true); }}>
           <Icon name="plus" /> Draft New Invoice
         </button>
       </div>
@@ -330,17 +358,16 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                         </button>
                         {inv.status === 'Draft' && (
                           <>
+                            {canReviseAdHocInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Edit</button>}
                             <button className="btn sm ghost" onClick={() => handleApprove(inv)}>Approve</button>
                             {['billing', 'manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
                           </>
                         )}
                         {inv.status === 'Approved' && (
-                          <button
-                            className="btn sm primary"
-                            onClick={() => handleIssue(inv)}
-                          >
-                            Issue
-                          </button>
+                          <>
+                            {canReviseAdHocInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Revise</button>}
+                            <button className="btn sm primary" onClick={() => handleIssue(inv)}>Issue</button>
+                          </>
                         )}
                         {inv.status === 'Issued' && outstanding > 0 && (
                           <button
@@ -417,12 +444,12 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
         <div className="modal-backdrop" onClick={() => setShowDraftModal(false)}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Draft Fee Invoice</h2>
+              <h2>{editingInvoiceId ? `Revise Invoice ${invNumber}` : 'Draft Fee Invoice'}</h2>
               <button className="icon-btn" onClick={() => setShowDraftModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateDraft}>
               <div className="modal-body stack" style={{ gap: 12 }}>
-                <fieldset className="stack" style={{ gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                {!editingInvoiceId && <fieldset className="stack" style={{ gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
                   <legend className="caption">Approved billable time (optional)</legend>
                   {availableTimeSources.length === 0 ? <div className="caption">No unbilled approved time with a pinned rate for this engagement.</div> : availableTimeSources.map(time => (
                     <label key={time.id} className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
@@ -435,7 +462,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                     <b>{formatCurrency(fixedServiceRemaining, acceptedProposal.currency)}</b>
                   </label>}
                   {hasSources && <div className="caption">Sources are pinned to this draft; duplicate or over-contract billing is rejected. Total: <b>{formatCurrency(sourcedTotal, selectedTimeSources[0]?.currency || acceptedProposal?.currency || currency)}</b></div>}
-                </fieldset>
+                </fieldset>}
                 {client && <fieldset className="stack" style={{ gap: 4, border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
                   <legend className="caption">Bill to — client profile snapshot</legend>
                   <b>{client.name}</b>
@@ -454,6 +481,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                       className="input"
                       value={invNumber}
                       onChange={e => setInvNumber(e.target.value)}
+                      disabled={Boolean(editingInvoiceId)}
                       required
                     />
                   </div>
@@ -512,10 +540,15 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   <button className="btn sm" type="button" onClick={() => setAdditionalLines(lines => [...lines, { description: '', quantity: 1, rate: 0 }])}>Add ad-hoc line</button>
                   {additionalLines.length > 0 && <b>Ad-hoc total: {formatCurrency(Math.round((amount + additionalLines.reduce((sum, line) => sum + line.quantity * line.rate, 0)) * 100) / 100, currency)}</b>}
                 </div>}
+                {editingInvoiceId && <div>
+                  <label className="caption" htmlFor="invoice-revision-reason">Reason for invoice revision</label>
+                  <textarea id="invoice-revision-reason" className="input" value={invoiceEditReason} onChange={e => setInvoiceEditReason(e.target.value)} maxLength={500} required />
+                  <p className="caption">Saving creates a new draft revision and clears the prior approval. Issued invoices cannot be edited; source-linked time and fixed-fee lines stay pinned.</p>
+                </div>}
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowDraftModal(false)}>Cancel</button>
-                <button type="submit" className="btn primary sm">Create Draft</button>
+                <button type="button" className="btn ghost sm" onClick={() => { setShowDraftModal(false); setEditingInvoiceId(null); setInvoiceEditReason(''); }}>Cancel</button>
+                <button type="submit" className="btn primary sm">{editingInvoiceId ? 'Save Invoice Revision' : 'Create Draft'}</button>
               </div>
             </form>
           </div>

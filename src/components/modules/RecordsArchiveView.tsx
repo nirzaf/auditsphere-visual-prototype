@@ -271,6 +271,7 @@ export const RecordsArchiveView: React.FC<RecordsArchiveViewProps> = ({ onNaviga
                 <div>
                   <label className="caption">Retention Until (Optional)</label>
                   <input
+                    aria-label="Retention until date"
                     type="date"
                     className="input"
                     value={retentionYear}

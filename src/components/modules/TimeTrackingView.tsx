@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { formatMinutesToHours } from '../../services/calculations';
+import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface TimeTrackingViewProps {
@@ -31,6 +31,10 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
   const returnBaseline = useRef('');
 
   const times = state.times;
+  const effectiveTimes = getEffectiveTimeEntries(times);
+  const billingImpactInvoices = entryToRevise?.mode === 'approved'
+    ? state.invoices.filter(invoice => invoice.id === entryToRevise.entry.billedInvoiceId || invoice.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === entryToRevise.entry.id))
+    : [];
 
   const saveTimeDraft = () => {
     try {
@@ -45,7 +49,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
           clientId: state.engagements[0]?.client || 'CL-001',
           engagementId: state.selectedEngagement,
           taskTitle,
-          date: new Date().toISOString().split('T')[0],
+          date: state.asOfDate,
           durationMinutes: minutes,
           billable,
           activity,
@@ -128,8 +132,8 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
     setReturnReason('');
   };
 
-  const totalMinutes = times.reduce((s, t) => s + t.durationMinutes, 0);
-  const approvedMinutes = times.reduce((s, t) => s + (t.status === 'Approved' ? t.durationMinutes : 0), 0);
+  const totalMinutes = effectiveTimes.reduce((s, t) => s + t.durationMinutes, 0);
+  const approvedMinutes = effectiveTimes.reduce((s, t) => s + (t.status === 'Approved' ? t.durationMinutes : 0), 0);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -170,7 +174,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
       <div className="panel">
         <div className="panel-head">
           <h3>Practice Timesheet Register ({times.length})</h3>
-          <span className="caption">Separation of duties: Reviewer cannot approve own entries</span>
+          <span className="caption">Totals exclude superseded corrections; prior revisions remain listed. Reviewer cannot approve own entries.</span>
         </div>
         <div className="tablewrap">
           <table>
@@ -258,6 +262,9 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
               <h2>{entryToRevise?.mode === 'approved' ? 'Correct Approved Time' : entryToRevise ? 'Resubmit Returned Time' : 'Record Time Entry'}</h2>
               <button className="icon-btn" onClick={discardTimeDraft}>✕</button>
             </div>
+            {billingImpactInvoices.length > 0 && <div className="badge amber" role="status" style={{ margin: '12px 20px 0', padding: '10px 12px', lineHeight: 1.5 }}>
+              Billing impact: this approved time is linked to {billingImpactInvoices.map(invoice => `${invoice.invoiceNumber || invoice.id} (${invoice.status}, ${formatCurrency(invoice.amount, invoice.currency)})`).join(', ')}. This correction creates a separate time revision and does not change or reissue those invoices. Review any billing adjustment separately.
+            </div>}
             <form onSubmit={handleAddTime}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div className="grid2">

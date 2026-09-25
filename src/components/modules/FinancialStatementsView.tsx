@@ -1,6 +1,6 @@
 // Module 24: Financial Statements Generation & Export (VP-040, VP-041)
 import React, { useEffect, useRef, useState } from 'react';
-import { CashFlowScheduleRevision, RouteKey, TrialBalanceRow } from '../../types';
+import { CashFlowScheduleRevision, RouteKey, TrialBalanceRow, StatementLayoutRevision } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { applyReportingAdjustments, calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
@@ -19,6 +19,8 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const [comparativeEngagementId, setComparativeEngagementId] = useState('');
   const [, refreshRevisionHistory] = useState(0);
   const [revisionError, setRevisionError] = useState('');
+  const [layoutError, setLayoutError] = useState('');
+  const [layoutDraft, setLayoutDraft] = useState<{ lines: StatementLayoutRevision['lines']; subtotals: StatementLayoutRevision['subtotals'] }>({ lines: [], subtotals: [] });
   const [cashFlowError, setCashFlowError] = useState('');
   const latestCashFlow = state.engagements.find(e => e.id === state.selectedEngagement)?.cashFlowScheduleHistory?.at(-1);
   const [cashFlowDraft, setCashFlowDraft] = useState(() => ({
@@ -34,6 +36,14 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const client = state.clients.find(c => c.id === selectedEng?.client);
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id);
   const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
+  const canEditLayout = ['manager', 'preparer', 'partner'].includes(state.currentRole);
+  const layoutHistory = (state.statementLayoutRevisions || []).filter(item => item.engagementId === selectedEng?.id).sort((a, b) => b.revision - a.revision);
+  const latestLayout = layoutHistory[0];
+  const layoutVersion = latestLayout?.revision || 1;
+  useEffect(() => {
+    setLayoutDraft(latestLayout ? { lines: structuredClone(latestLayout.lines), subtotals: structuredClone(latestLayout.subtotals) } : { lines: [], subtotals: [] });
+    setLayoutError('');
+  }, [selectedEng?.id, latestLayout?.revision]);
   const saveCashFlow = () => {
     if (!selectedEng || !currentMapping) return false;
     try {
@@ -132,21 +142,36 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     const priorLineRows = priorRows.filter(row => row.mappedStatementLine === line);
     return {
       line,
+      statement: currentRows[0]?.type === 'asset' || currentRows[0]?.type === 'liability' || currentRows[0]?.type === 'equity' ? 'bs' as const : 'is' as const,
       current: currentRows.reduce((sum, row) => sum + comparisonAmount(row), 0),
       prior: priorLineRows.reduce((sum, row) => sum + comparisonAmount(row), 0),
       currentSources: currentRows.map(row => row.code.split(' → ')[0]).join(', '),
       priorSources: priorLineRows.map(row => row.code.split(' → ')[0]).join(', ')
     };
   });
+  const balanceSheetLines = new Set(['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment', 'Trade payables', 'Borrowings', 'Share capital and reserves']);
+  const defaultLayoutLines: StatementLayoutRevision['lines'] = comparisonLineRows.map((row, index) => ({ line: row.line, statement: balanceSheetLines.has(row.line) ? 'bs' : 'is', group: balanceSheetLines.has(row.line) ? 'Financial position' : 'Performance', order: index + 1 }));
+  const configuredLayoutLines = (layoutDraft.lines.length ? layoutDraft.lines : defaultLayoutLines).map(line => ({ ...line, group: line.group.trim() || (line.statement === 'bs' ? 'Financial position' : 'Performance') })).sort((a, b) => a.statement.localeCompare(b.statement) || a.order - b.order || a.line.localeCompare(b.line));
+  const orderedLineRows = configuredLayoutLines.flatMap(layout => { const row = comparisonLineRows.find(item => item.line === layout.line); return row ? [{ ...row, group: layout.group, order: layout.order }] : []; });
+  const configuredSubtotals = layoutDraft.subtotals.map(item => ({ ...item, lineNames: item.lineNames.map(line => line.trim()).filter(Boolean) }));
+  const subtotalRows = configuredSubtotals.map(item => ({ ...item, current: comparisonLineRows.filter(row => item.lineNames.includes(row.line) && row.statement === item.statement).reduce((sum, row) => sum + row.current, 0), comparative: comparativeReady ? comparisonLineRows.filter(row => item.lineNames.includes(row.line) && row.statement === item.statement).reduce((sum, row) => sum + row.prior, 0) : undefined }));
+  const saveLayoutRevision = () => {
+    if (!currentMapping || !mappingReady) return;
+    try {
+      setLayoutError('');
+      prototypeStore.saveStatementLayoutRevision({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping.revision, lines: configuredLayoutLines, subtotals: configuredSubtotals });
+      refreshRevisionHistory(value => value + 1);
+    } catch (error) { setLayoutError(error instanceof Error ? error.message : String(error)); }
+  };
   const statementHistory = (state.statementSetRevisions || []).filter(item => item.engagementId === selectedEng.id).sort((a, b) => b.revision - a.revision);
   const latestStatementRevision = statementHistory[0];
   const currentStatementTotals = { assets: bs.totalAssets, liabilities: bs.totalLiabilities, equity: bs.totalEquity, revenue: is.revenue, netProfit: is.netProfit };
   const comparativeStatementTotals = comparativeReady && priorBalanceSheet && priorIncomeStatement ? { assets: priorBalanceSheet.totalAssets, liabilities: priorBalanceSheet.totalLiabilities, equity: priorBalanceSheet.totalEquity, revenue: priorIncomeStatement.revenue, netProfit: priorIncomeStatement.netProfit } : undefined;
-  const revisionCurrent = Boolean(latestStatementRevision && latestStatementRevision.sourceVersion === selectedEng.sourceVersion && latestStatementRevision.mappingRevision === currentMapping?.revision && latestStatementRevision.comparativeEngagementId === (comparativeReady ? comparativeEngagement?.id : undefined) && latestStatementRevision.comparativeSourceVersion === (comparativeReady ? comparativeEngagement?.sourceVersion : undefined) && latestStatementRevision.comparativeMappingRevision === (comparativeReady ? priorMapping?.revision : undefined));
+  const revisionCurrent = Boolean(latestStatementRevision && latestStatementRevision.sourceVersion === selectedEng.sourceVersion && latestStatementRevision.mappingRevision === currentMapping?.revision && latestStatementRevision.layoutVersion === layoutVersion && latestStatementRevision.comparativeEngagementId === (comparativeReady ? comparativeEngagement?.id : undefined) && latestStatementRevision.comparativeSourceVersion === (comparativeReady ? comparativeEngagement?.sourceVersion : undefined) && latestStatementRevision.comparativeMappingRevision === (comparativeReady ? priorMapping?.revision : undefined));
   const saveStatementRevision = () => {
     try {
       setRevisionError('');
-      prototypeStore.saveStatementSetRevision({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, comparativeEngagementId: comparativeReady ? comparativeEngagement!.id : undefined, comparativeSourceVersion: comparativeReady ? comparativeEngagement!.sourceVersion : undefined, comparativeMappingRevision: comparativeReady ? priorMapping!.revision : undefined, layoutVersion: 1, totals: currentStatementTotals, comparativeTotals: comparativeStatementTotals, lines: comparisonLineRows.map(row => ({ line: row.line, current: row.current, comparative: comparativeReady ? row.prior : undefined, currentSources: row.currentSources.split(', ').filter(Boolean), comparativeSources: comparativeReady ? row.priorSources.split(', ').filter(Boolean) : [] })) });
+      prototypeStore.saveStatementSetRevision({ engagementId: selectedEng.id, sourceVersion: selectedEng.sourceVersion, mappingRevision: currentMapping!.revision, comparativeEngagementId: comparativeReady ? comparativeEngagement!.id : undefined, comparativeSourceVersion: comparativeReady ? comparativeEngagement!.sourceVersion : undefined, comparativeMappingRevision: comparativeReady ? priorMapping!.revision : undefined, layoutVersion, layout: configuredLayoutLines, subtotals: subtotalRows, totals: currentStatementTotals, comparativeTotals: comparativeStatementTotals, lines: orderedLineRows.map(row => ({ line: row.line, current: row.current, comparative: comparativeReady ? row.prior : undefined, currentSources: row.currentSources.split(', ').filter(Boolean), comparativeSources: comparativeReady ? row.priorSources.split(', ').filter(Boolean) : [] })) });
       refreshRevisionHistory(value => value + 1);
     } catch (error) { setRevisionError(error instanceof Error ? error.message : String(error)); }
   };
@@ -159,19 +184,21 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     const priorAmount = (value?: number) => comparativeReady ? value ?? 0 : 'Unavailable';
     const currentColumn = `Current FY${selectedEng.year} (${selectedEng.currency})`;
     const priorColumn = `Comparative FY${comparativeEngagement?.year ?? 'unavailable'} (${selectedEng.currency})`;
-    const pairedRow = (line: string, current: number, prior?: number, currentSources = '', priorSources = '') => ({
+    const pairedRow = (line: string, current: number, prior?: number, currentSources = '', priorSources = '', group = '') => ({
       LineItem: line,
       [currentColumn]: current,
       [priorColumn]: priorAmount(prior),
       'Current source accounts': currentSources,
-      'Comparative source accounts': comparativeReady ? priorSources : 'Unavailable'
+      'Comparative source accounts': comparativeReady ? priorSources : 'Unavailable',
+      Group: group
     });
     const data = [
       pairedRow('Total assets', bs.totalAssets, priorBalanceSheet?.totalAssets),
       pairedRow('Total liabilities', bs.totalLiabilities, priorBalanceSheet?.totalLiabilities),
       pairedRow('Total equity', bs.totalEquity, priorBalanceSheet?.totalEquity),
       pairedRow('Current-period result', bs.currentPeriodResult, priorBalanceSheet?.currentPeriodResult),
-      ...comparisonLineRows.map(row => pairedRow(row.line, row.current, row.prior, row.currentSources, row.priorSources)),
+      ...orderedLineRows.map(row => pairedRow(row.line, row.current, row.prior, row.currentSources, row.priorSources, row.group)),
+      ...subtotalRows.map(row => pairedRow(row.label, row.current, row.comparative, '', '', `Subtotal · ${row.statement === 'bs' ? 'Financial position' : 'Performance'}`)),
       pairedRow('Revenue', is.revenue, priorIncomeStatement?.revenue),
       pairedRow('Cost of sales', is.costOfSales, priorIncomeStatement?.costOfSales),
       pairedRow('Gross profit', is.grossProfit, priorIncomeStatement?.grossProfit),
@@ -205,6 +232,10 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
       `Gross Profit: ${formatCurrency(is.grossProfit)}`,
       `Operating Expenses: ${formatCurrency(is.operatingExpenses)}`,
       `Net Profit for the Year: ${formatCurrency(is.netProfit)}`,
+      '',
+      `CONFIGURED MAPPED STATEMENT LAYOUT · v${layoutVersion}`,
+      ...orderedLineRows.map(row => `${row.group} · ${row.line}: current ${formatCurrency(row.current)} [${row.currentSources}] · prior ${comparativeReady ? formatCurrency(row.prior) : 'Unavailable'} [${comparativeReady ? row.priorSources : 'Unavailable'}]`),
+      ...subtotalRows.map(row => `${row.label} (${row.statement === 'bs' ? 'Financial position' : 'Performance'}): current ${formatCurrency(row.current)} · prior ${row.comparative === undefined ? 'Unavailable' : formatCurrency(row.comparative)} · lines ${row.lineNames.join(', ')}`),
       '',
       comparativeReady ? `COMPARATIVE DETAIL · FY ${comparativeEngagement!.year}` : 'COMPARATIVE PERIOD UNAVAILABLE',
       ...(comparativeReady ? comparisonLineRows.map(row => `${row.line}: current ${formatCurrency(row.current)} [${row.currentSources}] · prior ${formatCurrency(row.prior)} [${row.priorSources}]`) : ['No comparative figures are substituted.'])
@@ -260,6 +291,39 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
           : priorBalanceSheet && priorIncomeStatement && <div className="tablewrap mt12"><table><thead><tr><th>Statement total</th><th>{selectedEng.year} current ({selectedEng.currency})</th><th>{comparativeEngagement.year} comparative ({selectedEng.currency})</th></tr></thead><tbody>
             {[["Total assets", bs.totalAssets, priorBalanceSheet.totalAssets], ["Total liabilities", bs.totalLiabilities, priorBalanceSheet.totalLiabilities], ["Total equity", bs.totalEquity, priorBalanceSheet.totalEquity], ["Revenue", is.revenue, priorIncomeStatement.revenue], ["Net profit", is.netProfit, priorIncomeStatement.netProfit]].map(([label, current, prior]) => <tr key={String(label)}><td>{label}</td><td>{formatCurrency(Number(current))}</td><td>{formatCurrency(Number(prior))}</td></tr>)}
           </tbody></table></div>}
+      </section>
+
+      <section className="panel panel-pad" aria-label="Statement layout editor">
+        <div className="between wrap"><div><h3>Statement Layout &amp; Subtotals</h3><p className="sub">Version {layoutVersion} · Map every supported line to a statement group and order; defined subtotals sum only their selected lines. Saving a layout stales prior statement reviews and release approvals.</p></div>
+          <button className="btn sm primary" disabled={!canEditLayout || !mappingReady || !configuredLayoutLines.length} onClick={saveLayoutRevision}>Save layout v{layoutVersion + 1}</button>
+        </div>
+        {layoutError && <p role="alert" className="badge danger mt12">{layoutError}</p>}
+        {!mappingReady ? <p role="status" className="badge amber mt12">Approve a complete mapping before editing statement presentation.</p> : <>
+          <details className="mt12" open>
+            <summary>Configure mapped line grouping and order</summary>
+            <div className="tablewrap mt8"><table><thead><tr><th>Statement</th><th>Mapped line</th><th>Group</th><th>Display order</th></tr></thead><tbody>
+              {configuredLayoutLines.map((line, index) => <tr key={line.line}>
+                <td>{line.statement === 'bs' ? 'Financial position' : 'Performance'}</td><td>{line.line}</td>
+                <td><label className="sr-only" htmlFor={`layout-group-${index}`}>Group for {line.line}</label><input id={`layout-group-${index}`} className="input" aria-label={`Statement group ${line.line}`} disabled={!canEditLayout} value={line.group} onChange={event => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines.map(item => item.line === line.line ? { ...item, group: event.target.value } : item) }))} /></td>
+                <td><label className="sr-only" htmlFor={`layout-order-${index}`}>Order for {line.line}</label><input id={`layout-order-${index}`} className="input" aria-label={`Statement order ${line.line}`} type="number" min="1" step="1" disabled={!canEditLayout} value={line.order} onChange={event => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines.map(item => item.line === line.line ? { ...item, order: Number(event.target.value) } : item) }))} /></td>
+              </tr>)}
+            </tbody></table></div>
+          </details>
+          <div className="between mt16"><div><h4>Custom subtotals</h4><p className="caption">Enter exact mapped line names separated by commas. A subtotal only includes lines from its selected statement.</p></div><button className="btn sm" disabled={!canEditLayout} onClick={() => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines, subtotals: [...configuredSubtotals, { id: crypto.randomUUID(), label: '', statement: 'is' as const, lineNames: [] }] }))}>Add subtotal</button></div>
+          {configuredSubtotals.length > 0 && <div className="tablewrap mt8"><table><thead><tr><th>Subtotal label</th><th>Statement</th><th>Included line names</th><th>Current</th><th>Comparative</th><th></th></tr></thead><tbody>
+            {subtotalRows.map(row => <tr key={row.id}>
+              <td><input className="input" aria-label={`Subtotal label ${row.id}`} disabled={!canEditLayout} value={row.label} onChange={event => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines, subtotals: configuredSubtotals.map(item => item.id === row.id ? { ...item, label: event.target.value } : item) }))} /></td>
+              <td><select className="input" aria-label={`Subtotal statement ${row.id}`} disabled={!canEditLayout} value={row.statement} onChange={event => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines, subtotals: configuredSubtotals.map(item => item.id === row.id ? { ...item, statement: event.target.value as 'bs' | 'is' } : item) }))}><option value="bs">Financial position</option><option value="is">Performance</option></select></td>
+              <td><input className="input" aria-label={`Subtotal lines ${row.id}`} disabled={!canEditLayout} value={row.lineNames.join(', ')} onChange={event => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines, subtotals: configuredSubtotals.map(item => item.id === row.id ? { ...item, lineNames: event.target.value.split(',') } : item) }))} /></td>
+              <td>{formatCurrency(row.current, selectedEng.currency)}</td><td>{row.comparative === undefined ? 'Unavailable' : formatCurrency(row.comparative, selectedEng.currency)}</td>
+              <td><button className="btn sm ghost" aria-label={`Remove subtotal ${row.label || row.id}`} onClick={() => setLayoutDraft(current => ({ ...current, lines: configuredLayoutLines, subtotals: configuredSubtotals.filter(item => item.id !== row.id) }))}>Remove</button></td>
+            </tr>)}
+          </tbody></table></div>}
+          <div className="tablewrap mt16"><table aria-label="Configured financial statement layout preview"><thead><tr><th>Statement group</th><th>Line / source accounts</th><th>Current ({selectedEng.currency})</th><th>Comparative ({comparativeEngagement?.year ?? 'unavailable'})</th></tr></thead><tbody>
+            {orderedLineRows.map((row, index) => <React.Fragment key={row.line}>{index === 0 || orderedLineRows[index - 1].statement !== row.statement || orderedLineRows[index - 1].group !== row.group ? <tr><th colSpan={4}>{row.statement === 'bs' ? 'Financial position' : 'Performance'} · {row.group}</th></tr> : null}<tr><td>{row.group}</td><td>{row.line} <span className="caption">· Sources {row.currentSources}</span></td><td>{formatCurrency(row.current, selectedEng.currency)}</td><td>{comparativeReady ? formatCurrency(row.prior, selectedEng.currency) : 'Unavailable'}</td></tr></React.Fragment>)}
+            {subtotalRows.map(row => <tr key={row.id}><td>Subtotal</td><td><b>{row.label}</b> <span className="caption">· {row.lineNames.join(', ')}</span></td><td><b>{formatCurrency(row.current, selectedEng.currency)}</b></td><td>{row.comparative === undefined ? 'Unavailable' : formatCurrency(row.comparative, selectedEng.currency)}</td></tr>)}
+          </tbody></table></div>
+        </>}
       </section>
 
       {adjustmentResult.unapplied.length > 0 && <div role="status" className="badge danger" style={{ display: 'block', padding: 12 }}>

@@ -410,6 +410,7 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   for (const engagement of state.engagements) engagement.cashFlowScheduleHistory = Array.isArray(engagement.cashFlowScheduleHistory) ? engagement.cashFlowScheduleHistory : [];
   state.accountMappingRevisions = Array.isArray(state.accountMappingRevisions) ? state.accountMappingRevisions : [];
   state.statementSetRevisions = Array.isArray(state.statementSetRevisions) ? state.statementSetRevisions : [];
+  state.statementLayoutRevisions = Array.isArray(state.statementLayoutRevisions) ? state.statementLayoutRevisions : [];
   state.simulatedInvitations = Array.isArray(state.simulatedInvitations) ? state.simulatedInvitations : [];
   state.identityStatusHistory = Array.isArray(state.identityStatusHistory) ? state.identityStatusHistory : [];
   state.auditProgramTemplates = Array.isArray(state.auditProgramTemplates) ? state.auditProgramTemplates : [];

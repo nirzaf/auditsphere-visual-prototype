@@ -264,6 +264,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           <div>
             <label className="caption">Assessed Client Mandate Risk Rating</label>
             <select
+              aria-label="Assessed client mandate risk rating"
               className="input"
               value={riskRating}
               onChange={e => setRiskRating(e.target.value as any)}
@@ -298,6 +299,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <input
               type="text"
               className="input"
+              aria-label="Engagement condition precedent"
               placeholder="Add specific engagement condition precedent..."
               value={newCondition}
               onChange={e => setNewCondition(e.target.value)}
@@ -312,6 +314,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
         <div className="mt8">
           <label className="caption">Compliance Recommendation Summary</label>
           <textarea
+            aria-label="Compliance recommendation summary"
             className="input"
             rows={2}
             value={recommendationNotes}
@@ -333,6 +336,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <div>
               <label className="caption">Final Decision Status</label>
               <select
+                aria-label="Final decision status"
                 className="input"
                 value={partnerDecision}
                 disabled={state.currentRole !== 'partner' || !existingCase}
@@ -352,6 +356,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           <div className="mt12">
             <label className="caption">Partner Acceptance Rationale</label>
             <textarea
+              aria-label="Partner acceptance rationale"
               className="input"
               rows={2}
               value={partnerRationale}

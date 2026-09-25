@@ -1,7 +1,7 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision, ProposalServiceDefinition, ProposalContentTemplate } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, InvoiceLineItem, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, StatementLayoutRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision, ProposalServiceDefinition, ProposalContentTemplate } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
@@ -1658,6 +1658,7 @@ class PrototypeStore {
       requireEngagementScope(this.state, comm.engagementId);
       if (this.state.engagements.find(e => e.id === comm.engagementId)?.client !== comm.clientId) throw new GuardError('INVALID_STATE', 'Communication client and engagement must match.');
     }
+    if (comm.direction === 'Outbound' && comm.channel === 'Email' && comm.simulationSubmissionId && this.state.communications.some(item => item.simulationSubmissionId === comm.simulationSubmissionId)) return;
     if (!comm.summary.trim()) throw new GuardError('INVALID_STATE', 'Communication summary is required.');
     if (comm.direction === 'Outbound' && comm.channel === 'Email') {
       const recipient = comm.recipientEmail?.trim().toLowerCase() || '';
@@ -1675,9 +1676,16 @@ class PrototypeStore {
   public addTimeEntry(entry: TimeEntryItem) {
     requireActiveIdentity(this.state);
     requireEngagementScope(this.state, entry.engagementId);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date) || Number.isNaN(Date.parse(`${entry.date}T00:00:00Z`)) || new Date(`${entry.date}T00:00:00Z`).toISOString().slice(0, 10) !== entry.date || entry.date > this.state.asOfDate) throw new GuardError('INVALID_STATE', 'Time entry date must be a valid date on or before the active scenario date.');
     if (entry.jobId) {
       const job = this.state.jobs.find(item => item.id === entry.jobId && item.engagementId === entry.engagementId);
       if (!job || job.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Time must reference an active job in the same engagement.');
+      if (entry.taskId) {
+        const task = this.state.jobTasks.find(item => item.id === entry.taskId && item.jobId === job.id);
+        if (!task || task.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'Time must reference an active task under the selected job.');
+      }
+    } else if (entry.taskId) {
+      throw new GuardError('INVALID_STATE', 'A task-linked time entry must also reference its job.');
     }
     if (!Number.isInteger(entry.durationMinutes) || entry.durationMinutes <= 0 || !entry.activity.trim() || !entry.taskTitle.trim()) throw new GuardError('INVALID_STATE', 'Time entry needs an activity, task, and positive whole-minute duration.');
     if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'A persona can record time only for itself.');
@@ -1718,6 +1726,7 @@ class PrototypeStore {
     if (!entry || entry.status !== 'Returned') throw new GuardError('INVALID_STATE', 'Only returned time entries can be resubmitted.');
     requireEngagementScope(this.state, entry.engagementId);
     if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original time owner can resubmit a returned entry.');
+    if (entry.date > this.state.asOfDate) throw new GuardError('INVALID_STATE', 'Time entry date must be on or before the active scenario date.');
     if (!correction.taskTitle.trim() || !correction.activity.trim() || !Number.isInteger(correction.durationMinutes) || correction.durationMinutes <= 0) throw new GuardError('INVALID_STATE', 'Corrected time requires a task, activity and positive whole-minute duration.');
     entry.status = 'Superseded';
     const revision = (entry.correctionRevision || 0) + 1;
@@ -1759,6 +1768,7 @@ class PrototypeStore {
     }
     if (inv.status !== 'Draft') throw new GuardError('INVALID_STATE', 'New invoices must begin as drafts.');
     if (this.state.invoices.some(i => i.id === inv.id || i.invoiceNumber === inv.invoiceNumber)) throw new GuardError('INVALID_STATE', 'Invoice ID and number must be unique.');
+    inv.revision = Math.max(1, inv.revision || 1);
     const timeLines = inv.lines.filter(line => line.sourceType === 'Time entry');
     const sourceIds = timeLines.map(line => line.sourceId);
     if (sourceIds.some(id => !id) || new Set(sourceIds).size !== sourceIds.length) throw new GuardError('INVALID_STATE', 'Each billed time line must identify one unique approved time entry.');
@@ -1809,6 +1819,46 @@ class PrototypeStore {
     this.notify();
   }
 
+  public reviseInvoiceDraft(invId: string, changes: { description: string; due: string; amount: number; lines: InvoiceLineItem[]; reason: string }) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['billing', 'manager', 'partner'], 'revise invoice drafts');
+    const invoice = this.state.invoices.find(item => item.id === invId);
+    if (!invoice) throw new GuardError('INVALID_STATE', `Invoice "${invId}" was not found.`);
+    requireClientScope(this.state, invoice.clientId);
+    if (invoice.engagementId) requireEngagementScope(this.state, invoice.engagementId, 'billing');
+    if (invoice.status !== 'Draft' && invoice.status !== 'Approved') throw new GuardError('INVALID_STATE', 'Only unissued invoice drafts can be revised.');
+    if (!changes.reason?.trim() || changes.reason.trim().length > 500) throw new GuardError('INVALID_STATE', 'Invoice revision requires a bounded reason.');
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(changes.due) && Number.isFinite(Date.parse(changes.due)) && new Date(`${changes.due}T00:00:00Z`).toISOString().slice(0, 10) === changes.due;
+    if (!changes.description?.trim() || changes.description.trim().length > 240 || !validDate) throw new GuardError('INVALID_STATE', 'Invoice revision requires a bounded description and valid due date.');
+    if (!isValidMoney(changes.amount, true) || !Array.isArray(changes.lines) || Math.abs(changes.lines.reduce((sum, line) => sum + line.amount, 0) - changes.amount) > 0.005) throw new GuardError('INVALID_STATE', 'Revised invoice total must match its line items.');
+    if (changes.lines.some(line => !line.description.trim() || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.rate) || line.rate < 0 || !Number.isFinite(line.amount) || line.amount < 0 || Math.abs(Math.round(line.amount * 100) / 100 - line.amount) > 0.005 || Math.abs(Math.round(line.quantity * line.rate * 100) / 100 - line.amount) > 0.005)) throw new GuardError('INVALID_STATE', 'Every revised invoice line needs a description, positive quantity, non-negative finite rate, and matching rounded line total.');
+    const priorSourceLines = invoice.lines.filter(line => line.sourceType !== 'Ad hoc');
+    const revisedSourceLines = changes.lines.filter(line => line.sourceType !== 'Ad hoc');
+    if (JSON.stringify(priorSourceLines) !== JSON.stringify(revisedSourceLines)) throw new GuardError('INVALID_STATE', 'A revision cannot change, remove, or add source-linked time or fixed-service lines.');
+    if (new Set(changes.lines.map(line => line.id)).size !== changes.lines.length) throw new GuardError('INVALID_STATE', 'Revised invoice line IDs must be unique.');
+    const revision = Math.max(1, invoice.revision || 1);
+    invoice.revisionHistory = [...(invoice.revisionHistory || []), {
+      revision,
+      description: invoice.description,
+      amount: invoice.amount,
+      due: invoice.due,
+      lines: invoice.lines.map(line => ({ ...line })),
+      editedBy: this.state.currentPerson,
+      editedAt: new Date().toISOString(),
+      reason: changes.reason.trim()
+    }];
+    if (invoice.commercialApproval) invoice.commercialApprovalHistory = [...(invoice.commercialApprovalHistory || []), { revision, by: invoice.commercialApproval.by, at: invoice.commercialApproval.at || new Date().toISOString(), basis: invoice.commercialApproval.basis }];
+    invoice.description = changes.description.trim();
+    invoice.due = changes.due;
+    invoice.amount = Math.round(changes.amount * 100) / 100;
+    invoice.lines = changes.lines.map(line => ({ ...line }));
+    invoice.revision = revision + 1;
+    invoice.status = 'Draft';
+    invoice.commercialApproval = undefined;
+    this.logEvent(`Invoice ${invoice.invoiceNumber} revised to draft revision ${invoice.revision}: ${changes.reason.trim()}`, invoice.id);
+    this.notify();
+  }
+
   public reviewInvoice(invId: string, approved: boolean) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['billing', 'manager', 'partner'], 'review invoices');
@@ -1822,7 +1872,8 @@ class PrototypeStore {
     inv.commercialApproval = {
       by: this.state.currentPerson,
       at: new Date().toISOString(),
-      basis: 'Independent commercial fee review'
+      basis: 'Independent commercial fee review',
+      reviewedRevision: Math.max(1, inv.revision || 1)
     };
     this.logEvent(`Invoice ${inv.invoiceNumber} ${approved ? 'approved' : 'returned'}`, inv.id);
     this.notify();
@@ -1835,7 +1886,7 @@ class PrototypeStore {
     if (!inv) throw new GuardError('INVALID_STATE', `Invoice "${invId}" was not found.`);
     requireClientScope(this.state, inv.clientId);
     if (inv.engagementId) requireEngagementScope(this.state, inv.engagementId, 'billing');
-    if (inv.status !== 'Approved' || !inv.commercialApproval) throw new GuardError('INVALID_STATE', 'Only an independently reviewed invoice can be issued.');
+    if (inv.status !== 'Approved' || !inv.commercialApproval || inv.commercialApproval.reviewedRevision !== Math.max(1, inv.revision || 1)) throw new GuardError('INVALID_STATE', 'Only the current independently reviewed invoice revision can be issued.');
     requireIndependentActor(inv.commercialApproval.by, this.state.currentPerson, 'issue an invoice they reviewed', this.state);
     inv.status = 'Issued';
     inv.issueDate = new Date().toISOString().split('T')[0];
@@ -2253,14 +2304,49 @@ class PrototypeStore {
     this.notify();
   }
 
+  public saveStatementLayoutRevision(input: Pick<StatementLayoutRevision, 'engagementId' | 'sourceVersion' | 'mappingRevision' | 'lines' | 'subtotals'>) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'partner'], 'edit financial statement layouts');
+    requireEngagementScope(this.state, input.engagementId);
+    const engagement = this.state.engagements.find(item => item.id === input.engagementId);
+    const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    const unmapped = engagement?.rows.filter(row => !mapping?.mappings.some(item => item.accountCode === row.code)) || [];
+    if (!engagement || !mapping || input.sourceVersion !== engagement.sourceVersion || input.mappingRevision !== mapping.revision || mapping.status !== 'Approved' || unmapped.length) throw new GuardError('STALE_REVISION', 'Statement layout requires the current, complete, independently approved account mapping and source.');
+    const expectedLines = [...new Set(mapping.mappings.flatMap(item => item.targets.map(target => target.statementLine)))].sort();
+    if (!Array.isArray(input.lines) || !Array.isArray(input.subtotals)) throw new GuardError('INVALID_STATE', 'Statement layout lines and subtotals must be arrays.');
+    const actualLines = input.lines.map(item => item.line);
+    const balanceSheetLines = new Set(['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment', 'Trade payables', 'Borrowings', 'Share capital and reserves']);
+    const expectedStatement = (line: string) => balanceSheetLines.has(line) ? 'bs' : 'is';
+    if (input.lines.length !== expectedLines.length || new Set(actualLines).size !== actualLines.length || expectedLines.some(line => !actualLines.includes(line)) || input.lines.some(item => !item.group.trim() || !Number.isInteger(item.order) || item.order < 1 || !['bs', 'is'].includes(item.statement) || item.statement !== expectedStatement(item.line))) throw new GuardError('INVALID_STATE', 'A statement layout must include every mapped line once with its correct statement, a group and positive whole-number order.');
+    const uniqueStatements = [...new Set(input.lines.map(item => item.statement))];
+    if (uniqueStatements.some(statement => new Set(input.lines.filter(item => item.statement === statement).map(item => item.order)).size !== input.lines.filter(item => item.statement === statement).length)) throw new GuardError('INVALID_STATE', 'Line order values must be unique within each statement.');
+    const subtotalIds = input.subtotals.map(item => item.id);
+    if (!Array.isArray(input.subtotals) || new Set(subtotalIds).size !== subtotalIds.length || input.subtotals.some(item => !item.id.trim() || !item.label.trim() || !['bs', 'is'].includes(item.statement) || !item.lineNames.length || new Set(item.lineNames).size !== item.lineNames.length || item.lineNames.some(line => !input.lines.some(layoutLine => layoutLine.line === line && layoutLine.statement === item.statement)))) throw new GuardError('INVALID_STATE', 'Each subtotal needs a unique ID, label, statement type and one or more unique lines from that statement.');
+    this.state.statementLayoutRevisions ||= [];
+    const history = this.state.statementLayoutRevisions.filter(item => item.engagementId === input.engagementId);
+    const revision = Math.max(1, ...history.map(item => item.revision)) + 1;
+    const record: StatementLayoutRevision = { ...structuredClone(input), id: `${input.engagementId}-LAYOUT-${revision}`, revision, preparedByUserId: this.state.currentUserId, preparedAt: new Date().toISOString() };
+    this.state.statementLayoutRevisions.push(record);
+    for (const statement of this.state.statementSetRevisions || []) if (statement.engagementId === input.engagementId) statement.status = 'Stale';
+    this.invalidateReleaseBasis(engagement);
+    this.logEvent(`Financial statement layout v${revision} saved for ${input.engagementId}`, input.engagementId);
+    this.notify();
+    return revision;
+  }
+
   public saveStatementSetRevision(input: Omit<StatementSetRevision, 'id' | 'revision' | 'status' | 'preparedByUserId' | 'preparedAt' | 'reviewedByUserId' | 'reviewedAt'>) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'preparer', 'partner'], 'save financial statement revisions');
     requireEngagementScope(this.state, input.engagementId);
     const engagement = this.state.engagements.find(item => item.id === input.engagementId);
     const mapping = [...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === input.engagementId)].sort((a, b) => b.revision - a.revision)[0];
+    const currentLayoutVersion = Math.max(1, ...(this.state.statementLayoutRevisions || []).filter(item => item.engagementId === input.engagementId).map(item => item.revision));
     const unmapped = engagement?.rows.filter(row => !mapping?.mappings.some(item => item.accountCode === row.code)) || [];
     if (!engagement || !mapping || input.sourceVersion !== engagement.sourceVersion || input.mappingRevision !== mapping.revision || mapping.status !== 'Approved' || unmapped.length) throw new GuardError('STALE_REVISION', 'Statement revision requires a current, complete, approved account mapping and source.');
+    if (input.layoutVersion !== currentLayoutVersion) throw new GuardError('STALE_REVISION', 'Statement revision must use the current saved layout version.');
+    const currentLayout = [...(this.state.statementLayoutRevisions || [])].filter(item => item.engagementId === input.engagementId).sort((a, b) => b.revision - a.revision)[0];
+    const savedSubtotalDefinitions = (input.subtotals || []).map(({ id, label, statement, lineNames }) => ({ id, label, statement, lineNames }));
+    if (currentLayout && (!input.layout || JSON.stringify(input.layout) !== JSON.stringify(currentLayout.lines) || JSON.stringify(savedSubtotalDefinitions) !== JSON.stringify(currentLayout.subtotals))) throw new GuardError('STALE_REVISION', 'Statement revision must retain the current saved line grouping, order and subtotals.');
     const numbers = Object.values(input.totals).concat(input.comparativeTotals ? Object.values(input.comparativeTotals) : []);
     if (input.layoutVersion < 1 || numbers.some(value => !Number.isFinite(value)) || !Array.isArray(input.lines) || input.lines.some(line => !line.line.trim() || !Number.isFinite(line.current) || line.comparative !== undefined && !Number.isFinite(line.comparative) || !Array.isArray(line.currentSources) || !Array.isArray(line.comparativeSources))) throw new GuardError('INVALID_STATE', 'Statement revision totals and mapped source rows are invalid.');
     if (input.comparativeEngagementId) {
@@ -2302,9 +2388,12 @@ class PrototypeStore {
     const latestRevision = Math.max(0, ...history.map(item => item.revision));
     const engagement = this.state.engagements.find(item => item.id === engagementId);
     const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === engagementId).map(item => item.revision));
+    const layoutVersion = Math.max(1, ...(this.state.statementLayoutRevisions || []).filter(item => item.engagementId === engagementId).map(item => item.revision));
+    const currentLayout = [...(this.state.statementLayoutRevisions || [])].filter(item => item.engagementId === engagementId).sort((a, b) => b.revision - a.revision)[0];
+    const revisionSubtotalDefinitions = (revision?.subtotals || []).map(({ id, label, statement, lineNames }) => ({ id, label, statement, lineNames }));
     const comparison = revision?.comparativeEngagementId ? this.state.engagements.find(item => item.id === revision.comparativeEngagementId) : undefined;
     const comparisonMappingRevision = comparison && Math.max(0, ...(this.state.accountMappingRevisions || []).filter(item => item.engagementId === comparison.id).map(item => item.revision));
-    if (!revision || !engagement || revisionNumber !== latestRevision || revision.status !== 'Draft' || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision || (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision))) {
+    if (!revision || !engagement || revisionNumber !== latestRevision || revision.status !== 'Draft' || revision.sourceVersion !== engagement.sourceVersion || revision.mappingRevision !== mappingRevision || revision.layoutVersion !== layoutVersion || currentLayout && (!revision.layout || JSON.stringify(revision.layout) !== JSON.stringify(currentLayout.lines) || JSON.stringify(revisionSubtotalDefinitions) !== JSON.stringify(currentLayout.subtotals)) || (revision.comparativeEngagementId && (!comparison || revision.comparativeSourceVersion !== comparison.sourceVersion || revision.comparativeMappingRevision !== comparisonMappingRevision))) {
       if (revision) revision.status = 'Stale';
       this.notify();
       throw new GuardError('STALE_REVISION', 'This statement revision is no longer current; prepare a new revision after source, mapping or comparative changes.');

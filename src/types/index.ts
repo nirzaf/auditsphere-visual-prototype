@@ -429,14 +429,28 @@ export interface StatementSetRevision {
   scopeSnapshot?: { service: string; year: number; period: string };
   comparativeScopeSnapshot?: { service: string; year: number; period: string };
   layoutVersion: number;
+  layout?: StatementLayoutRevision['lines'];
   totals: { assets: number; liabilities: number; equity: number; revenue: number; netProfit: number };
   comparativeTotals?: StatementSetRevision['totals'];
   lines: Array<{ line: string; current: number; comparative?: number; currentSources: string[]; comparativeSources: string[] }>;
+  subtotals?: Array<{ id: string; label: string; statement: 'bs' | 'is'; lineNames: string[]; current: number; comparative?: number }>;
   status: 'Draft' | 'Reviewed' | 'Stale';
   preparedByUserId: string;
   preparedAt: string;
   reviewedByUserId?: string;
   reviewedAt?: string;
+}
+
+export interface StatementLayoutRevision {
+  id: string;
+  engagementId: string;
+  revision: number;
+  sourceVersion: number;
+  mappingRevision: number;
+  lines: Array<{ line: string; statement: 'bs' | 'is'; group: string; order: number }>;
+  subtotals: Array<{ id: string; label: string; statement: 'bs' | 'is'; lineNames: string[] }>;
+  preparedByUserId: string;
+  preparedAt: string;
 }
 
 export interface CashFlowScheduleRevision {
@@ -779,6 +793,7 @@ export interface CommunicationItem {
   recipientEmail?: string;
   simulationReference?: string;
   simulationEvidence?: string;
+  simulationSubmissionId?: string;
 }
 
 export interface EmailTemplateItem {
@@ -875,7 +890,20 @@ export interface InvoiceRecord {
     by: string;
     at?: string;
     basis?: string;
+    reviewedRevision?: number;
   };
+  revision?: number;
+  revisionHistory?: Array<{
+    revision: number;
+    description: string;
+    amount: number;
+    due: string;
+    lines: InvoiceLineItem[];
+    editedBy: string;
+    editedAt: string;
+    reason: string;
+  }>;
+  commercialApprovalHistory?: Array<{ revision: number; by: string; at: string; basis?: string }>;
   creditsApplied?: number;
 }
 
@@ -1587,6 +1615,7 @@ export interface PrototypeState {
   glTransactions: GLTransactionItem[];
   accountMappingRevisions?: AccountMappingRevision[];
   statementSetRevisions?: StatementSetRevision[];
+  statementLayoutRevisions?: StatementLayoutRevision[];
   simulatedInvitations?: SimulatedInvitation[];
   identityStatusHistory?: IdentityStatusEvent[];
   auditProgramTemplates?: AuditProgramTemplate[];

@@ -72,6 +72,7 @@ export const App: React.FC = () => {
   const [, setTick] = useState(0);
   const [guideOrigin, setGuideOrigin] = useState<RouteKey>('overview');
   const unsavedForms = useRef<Map<string, UnsavedFormGuard>>(new Map());
+  const acceptedRouteHash = useRef(`#${resolveRouteHash(window.location.hash)?.route || 'overview'}`);
   const [pendingTransition, setPendingTransition] = useState<{ run: () => void; label: string } | null>(null);
   const [transitionError, setTransitionError] = useState('');
 
@@ -130,6 +131,7 @@ export const App: React.FC = () => {
           ? resolved.route
           : active && isClientRole(snapshot.currentRole) ? 'portal' : active ? 'overview' : 'requirements';
         setCurrentRoute(allowedRoute);
+        acceptedRouteHash.current = `#${allowedRoute}`;
         if (window.location.hash !== `#${allowedRoute}`) window.history.replaceState(null, '', `#${allowedRoute}`);
       });
     };
@@ -234,6 +236,7 @@ export const App: React.FC = () => {
       setSearchTargetId(targetId);
       const nextRoute = canOpenRoute(current.currentRole, route, active) ? route : active && isClientRole(current.currentRole) ? 'portal' : active ? 'overview' : 'requirements';
       setCurrentRoute(nextRoute);
+      acceptedRouteHash.current = `#${nextRoute}`;
       if (window.location.hash !== `#${nextRoute}`) window.history.pushState(null, '', `#${nextRoute}`);
     });
   };
@@ -245,6 +248,7 @@ export const App: React.FC = () => {
       setSelectedClientId(clientId);
       setSearchTargetId(requestId);
       setCurrentRoute(route);
+      acceptedRouteHash.current = `#${route}`;
       if (window.location.hash !== `#${route}`) window.history.pushState(null, '', `#${route}`);
     });
   };
@@ -253,6 +257,12 @@ export const App: React.FC = () => {
     : isClient
     ? currentRoute === 'requirements' || currentRoute === 'module-guide' ? currentRoute : 'portal'
     : canOpenRoute(state.currentRole, currentRoute, activeIdentity) ? currentRoute : 'overview';
+
+  const stayOnCurrentRoute = () => {
+    setPendingTransition(null);
+    setTransitionError('');
+    if (window.location.hash !== acceptedRouteHash.current) window.history.replaceState(null, '', acceptedRouteHash.current);
+  };
 
   const renderModule = () => {
     if (ENGAGEMENT_CONTEXT_ROUTES.has(effectiveRoute) && !hasSelectedEngagementScope(state)) {
@@ -384,10 +394,10 @@ export const App: React.FC = () => {
   return (
     <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={(clientId) => requestContextChange(() => setSelectedClientId(clientId))} onBeforeContextChange={requestContextChange}>
       {renderModule()}
-      {pendingTransition && <div className="modal-backdrop" onClick={() => { setPendingTransition(null); setTransitionError(''); }}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
-        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={() => { setPendingTransition(null); setTransitionError(''); }}>✕</button></div>
+      {pendingTransition && <div className="modal-backdrop" onClick={stayOnCurrentRoute}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
+        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={stayOnCurrentRoute}>✕</button></div>
         <div className="modal-body"><p>{pendingTransition.label} has unsaved changes. Save them before leaving, discard them, or stay here.</p>{transitionError && <p className="banner amber mt12" role="alert">{transitionError}</p>}</div>
-        <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={() => { setPendingTransition(null); setTransitionError(''); }}>Stay</button><button type="button" className="btn primary sm" onClick={() => void resolveTransition('save')}>Save and continue</button></div>
+        <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={stayOnCurrentRoute}>Stay</button><button type="button" className="btn primary sm" onClick={() => void resolveTransition('save')}>Save and continue</button></div>
       </section></div>}
     </Shell>
   );

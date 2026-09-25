@@ -89,7 +89,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         <div className="row" style={{ gap: 10 }}>
           <span className="btn sm">
             <Icon name="calendar" />
-            {new Date(`${asOfDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} · As of date
+            {new Date(`${state.asOfDate}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })} · As of date
           </span>
           <button className="btn primary sm" onClick={() => onNavigate('engagements')}>
             <Icon name="plus" />

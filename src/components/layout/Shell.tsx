@@ -271,6 +271,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
 
   return (
     <div id="app-root" className={sidebarCollapsed ? 'sidebar-collapsed' : undefined}>
+      <a className="skip-link" href="#main">Skip to main content</a>
       <input ref={importInput} type="file" accept="application/json,.json" aria-label="Import validated state JSON" onChange={handleImportState} style={{ display: 'none' }} />
       {(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode()) && (
         <div role="status" className="panel panel-pad" style={{ background: '#fff7ed', color: '#9a3412', margin: 12 }}>
@@ -312,7 +313,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
           </span>
         </div>
 
-        <nav className="side-scroll" aria-label="Main navigation">
+        <nav id="primary-navigation" className="side-scroll" aria-label="Main navigation">
           {navGroups.map(([groupName, items]) => (
             <React.Fragment key={groupName}>
               <div className="nav-label">{groupName}</div>
@@ -376,7 +377,9 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             <button
               className="icon-btn mobile-menu"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Open Navigation"
+              aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="primary-navigation"
             >
               <Icon name="menu" />
             </button>

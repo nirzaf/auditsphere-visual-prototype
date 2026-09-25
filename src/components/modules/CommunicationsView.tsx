@@ -25,6 +25,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
     'Dear Omar,\n\nPlease access your client portal to review the outstanding year-end trial balance request.\n\nThank you,\nSTE Audit Team'
   );
   const [simulationOutcome, setSimulationOutcome] = useState<'Simulated accepted' | 'Simulated failed' | 'Outcome unknown'>('Simulated accepted');
+  const emailAttemptRecorded = useRef(false);
+  const emailSubmissionId = useRef<string>(crypto.randomUUID());
 
   // Log note form
   const [channel, setChannel] = useState<CommunicationItem['channel']>('Phone');
@@ -39,12 +41,16 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const clientJobs = state.jobs.filter(job => job.clientId === client?.id);
   const relatedJob = clientJobs.find(job => job.id === relatedJobId);
 
-  const saveEmailDraft = () => {
+  const saveEmailDraft = (submissionId = emailSubmissionId.current) => {
+    // One accepted submission per open compose draft. A deliberate new manual
+    // attempt requires closing and reopening the composer.
+    if (emailAttemptRecorded.current) return true;
+    emailAttemptRecorded.current = true;
     try {
-      prototypeStore.addCommunication({ id: `COMM-${crypto.randomUUID()}`, clientId: client?.id || 'CL-001', engagementId: state.selectedEngagement, direction: 'Outbound', channel: 'Email', participants: `${state.currentPerson} -> ${recipientEmail.trim().toLowerCase()}`, recipientEmail: recipientEmail.trim().toLowerCase(), summary: subject, body: emailBody, author: state.currentPerson, date: new Date().toISOString(), visibility: 'Client visible', status: simulationOutcome, simulationReference: `MAIL-SIM-${crypto.randomUUID()}`, simulationEvidence: `Local simulation recorded ${simulationOutcome}; no provider receipt or external delivery confirmation exists.` });
+      prototypeStore.addCommunication({ id: `COMM-${crypto.randomUUID()}`, clientId: client?.id || 'CL-001', engagementId: state.selectedEngagement, direction: 'Outbound', channel: 'Email', participants: `${state.currentPerson} -> ${recipientEmail.trim().toLowerCase()}`, recipientEmail: recipientEmail.trim().toLowerCase(), summary: subject, body: emailBody, author: state.currentPerson, date: new Date().toISOString(), visibility: 'Client visible', status: simulationOutcome, simulationReference: `MAIL-SIM-${crypto.randomUUID()}`, simulationEvidence: `Local simulation recorded ${simulationOutcome}; no provider receipt or external delivery confirmation exists.`, simulationSubmissionId: submissionId });
       emailBaseline.current = { recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome };
       setEmailError(''); setShowComposeModal(false); return true;
-    } catch (error) { setEmailError(error instanceof Error ? error.message : 'Simulated email could not be recorded.'); return false; }
+    } catch (error) { emailAttemptRecorded.current = false; setEmailError(error instanceof Error ? error.message : 'Simulated email could not be recorded.'); return false; }
   };
   const saveNoteDraft = () => {
     if (!noteSummary.trim()) return false;
@@ -69,7 +75,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
 
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    saveEmailDraft();
+    const form = e.currentTarget as HTMLFormElement;
+    if (form.dataset.attemptRecorded === 'true') return;
+    form.dataset.attemptRecorded = 'true';
+    if (!saveEmailDraft(form.dataset.submissionId || emailSubmissionId.current)) delete form.dataset.attemptRecorded;
   };
 
   const handleLogNote = (e: React.FormEvent) => {
@@ -103,7 +112,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
           <button className="btn sm ghost" onClick={() => { setNoteError(''); setShowLogNoteModal(true); }}>
             <Icon name="message" /> Log Call / Meeting Note
           </button>
-          <button className="btn primary sm" onClick={() => setShowComposeModal(true)}>
+          <button className="btn primary sm" onClick={() => { emailAttemptRecorded.current = false; emailSubmissionId.current = crypto.randomUUID(); setEmailError(''); setShowComposeModal(true); }}>
             <Icon name="message" /> Compose Simulated Email
           </button>
         </div>
@@ -157,7 +166,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
               <h2>Compose Simulated Microsoft Email</h2>
               <button className="icon-btn" onClick={() => setShowComposeModal(false)}>✕</button>
             </div>
-            <form onSubmit={handleSendEmail}>
+            <form data-submission-id={emailSubmissionId.current} onSubmit={handleSendEmail}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div className="borderbox" style={{ background: '#f1f5f9', padding: 10, fontSize: 12 }}>
                   Sender: <code>{state.m365Config.mailSenderAccount}</code> (Microsoft 365 Exchange Online)
@@ -217,7 +226,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                     <option value="Outcome unknown">Outcome unknown (Pending queue)</option>
                   </select>
                 </div>
-                <p className="caption">Each click records a new manual simulation attempt; there are no automatic retries, and no message is sent or externally confirmed.</p>
+                <p className="caption">One submission records one manual simulation attempt. To intentionally record another attempt, close and reopen this form; an unknown outcome is never retried automatically. No message is sent or externally confirmed.</p>
                 {emailError && <div className="badge red" role="alert">{emailError}</div>}
               </div>
               <div className="modal-foot">

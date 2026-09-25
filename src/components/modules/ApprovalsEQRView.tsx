@@ -281,6 +281,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                 <div className="row" style={{ gap: 10, alignItems: 'center' }}>
                   <input
                     type="checkbox"
+                    aria-label="Mark EQR concern resolved"
                     checked={c.resolved}
                     disabled={state.currentRole !== 'eqr' || (!c.resolved && !c.response)}
                     onChange={() => handleToggleConcern(c.id)}
@@ -321,6 +322,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
             type="text"
             className="input"
             style={{ flex: 1 }}
+            aria-label="EQR query"
             placeholder="Raise new EQR quality matter or disclosure inquiry..."
             value={newConcern}
             onChange={e => setNewConcern(e.target.value)}

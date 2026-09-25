@@ -110,6 +110,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
           <input
             type="text"
             className="input"
+            aria-label="Filter clients"
             placeholder="Filter clients by name, code or industry..."
             value={filterText}
             onChange={e => setFilterText(e.target.value)}

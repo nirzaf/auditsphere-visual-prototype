@@ -252,6 +252,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
             <div>
               <label className="caption">Financial Benchmark Basis</label>
               <select
+                aria-label="Financial benchmark basis"
                 className="input"
                 value={benchmarkType}
                 onChange={e => setBenchmarkType(e.target.value as any)}

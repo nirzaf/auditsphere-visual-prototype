@@ -292,6 +292,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
           <label className="caption">Source file (synthetic fixture or your CSV/XLSX)</label>
           <input
             type="file"
+            aria-label="Trial balance source file"
             accept=".csv,.xlsx,.xls,.xlsm"
             className="input"
             onChange={e => handleFile(e.target.files?.[0])}
@@ -301,7 +302,7 @@ export const TBImportWizard: React.FC<TBImportWizardProps> = ({ engagementId, on
         </div>
         <div>
           <label className="caption">Amount convention</label>
-          <select className="input" value={convention} onChange={e => setConvention(e.target.value as Convention)}>
+          <select className="input" aria-label="Trial balance amount convention" value={convention} onChange={e => setConvention(e.target.value as Convention)}>
             <option value="signed-net">Signed net amount (one column)</option>
             <option value="debit-credit">Debit / credit columns</option>
           </select>

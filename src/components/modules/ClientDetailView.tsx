@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RouteKey, ClientContact, PbcRequestItem, CustomFieldDefinition } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { InternalNotesPanel } from '../common/InternalNotesPanel';
 import { visibleEngagementIds } from '../../services/guards';
@@ -65,7 +65,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const jobs = state.jobs.filter(j => j.clientId === client.id && scopedEngagementIds.has(j.engagementId));
   const documents = state.documents.filter(d => d.clientId === client.id && (engagementScope === 'ALL' ? !d.engagementId || scopedEngagementIds.has(d.engagementId) : scopedEngagementIds.has(d.engagementId || '')));
   const communications = state.communications.filter(c => c.clientId === client.id && (engagementScope === 'ALL' ? !c.engagementId || scopedEngagementIds.has(c.engagementId) : scopedEngagementIds.has(c.engagementId || '')));
-  const times = state.times.filter(t => t.clientId === client.id && scopedEngagementIds.has(t.engagementId));
+  const times = getEffectiveTimeEntries(state.times).filter(t => t.clientId === client.id && scopedEngagementIds.has(t.engagementId));
   const invoices = state.invoices.filter(i => i.clientId === client.id && scopedEngagementIds.has(i.engagementId || i.eng || ''));
   const invoiceIds = new Set(invoices.map(invoice => invoice.id));
   const receipts = state.receipts.filter(r => r.clientId === client.id && r.allocations.some(allocation => invoiceIds.has(allocation.invoiceId)));

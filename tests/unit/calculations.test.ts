@@ -10,7 +10,8 @@ import {
   calculateConsolidatedBalanceSheet,
   calculateMateriality,
   calculateBalanceSheet,
-  applyReportingAdjustments
+  applyReportingAdjustments,
+  getEffectiveTimeEntries
 } from '../../src/services/calculations.js';
 import type { TrialBalanceRow } from '../../src/types/index.js';
 
@@ -147,6 +148,17 @@ describe('recorded WIP report rates (VP-060)', () => {
     assert.equal(calculateRecordedWipValue(entries), 700);
     assert.equal(calculateRecordedWipValue([...entries, { status: 'Approved', billable: true, durationMinutes: 30 }]), null);
   });
+
+  it('counts only the current revision of corrected time in effective totals', () => {
+    const entries: any[] = [
+      { id: 'T1', status: 'Superseded', durationMinutes: 120, billable: true, billingRatePerHour: 200 },
+      { id: 'T1-R1', status: 'Approved', durationMinutes: 90, billable: true, billingRatePerHour: 200, supersedesId: 'T1' },
+      { id: 'T2', status: 'Approved', durationMinutes: 60, billable: true, billingRatePerHour: 100 }
+    ];
+    assert.deepEqual(getEffectiveTimeEntries(entries).map(entry => entry.id), ['T1-R1', 'T2']);
+    assert.equal(getEffectiveTimeEntries(entries).reduce((sum, entry) => sum + entry.durationMinutes, 0), 150);
+    assert.equal(calculateRecordedWipValue(entries), 400, 'WIP values the corrected 90-minute revision once, plus the unaffected 60-minute entry');
+  });
 });
 
 describe('receivables fixed example (AT-33)', () => {
@@ -173,6 +185,18 @@ describe('receivables fixed example (AT-33)', () => {
     const future = { ...receipt, allocations: [{ invoiceId: 'INV-1', amount: 300, allocatedAt: '2026-10-01T10:00:00Z' }] };
     const aging = calculateReceivablesAging([inv], [credit], [future], '2026-09-23');
     assert.equal(aging.totalOutstanding, 900);
+  });
+
+  it('keeps a later-reversed allocation effective before reversal, then restores unallocated funds', () => {
+    const laterReversed = { ...receipt, allocations: [{ invoiceId: 'INV-1', amount: 300, allocatedAt: '2026-09-18T10:00:00Z', date: '2026-09-18', reversed: true, reversalDate: '2026-09-25', reversalReason: 'Corrected allocation.' }] };
+    const beforeReversal = calculateReceivablesAging([inv], [credit], [laterReversed], '2026-09-23');
+    assert.equal(beforeReversal.totalOutstanding, 600, 'allocation is still effective at an as-of date before its reversal');
+    assert.equal(beforeReversal.days31to60, 600);
+    assert.equal(beforeReversal.totalUnallocatedReceipts, 200);
+    const afterReversal = calculateReceivablesAging([inv], [credit], [laterReversed], '2026-09-26');
+    assert.equal(afterReversal.totalOutstanding, 900, 'a reversal effective by the as-of date restores the invoice balance');
+    assert.equal(afterReversal.days31to60, 900);
+    assert.equal(afterReversal.totalUnallocatedReceipts, 500, 'reversed allocation becomes unallocated receipt funds');
   });
 
   it('excludes drafts and pre-issue cancellations', () => {

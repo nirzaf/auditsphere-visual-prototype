@@ -204,6 +204,7 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onNavigate }
           <input
             type="text"
             className="input sm"
+            aria-label="Search acceptance user stories"
             placeholder="Search story ID, title, module, or criteria..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}

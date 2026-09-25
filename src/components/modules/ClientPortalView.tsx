@@ -205,7 +205,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             <div>
               <span className="caption" style={{ color: '#00c7a2' }}>CLIENT SECURE PORTAL</span>
               <h2 style={{ color: '#fff', margin: 0 }}>{client.name}</h2>
-              <div className="cell-sub" style={{ color: '#90a8ab' }}>
+              <div className="cell-sub" style={{ color: '#9fc4c9' }}>
                 Logged in as: {state.currentPerson} ({state.currentRole})
               </div>
             </div>
@@ -214,9 +214,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
           <div className="row" style={{ gap: 10, alignItems: 'center' }}>
             {availableClients.length > 1 && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                <span className="caption" style={{ color: '#90a8ab' }}>Switch Entity:</span>
+                <span className="caption" style={{ color: '#9fc4c9' }}>Switch Entity:</span>
                 <select
                   className="input sm"
+                  aria-label="Switch client entity"
                   style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }}
                   value={resolvedClientId}
                   onChange={e => {
@@ -235,8 +236,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             )}
             {availableEngagements.length > 1 && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                <span className="caption" style={{ color: '#90a8ab' }}>Engagement:</span>
-                <select className="input sm" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }} value={resolvedEngagementId} onChange={e => setSelectedEngagementId(e.target.value)}>
+                <span className="caption" style={{ color: '#9fc4c9' }}>Engagement:</span>
+                <select className="input sm" aria-label="Switch engagement" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }} value={resolvedEngagementId} onChange={e => setSelectedEngagementId(e.target.value)}>
                   {availableEngagements.map(item => <option key={item.id} value={item.id} style={{ color: '#000' }}>{item.id} · {item.service} · FY{item.year}</option>)}
                 </select>
               </div>
@@ -269,7 +270,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             <button
               key={t.key}
               className={`tab-btn ${activeSub === t.key ? 'active' : ''}`}
-              style={{ color: activeSub === t.key ? '#00c7a2' : '#90a8ab' }}
+              style={{ color: activeSub === t.key ? '#00c7a2' : '#9fc4c9' }}
               onClick={() => setActiveSub(t.key as any)}
             >
               {t.label}

@@ -22,9 +22,8 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   behavior covered. AT-57 verifies Stay/Save/Discard for a consolidation output draft across route changes; Save prepares and persists the output package before transition. Other draft combinations and context changes remain open. Chrome now verifies a restored
   out-of-scope ENG-26002 selection renders no restricted details, then selecting
   permitted ENG-26001 opens Financial Statements. The broader route and grant
-  matrix remains open. Latest full suite before the current VP-031 changes passed 189/189 unit and 83/83 E2E;
-  the latest full E2E suite passed 83/83 (5 static + 78 Chrome) and unit
-  checks passed 191/191. AT-53
+  matrix remains open. The latest full suite after the current VP-031 changes
+  passed 203/203 unit and 92/92 E2E (5 static + 87 Chrome). AT-53
   focus wrap, AT-37 mapping navigation and AT-45 persona-change all pass.
 
 - **VP-005 — practice dashboard (Partial):** Focused Chrome coverage now spans
@@ -49,13 +48,14 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   signature and page object.
 
 - **VP-029 — budgets (Partial):** AT-29 verifies the fixed 600/660-minute example, missing cost as unknown, and excludes mismatched-currency time from fee/cost totals while retaining its effort. AT-59 confirms engagement-once aggregation, approved-time rate snapshots, separate QAR/USD totals, retained budget history and billing-role cost privacy. The broader unallocated-line, review, rate-change and variance matrix remains open.
-- **VP-030/031 — invoice drafting and correction (Partial):** AT-30 captures client account/contact details, reserves approved time once, supports quantity/rate ad-hoc lines, and retains cancelled draft history while releasing only its matching unissued time source. The store rejects zero quantity and cancellation after approval. Post-create draft editing, stale-source revisions, issued correction lineage and broader cross-client/currency matrices remain open.
+- **VP-030/031 — invoice drafting and correction (Partial):** AT-30 captures client account/contact details, reserves approved time once, supports quantity/rate ad-hoc lines, and retains cancelled draft history while releasing only its matching unissued time source. AT-31 revises a reviewed ad-hoc invoice with a reason, retains the prior snapshot and reviewer, clears stale approval, and requires fresh independent approval before issue. The staff download is a genuine invoice-number-bound PDF; issue and credit actions create no email or receipt, while reasoned credits retain exact invoice lineage without changing its face amount or moving money. Unit guards reject over-cap, cross-client and cross-currency credits. Editing source-linked invoice drafts, complete date/reference and correction matrices, and full story acceptance remain open.
 
 - **VP-040/041 equity rollforward (Partial):** Opening total equity and evidenced
   contributions/distributions now reconcile to mapped equity and current-period
   result. Unsupported output remains unavailable; approved combined equity
-  mapping does not support component balances. Full statement layout and
-  broader disclosure/rework acceptance remain open.
+  mapping does not support component balances. Versioned statement groups,
+  ordering and subtotals are now editable and flow into previews and XLSX;
+  broader source/layout acceptance and disclosure/rework matrices remain open.
 
 - **VP-044 — consolidation packages and translation (Partial):** AT-44 now
   warns when the component source moves past its pinned revision, preserves the
@@ -160,7 +160,15 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   external BI are outside the browser prototype.
 - **VP-032/033 — receivables:** Chrome records an offline receipt, allocates it
   across two issued invoices and reverses one allocation with a reason while
-  preserving the other invoice settlement. It exports a client-scoped CSV
+  preserving the other invoice settlement. Zero, negative, non-finite and
+  over-precision receipt amounts are rejected atomically; 0.01 and recorded
+  reference metadata are accepted. The receipt register offers allocation only,
+  with no in-place edit/delete or payment/refund/link/bank-connection action.
+  Unit coverage reconciles partial/split/full allocation and reversal balances,
+  due dates before and after receipt recording, stale invoice totals, over-cap
+  rejection, required reasons, retained history and duplicate-reversal safety.
+  The source story requires creation metadata and allocation-reversal history,
+  but does not define post-record metadata editing. It exports a client-scoped CSV
   statement with issued invoices, credits and receipts; Draft and other-client
   invoices are excluded. Client, as-of date and currency filters drive the
   balances, including historical balances before a later receipt. Printable
@@ -186,9 +194,11 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   accepted, failed and unknown outcomes locally without external mail requests.
   Only active contacts for the client can be selected; each explicit send stores
   a unique local simulation reference and states that no provider receipt or
-  external delivery confirmation exists. There are no automatic retries, and
-  another explicit send is a separate attempt. Real provider receipts remain
-  outside the local prototype.
+  external delivery confirmation exists. Repeated submission under the same
+  operation token records once; reopening the composer creates a distinct
+  deliberate attempt. Unknown outcomes are not automatically retried. Sender,
+  unresolved-placeholder, document-link and template-permission cases remain
+  open; real provider receipts remain outside the local prototype.
 - **AT-21 — optional OneDrive:** Chrome verifies disabled-by-default gating,
   saved enablement, current simulated success and a selected local metadata
   import under the SharePoint canonical hierarchy. Real file transfer and
@@ -353,8 +363,8 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   artifacts. Chrome confirms a shared reviewed note is included in the generated
   PDF and an unshared reviewed note is omitted; store checks confirm disclosure
   and cash-flow revisions stale package generation while retaining historical
-  snapshots. Broader disclosure rework, complete statement layout and cash-flow
-  edge coverage remain open.
+  snapshots. Broader disclosure rework, full statement source/layout acceptance
+  and cash-flow edge coverage remain open.
   Package preparation still has one overall disclosure applicability and note
   rationale; this does not replace a per-note accounting-standard checklist.
 - **VP-042 — financial packages:** package sections and their order persist

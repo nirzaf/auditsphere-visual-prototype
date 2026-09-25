@@ -208,7 +208,9 @@ describe('reconciliation schedules (VP-039)', () => {
     const account = engagement.rows.find(row => row.code === '1000')!;
     state.currentUserId = 'manager'; state.currentRole = 'manager'; state.currentPerson = 'Layla Rahman';
     const input = { name: 'VP-039 schedule', ref: 'REC-VP039', accountCode: account.code, status: 'Draft' as const, evidence: 'DOC-002', asOfDate: state.asOfDate, sourceVersion: engagement.sourceVersion, statementBalance: account.balance, items: [] };
+    assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, asOfDate: '2026-02-30' }), /valid as-of date/);
     assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, items: [{ id: 'RI-FUTURE', date: '2099-01-01', description: 'Out of period', amount: 1, type: 'Timing item' }] }), /dated in-scope items/);
+    assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, items: [{ id: 'RI-IMPOSSIBLE', date: '2026-02-30', description: 'Impossible date', amount: 1, type: 'Timing item' }] }), /dated in-scope items/);
     assert.throws(() => prototypeStore.saveReconciliationSchedule(engagement.id, { ...input, items: [{ id: 'RI-USD', date: state.asOfDate, description: 'Wrong currency', amount: 1, type: 'Timing item', currency: 'USD' }] }), /engagement currency/);
     const id = prototypeStore.saveReconciliationSchedule(engagement.id, input);
     let schedule = engagement.reconciliations.find(item => item.id === id)!;
@@ -1287,7 +1289,7 @@ describe('simulated mail attempts (AT-26)', () => {
       id, clientId: 'CL-001', engagementId: 'ENG-26001', direction: 'Outbound' as const, channel: 'Email' as const,
       participants: `Layla Rahman -> ${recipientEmail}`, recipientEmail, summary: 'PBC request', body: 'Please review the request.',
       author: 'Layla Rahman', date: new Date().toISOString(), visibility: 'Client visible' as const, status: 'Simulated accepted' as const,
-      simulationReference, simulationEvidence: 'Local simulation; no provider receipt.'
+      simulationReference, simulationEvidence: 'Local simulation; no provider receipt.', simulationSubmissionId: `SUB-${id}`
     });
     const initialCount = state.communications.length;
     assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-BAD', 'not-an-email', 'MAIL-SIM-BAD')), /valid recipient email/);
@@ -1299,6 +1301,8 @@ describe('simulated mail attempts (AT-26)', () => {
     assert.equal(first.engagementId, job.engagementId);
     assert.equal(first.recipientEmail, 'omar.nasser@example-trading.demo');
     assert.throws(() => prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', first.simulationReference)), /unique reference/);
+    prototypeStore.addCommunication({ ...makeAttempt('COMM-26-duplicate', 'omar.nasser@example-trading.demo', 'MAIL-SIM-26-duplicate'), simulationSubmissionId: first.simulationSubmissionId });
+    assert.equal(state.communications.length, initialCount + 1, 'repeated operation ID is idempotent even when the retry has a fresh record/reference ID');
     prototypeStore.addCommunication(makeAttempt('COMM-26-2', 'omar.nasser@example-trading.demo', 'MAIL-SIM-26-2'));
     assert.equal(state.communications.length, initialCount + 2, 'a second explicit manual send is recorded once as a separate attempt');
   });
@@ -1322,14 +1326,43 @@ describe('time correction lifecycle (AT-28)', () => {
     assert.equal(firstRevision.durationMinutes, 75);
     setPersona(storeState, 'Layla Rahman');
     prototypeStore.reviewTimeEntry(firstRevision.id, 'Approved');
+    firstRevision.billedInvoiceId = 'INV-AT28-BILLED';
+    const billedInvoice: any = { id: 'INV-AT28-BILLED', invoiceNumber: 'INV-AT28-BILLED', clientId: firstRevision.clientId, engagementId: firstRevision.engagementId, currency: 'QAR', amount: 250, status: 'Issued', lines: [{ id: 'LINE-AT28-BILLED', sourceType: 'Time entry', sourceId: firstRevision.id, amount: 250 }] };
+    storeState.invoices.push(billedInvoice);
+    const billedInvoiceSnapshot = structuredClone(billedInvoice);
     prototypeStore.correctApprovedTime(firstRevision.id, 60, 'Timer rounding correction');
     const correction = storeState.times.find((t: any) => t.supersedesId === firstRevision.id);
     assert.equal(firstRevision.status, 'Superseded');
     assert.equal(correction.status, 'Submitted');
     assert.equal(correction.durationMinutes, 60);
+    assert.equal(correction.billedInvoiceId, billedInvoice.id, 'correction retains the consumed invoice link for separate billing review');
     prototypeStore.reviewTimeEntry(correction.id, 'Approved');
     assert.equal(correction.status, 'Approved');
+    assert.deepEqual(storeState.invoices.find((invoice: any) => invoice.id === billedInvoice.id), billedInvoiceSnapshot, 'correcting billed time never rewrites the issued invoice');
     assert.equal(storeState.times.filter((t: any) => t.status === 'Approved' && (t.id === correction.id || t.supersedesId)).reduce((sum: number, t: any) => sum + t.durationMinutes, 0), 60);
+  });
+});
+
+describe('time entry scenario dates and work scope (VP-028)', () => {
+  it('rejects invalid and future dates and task links outside the selected job', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const s = (prototypeStore as any).state as PrototypeState;
+    setPersona(s, 'Adam Khan');
+    const job = s.jobs.find(j => j.engagementId === 'ENG-26001' && j.status !== 'Cancelled')!;
+    const task = s.jobTasks.find(t => t.jobId === job.id && t.status !== 'Cancelled')!;
+    const entry: any = { id: 'TIME-VP028-SCOPE', person: 'Adam Khan', clientId: job.clientId, engagementId: job.engagementId, jobId: job.id, taskId: task.id, taskTitle: task.title, date: s.asOfDate, durationMinutes: 30, billable: true, activity: 'Audit fieldwork', status: 'Submitted' };
+    prototypeStore.addTimeEntry({ ...entry, id: 'TIME-VP028-VALID' });
+    assert.throws(() => prototypeStore.addTimeEntry({ ...entry, id: 'TIME-VP028-INVALID-DATE', date: '2026-02-30' }), /valid date/);
+    assert.throws(() => prototypeStore.addTimeEntry({ ...entry, id: 'TIME-VP028-FUTURE', date: '2026-09-26' }), /scenario date/);
+    const otherJob = { ...job, id: 'JOB-VP028-OTHER', title: 'Separate task scope' };
+    const otherTask = { ...task, id: 'TSK-VP028-OTHER', jobId: otherJob.id };
+    s.jobs.push(otherJob);
+    s.jobTasks.push(otherTask);
+    assert.throws(() => prototypeStore.addTimeEntry({ ...entry, id: 'TIME-VP028-CROSS-TASK', taskId: otherTask.id }), /selected job/);
+    assert.throws(() => prototypeStore.addTimeEntry({ ...entry, id: 'TIME-VP028-NONPOSITIVE', durationMinutes: 0 }), /positive whole-minute/);
+    assert.equal(s.times.some(t => t.id === 'TIME-VP028-VALID'), true);
+    assert.equal(s.times.some(t => ['TIME-VP028-INVALID-DATE', 'TIME-VP028-FUTURE', 'TIME-VP028-CROSS-TASK', 'TIME-VP028-NONPOSITIVE'].includes(t.id)), false);
   });
 });
 
@@ -1612,7 +1645,7 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
     const isolated = (prototypeStore as any).state as PrototypeState;
     setPersona(isolated, 'Leila Hassan');
     isolated.currentRole = 'billing';
-    const invoice = {
+    const invoice: PrototypeState['invoices'][number] = {
       id: 'INV-ADHOC-01', clientId: 'CL-001', eng: 'ENG-26001', engagementId: 'ENG-26001',
       invoiceNumber: 'INV-ADHOC-01', description: 'Ad-hoc services', amount: 200, paid: 0,
       currency: 'QAR', status: 'Draft' as const, due: '2026-10-31', preparedBy: 'Leila Hassan',
@@ -1682,6 +1715,51 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
       () => prototypeStore.addCreditNote({ id: 'C-X', invoiceId: 'INV-26002', clientId: 'CL-001', creditNumber: 'CRN-X', amount: 999999, reason: 'too big', status: 'Issued', issueDate: '2026-09-23', preparedBy: 'Leila Hassan' }),
       /remaining creditable/
     );
+    assert.throws(
+      () => prototypeStore.addCreditNote({ id: 'C-X-CLIENT', invoiceId: 'INV-26002', clientId: 'CL-002', creditNumber: 'CRN-X-CLIENT', amount: 1000, reason: 'wrong client', status: 'Draft', issueDate: '2026-09-23', preparedBy: 'Leila Hassan' }),
+      /Cross-client credits are rejected/
+    );
+    assert.throws(
+      () => prototypeStore.addCreditNote({ id: 'C-X-CURRENCY', invoiceId: 'INV-26002', clientId: 'CL-001', creditNumber: 'CRN-X-CURRENCY', amount: 1000, currency: 'USD', reason: 'wrong currency', status: 'Draft', issueDate: '2026-09-23', preparedBy: 'Leila Hassan' }),
+      /currency must match the invoice currency/
+    );
+  });
+
+  it('VP-031 revising an approved invoice preserves history and requires fresh approval', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const isolated = (prototypeStore as any).state as PrototypeState;
+    setPersona(isolated, 'Leila Hassan');
+    const invoice = {
+      id: 'INV-REV-01', clientId: 'CL-001', eng: 'ENG-26001', engagementId: 'ENG-26001', invoiceNumber: 'INV-REV-01',
+      description: 'Initial accepted fee', amount: 100000, paid: 0, creditsApplied: 0, currency: 'QAR', status: 'Draft' as const,
+      due: '2026-10-31', preparedBy: 'Leila Hassan', revision: 1,
+      lines: [{ id: 'LINE-REV-01', description: 'Initial accepted fee', quantity: 1, rate: 100000, amount: 100000, sourceType: 'Ad hoc' as const }]
+    };
+    prototypeStore.addInvoice(invoice);
+    setPersona(isolated, 'Layla Rahman');
+    prototypeStore.reviewInvoice(invoice.id, true);
+    assert.equal(invoice.commercialApproval?.reviewedRevision, 1);
+    setPersona(isolated, 'Leila Hassan');
+    prototypeStore.reviseInvoiceDraft(invoice.id, {
+      description: 'Revised accepted fee', due: '2026-11-15', amount: 120000,
+      lines: [{ id: 'LINE-REV-02', description: 'Revised accepted fee', quantity: 1, rate: 120000, amount: 120000, sourceType: 'Ad hoc' }],
+      reason: 'Correct the agreed fee before issue.'
+    });
+    assert.equal(invoice.revision, 2);
+    assert.equal(invoice.status, 'Draft');
+    assert.equal(invoice.commercialApproval, undefined, 'the prior approval is cleared from the editable current revision');
+    assert.equal(invoice.revisionHistory?.[0].amount, 100000);
+    assert.equal(invoice.revisionHistory?.[0].editedBy, 'Leila Hassan');
+    assert.equal(invoice.commercialApprovalHistory?.[0].revision, 1);
+    assert.throws(() => prototypeStore.issueInvoice(invoice.id), /Only the current independently reviewed invoice revision/);
+    setPersona(isolated, 'Layla Rahman');
+    prototypeStore.reviewInvoice(invoice.id, true);
+    assert.equal(invoice.commercialApproval?.reviewedRevision, 2);
+    setPersona(isolated, 'Leila Hassan');
+    prototypeStore.issueInvoice(invoice.id);
+    assert.equal(invoice.status, 'Issued');
+    assert.throws(() => prototypeStore.reviseInvoiceDraft(invoice.id, { description: 'Issued edit', due: '2026-11-15', amount: 120000, lines: invoice.lines, reason: 'Must reject issued edits.' }), /Only unissued invoice drafts can be revised/);
   });
 
   it('VP-031 returns and revises credit notes by revision and requires review of the current revision', async () => {
@@ -1799,7 +1877,21 @@ describe('money guards (AT-30/AT-31/AT-32)', () => {
     assert.throws(() => prototypeStore.addReceipt(malformed), /valid date/);
     malformed.date = '2026-09-25';
     assert.throws(() => prototypeStore.addReceipt({ ...malformed, allocations: [{ invoiceId: 'INV-26002', amount: 100, allocatedAt: '2026-09-25T00:00:00Z' }], allocatedAmount: 100 }), /start with no allocations/);
+    const receiptsBeforeInvalidAmounts = current.receipts.length;
+    for (const [index, amount] of [0, -0.01, Number.NaN, Number.POSITIVE_INFINITY, 1.001].entries()) {
+      assert.throws(
+        () => prototypeStore.addReceipt({ ...malformed, id: `RCP-AMOUNT-${index}`, receiptNumber: `RCP-AMOUNT-${index}`, amount }),
+        /finite, positive, and use at most two decimal places/
+      );
+    }
+    assert.equal(current.receipts.length, receiptsBeforeInvalidAmounts, 'invalid receipt amounts do not partially append receipts');
     assert.equal(current.receipts.some(item => item.id === malformed.id), false, 'rejected receipt remains unrecorded');
+
+    const minimumValidReceipt = { ...malformed, id: 'RCP-MIN-CENT', receiptNumber: 'RCP-MIN-CENT', amount: 0.01, method: 'Cash' as const, reference: 'COUNTER-01', notes: 'Recorded from a human-provided receipt.' };
+    prototypeStore.addReceipt(minimumValidReceipt);
+    assert.equal(current.receipts[0].amount, 0.01, 'the smallest positive two-decimal receipt is accepted');
+    assert.equal(current.receipts[0].reference, 'COUNTER-01');
+    assert.equal(current.receipts[0].notes, 'Recorded from a human-provided receipt.');
 
     const invoice = current.invoices.find(item => item.id === 'INV-26002')!;
     const receipt = { id: 'RCP-AT32-STALE', clientId: 'CL-001', receiptNumber: 'RCP-AT32-STALE', amount: 1000, currency: 'QAR', date: '2026-09-25', method: 'Other' as const, externalRef: 'LOCAL-01', allocatedAmount: 0, allocations: [] };
@@ -2134,6 +2226,39 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(prototypeStore.getSnapshot().statementSetRevisions?.[0].status, 'Stale');
   });
 
+  it('versions statement layout order, groups and validated subtotals and stales prior output', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const state = (prototypeStore as any).state;
+    const engagement = state.engagements.find((item: any) => item.id === 'ENG-26001');
+    state.accountMappingRevisions = [];
+    const targets: Record<string, string> = { asset: 'Cash and cash equivalents', liability: 'Trade payables', equity: 'Share capital and reserves', revenue: 'Revenue', expense: 'Operating expenses' };
+    prototypeStore.setPersona('preparer');
+    prototypeStore.saveAccountMappings(engagement.id, engagement.rows.map((row: any) => ({ accountCode: row.code, targets: [{ statementLine: targets[row.type], percentage: 100 }] })));
+    prototypeStore.setPersona('reviewer');
+    prototypeStore.approveAccountMappings(engagement.id, 1);
+    prototypeStore.setPersona('preparer');
+    const balanceSheetLines = new Set(['Cash and cash equivalents', 'Trade receivables', 'Other current assets', 'Property and equipment', 'Trade payables', 'Borrowings', 'Share capital and reserves']);
+    const mappedLines = [...new Set(state.accountMappingRevisions[0].mappings.flatMap((item: any) => item.targets.map((target: any) => target.statementLine)))];
+    const layoutLines = mappedLines.map((line: string, index: number) => ({ line, statement: balanceSheetLines.has(line) ? 'bs' as const : 'is' as const, group: balanceSheetLines.has(line) ? 'Balance sheet' : 'Income statement', order: index + 1 }));
+    const subtotal = { id: 'ST-SUBTOTAL-1', label: 'Selected performance subtotal', statement: 'is' as const, lineNames: ['Revenue', 'Operating expenses'] };
+    const duplicateOrder = layoutLines.map((line: any) => line.statement === 'is' ? { ...line, order: 1 } : line);
+    assert.throws(() => prototypeStore.saveStatementLayoutRevision({ engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, lines: duplicateOrder, subtotals: [subtotal] }), /unique within each statement/);
+    assert.throws(() => prototypeStore.saveStatementLayoutRevision({ engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, lines: layoutLines, subtotals: [{ ...subtotal, lineNames: ['Cash and cash equivalents'] }] }), /one or more unique lines/);
+    assert.equal(prototypeStore.saveStatementLayoutRevision({ engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, lines: layoutLines, subtotals: [subtotal] }), 2);
+    const layoutInput: any = { engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, layoutVersion: 2, layout: layoutLines, subtotals: [{ ...subtotal, current: 12, comparative: 10 }], totals: { assets: 10, liabilities: 4, equity: 6, revenue: 12, netProfit: 8 }, lines: layoutLines.map((line: any) => ({ line: line.line, current: 1, currentSources: ['1000'], comparativeSources: [] })) };
+    prototypeStore.saveStatementSetRevision(layoutInput);
+    state.engagements.find((item: any) => item.id === engagement.id).candidate = { packageRevision: 1 };
+    state.engagements.find((item: any) => item.id === engagement.id).approvals.manager = { status: 'Approved' };
+    const nextLayout = layoutLines.map((line: any) => ({ ...line, group: `${line.group} revised`, order: line.order + 1 }));
+    assert.equal(prototypeStore.saveStatementLayoutRevision({ engagementId: engagement.id, sourceVersion: engagement.sourceVersion, mappingRevision: 1, lines: nextLayout, subtotals: [subtotal] }), 3);
+    const savedState = prototypeStore.getSnapshot();
+    assert.equal(savedState.statementSetRevisions?.[0].status, 'Stale');
+    assert.equal(savedState.engagements.find((item: any) => item.id === engagement.id)?.candidate, null);
+    assert.equal(savedState.engagements.find((item: any) => item.id === engagement.id)?.approvals.manager, null);
+    assert.throws(() => prototypeStore.saveStatementSetRevision(layoutInput), /current saved layout version/);
+  });
+
   it('saves evidence-backed cash-flow schedules, requires independent reconciliation, and stales on source replacement', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
     (prototypeStore as any).state = createInitialState();
@@ -2390,21 +2515,67 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     const current = createInitialState();
     (prototypeStore as any).state = current;
     setPersona(current, 'Layla Rahman');
-    const secondInvoice = { ...structuredClone(current.invoices.find(item => item.id === 'INV-26002')!), id: 'INV-AT32-2', invoiceNumber: 'INV-AT32-2', amount: 100_000, paid: 0 };
+    const secondInvoice = { ...structuredClone(current.invoices.find(item => item.id === 'INV-26002')!), id: 'INV-AT32-2', invoiceNumber: 'INV-AT32-2', amount: 100_000, paid: 0, due: '2027-01-01' };
     const firstInvoice = current.invoices.find(item => item.id === 'INV-26002')!;
+    firstInvoice.due = '2026-01-01';
     const firstInvoicePaid = Math.max(firstInvoice.paid, current.receipts.flatMap(item => item.allocations).filter(item => item.invoiceId === firstInvoice.id && !item.reversed).reduce((sum, item) => sum + item.amount, 0));
     current.invoices.push(secondInvoice);
-    const receipt = { ...structuredClone(current.receipts[0]), id: 'RCP-AT32-MULTI', receiptNumber: 'RCP-AT32-MULTI', amount: 150_000, allocatedAmount: 0, allocations: [] };
+    const receipt = { ...structuredClone(current.receipts[0]), id: 'RCP-AT32-MULTI', receiptNumber: 'RCP-AT32-MULTI', amount: 160_000, allocatedAmount: 0, allocations: [] };
     prototypeStore.addReceipt(receipt);
     prototypeStore.allocateReceipt(receipt.id, 'INV-26002', 50_000);
+    const beforeMissingReversalReason = { receipt: structuredClone(receipt), invoice: structuredClone(firstInvoice) };
+    assert.throws(() => prototypeStore.reverseAllocation(receipt.id, 0, '   '), /reversal reason is required/);
+    assert.deepEqual(receipt, beforeMissingReversalReason.receipt, 'missing reversal reason leaves allocation history and receipt balance unchanged');
+    assert.deepEqual(firstInvoice, beforeMissingReversalReason.invoice, 'missing reversal reason leaves invoice settlement unchanged');
     prototypeStore.allocateReceipt(receipt.id, secondInvoice.id, 70_000);
     assert.equal(receipt.allocatedAmount, 120_000);
+    assert.equal(receipt.amount - receipt.allocatedAmount, 40_000, 'partial/split allocations preserve the receipt unallocated balance');
+    assert.equal(receipt.amount, receipt.allocations.filter(item => !item.reversed).reduce((sum, item) => sum + item.amount, 0) + (receipt.amount - receipt.allocatedAmount), 'gross receipt equals active allocation history plus unallocated amount');
     assert.deepEqual(receipt.allocations.map(item => item.invoiceId), ['INV-26002', secondInvoice.id]);
     assert.equal(secondInvoice.paid, 70_000);
+    assert.equal(firstInvoice.due, '2026-01-01');
+    assert.equal(secondInvoice.due, '2027-01-01');
+    const receiptBeforeInvoiceOverage = structuredClone(receipt);
+    const secondInvoiceBeforeOverage = structuredClone(secondInvoice);
+    assert.throws(() => prototypeStore.allocateReceipt(receipt.id, secondInvoice.id, 30_001), /exceeds remaining invoice balance/);
+    assert.deepEqual(receipt, receiptBeforeInvoiceOverage, 'invoice over-allocation leaves allocation history and receipt balance unchanged');
+    assert.deepEqual(secondInvoice, secondInvoiceBeforeOverage, 'invoice over-allocation leaves settlement unchanged');
+    const secondInvoiceBeforeStaleReverse = structuredClone(secondInvoice);
+    secondInvoice.paid += 1;
+    const staleReceiptSnapshot = structuredClone(receipt);
+    const staleInvoiceSnapshot = structuredClone(secondInvoice);
+    assert.throws(() => prototypeStore.reverseAllocation(receipt.id, 1, 'Stale invoice balance must not reverse.'), /Settlement totals are stale/);
+    assert.deepEqual(receipt, staleReceiptSnapshot, 'stale invoice totals preserve receipt allocation history');
+    assert.deepEqual(secondInvoice, staleInvoiceSnapshot, 'stale invoice totals remain unchanged after rejected reversal');
+    secondInvoice.paid = secondInvoiceBeforeStaleReverse.paid;
     prototypeStore.reverseAllocation(receipt.id, 0, 'Correct first invoice allocation.');
     assert.equal(receipt.allocatedAmount, 70_000);
+    assert.equal(receipt.amount - receipt.allocatedAmount, 90_000, 'reversing one allocation restores its funds to the unallocated receipt balance');
+    assert.equal(receipt.amount, receipt.allocations.filter(item => !item.reversed).reduce((sum, item) => sum + item.amount, 0) + (receipt.amount - receipt.allocatedAmount));
+    assert.equal(receipt.allocations[0].reversalReason, 'Correct first invoice allocation.');
+    assert.equal(receipt.allocations[0].reversed, true, 'reversal retains rather than deletes original allocation history');
     assert.equal(firstInvoice.paid, firstInvoicePaid);
     assert.equal(secondInvoice.paid, 70_000);
+    const afterFirstReversal = { receipt: structuredClone(receipt), firstInvoice: structuredClone(firstInvoice) };
+    prototypeStore.reverseAllocation(receipt.id, 0, 'Duplicate correction request.');
+    assert.deepEqual(receipt, afterFirstReversal.receipt, 'repeating an allocation reversal does not restore receipt funds twice or rewrite its history');
+    assert.deepEqual(firstInvoice, afterFirstReversal.firstInvoice, 'repeating an allocation reversal does not alter invoice settlement twice');
+
+    const fullySettledInvoice = { ...structuredClone(firstInvoice), id: 'INV-AT32-FULL', invoiceNumber: 'INV-AT32-FULL', amount: 25, paid: 0, status: 'Issued' as const, due: '2026-09-20' };
+    current.invoices.push(fullySettledInvoice);
+    const fullyAllocatedReceipt = { ...structuredClone(receipt), id: 'RCP-AT32-FULL', receiptNumber: 'RCP-AT32-FULL', amount: 25, allocatedAmount: 0, allocations: [] };
+    prototypeStore.addReceipt(fullyAllocatedReceipt);
+    prototypeStore.allocateReceipt(fullyAllocatedReceipt.id, fullySettledInvoice.id, 25);
+    assert.equal(fullySettledInvoice.paid, 25);
+    assert.equal(fullySettledInvoice.status, 'Paid');
+    assert.equal(fullyAllocatedReceipt.amount - fullyAllocatedReceipt.allocatedAmount, 0);
+    prototypeStore.reverseAllocation(fullyAllocatedReceipt.id, 0, 'Restore fully settled balance.');
+    assert.equal(fullySettledInvoice.paid, 0);
+    assert.equal(fullySettledInvoice.status, 'Issued', 'reversing full settlement restores the invoice to Issued');
+    assert.equal(fullyAllocatedReceipt.allocatedAmount, 0);
+    assert.equal(fullyAllocatedReceipt.amount - fullyAllocatedReceipt.allocatedAmount, 25, 'full reversal restores the entire receipt to unallocated funds');
+    assert.equal(fullyAllocatedReceipt.allocations.length, 1, 'full reversal retains its original allocation row');
+    assert.equal(fullyAllocatedReceipt.allocations[0].reversalReason, 'Restore fully settled balance.');
   });
 
   it('audit plans require explicit rates and rate-consistent threshold amounts', async () => {

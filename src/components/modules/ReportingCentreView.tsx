@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { RouteKey, EngagementRecord, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
-import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 
@@ -29,6 +29,7 @@ const REPORTS: Array<{ key: ReportKey; label: string }> = [
 
 export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const effectiveTimes = getEffectiveTimeEntries(state.times);
   const [selectedReport, setSelectedReport] = useState<ReportKey>('wip');
   const [clientFilter, setClientFilter] = useState<string>('ALL');
   const [drillDownEng, setDrillDownEng] = useState<EngagementRecord | null>(null);
@@ -46,7 +47,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
   // Compute live WIP rows from demo records
   const wipRows = filteredEngs.map(eng => {
     const cl = state.clients.find(c => c.id === eng.client);
-    const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
+    const approvedTimes = effectiveTimes.filter(t => t.engagementId === eng.id && t.status === 'Approved');
     const totalMinutes = approvedTimes.reduce((sum, t) => sum + t.durationMinutes, 0);
     // Use the rate pinned when time was approved; missing rates remain unknown.
     const recordedWipValue = calculateRecordedWipValue(approvedTimes);
@@ -78,7 +79,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
   // Compute live staff utilization from state.times
   const usersWithTimes = state.users.filter(u => u.group === 'Professional');
   const utilizationRows = usersWithTimes.map(user => {
-    const userTimes = state.times.filter(t => t.person === user.name && t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
+    const userTimes = effectiveTimes.filter(t => t.person === user.name && t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
     const billableMinutes = userTimes.filter(t => t.billable).reduce((sum, t) => sum + t.durationMinutes, 0);
     const nonBillableMinutes = userTimes.filter(t => !t.billable).reduce((sum, t) => sum + t.durationMinutes, 0);
     const totalUserMinutes = billableMinutes + nonBillableMinutes;
@@ -102,7 +103,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
     : REPORTS.filter(r => ['clients', 'jobs', 'tasks', 'compliance'].includes(r.key));
   const report = visibleReports.some(r => r.key === selectedReport) ? selectedReport : visibleReports[0]?.key || 'clients';
   const scopedJobIds = new Set(state.jobs.filter(j => filteredEngs.some(e => e.id === j.engagementId)).map(j => j.id));
-  const approvedTime = state.times.filter(t => t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
+  const approvedTime = effectiveTimes.filter(t => t.status === 'Approved' && filteredEngs.some(e => e.id === t.engagementId));
   const scopedInvoices = state.invoices.filter(i => filteredEngs.some(e => e.id === (i.engagementId || i.eng)));
   const scopedInvoiceIds = new Set(scopedInvoices.map(i => i.id));
   const scopedClientsSet = new Set(scopedClients.filter(c => clientFilter === 'ALL' || c.id === clientFilter).map(c => c.id));

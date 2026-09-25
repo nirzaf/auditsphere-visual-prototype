@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { RouteKey, BudgetRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
+import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
@@ -105,10 +105,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
     );
   }
 
-  const approvedEntries = state.times.filter(
+  const effectiveTimes = getEffectiveTimeEntries(state.times);
+  const approvedEntries = effectiveTimes.filter(
     t => t.engagementId === selectedEng?.id && t.status === 'Approved'
   );
-  const submittedEntries = state.times.filter(
+  const submittedEntries = effectiveTimes.filter(
     t => t.engagementId === selectedEng?.id && t.status === 'Submitted'
   );
 
@@ -349,7 +350,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                 {scopedEngagements.map(eng => {
                   const cl = state.clients.find(c => c.id === eng.client);
                   const bdg = state.budgets.find(b => b.engagementId === eng.id);
-                  const approvedTimes = state.times.filter(t => t.engagementId === eng.id && t.status === 'Approved');
+                  const approvedTimes = getEffectiveTimeEntries(state.times).filter(t => t.engagementId === eng.id && t.status === 'Approved');
                   const actualMins = approvedTimes.reduce((s, t) => s + t.durationMinutes, 0);
                   const values = approvedTimes.filter(t => t.billable).map(t =>
                     (!t.currency || t.currency === eng.currency) && Number.isFinite(t.billingRatePerHour) && t.billingRatePerHour! >= 0
