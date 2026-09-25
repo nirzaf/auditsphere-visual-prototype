@@ -92,3 +92,11 @@ Status changes made with the helper append below. This history is not the source
 | 2026-09-25T11:22:10+00:00 | VP-061: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending |
 | 2026-09-25T11:22:10+00:00 | VP-062: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
 | 2026-09-25T11:22:11+00:00 | VP-062: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; committed E2E journeys (83/83) at 258733c; reviewer sign-off pending |
+| 2026-09-25T12:21:19+00:00 | VP-017: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T12:21:19+00:00 | VP-017: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending |
+| 2026-09-25T12:21:20+00:00 | VP-020: IN_REVIEW → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T12:21:20+00:00 | VP-020: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending |
+| 2026-09-25T12:21:21+00:00 | VP-022: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T12:21:21+00:00 | VP-022: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending |
+| 2026-09-25T12:23:26+00:00 | VP-063: NOT_STARTED → IN_PROGRESS | M.F.M Fazrin | See card evidence |
+| 2026-09-25T12:23:26+00:00 | VP-063: IN_PROGRESS → IN_REVIEW | M.F.M Fazrin | 64-story reconciliation table appended to tracking/ACCEPTANCE_EVIDENCE.md at 2e466d2; every story accounted for with observed basis; reviewer sign-off pending |

@@ -1,18 +1,18 @@
 ---
 id: "VP-063"
 title: "Close original acceptance evidence against the active Vite app"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P1"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-063"]
 modules: ["MOD-01", "MOD-02", "MOD-03", "MOD-04", "MOD-05", "MOD-06", "MOD-07", "MOD-08", "MOD-09", "MOD-10", "MOD-11", "MOD-12", "MOD-13", "MOD-14", "MOD-15", "MOD-16", "MOD-17", "MOD-18", "MOD-19", "MOD-20", "MOD-21", "MOD-22", "MOD-23", "MOD-24", "MOD-25", "MOD-26", "MOD-27", "MOD-28", "MOD-29", "MOD-30", "MOD-31", "MOD-32", "MOD-33", "MOD-34", "MOD-35", "MOD-36", "MOD-37", "MOD-38", "MOD-39"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "64-story reconciliation table appended to tracking/ACCEPTANCE_EVIDENCE.md at 2e466d2; every story accounted for with observed basis; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T12:23:26+00:00"
 ---
 
 # VP-063 — Close original acceptance evidence against the active Vite app

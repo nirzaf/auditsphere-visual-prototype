@@ -1,18 +1,18 @@
 ---
 id: "VP-022"
 title: "Finish simulated provider failure and reconnect paths"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-022"]
 modules: ["MOD-18"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T12:21:21+00:00"
 ---
 
 # VP-022 — Finish simulated provider failure and reconnect paths

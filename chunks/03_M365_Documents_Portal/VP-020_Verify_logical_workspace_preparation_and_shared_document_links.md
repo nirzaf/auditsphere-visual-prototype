@@ -10,9 +10,9 @@ modules: ["MOD-10", "MOD-18"]
 depends_on: []
 owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: "Card evidence table; committed E2E journeys (83/83) and unit suites (191/196+) at 258733c; reviewer sign-off pending"
+evidence: "Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: "2026-09-25T11:19:56+00:00"
+updated_at: "2026-09-25T12:21:20+00:00"
 ---
 
 # VP-020 — Verify logical workspace preparation and shared document links
@@ -72,12 +72,12 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | 258733c + committed base |
+| Inspected / tested full commit | 2e466d2 (extends 258733c evidence) |
 | Browser / viewport / build | Chrome E2E + M365SetupView/accounting setup inspection |
 | Persona and client/engagement / fixture | Admin persona configuring the simulated workspace; client_finance portal check |
 | Exact original criterion and assertion | E2E AT-21 (OneDrive stays disabled until enabled; SharePoint remains canonical storage); AT-34 (accounting context persisted) |
 | Command / test / observed result | One logical root per binding; unavailable setup described without provisioning; one document identity/revision across views; foreign root/client rejected |
-| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-21 and AT-34; wrong-tenant/foreign-root linkage rejected by the M365 configuration guards (verificationResults bound to configRevision) |
+| Output or screenshot / hash | PASS - 83/83 E2E incl. AT-21 and AT-34; 2e466d2 adds prepareClientWorkspace (folders verified under the configured synthetic root, explicit no-provisioning notice) and document preview cross-links to the linked PBC request, workpaper and job; wrong-tenant/foreign-root linkage rejected (verificationResults bound to configRevision) |
 | Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.

@@ -1,18 +1,18 @@
 ---
 id: "VP-017"
 title: "Complete the Microsoft setup wizard demonstration"
-status: "NOT_STARTED"
+status: "IN_REVIEW"
 work_kind: "VERIFY_FIRST"
 priority: "P2"
 source_status: "REPOSITORY_REPORTED_PARTIAL"
 source_stories: ["VP-017"]
 modules: ["MOD-18"]
 depends_on: []
-owner: ""
+owner: "M.F.M Fazrin"
 reviewer: ""
-evidence: ""
+evidence: "Card evidence table; 83/83 E2E and 197/197 unit at 2e466d2; reviewer sign-off pending"
 blocked_reason: ""
-updated_at: ""
+updated_at: "2026-09-25T12:21:19+00:00"
 ---
 
 # VP-017 — Complete the Microsoft setup wizard demonstration
@@ -58,10 +58,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] liveConnected remains false in every supported scenario.
-- [ ] Cancel does not accidentally activate partially edited settings.
-- [ ] Verification refers to the exact current fixture revision.
-- [ ] All screens distinguish simulated setup from credentials/OAuth/provisioning.
+- [x] liveConnected remains false in every supported scenario.
+- [x] Cancel does not accidentally activate partially edited settings.
+- [x] Verification refers to the exact current fixture revision.
+- [x] All screens distinguish simulated setup from credentials/OAuth/provisioning.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | 2e466d2 |
+| Browser / viewport / build | Chrome E2E + M365SetupView wizard inspection |
+| Persona and client/engagement / fixture | Admin persona walking the new multi-step setup wizard; cancel mid-flow |
+| Exact original criterion and assertion | M365SetupView SetupStep wizard (start/skip/steps/back/cancel); cancel calls discardConfiguration and returns to the intro without saving; E2E 83/83 incl. AT-15/16 (per-capability simulation saved and retained on reload) and the wrong-tenant journey asserting liveConnected:false |
+| Command / test / observed result | liveConnected forced false in every scenario (prototypeStore.ts:4357/4389/4399 + journey assertion); cancel never activates partial edits; verification results bind to the exact configRevision; every screen labels the flow simulated (no credentials/OAuth/provisioning) |
+| Output or screenshot / hash | PASS - lint clean; 197/197 unit; 83/83 E2E at 2e466d2 |
+| Reviewer / date / limitations | Reviewer pending / 2026-09-25 |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

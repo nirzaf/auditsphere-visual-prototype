@@ -15,3 +15,23 @@ Append one row for each actual assertion or documentation reconciliation. Do not
 | DEMO-003 | Visual/responsive/keyboard rehearsal | working tree after DEMO changes | Manager persona | Live Chrome at 1280×720 and 390×844: guide page render, unsaved-changes dialog, planning thresholds, mobile layout | Readable at 390px without horizontal overflow; dialog focus trap holds; Escape/discard behave | PASS — mobile layout stacks cleanly (hamburger, stacked context bar); dialog keyboard checks above; screenshots captured | Reviewer pending / 2026-09-25 |
 
 No application assertion was executed during the pack-authoring review itself. Generated-pack tests are recorded in PACK_VALIDATION.md, not here as product acceptance.
+
+## VP-063 acceptance reconciliation — 2026-09-25 (working tree `2e466d2`)
+
+Accounting of all 64 original stories against the current Vite app at commit `2e466d2`, based only on actually executed checks: the full Chrome E2E suite (83/83 at this tree), the unit suites (197/197), the per-card evidence tables in `chunks/` (each tied to named journeys or store inspections), and the dated rows above. Per-criterion detail lives in `docs/Progress_Tracker.md`; this table is the story-level reconciliation. No live M365/email/payment/AI or production AuditSphere action was performed at any point (AT-03/VP-063 blocks external HTTP across all journeys).
+
+| Stories | Reconciliation | Basis (observed, not inferred) |
+|---|---|---|
+| VP-001, VP-002, VP-003, VP-004 | EVIDENCED_IN_REVIEW — foundation scope/runtime/guards/recovery verified; reviewer sign-off open | 2026-09-25 verification-record rows; scope.test.ts AT-04; store/README reconciliations; recovery journeys |
+| VP-005–VP-008, VP-010–VP-013, VP-015, VP-016, VP-019–VP-023, VP-025, VP-026 | EVIDENCED_IN_REVIEW — implemented and journey-verified; residual edge matrices remain open as documented per card | Card evidence tables; named E2E journeys (VP-005, VP-008-E01, VP-010-E01/E02, AT-56, VP-012, AT-11/12, AT-13/19, AT-14/27, AT-17/VP-018, AT-21, AT-23/24, AT-26, AT-15/16, wrong-tenant journey); VP-023 unit suite |
+| VP-009, VP-014, VP-018, VP-035, VP-037, VP-043, VP-047, VP-051, VP-052, VP-053, VP-055, VP-056–VP-060 | REPOSITORY_VERIFIED — preserved baseline; not reopened, regression-covered by the suites above | `reference/VERIFIED_BASELINE_DO_NOT_REBUILD.md`; journeys touching these areas (AT-44/47, AT-52, VP-055) still pass at this tree |
+| VP-024, VP-027, VP-028 | EVIDENCED_IN_REVIEW | AT-23/24; AT-27 + AT-38/40 exclusion; AT-28 + AT-51 |
+| VP-029–VP-034, VP-036, VP-038–VP-042, VP-044–VP-046 | EVIDENCED_IN_REVIEW — implemented and journey-verified; full edge matrices per card remain open | Card evidence tables; named journeys (AT-59/VP-029, AT-31/VP-031, AT-34/36/37/38/40/41/42/48, AT-43/45, VP-045-AC03) |
+| VP-048 | EVIDENCED_IN_REVIEW — deliberate inputs implemented; truthful feedback verified | Live-Chrome rehearsal + updated VP-049 journey; tracker VP-048 actions checked |
+| VP-049, VP-050, VP-054, VP-061, VP-062 | EVIDENCED_IN_REVIEW | Named journeys (VP-049 ×2, VP-050, VP-054/VP-055, AT-50/VP-061) + AdministrationView/Shell inspections |
+| VP-017, VP-020, VP-022 | EVIDENCED_IN_REVIEW — setup wizard, workspace preparation and provider-failure paths implemented and verified at `2e466d2` | Card evidence tables; AT-15/16/21; wrong-tenant/retry journey |
+| VP-030, VP-031, VP-032, VP-033 | EVIDENCED_IN_REVIEW | AT-31/VP-031, AT-51; cancelInvoiceDraft/credit-note/aging unit suites |
+| VP-063 | THIS TABLE — criterion accounting maintained in the tracker per-criterion tables; no test name substitutes for outcomes: every row above cites observed assertions | This reconciliation |
+| VP-064 | Pending — final status/handoff reconciliation recorded after reviewer pass (see tracker) | Tracker + verification record |
+
+Any story not listed above does not exist: the original contract is VP-001–VP-064 without gaps. Stories marked EVIDENCED_IN_REVIEW are NOT claimed as fully accepted — reviewer sign-off in `docs/Progress_Tracker.md` remains the acceptance gate.

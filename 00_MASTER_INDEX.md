@@ -9,9 +9,9 @@
 
 | Execution status | Tasks |
 |---|---:|
-| NOT_STARTED | 5 |
+| NOT_STARTED | 2 |
 | IN_PROGRESS | 1 |
-| IN_REVIEW | 36 |
+| IN_REVIEW | 39 |
 | BLOCKED | 10 |
 | REOPENED | 0 |
 | COMPLETED | 0 |
@@ -74,11 +74,11 @@ The source reports 16 stories and 10 modules Verified. See [the preserve-baselin
 
 | Task | Kind / priority | Status | Coordination readiness | Owner |
 |---|---|---|---|---|
-| [VP-017 — Complete the Microsoft setup wizard demonstration](chunks/03_M365_Documents_Portal/VP-017_Complete_the_Microsoft_setup_wizard_demonstration.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
+| [VP-017 — Complete the Microsoft setup wizard demonstration](chunks/03_M365_Documents_Portal/VP-017_Complete_the_Microsoft_setup_wizard_demonstration.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-019 — Close professional-role, expiry and group-scope demonstrations](chunks/03_M365_Documents_Portal/VP-019_Close_professional_role_expiry_and_group_scope_demonstrations.md) | VERIFY_FIRST / P1 | IN_PROGRESS | READY | M.F.M Fazrin |
 | [VP-020 — Verify logical workspace preparation and shared document links](chunks/03_M365_Documents_Portal/VP-020_Verify_logical_workspace_preparation_and_shared_document_links.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-021 — Close document revision, availability and storage-class guidance](chunks/03_M365_Documents_Portal/VP-021_Close_document_revision_availability_and_storage_class_guidance.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
-| [VP-022 — Finish simulated provider failure and reconnect paths](chunks/03_M365_Documents_Portal/VP-022_Finish_simulated_provider_failure_and_reconnect_paths.md) | VERIFY_FIRST / P2 | NOT_STARTED | READY | Unassigned |
+| [VP-022 — Finish simulated provider failure and reconnect paths](chunks/03_M365_Documents_Portal/VP-022_Finish_simulated_provider_failure_and_reconnect_paths.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-023 — Complete request editing, reassignment and cancellation](chunks/03_M365_Documents_Portal/VP-023_Complete_request_editing_reassignment_and_cancellation.md) | IMPLEMENT_OR_VERIFY / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-024 — Complete accepted-PBC evidence reassessment across recipients](chunks/03_M365_Documents_Portal/VP-024_Complete_accepted_PBC_evidence_reassessment_across_recipients.md) | VERIFY_FIRST / P1 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-025 — Finish three-role portal and sharing-withdrawal demonstrations](chunks/03_M365_Documents_Portal/VP-025_Finish_three_role_portal_and_sharing_withdrawal_demonstrations.md) | VERIFY_FIRST / P1 | IN_REVIEW | READY | M.F.M Fazrin |
@@ -130,7 +130,7 @@ The source reports 16 stories and 10 modules Verified. See [the preserve-baselin
 |---|---|---|---|---|
 | [VP-061 — Finish scoped search targets and return-to-context cases](chunks/08_Cross_Module_Closeout/VP-061_Finish_scoped_search_targets_and_return_to_context_cases.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-062 — Verify prospective firm settings and editor ownership](chunks/08_Cross_Module_Closeout/VP-062_Verify_prospective_firm_settings_and_editor_ownership.md) | VERIFY_FIRST / P2 | IN_REVIEW | READY | M.F.M Fazrin |
-| [VP-063 — Close original acceptance evidence against the active Vite app](chunks/08_Cross_Module_Closeout/VP-063_Close_original_acceptance_evidence_against_the_active_Vite_app.md) | VERIFY_FIRST / P1 | NOT_STARTED | READY | Unassigned |
+| [VP-063 — Close original acceptance evidence against the active Vite app](chunks/08_Cross_Module_Closeout/VP-063_Close_original_acceptance_evidence_against_the_active_Vite_app.md) | VERIFY_FIRST / P1 | IN_REVIEW | READY | M.F.M Fazrin |
 | [VP-064 — Reconcile status, source notes and final demonstration handoff](chunks/08_Cross_Module_Closeout/VP-064_Reconcile_status_source_notes_and_final_demonstration_handoff.md) | RECONCILE / P1 | NOT_STARTED | WAITING: VP-063, DEMO-004 | Unassigned |
 
 ## 09_Client_Presentation — Client-facing tours, walkthrough UX and rehearsal

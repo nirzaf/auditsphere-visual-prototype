@@ -2273,6 +2273,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
     assert.equal(await waitForBrowser('document.querySelector(".crumb")?.innerText.includes("DOCUMENTS")'), true, 'document library route opened');
     await clickButton('Import from OneDrive');
+    assert.match(await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop")?.innerText||""'), /local fixture list represents optional OneDrive selection\. No Microsoft connection or file import occurs\./, 'sample selector discloses fixture-only behavior and no file transfer');
     await clickButton('Record sample metadata');
     const imported = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const d=s.documents.find(x=>x.source==='OneDrive Import');return {doc:d,config:s.m365Config};})()`);
     assert.ok(imported.doc, 'explicit sample selection registers one local document record');
@@ -2286,8 +2287,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
 
   it('AT-20: registers a replacement file without silently changing its pinned evidence reference', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
+    assert.equal(await browserTab!.evaluate<boolean>(`![...document.querySelectorAll('button')].some(button=>/download/i.test(button.innerText))`), true, 'the metadata library does not offer a download action for unavailable original bytes');
+    await clickButton('Register File');
+    assert.match(await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop")?.innerText||""'), /Metadata is recorded locally\. The original file is not uploaded or persisted by this prototype\./, 'file registration discloses metadata-only persistence and no remote upload');
+    await clickButton('Cancel');
     const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Open in M365');if(!b)return false;b.click();return true;})()`);
     assert.equal(opened, true, 'linked bank statement can be opened');
+    assert.match(await browserTab!.evaluate<string>('document.querySelector(".modal-backdrop")?.innerText||""'), /Local metadata preview: Bank_Statement_December\.pdf[\s\S]*?No original file bytes are stored[\s\S]*?Original file content is unavailable\. This screen shows metadata only\./, 'Open in M365 is disclosed as a local metadata preview');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const modal=document.querySelector('.modal-backdrop');return modal?.innerText.includes('PBC-02')&&modal?.innerText.includes('WP-A1')&&modal?.innerText.includes('JOB-2602');})()`), true, 'the independent library preview exposes the PBC, job and workpaper identities linked to DOC-002');
     await clickButton('Open PBC request: Bank statement and reconciliation (PBC-02)');
     assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&!!document.querySelector('tr[data-search-target="true"]')?.innerText.includes('PBC-02')`), true, 'the document link opens the same PBC request in its client context');
