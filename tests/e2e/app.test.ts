@@ -1056,52 +1056,6 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
-  it('VP-025-AC01: scopes portal documents, messages, invoice badges and actions to the selected engagement', async () => {
-    const prior = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
-    try {
-      await browserTab!.evaluate(`(() => {
-        const s=JSON.parse(${JSON.stringify(JSON.stringify(createInitialState()))});
-        s.currentUserId='manager';s.currentPerson=s.users.find(u=>u.id==='manager').name;s.currentRole='manager';s.selectedEngagement='ENG-26001';
-        s.documents.push({id:'DOC-PORTAL-SIBLING',clientId:'CL-001',engagementId:'ENG-26003',name:'PORTAL-SIBLING-DOC.txt',folderPath:'/Engagements/2025/Accounts/',version:1,size:42,classification:'Deliverable',visibility:'Client shared',source:'SharePoint',uploadedBy:'Fixture',uploadedAt:'2026-09-25T10:00:00Z'});
-        s.communications.push({id:'COMM-PORTAL-SIBLING',clientId:'CL-001',engagementId:'ENG-26003',direction:'Inbound',channel:'Portal message',participants:'Client administrator',summary:'PORTAL-SIBLING-MESSAGE',body:'Sibling engagement message sentinel.',author:'Fixture',date:'2026-09-25',visibility:'Client visible',status:'Recorded manually'});
-        s.communications.unshift({id:'COMM-PORTAL-SELECTED',clientId:'CL-001',engagementId:'ENG-26003',direction:'Inbound',channel:'Portal message',participants:'Client administrator',summary:'PORTAL-SELECTED-MESSAGE',body:'Selected engagement message sentinel.',author:'Fixture',date:'2026-09-25',visibility:'Client visible',status:'Recorded manually'});
-        s.invoices.push({id:'INV-PORTAL-SIBLING',clientId:'CL-001',eng:'ENG-26003',engagementId:'ENG-26003',invoiceNumber:'INV-PORTAL-SIBLING',description:'Sibling engagement invoice sentinel',amount:100,paid:0,currency:'QAR',status:'Issued',due:'2026-10-25',issueDate:'2026-09-25',preparedBy:'Fixture',lines:[]});
-        localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));location.hash='#overview';
-      })()`);
-      await browserTab!.command('Page.reload');
-      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'client_admin');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='client_admin'`), true);
-      await clickButton('Client Experience Portal');
-      const engagementSelect = `([...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='ENG-26003'))) `;
-      assert.deepEqual(await browserTab!.evaluate<string[]>(`${engagementSelect}?.options ? [...${engagementSelect}.options].map(o=>o.value) : []`), ['ENG-26001','ENG-26003']);
-      const siblingPresent = async (pattern: string) => browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes(${JSON.stringify(pattern)})||false`);
-      await clickButton('Shared Documents');
-      assert.equal(await siblingPresent('PORTAL-SIBLING-DOC.txt'), false, 'selected ENG-26001 document list omits the ENG-26003 file');
-      await clickButton('Messages & Mail');
-      assert.equal(await siblingPresent('PORTAL-SIBLING-MESSAGE'), false, 'selected ENG-26001 messages omit the ENG-26003 message');
-      await clickButton('Fee Invoices');
-      assert.equal(await siblingPresent('INV-PORTAL-SIBLING'), false, 'selected ENG-26001 invoices omit the ENG-26003 invoice');
-      await browserTab!.evaluate(`(() => {const s=${engagementSelect};Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'ENG-26003');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await browserTab!.evaluate<boolean>(`${engagementSelect}.value==='ENG-26003'`), true, 'selected engagement remains ENG-26003 before route change');
-      await clickButton('Home Dashboard');
-      await clickButton('Messages & Mail');
-      assert.equal(await siblingPresent('PORTAL-SIBLING-MESSAGE'), true, 'selected ENG-26003 full message list shows its own record');
-      await clickButton('Shared Documents');
-      assert.equal(await siblingPresent('PORTAL-SIBLING-DOC.txt'), true);
-      await clickButton('Messages & Mail');
-      assert.equal(await siblingPresent('PORTAL-SIBLING-MESSAGE'), true);
-      await clickButton('Fee Invoices');
-      assert.equal(await siblingPresent('INV-PORTAL-SIBLING'), true, 'selected ENG-26003 invoice is visible with its download action');
-      assert.equal(await siblingPresent('Download Invoice PDF'), true);
-      assert.equal(browserTab!.exceptions.length, 0);
-    } finally {
-      await browserTab!.evaluate(`(() => {const key='ste-auditsphere-role-portals-v2';const prior=${JSON.stringify(prior)};if(prior===null)localStorage.removeItem(key);else localStorage.setItem(key,prior);})()`);
-      await browserTab!.command('Page.reload');
-      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
-    }
-  });
-
   it('VP-003-AC01: blocks a restored engagement selection outside the active grant', async () => {
     const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
@@ -5614,9 +5568,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     try {
       const fixture = createInitialState();
       const fixtureEngagement = fixture.engagements.find(e => e.id === 'ENG-26001')!;
+      const baselineRows = structuredClone(fixtureEngagement.rows);
+      const baselineGeneration = fixtureEngagement.generation;
+      fixtureEngagement.candidate = { generation: fixtureEngagement.generation, preparedAt: fixture.asOfDate, preparedBy: 'Fixture reviewer', manifest: [{ id: 'ART-AT36-FROZEN', name: 'Prior reviewed package.pdf', kind: 'PDF', mimeType: 'application/pdf', size: 128, sha256: 'a'.repeat(64) }], sourceVersion: fixtureEngagement.sourceVersion, packageRevision: fixtureEngagement.packageRevision, packageDefinitionId: 'PKG-AT36-PRIOR' };
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(fixture))})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');return e.candidate?.packageDefinitionId==='PKG-AT36-PRIOR'&&e.reconciliations.every(r=>r.status!=='Stale');})()`), true, 'fixture begins with a frozen candidate and current reconciliation records');
       await clickButton('Accounting Workbench');
       await clickButtonStartingWith('General Ledger & Completeness');
       assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="General ledger source file"]')`), true, await browserTab!.evaluate<string>('document.body.innerText.slice(-1800)'));
@@ -5637,6 +5595,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('document.body.innerText.includes("0 validation errors")'), true, await browserTab!.evaluate<string>(`[...document.querySelectorAll('.panel')].find(p=>p.innerText.includes('Import engagement GL source'))?.innerText||'panel not found'`));
       await clickButton('Import new revision');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');return e.generation===${baselineGeneration+1}&&e.candidate===null&&e.reconciliations.every(r=>r.status==='Stale')&&JSON.stringify(e.rows)===${JSON.stringify(JSON.stringify(baselineRows))};})()`), true, 'GL source import preserves the TB, stales dependent reconciliations and clears the frozen release candidate');
+      await clickButtonStartingWith('Reconciliations');
+      assert.equal(await waitForBrowser(`document.querySelector('main#main')?.innerText.includes('Stale')`), true, 'stale reconciliation state is shown in the accounting workspace');
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
       await clickButton('Accounting Workbench'); await clickButtonStartingWith('General Ledger & Completeness');

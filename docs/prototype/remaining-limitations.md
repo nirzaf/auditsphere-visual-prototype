@@ -125,7 +125,9 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   stales the live schedule while the prior Approved revision remains visible.
   Unit coverage verifies TB replacement staleness; Chrome verifies draft creation, self-approval
   denial, reasoned return, manager rework as a new revision, retained return
-  rationale and independent approval against scoped evidence. Fully external
+  rationale and independent approval against scoped evidence. A new VP-039 unit
+  assertion also proves approval rejects a timing item with no evidence link.
+  Broader currency/date/scope and criterion sign-off remain open; fully external
   statement provenance and subsequent bank reconciliation remain outside the
   local simulation.
 - **AT-22 — local document metadata:** Chrome registers a real selected local

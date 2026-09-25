@@ -49,12 +49,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
   const client = availableClients.find(c => c.id === resolvedClientId) || null;
   const allowedEngIds = visibleEngagementIds(state);
   const availableEngagements = client ? state.engagements.filter(e => e.client === client.id && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(e.id))) : [];
-  const [selectedEngagementId, setSelectedEngagementId] = useState(
+  const [selectedEngagementId, setSelectedEngagementId] = useState<string>(
     availableEngagements.find(e => e.id === state.selectedEngagement)?.id || availableEngagements[0]?.id || ''
   );
   const resolvedEngagementId = availableEngagements.some(e => e.id === selectedEngagementId)
     ? selectedEngagementId
-    : availableEngagements.find(e => e.id === state.selectedEngagement)?.id || availableEngagements[0]?.id || '';
+    : availableEngagements[0]?.id || '';
   const eng = availableEngagements.find(e => e.id === resolvedEngagementId) || null;
 
   // Strictly filter by client grant and exclude unissued/drafts from client visibility (VP-025, VP-033)
