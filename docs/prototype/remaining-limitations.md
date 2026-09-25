@@ -496,7 +496,7 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   synthetic prototype with no live M365, email, payments, e-signatures, tax/payroll,
   AI, or other external services. Purview is excluded from the supported product
   scope, not an outstanding acceptance requirement.
-- **Build size:** Vite warns that the main bundle exceeds 500 kB (2,455.98 kB, 677.91 kB gzip in the 2026-09-25 local verification build).
+- **Build size (Resolved):** The former 2,455.98 kB monolithic entry is code-split into 47 cacheable chunks and the Vite >500 kB chunk-size warning no longer fires (largest emitted chunk is vendor-xlsx at 419.25 kB; the entry chunk is ~36 kB). React, the document libraries (xlsx/docx/jspdf), the demo seed, the module-guide content and each module view are now separate chunks, so editing one view invalidates a small chunk instead of the whole bundle. Caveat: imports remain static (views are eagerly referenced), so total initial JavaScript (~2.98 MB minified) is broadly unchanged — true on-demand (React.lazy) view loading was implemented, verified to split the entry, then reverted because dynamic chunk fetches are incompatible with the prototype's strict same-origin CSP and headless acceptance harness (63/96 Chrome checks failed on unloaded views). Further initial-byte reduction via lazy loading is therefore out of reach for this browser-local, CSP-locked prototype.
 
 ## Lifecycle-closure delta (2026-09-26)
 

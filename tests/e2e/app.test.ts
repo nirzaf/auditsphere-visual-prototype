@@ -246,12 +246,13 @@ describe('vite build serves locally', () => {
   });
 
   it('AT-04: served bundle advertises no excluded product surface', async () => {
-    const html = await fetch(`${baseUrl}/`).then(r => r.text());
-    const assetRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map(m => m[1]);
-    assert.ok(assetRefs.length > 0, 'expected bundled scripts');
+    // The app is code-split, so scan every emitted chunk rather than only the
+    // entry <script src> to keep the scope-freeze check complete.
+    const assetsDir = join(dist, 'assets');
+    assert.ok(existsSync(assetsDir), 'expected built assets in dist/assets');
     const forbidden = ['purview', 'stripe', 'paypal', 'docusign', 'openai', 'power-bi', 'zapier'];
-    for (const ref of assetRefs) {
-      const js = await fetch(`${baseUrl}/${ref.replace(/^\.\//, '')}`).then(r => r.text());
+    for (const file of readdirSync(assetsDir).filter(name => name.endsWith('.js'))) {
+      const js = readFileSync(join(assetsDir, file), 'utf8');
       for (const word of forbidden) {
         // Allow explicit "not in product" disclaimers (case-insensitive context).
         const hits = js.split(word);
@@ -281,13 +282,14 @@ describe('vite build serves locally', () => {
   });
 
   it('AT-15/AT-25: static shell references the simulated M365 + portal surfaces', async () => {
-    // Route registry ships inside the bundle; assert the built JS contains the
-    // simulated surface keys (never live endpoints).
-    const html = await fetch(`${baseUrl}/`).then(r => r.text());
-    const assetRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map(m => m[1]);
+    // Route registry ships inside the built JS; assert the emitted chunks contain
+    // the simulated surface keys (never live endpoints). The app is code-split
+    // into several chunks, so scan every emitted asset rather than a single file.
+    const assetsDir = join(dist, 'assets');
+    assert.ok(existsSync(assetsDir), 'expected built assets in dist/assets');
     let bundle = '';
-    for (const ref of assetRefs) {
-      bundle += await fetch(`${baseUrl}/${ref.replace(/^\.\//, '')}`).then(r => r.text());
+    for (const file of readdirSync(assetsDir).filter(name => name.endsWith('.js'))) {
+      bundle += readFileSync(join(assetsDir, file), 'utf8');
     }
     assert.ok(bundle.includes('m365-setup'), 'missing M365 setup surface');
     assert.ok(bundle.includes('liveConnected'), 'missing liveConnected=false honesty marker');
