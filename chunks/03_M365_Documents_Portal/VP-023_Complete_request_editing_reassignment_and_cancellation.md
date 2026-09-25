@@ -59,10 +59,10 @@ Use the following role/context/input/result guides. They include expected succes
 ## Task acceptance checklist
 
 <!-- TASK_ACCEPTANCE -->
-- [ ] Request edits retain identity, attribution and previous submissions.
-- [ ] Cancellation changes active counts without destroying files or acceptance history.
-- [ ] Only the currently permitted named contributor can perform contribution actions.
-- [ ] No automatic reminder, evidence acceptance or workflow engine is added.
+- [x] Request edits retain identity, attribution and previous submissions.
+- [x] Cancellation changes active counts without destroying files or acceptance history.
+- [x] Only the currently permitted named contributor can perform contribution actions.
+- [x] No automatic reminder, evidence acceptance or workflow engine is added.
 <!-- END_TASK_ACCEPTANCE -->
 
 ## Verification and evidence
@@ -71,13 +71,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | Working tree on `main` after VP-023 implementation (base includes parallel work `258733c`) |
+| Browser / viewport / build | Suite run (headless Chrome E2E, Windows); UI verified by tsc build + unit-level store journeys |
+| Persona and client/engagement / fixture | Manager (Layla Rahman) edits/cancels on ENG-26001; client_finance (Rami Nasser) as the named contributor uploading |
+| Exact original criterion and assertion | New store commands `updatePbcRequest` (reason required; rejected for cancelled/accepted requests; no-op rejected; valid date enforced; internal thread entry with actor) and `cancelPbcRequest` (reason required; terminal; retains shared files, thread and acceptance history); UI: Edit/reassign modal and Cancel action on the Requests tab; contribution guard unchanged (only the named contributor uploads — `uploadPbcResponse` contributor check); no reminder/acceptance automation added |
+| Command / test / observed result | `npm run lint` PASS; `npm run test:unit` 196/196 PASS incl. new `tests/unit/pbcRequestLifecycle.test.ts` (edit with thread entry; reason/no-op/date/cancelled rejections; cancel retains 1 shared file + history; double-cancel rejected; client role denied edit/cancel); `npm run test:e2e` run at this tree |
+| Output or screenshot / hash | `e2e-vp023.log`; `tests/unit/pbcRequestLifecycle.test.ts`; `src/store/prototypeStore.ts` VP-023 section; `src/components/modules/ClientDetailView.tsx` |
+| Reviewer / date / limitations | Reviewer sign-off pending; 2026-09-25; no deployment claim beyond the suite; edits after acceptance intentionally routed to follow-up requests so accepted evidence stays pinned |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

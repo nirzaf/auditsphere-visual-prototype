@@ -9,6 +9,8 @@ import { formatCurrency, formatMinutesToHours } from '../../services/calculation
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { InternalNotesPanel } from '../common/InternalNotesPanel';
 
+type ClientPbcRequest = PbcRequestItem & { engagementId: string };
+
 interface ClientDetailViewProps {
   clientId: string;
   searchTargetId?: string;
@@ -72,6 +74,13 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [pbcContributor, setPbcContributor] = useState(client.contact || '');
   const [clarification, setClarification] = useState<{ engagementId: string; request: PbcRequestItem } | null>(null);
   const [clarificationText, setClarificationText] = useState('');
+  // VP-023: request edit/reassignment/cancellation with attribution and retained history.
+  const [editingRequest, setEditingRequest] = useState<ClientPbcRequest | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDue, setEditDue] = useState('');
+  const [editRecipient, setEditRecipient] = useState('');
+  const [editReason, setEditReason] = useState('');
   const [requestNotice, setRequestNotice] = useState('');
 
   const pbcRequests = engagements.flatMap(e => e.pbc.map(request => ({ ...request, engagementId: e.id })));
@@ -195,6 +204,25 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
       setClarificationText('');
       setRequestNotice('Clarification requested; the client can replace its response.');
     } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Clarification could not be recorded.'); }
+  };
+
+  const handleUpdatePbc = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRequest) return;
+    try {
+      prototypeStore.updatePbcRequest(editingRequest.engagementId, editingRequest.id, { title: editTitle, description: editDescription, due: editDue, owner: editRecipient }, editReason);
+      setEditingRequest(null);
+      setRequestNotice('Request updated; the edit is recorded in its thread with the reason and actor.');
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be updated.'); }
+  };
+
+  const handleCancelPbc = (p: ClientPbcRequest) => {
+    const reason = window.prompt('Reason for cancelling this information request (required):');
+    if (!reason || !reason.trim()) return;
+    try {
+      prototypeStore.cancelPbcRequest(p.engagementId, p.id, reason);
+      setRequestNotice('Request cancelled; shared files and prior history are retained.');
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be cancelled.'); }
   };
 
   return (
@@ -573,6 +601,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                     <td>
                       <div className="row" style={{ gap: 6 }}>
                         {p.status === 'Draft' && <button className="btn sm" onClick={() => handlePresentPbc(p.engagementId, p.id)}>Present request</button>}
+                        {!['Accepted', 'Cancelled'].includes(p.status) && <button className="btn sm ghost" onClick={() => { setEditingRequest(p); setEditTitle(p.title); setEditDescription(p.description || ''); setEditDue(p.due); setEditRecipient(p.owner); setEditReason(''); }}>Edit / reassign</button>}
+                        {p.status !== 'Cancelled' && <button className="btn sm ghost" onClick={() => handleCancelPbc(p)}>Cancel request</button>}
+                        {p.status === 'Cancelled' && <span className="caption">Cancelled — history retained</span>}
                         {p.status === 'Received' && <><button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request clarification</button><button className="btn sm primary" onClick={() => handleAcceptPbc(p.engagementId, p.id)}>Accept response</button></>}
                         {p.status === 'Accepted' && <button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request replacement</button>}
                         {p.thread?.length ? <details><summary className="caption">{p.thread.length} messages</summary>{p.thread.map(message => <div className="cell-sub" key={message.id}>{message.kind}: {message.text}</div>)}</details> : null}
@@ -803,6 +834,19 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
           <p className="sub">{clarification.request.title} · {clarification.request.id}. This message is visible to the client in the local portal.</p>
           <label className="caption">Clarification details<textarea className="input" value={clarificationText} onChange={e => setClarificationText(e.target.value)} required /></label>
         </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setClarification(null)}>Cancel</button><button type="submit" className="btn primary sm">Send clarification</button></div></form>
+      </div></div>}
+      {editingRequest && <div className="modal-backdrop" onClick={() => setEditingRequest(null)}><div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head"><h2>Edit information request</h2><button className="icon-btn" onClick={() => setEditingRequest(null)}>✕</button></div>
+        <form onSubmit={handleUpdatePbc}><div className="modal-body stack" style={{ gap: 10 }}>
+          <p className="sub">{editingRequest.id} · identity, attribution and prior submissions are retained; the edit is recorded in the request thread.</p>
+          <label className="caption">Request title<input className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} required /></label>
+          <label className="caption">Client-facing description<textarea className="input" rows={2} value={editDescription} onChange={e => setEditDescription(e.target.value)} /></label>
+          <div className="grid2">
+            <label className="caption">Due date<input type="date" className="input" value={editDue} onChange={e => setEditDue(e.target.value)} required /></label>
+            <label className="caption">Client email recipient<input className="input" value={editRecipient} onChange={e => setEditRecipient(e.target.value)} required /></label>
+          </div>
+          <label className="caption">Reason for this edit (required, recorded with your name) *<input className="input" value={editReason} onChange={e => setEditReason(e.target.value)} required /></label>
+        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setEditingRequest(null)}>Close</button><button type="submit" className="btn primary sm">Save edit</button></div></form>
       </div></div>}
     </div>
   );

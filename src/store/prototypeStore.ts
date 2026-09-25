@@ -3429,6 +3429,63 @@ class PrototypeStore {
     this.notify();
   }
 
+  // --- PBC request lifecycle (VP-023): edits and cancellation retain identity,
+  // attribution and prior submissions; cancellation is terminal but never deletes.
+  public updatePbcRequest(engId: string, requestId: string, changes: { title?: string; description?: string; due?: string; owner?: string }, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'edit client information requests');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) throw new GuardError('INVALID_STATE', 'Engagement not found.');
+    const req = eng.pbc.find(r => r.id === requestId);
+    if (!req) throw new GuardError('INVALID_STATE', 'PBC request not found.');
+    if (req.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'A cancelled request cannot be edited; its history remains available.');
+    if (req.status === 'Accepted') throw new GuardError('INVALID_STATE', 'An accepted request can no longer be edited; create a follow-up request so accepted evidence stays pinned.');
+    if (!reason.trim()) throw new GuardError('INVALID_STATE', 'Recording a reason is required to edit an information request.');
+    const changed: string[] = [];
+    if (changes.title !== undefined) {
+      const title = changes.title.trim();
+      if (!title) throw new GuardError('INVALID_STATE', 'Request title cannot be empty.');
+      if (title !== req.title) { req.title = title; changed.push('title'); }
+    }
+    if (changes.description !== undefined) {
+      const description = changes.description.trim();
+      if (description !== (req.description || '')) { req.description = description; changed.push('description'); }
+    }
+    if (changes.due !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(changes.due)) throw new GuardError('INVALID_STATE', 'Use a valid due date (YYYY-MM-DD).');
+      if (changes.due !== req.due) { req.due = changes.due; changed.push('due date'); }
+    }
+    if (changes.owner !== undefined) {
+      const owner = changes.owner.trim();
+      if (!owner) throw new GuardError('INVALID_STATE', 'The client recipient cannot be empty.');
+      if (owner !== req.owner) { req.owner = owner; changed.push('client recipient'); }
+    }
+    if (!changed.length) throw new GuardError('INVALID_STATE', 'No changes were entered.');
+    req.thread = req.thread || [];
+    req.thread.push({ id: `TH-${Date.now()}-${Math.floor(Math.random() * 10000)}`, kind: 'request', author: this.state.currentPerson, role: this.state.currentRole, text: `Request edited (${changed.join(', ')}): ${reason.trim()}`, time: new Date().toISOString(), clientVisible: false });
+    this.logEvent(`PBC request ${requestId} edited (${changed.join(', ')}): ${reason.trim()}`, eng.id);
+    this.notify();
+  }
+
+  public cancelPbcRequest(engId: string, requestId: string, reason: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['manager', 'preparer', 'reviewer', 'partner'], 'cancel client information requests');
+    requireEngagementScope(this.state, engId);
+    const eng = this.state.engagements.find(e => e.id === engId);
+    if (!eng) throw new GuardError('INVALID_STATE', 'Engagement not found.');
+    const req = eng.pbc.find(r => r.id === requestId);
+    if (!req) throw new GuardError('INVALID_STATE', 'PBC request not found.');
+    if (req.status === 'Cancelled') throw new GuardError('INVALID_STATE', 'This request is already cancelled.');
+    if (!reason.trim()) throw new GuardError('INVALID_STATE', 'Cancelling a request requires a recorded reason.');
+    req.status = 'Cancelled';
+    req.thread = req.thread || [];
+    const retained = req.sharedFiles?.length ? ` ${req.sharedFiles.length} shared file(s) and prior history are retained.` : ' Prior history is retained.';
+    req.thread.push({ id: `TH-${Date.now()}-${Math.floor(Math.random() * 10000)}`, kind: 'request', author: this.state.currentPerson, role: this.state.currentRole, text: `Request cancelled: ${reason.trim()}.${retained}`, time: new Date().toISOString(), clientVisible: false });
+    this.logEvent(`PBC request ${requestId} cancelled: ${reason.trim()}`, eng.id);
+    this.notify();
+  }
+
   // --- Time correction revision (VP-028): approved entries are never overwritten -
   public correctApprovedTime(entryId: string, correctedMinutes: number, reason: string) {
     requireActiveIdentity(this.state);
