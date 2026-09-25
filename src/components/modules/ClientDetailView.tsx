@@ -8,6 +8,7 @@ import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours } from '../../services/calculations';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { InternalNotesPanel } from '../common/InternalNotesPanel';
+import { visibleEngagementIds } from '../../services/guards';
 
 type ClientPbcRequest = PbcRequestItem & { engagementId: string };
 
@@ -22,6 +23,8 @@ interface ClientDetailViewProps {
 export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const searchContact = state.contacts.find(contact => contact.id === searchTargetId && contact.clientId === clientId);
+  const engagementScope = visibleEngagementIds(state);
+  const canViewEngagement = (engagementId?: string) => engagementScope === 'ALL' ? true : Boolean(engagementId && engagementScope.includes(engagementId));
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'contacts'
@@ -35,7 +38,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     | 'accounting'
     | 'audit'
     | 'activity'
-  >(searchContact ? 'contacts' : searchTargetId && state.engagements.some(engagement => engagement.client === clientId && engagement.pbc.some(request => request.id === searchTargetId)) ? 'requests' : 'overview');
+  >(searchContact ? 'contacts' : searchTargetId && state.engagements.some(engagement => engagement.client === clientId && canViewEngagement(engagement.id) && engagement.pbc.some(request => request.id === searchTargetId)) ? 'requests' : 'overview');
 
   const [showAddContact, setShowAddContact] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -57,13 +60,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const client = state.clients.find(c => c.id === clientId) || state.clients[0];
   const contacts = state.contacts.filter(c => c.clientId === client.id);
-  const engagements = state.engagements.filter(e => e.client === client.id);
-  const jobs = state.jobs.filter(j => j.clientId === client.id);
-  const documents = state.documents.filter(d => d.clientId === client.id);
-  const communications = state.communications.filter(c => c.clientId === client.id);
-  const times = state.times.filter(t => t.clientId === client.id);
-  const invoices = state.invoices.filter(i => i.clientId === client.id);
-  const receipts = state.receipts.filter(r => r.clientId === client.id);
+  const engagements = state.engagements.filter(e => e.client === client.id && canViewEngagement(e.id));
+  const scopedEngagementIds = new Set(engagements.map(engagement => engagement.id));
+  const jobs = state.jobs.filter(j => j.clientId === client.id && scopedEngagementIds.has(j.engagementId));
+  const documents = state.documents.filter(d => d.clientId === client.id && (engagementScope === 'ALL' ? !d.engagementId || scopedEngagementIds.has(d.engagementId) : scopedEngagementIds.has(d.engagementId || '')));
+  const communications = state.communications.filter(c => c.clientId === client.id && (engagementScope === 'ALL' ? !c.engagementId || scopedEngagementIds.has(c.engagementId) : scopedEngagementIds.has(c.engagementId || '')));
+  const times = state.times.filter(t => t.clientId === client.id && scopedEngagementIds.has(t.engagementId));
+  const invoices = state.invoices.filter(i => i.clientId === client.id && scopedEngagementIds.has(i.engagementId || i.eng || ''));
+  const invoiceIds = new Set(invoices.map(invoice => invoice.id));
+  const receipts = state.receipts.filter(r => r.clientId === client.id && r.allocations.some(allocation => invoiceIds.has(allocation.invoiceId)));
   const activeCustomFields = state.customFields.filter(field => field.enabled !== false);
 
   const [showPbcForm, setShowPbcForm] = useState(false);
@@ -82,9 +87,13 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [editRecipient, setEditRecipient] = useState('');
   const [editReason, setEditReason] = useState('');
   const [requestNotice, setRequestNotice] = useState('');
+  const [requestStatusFilter, setRequestStatusFilter] = useState('All');
+  const [requestSearch, setRequestSearch] = useState('');
 
   const pbcRequests = engagements.flatMap(e => e.pbc.map(request => ({ ...request, engagementId: e.id })));
+  const visiblePbcRequests = pbcRequests.filter(request => (requestStatusFilter === 'All' || request.status === requestStatusFilter) && `${request.title} ${request.id} ${request.category} ${request.owner} ${request.contributor || ''}`.toLocaleLowerCase().includes(requestSearch.trim().toLocaleLowerCase()));
   const workpapers = engagements.flatMap(e => e.workpapers);
+  const visibleActivityRefs = new Set([client.id, ...engagements.map(item => item.id), ...contacts.map(item => item.id), ...jobs.map(item => item.id), ...documents.map(item => item.id), ...communications.map(item => item.id), ...times.map(item => item.id), ...invoices.map(item => item.id), ...receipts.map(item => item.id), ...pbcRequests.map(item => item.id), ...workpapers.map(item => item.id)]);
 
   const navigateWithClientEngagement = (route: RouteKey) => {
     const engagement = engagements.find(item => item.id === state.selectedEngagement) || engagements[0];
@@ -577,6 +586,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
             </div>
           </div>
           {requestNotice && <div role="status" className="panel-pad sub">{requestNotice}</div>}
+          <div className="row panel-pad" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <label className="caption">Status <select aria-label="Filter PBC requests by status" className="input" value={requestStatusFilter} onChange={event => setRequestStatusFilter(event.target.value)}><option>All</option>{['Draft', 'Requested', 'Received', 'Under review', 'Needs clarification', 'Accepted', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
+            <label className="caption">Search requests <input aria-label="Search PBC requests" className="input" value={requestSearch} onChange={event => setRequestSearch(event.target.value)} placeholder="Title, ID, category or contact" /></label>
+            <span className="caption">Showing {visiblePbcRequests.length} of {pbcRequests.length}</span>
+          </div>
           {showPbcForm && <form className="panel-pad grid2" onSubmit={handleCreatePbc}>
             <div><label className="caption">Engagement</label><select className="input" value={pbcEngagementId} onChange={e => setPbcEngagementId(e.target.value)} required>{engagements.map(e => <option key={e.id} value={e.id}>{e.id} · FY {e.year} · {e.service}</option>)}</select></div>
             <div><label className="caption">Request title</label><input className="input" value={pbcTitle} onChange={e => setPbcTitle(e.target.value)} required /></div>
@@ -598,7 +612,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 </tr>
               </thead>
               <tbody>
-                {pbcRequests.map(p => (
+                {visiblePbcRequests.map(p => (
                   <tr key={p.id} data-search-target={p.id === searchTargetId ? 'true' : undefined} className={p.id === searchTargetId ? 'selected-row' : undefined}>
                     <td><b>{p.title}</b><div className="cell-sub">{p.id}</div>{p.clarificationNote && <div className="cell-sub">Clarification: {p.clarificationNote}</div>}</td>
                     <td>{p.category}</td>
@@ -755,7 +769,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
           <div className="panel panel-pad">
           <h3>Client Activity & Audit Events</h3>
           <div className="stack mt12" style={{ gap: 8 }}>
-            {state.events.filter(e => e.ref.includes(client.id) || engagements.some(engagement => e.ref.includes(engagement.id))).map((ev, i) => (
+            {state.events.filter(e => visibleActivityRefs.has(e.ref)).map((ev, i) => (
               <div key={i} className="activity">
                 <div className="activity-dot"><Icon name={ev.type} size="sm" /></div>
                 <div>
@@ -850,7 +864,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
           <label className="caption">Client-facing description<textarea className="input" rows={2} value={editDescription} onChange={e => setEditDescription(e.target.value)} /></label>
           <div className="grid2">
             <label className="caption">Due date<input type="date" className="input" value={editDue} onChange={e => setEditDue(e.target.value)} required /></label>
-            <label className="caption">Client email recipient<input className="input" value={editRecipient} onChange={e => setEditRecipient(e.target.value)} required /></label>
+            <label className="caption">Client recipient<select className="input" value={editRecipient} onChange={e => setEditRecipient(e.target.value)} required><option value="">Select active client contact</option>{contacts.filter(contact => contact.active).map(contact => <option key={contact.id} value={contact.name}>{contact.name} · {contact.email}</option>)}</select></label>
           </div>
           <label className="caption">Reason for this edit (required, recorded with your name) *<input className="input" value={editReason} onChange={e => setEditReason(e.target.value)} required /></label>
         </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setEditingRequest(null)}>Close</button><button type="submit" className="btn primary sm">Save edit</button></div></form>

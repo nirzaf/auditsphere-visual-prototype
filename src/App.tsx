@@ -104,6 +104,7 @@ export const App: React.FC = () => {
       }
     } else {
       dirty.forEach(guard => guard.discard());
+      dirty.forEach(guard => { for (const [key, registered] of unsavedForms.current) if (registered === guard) unsavedForms.current.delete(key); });
     }
     setPendingTransition(null);
     setTransitionError('');
@@ -298,24 +299,24 @@ export const App: React.FC = () => {
 
       // Work & Collaboration
       case 'jobs':
-        return <JobsTasksView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
+        return <JobsTasksView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'job-templates':
         return <JobTemplatesView onNavigate={navigate} />;
       case 'documents':
-        return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onNavigateToPbc={navigateToPbcRequest} />;
+        return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onNavigateToPbc={navigateToPbcRequest} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'communications':
-        return <CommunicationsView onNavigate={navigate} />;
+        return <CommunicationsView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
 
       // Economics & Billing
       case 'my-time':
       case 'time-tracking' as any:
-        return <TimeTrackingView onNavigate={navigate} />;
+        return <TimeTrackingView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'budgets':
         return <BudgetsView onNavigate={navigate} />;
       case 'billing':
         return <BillingInvoicingView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'receivables':
-        return <ReceivablesView onNavigate={navigate} />;
+        return <ReceivablesView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} onBeforeContextChange={requestContextChange} />;
 
       // Accounting Workbench
       case 'accounting-setup':
@@ -342,18 +343,18 @@ export const App: React.FC = () => {
       case 'sampling':
         return <SamplingView onNavigate={navigate} />;
       case 'audit':
-        return <WorkpapersView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
+        return <WorkpapersView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'evidence':
         return <EvidenceCatalogueView onNavigate={navigate} />;
       case 'findings':
         return <FindingsView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
       case 'reviews':
-        return <ReviewDeskView onNavigate={navigate} />;
+        return <ReviewDeskView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'approvals':
       case 'quality':
         return <ApprovalsEQRView onNavigate={navigate} />;
       case 'delivery':
-        return <ReleaseCompletionView onNavigate={navigate} />;
+        return <ReleaseCompletionView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'records':
         return <RecordsArchiveView onNavigate={navigate} />;
 

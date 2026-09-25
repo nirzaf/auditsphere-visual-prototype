@@ -1,17 +1,19 @@
 // Module 10 & 18: SharePoint Document Browser & Library (VP-020, VP-021)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, DocumentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { sha256OfFile } from '../../services/fileMetadata';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface DocumentsLibraryViewProps {
   onNavigate: (route: RouteKey, targetId?: string) => void;
   onNavigateToPbc: (clientId: string, requestId: string) => void;
   searchTargetId?: string;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate, onNavigateToPbc, searchTargetId }) => {
+export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate, onNavigateToPbc, searchTargetId, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [selectedFolder, setSelectedFolder] = useState<string>(() => state.documents.find(document => document.id === searchTargetId)?.folderPath || '/Engagements/2026/');
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
@@ -24,6 +26,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [classification, setClassification] = useState<DocumentItem['classification']>('Working paper');
   const [folderPath, setFolderPath] = useState('/Engagements/2026/Audit/');
+  const uploadBaseline = useRef({ uploadFile, classification, folderPath });
 
   const documents = state.documents;
   const filteredDocs = selectedFolder === '/'
@@ -44,12 +47,11 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
         { path: '/PBC/', label: 'Client PBC Submissions' }
       ];
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadFile) return;
+  const saveUploadDraft = async (): Promise<boolean> => {
+    if (!uploadFile) return false;
 
     const currentEng = state.engagements.find(e => e.id === state.selectedEngagement);
-    if (!currentEng) { setNotice('Select an engagement before registering a file.'); return; }
+    if (!currentEng) { setNotice('Select an engagement before registering a file.'); return false; }
     const sha = await sha256OfFile(uploadFile);
     const newDoc: DocumentItem = {
       id: `DOC-${crypto.randomUUID()}`,
@@ -69,11 +71,20 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
 
     try {
       prototypeStore.addDocument(newDoc);
-      setShowUploadModal(false);
-      setUploadFile(null);
+      discardUploadDraft();
       setNotice(`${uploadFile.name} metadata recorded (SHA-256 ${sha.slice(0, 12)}…). File bytes remain local and are not saved or uploaded.`);
-    } catch (err) { setNotice(err instanceof Error ? err.message : 'Document metadata could not be recorded.'); }
+      return true;
+    } catch (err) { setNotice(err instanceof Error ? err.message : 'Document metadata could not be recorded.'); return false; }
   };
+  const handleUploadSubmit = async (e: React.FormEvent) => { e.preventDefault(); await saveUploadDraft(); };
+
+  const discardUploadDraft = () => { setShowUploadModal(false); setUploadFile(null); setClassification('Working paper'); setFolderPath('/Engagements/2026/Audit/'); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'document registration draft', isDirty: () => showUploadModal && (uploadFile !== uploadBaseline.current.uploadFile || classification !== uploadBaseline.current.classification || folderPath !== uploadBaseline.current.folderPath), save: saveUploadDraft, discard: discardUploadDraft }, 'documents-upload-draft');
+    return () => onRegisterUnsavedForm(null, 'documents-upload-draft');
+  }, [onRegisterUnsavedForm, showUploadModal, uploadFile, classification, folderPath]);
+  const openUploadModal = () => { uploadBaseline.current = { uploadFile, classification, folderPath }; setShowUploadModal(true); };
 
   const handleImportFromOneDrive = (name: string) => {
     const currentEng = state.engagements.find(e => e.id === state.selectedEngagement);
@@ -123,7 +134,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
           <button className="btn sm ghost" onClick={() => setShowOneDriveModal(true)}>
             <Icon name="folder" /> Import from OneDrive
           </button>
-          <button className="btn primary sm" onClick={() => setShowUploadModal(true)}>
+          <button className="btn primary sm" onClick={openUploadModal}>
             <Icon name="plus" /> Register File
           </button>
         </div>
@@ -318,11 +329,11 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
 
       {/* Register File Modal */}
       {showUploadModal && (
-        <div className="modal-backdrop" onClick={() => setShowUploadModal(false)}>
+        <div className="modal-backdrop" onClick={discardUploadDraft}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Register Document into SharePoint</h2>
-              <button className="icon-btn" onClick={() => setShowUploadModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close document registration dialog" onClick={discardUploadDraft}>✕</button>
             </div>
             <form onSubmit={handleUploadSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -364,7 +375,7 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowUploadModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardUploadDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm" disabled={!uploadFile}>Record file metadata</button>
               </div>
             </form>

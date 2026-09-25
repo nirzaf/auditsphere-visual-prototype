@@ -1,23 +1,27 @@
 // Module 37: Final Release Completion, Gates & Delivery (VP-057, VP-058)
 // Rigorous pre-release verification gates, exact generation freezing, artifact dispatch, and reissue lineage.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { loadVerifiedArtifact } from '../../services/artifactStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ReleaseCompletionViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ onNavigate }) => {
+export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [dispatchNote, setDispatchNote] = useState('');
   const [recipientText, setRecipientText] = useState('');
   const [amendReason, setAmendReason] = useState('');
   const [showAmendModal, setShowAmendModal] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const dispatchBaseline = useRef({ dispatchNote, recipientText });
+  const amendBaseline = useRef(amendReason);
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
 
@@ -82,33 +86,47 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
     }
   };
 
-  const handleIssueRelease = async () => {
+  const handleIssueRelease = async (): Promise<boolean> => {
     if (!selectedEng.candidate) {
       triggerNotice('error', 'Must freeze release candidate first before issuing delivery.');
-      return;
+      return false;
     }
+    if (state.currentRole !== 'partner') return false;
     try {
       for (const artifact of selectedEng.candidate.manifest) await loadVerifiedArtifact(artifact);
       prototypeStore.issueRelease(selectedEng.id, dispatchNote, recipientText.split(/[;,\n]/));
       triggerNotice('success', 'Local release record created with frozen file identities and SHA-256 digests. No files were sent.');
+      setDispatchNote(''); setRecipientText('');
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
 
-  const handleAmendSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!amendReason.trim()) return;
+  const saveAmendDraft = () => {
+    if (!amendReason.trim()) return false;
 
     try {
       prototypeStore.reopenReleaseForAmendment(selectedEng.id, amendReason.trim());
       setShowAmendModal(false);
       setAmendReason('');
       triggerNotice('success', `Release re-opened for amendment. Partner clearance invalidated for Generation ${selectedEng.generation + 1}.`);
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+  const handleAmendSubmit = (e: React.FormEvent) => { e.preventDefault(); saveAmendDraft(); };
+  const discardDispatchDraft = () => { setDispatchNote(''); setRecipientText(''); };
+  const discardAmendDraft = () => { setShowAmendModal(false); setAmendReason(''); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'release dispatch details', isDirty: () => Boolean(selectedEng.candidate) && (dispatchNote !== dispatchBaseline.current.dispatchNote || recipientText !== dispatchBaseline.current.recipientText), save: handleIssueRelease, discard: discardDispatchDraft }, 'release-dispatch-draft');
+    onRegisterUnsavedForm({ label: 'release amendment reason', isDirty: () => showAmendModal && amendReason !== amendBaseline.current, save: saveAmendDraft, discard: discardAmendDraft }, 'release-amend-draft');
+    return () => { onRegisterUnsavedForm(null, 'release-dispatch-draft'); onRegisterUnsavedForm(null, 'release-amend-draft'); };
+  }, [onRegisterUnsavedForm, selectedEng.candidate, dispatchNote, recipientText, showAmendModal, amendReason]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -255,7 +273,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                   <button className="btn primary sm" onClick={handleIssueRelease} disabled={state.currentRole !== 'partner'}>
                     Record Local Release
                   </button>
-                  <button className="btn ghost sm" onClick={() => setShowAmendModal(true)}>
+                  <button className="btn ghost sm" onClick={() => { amendBaseline.current = amendReason; setShowAmendModal(true); }}>
                     Re-open for Amendment
                   </button>
                 </div>
@@ -308,7 +326,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                     <td>{rel.dispatchNote}</td>
                     <td>
                       {!selectedEng.releases.some(next => next.predecessorId === rel.id) && (
-                        <button className="btn sm ghost" disabled={!['manager', 'partner'].includes(state.currentRole)} onClick={() => setShowAmendModal(true)}>
+                        <button className="btn sm ghost" disabled={!['manager', 'partner'].includes(state.currentRole)} onClick={() => { amendBaseline.current = amendReason; setShowAmendModal(true); }}>
                           Re-open for Amendment
                         </button>
                       )}
@@ -323,11 +341,11 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
 
       {/* Amend Modal */}
       {showAmendModal && (
-        <div className="modal-backdrop" onClick={() => setShowAmendModal(false)}>
+        <div className="modal-backdrop" onClick={discardAmendDraft}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Re-open Package for Amendment</h2>
-              <button className="icon-btn" onClick={() => setShowAmendModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close release amendment dialog" onClick={discardAmendDraft}>✕</button>
             </div>
             <form onSubmit={handleAmendSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -347,7 +365,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAmendModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardAmendDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Confirm Amendment</button>
               </div>
             </form>

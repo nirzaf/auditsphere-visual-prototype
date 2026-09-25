@@ -10,18 +10,33 @@ describe('PBC request lifecycle (VP-023)', () => {
   beforeEach(() => {
     prototypeStore.importStateJSON(JSON.stringify(createInitialState()));
     prototypeStore.setPersona('manager');
+    prototypeStore.setSelectedEngagement('ENG-26001');
   });
 
   it('edits title, due date and recipient with a recorded reason and an internal thread entry', () => {
     prototypeStore.addPbcRequest('ENG-26001', { id: 'PBC-TEST-01', title: 'Year-end bank statements', category: 'Bank evidence', status: 'Draft', due: '2026-09-30', owner: 'client@example.test', contributor: 'Rami Nasser', version: 1, engagementId: 'ENG-26001' });
-    prototypeStore.updatePbcRequest('ENG-26001', 'PBC-TEST-01', { title: 'Year-end bank statements and reconciliations', due: '2026-10-05', owner: 'finance@example.test' }, 'Client asked to widen the scope and extend the date.');
+    prototypeStore.updatePbcRequest('ENG-26001', 'PBC-TEST-01', { title: 'Year-end bank statements and reconciliations', due: '2026-10-05', owner: 'Rami Nasser' }, 'Client asked to widen the scope and extend the date.');
     const updated = prototypeStore.getSnapshot().engagements.find(e => e.id === 'ENG-26001')!.pbc.find(r => r.id === 'PBC-TEST-01')!;
     assert.equal(updated.title, 'Year-end bank statements and reconciliations');
     assert.equal(updated.due, '2026-10-05');
-    assert.equal(updated.owner, 'finance@example.test');
+    assert.equal(updated.owner, 'Rami Nasser');
     const entry = updated.thread!.at(-1)!;
     assert.ok(entry.text.includes('Request edited') && entry.text.includes('Client asked to widen the scope'));
     assert.equal(entry.clientVisible, false, 'edit notes are internal');
+  });
+
+  it('rejects a recipient who is inactive or assigned to another client', () => {
+    prototypeStore.addPbcRequest('ENG-26001', { id: 'PBC-TEST-05', title: 'Restricted recipient test', category: 'Bank evidence', status: 'Draft', due: '2026-09-30', owner: 'client@example.test', contributor: 'Rami Nasser', version: 1, engagementId: 'ENG-26001' });
+    assert.throws(() => prototypeStore.updatePbcRequest('ENG-26001', 'PBC-TEST-05', { owner: 'Aisha Saleh' }, 'Try another client contact'), /active contact assigned to this client/i);
+    assert.throws(() => prototypeStore.updatePbcRequest('ENG-26001', 'PBC-TEST-05', { owner: 'Former Contact' }, 'Try an inactive recipient'), /active contact assigned to this client/i);
+  });
+
+  it('rejects presentation when required request context is missing', () => {
+    const state = createInitialState();
+    state.currentRole = 'manager'; state.currentUserId = 'manager'; state.currentPerson = 'Layla Rahman'; state.selectedEngagement = 'ENG-26001';
+    state.engagements.find(engagement => engagement.id === 'ENG-26001')!.pbc.unshift({ id: 'PBC-TEST-06', title: 'Context check', category: 'Bank evidence', status: 'Draft', due: '2026-09-30', owner: '', contributor: 'Rami Nasser', version: 1 });
+    prototypeStore.importStateJSON(JSON.stringify(state));
+    assert.throws(() => prototypeStore.presentPbcRequest('ENG-26001', 'PBC-TEST-06'), /title, owner, and client recipient are required before presentation/i);
   });
 
   it('rejects edits without a reason, no-op edits, and edits to cancelled requests', () => {

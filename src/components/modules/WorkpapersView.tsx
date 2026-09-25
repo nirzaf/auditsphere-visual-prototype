@@ -2,18 +2,20 @@
 // 6 Tabs: Overview, Guidelines, Template/Data, Working Paper Upload/Preview, Supporting Evidence, Clearance & History
 // Pure browser prototype: local version incrementing, separation of duties, dynamic template parsing, no alerts.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { sha256OfFile } from '../../services/fileMetadata';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface WorkpapersViewProps {
   onNavigate: (route: RouteKey) => void;
   searchTargetId?: string;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, searchTargetId }) => {
+export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, searchTargetId, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const workpapers = selectedEng?.workpapers || [];
@@ -23,6 +25,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [newRevisionFile, setNewRevisionFile] = useState<File | null>(null);
+  const revisionBaseline = useRef(newRevisionFile);
   const templates = state.workpaperTemplates || [];
   const [templateId, setTemplateId] = useState(templates[0]?.id || '');
   const [templatePreparerId, setTemplatePreparerId] = useState(state.users.find(user => user.role === 'preparer' && user.status === 'Active')?.id || '');
@@ -111,9 +114,8 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
     triggerNotice('success', `Workpaper ${wp.id} marked as ${updated ? 'applicable' : 'not applicable'}.`);
   };
 
-  const handleUploadRevisionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRevisionFile) return;
+  const saveRevisionDraft = async (): Promise<boolean> => {
+    if (!newRevisionFile) return false;
 
     try {
       const sha256 = await sha256OfFile(newRevisionFile);
@@ -125,10 +127,21 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
       triggerNotice('success', `Replacement metadata recorded for v${wp.version + 1}; digest ${sha256.slice(0, 12)}…. Original bytes are not persisted.`);
       setShowUploadModal(false);
       setNewRevisionFile(null);
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+  const handleUploadRevisionSubmit = async (e: React.FormEvent) => { e.preventDefault(); await saveRevisionDraft(); };
+
+  const discardRevisionDraft = () => { setShowUploadModal(false); setNewRevisionFile(null); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'workpaper replacement revision draft', isDirty: () => showUploadModal && newRevisionFile !== revisionBaseline.current, save: saveRevisionDraft, discard: discardRevisionDraft }, 'workpaper-revision-draft');
+    return () => onRegisterUnsavedForm(null, 'workpaper-revision-draft');
+  }, [onRegisterUnsavedForm, showUploadModal, newRevisionFile]);
+  const openRevisionModal = () => { revisionBaseline.current = newRevisionFile; setShowUploadModal(true); };
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -423,7 +436,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
                     className="btn sm primary"
                     onClick={() => {
                       setNewRevisionFile(null);
-                      setShowUploadModal(true);
+                      openRevisionModal();
                     }}
                   >
                     <Icon name="plus" size="sm" /> Upload Replacement Revision
@@ -569,11 +582,11 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
 
       {/* Replacement Revision Modal */}
       {showUploadModal && wp && (
-        <div className="modal-backdrop" onClick={() => setShowUploadModal(false)}>
+        <div className="modal-backdrop" onClick={discardRevisionDraft}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Upload Replacement Workpaper Revision</h2>
-              <button className="icon-btn" onClick={() => setShowUploadModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close workpaper revision dialog" onClick={discardRevisionDraft}>✕</button>
             </div>
             <form onSubmit={handleUploadRevisionSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -595,7 +608,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowUploadModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardRevisionDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm" disabled={!newRevisionFile}>Record Revision v{wp.version + 1} Metadata</button>
               </div>
             </form>

@@ -1,18 +1,20 @@
 // Module 05: Jobs & Tasks Management (VP-013, VP-014)
 // Delivery containers with strictly 1 level of subtasks, leaf-task progress, reassignment governance, and job creation.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, JobRecord, JobTaskItem, CommentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { visibleEngagementIds, isClientRole, canOpenRoute } from '../../services/guards';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface JobsTasksViewProps {
   onNavigate: (route: RouteKey) => void;
   searchTargetId?: string;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, searchTargetId }) => {
+export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, searchTargetId, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const allowedEngagementIds = visibleEngagementIds(state);
   const scopedEngagements = state.engagements.filter(e => allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id));
@@ -56,6 +58,12 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   const [newJobOwner, setNewJobOwner] = useState(state.currentPerson || 'Adam Khan');
   const [newJobDueDate, setNewJobDueDate] = useState('2026-10-31');
   const [newJobDescription, setNewJobDescription] = useState('');
+  const newJobBaseline = useRef({ newJobTitle, newJobClientId, newJobEngId, newJobOwner, newJobDueDate, newJobDescription });
+  const newTaskBaseline = useRef({ taskTitle, taskAssignee, parentTaskIdForSubtask });
+  const noteBaseline = useRef({ subjectType: noteSubject.type, subjectId: noteSubject.id, editingCommentId, noteText, noteMentions: noteMentions.join('|') });
+  const editJobBaseline = useRef<JobRecord | null>(null);
+  const editTaskBaseline = useRef({ id: '', title: '', description: '', dueDate: '' });
+  const reassignBaseline = useRef({ taskId: '', assignee: 'Adam Khan', reason: '' });
 
   const triggerNotice = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text });
@@ -71,6 +79,17 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
     setNewJobOwner(state.currentPerson || 'Adam Khan');
     setNewJobDueDate('2026-10-31');
   };
+  const openAddJobModal = () => { newJobBaseline.current = { newJobTitle, newJobClientId, newJobEngId, newJobOwner, newJobDueDate, newJobDescription }; setShowAddJobModal(true); };
+  const discardAddTaskDraft = () => { setShowAddTaskModal(false); setTaskTitle(''); setTaskAssignee('Adam Khan'); setParentTaskIdForSubtask(undefined); };
+  const openAddTaskModal = (parentTaskId?: string) => { setTaskTitle(''); setTaskAssignee('Adam Khan'); setParentTaskIdForSubtask(parentTaskId); newTaskBaseline.current = { taskTitle: '', taskAssignee: 'Adam Khan', parentTaskIdForSubtask: parentTaskId }; setShowAddTaskModal(true); };
+  const discardNoteDraft = () => { setShowNoteModal(false); setEditingCommentId(null); setNoteText(''); setNoteMentions([]); };
+  const openNoteModal = (subject: { type: 'job' | 'task'; id: string; label: string }, comment?: CommentItem) => { setNoteSubject(subject); setEditingCommentId(comment?.id || null); setNoteText(comment?.text || ''); setNoteMentions([]); noteBaseline.current = { subjectType: subject.type, subjectId: subject.id, editingCommentId: comment?.id || null, noteText: comment?.text || '', noteMentions: '' }; setShowNoteModal(true); };
+  const discardJobEdit = () => setEditingJob(null);
+  const openJobEdit = (job: JobRecord) => { const copy = structuredClone(job); editJobBaseline.current = structuredClone(copy); setEditingJob(copy); };
+  const discardTaskEdit = () => { setTaskToEdit(null); setEditTaskTitle(''); setEditTaskDescription(''); setEditTaskDueDate(''); };
+  const openTaskEdit = (task: JobTaskItem) => { setTaskToEdit(task); setEditTaskTitle(task.title); setEditTaskDescription(task.description || ''); setEditTaskDueDate(task.dueDate || ''); editTaskBaseline.current = { id: task.id, title: task.title, description: task.description || '', dueDate: task.dueDate || '' }; };
+  const discardReassignment = () => { setShowReassignModal(false); setTaskToReassign(null); setReassignReason(''); setNewAssignee('Adam Khan'); };
+  const openReassignment = (task: JobTaskItem) => { setTaskToReassign(task); setNewAssignee(task.assignee); setReassignReason(''); reassignBaseline.current = { taskId: task.id, assignee: task.assignee, reason: '' }; setShowReassignModal(true); };
 
   const filteredJobs = scopedJobs.filter(job =>
     (clientFilter === 'ALL' || job.clientId === clientFilter) &&
@@ -102,18 +121,42 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   const mentionableUsers = state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && selectedJob && (visible === 'ALL' || visible.includes(selectedJob.engagementId)); });
   const assigneesFor = (engagementId: string) => state.users.filter(user => { const visible = visibleEngagementIds(state, user.id); return user.status === 'Active' && !isClientRole(user.role) && canOpenRoute(user.role, 'jobs') && (visible === 'ALL' || visible.includes(engagementId)); });
 
-  const handleAddInternalNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedJob) return;
+  const saveAddJobDraft = () => {
+    if (!newJobTitle.trim()) return false;
+    const newJobId = `JOB-260${prototypeStore.getSnapshot().jobs.length + 1}`;
+    const newJob: JobRecord = { id: newJobId, clientId: newJobClientId, engagementId: newJobEngId, title: newJobTitle.trim(), description: newJobDescription.trim(), owner: newJobOwner, startDate: new Date().toISOString().split('T')[0], dueDate: newJobDueDate, status: 'Not started', createdAt: new Date().toISOString() };
+    try { prototypeStore.addJob(newJob); prototypeStore.addTask({ id: `TSK-${newJobId}-1`, jobId: newJobId, title: 'Initial Scoping & Team Briefing', assignee: newJobOwner, status: 'Not started', order: 1 }); setSelectedJobId(newJobId); closeAddJobModal(); triggerNotice('success', `Job "${newJob.title}" scheduled (${newJob.id}).`); return true; }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not create job.'); return false; }
+  };
+  const saveAddTaskDraft = () => {
+    if (!taskTitle.trim() || !selectedJob) return false;
+    const newTaskId = `TSK-${selectedJob.id}-${Date.now().toString().slice(-4)}`;
+    const newTask: JobTaskItem = { id: newTaskId, jobId: selectedJob.id, title: taskTitle.trim(), assignee: taskAssignee, status: 'Not started', order: jobTasks.length + 1, parentTaskId: parentTaskIdForSubtask };
+    try { prototypeStore.addTask(newTask); discardAddTaskDraft(); triggerNotice('success', `Task "${newTask.title}" created.`); return true; }
+    catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not create task.'); return false; }
+  };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'new job draft', isDirty: () => showAddJobModal && (newJobTitle !== newJobBaseline.current.newJobTitle || newJobClientId !== newJobBaseline.current.newJobClientId || newJobEngId !== newJobBaseline.current.newJobEngId || newJobOwner !== newJobBaseline.current.newJobOwner || newJobDueDate !== newJobBaseline.current.newJobDueDate || newJobDescription !== newJobBaseline.current.newJobDescription), save: saveAddJobDraft, discard: closeAddJobModal }, 'jobs-add-job-draft');
+    onRegisterUnsavedForm({ label: 'new task draft', isDirty: () => showAddTaskModal && (taskTitle !== newTaskBaseline.current.taskTitle || taskAssignee !== newTaskBaseline.current.taskAssignee || parentTaskIdForSubtask !== newTaskBaseline.current.parentTaskIdForSubtask), save: saveAddTaskDraft, discard: discardAddTaskDraft }, 'jobs-add-task-draft');
+    onRegisterUnsavedForm({ label: editingCommentId ? 'internal note edit' : 'internal note draft', isDirty: () => showNoteModal && (noteSubject.type !== noteBaseline.current.subjectType || noteSubject.id !== noteBaseline.current.subjectId || editingCommentId !== noteBaseline.current.editingCommentId || noteText !== noteBaseline.current.noteText || noteMentions.join('|') !== noteBaseline.current.noteMentions), save: saveNoteDraft, discard: discardNoteDraft }, 'jobs-note-draft');
+    onRegisterUnsavedForm({ label: 'edit job details', isDirty: () => Boolean(editingJob && editJobBaseline.current && (editingJob.title !== editJobBaseline.current.title || editingJob.description !== editJobBaseline.current.description || editingJob.owner !== editJobBaseline.current.owner || editingJob.dueDate !== editJobBaseline.current.dueDate)), save: saveJobDetailsDraft, discard: discardJobEdit }, 'jobs-edit-job-draft');
+    onRegisterUnsavedForm({ label: 'edit task details', isDirty: () => Boolean(taskToEdit && (editTaskTitle !== editTaskBaseline.current.title || editTaskDescription !== editTaskBaseline.current.description || editTaskDueDate !== editTaskBaseline.current.dueDate)), save: saveTaskDetailsDraft, discard: discardTaskEdit }, 'jobs-edit-task-draft');
+    onRegisterUnsavedForm({ label: 'task reassignment', isDirty: () => Boolean(showReassignModal && taskToReassign && (taskToReassign.id !== reassignBaseline.current.taskId || newAssignee !== reassignBaseline.current.assignee || reassignReason !== reassignBaseline.current.reason)), save: saveReassignmentDraft, discard: discardReassignment }, 'jobs-reassign-draft');
+    return () => { onRegisterUnsavedForm(null, 'jobs-add-job-draft'); onRegisterUnsavedForm(null, 'jobs-add-task-draft'); onRegisterUnsavedForm(null, 'jobs-note-draft'); onRegisterUnsavedForm(null, 'jobs-edit-job-draft'); onRegisterUnsavedForm(null, 'jobs-edit-task-draft'); onRegisterUnsavedForm(null, 'jobs-reassign-draft'); };
+  }, [onRegisterUnsavedForm, showAddJobModal, newJobTitle, newJobClientId, newJobEngId, newJobOwner, newJobDueDate, newJobDescription, showAddTaskModal, taskTitle, taskAssignee, parentTaskIdForSubtask, showNoteModal, noteSubject, editingCommentId, noteText, noteMentions, selectedJob?.id, editingJob, taskToEdit, editTaskTitle, editTaskDescription, editTaskDueDate, showReassignModal, taskToReassign, newAssignee, reassignReason]);
+
+  const saveNoteDraft = () => {
+    if (!selectedJob || !noteText.trim()) return false;
     if (editingCommentId) {
-      try { prototypeStore.editComment(editingCommentId, noteText); setShowNoteModal(false); setEditingCommentId(null); setNoteText(''); triggerNotice('success', 'Internal note updated.'); }
-      catch (error: any) { triggerNotice('error', error.message); }
-      return;
+      try { prototypeStore.editComment(editingCommentId, noteText); discardNoteDraft(); triggerNotice('success', 'Internal note updated.'); return true; }
+      catch (error: any) { triggerNotice('error', error.message); return false; }
     }
     const comment: CommentItem = { id: `CMT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, subjectType: noteSubject.type, subjectId: noteSubject.id || selectedJob.id, author: state.currentPerson, authorRole: state.currentRole, createdAt: new Date().toISOString(), text: noteText.trim(), visibility: 'internal', mentions: noteMentions };
-    try { prototypeStore.addComment(comment); setShowNoteModal(false); setNoteText(''); setNoteMentions([]); triggerNotice('success', `Internal note saved${noteMentions.length ? `; ${noteMentions.length} local mention${noteMentions.length === 1 ? '' : 's'} recorded` : ''}.`); }
-    catch (error: any) { triggerNotice('error', error.message); }
+    try { prototypeStore.addComment(comment); const mentionCount = noteMentions.length; discardNoteDraft(); triggerNotice('success', `Internal note saved${mentionCount ? `; ${mentionCount} local mention${mentionCount === 1 ? '' : 's'} recorded` : ''}.`); return true; }
+    catch (error: any) { triggerNotice('error', error.message); return false; }
   };
+  const handleAddInternalNote = (e: React.FormEvent) => { e.preventDefault(); saveNoteDraft(); };
 
   // Compute leaf task progress
   const leafTasks = jobTasks.filter(t => t.status !== 'Cancelled' && !jobTasks.some(sub => sub.parentTaskId === t.id && sub.status !== 'Cancelled'));
@@ -122,91 +165,44 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
   const handleReassignSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskToReassign || !reassignReason.trim()) return;
+    saveReassignmentDraft();
+  };
+  const saveReassignmentDraft = () => {
+    if (!taskToReassign || !reassignReason.trim()) return false;
     try {
       prototypeStore.reassignTask(taskToReassign.id, newAssignee, reassignReason);
-      setShowReassignModal(false);
-      setTaskToReassign(null);
-      setReassignReason('');
+      discardReassignment();
       triggerNotice('success', `Task reassigned to ${newAssignee}.`);
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
 
   const handleAddTaskSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskTitle.trim() || !selectedJob) return;
-
-    const newTaskId = `TSK-${selectedJob.id}-${Date.now().toString().slice(-4)}`;
-    const newTask: JobTaskItem = {
-      id: newTaskId,
-      jobId: selectedJob.id,
-      title: taskTitle.trim(),
-      assignee: taskAssignee,
-      status: 'Not started',
-      order: jobTasks.length + 1,
-      parentTaskId: parentTaskIdForSubtask
-    };
-
-    try {
-      prototypeStore.addTask(newTask);
-      setShowAddTaskModal(false);
-      setTaskTitle('');
-      setParentTaskIdForSubtask(undefined);
-      triggerNotice('success', `Task "${newTask.title}" created.`);
-    } catch (err: any) {
-      triggerNotice('error', err.message);
-    }
+    saveAddTaskDraft();
   };
 
   const handleAddJobSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newJobTitle.trim()) return;
-
-    const newJobId = `JOB-260${state.jobs.length + 1}`;
-    const newJob: JobRecord = {
-      id: newJobId,
-      clientId: newJobClientId,
-      engagementId: newJobEngId,
-      title: newJobTitle.trim(),
-      description: newJobDescription.trim(),
-      owner: newJobOwner,
-      startDate: new Date().toISOString().split('T')[0],
-      dueDate: newJobDueDate,
-      status: 'Not started',
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      prototypeStore.addJob(newJob);
-      prototypeStore.addTask({
-        id: `TSK-${newJobId}-1`,
-        jobId: newJobId,
-        title: 'Initial Scoping & Team Briefing',
-        assignee: newJobOwner,
-        status: 'Not started',
-        order: 1
-      });
-      setSelectedJobId(newJobId);
-      closeAddJobModal();
-      triggerNotice('success', `Job "${newJob.title}" scheduled (${newJob.id}).`);
-    } catch (err: any) {
-      triggerNotice('error', err.message);
-    }
+    saveAddJobDraft();
   };
 
-  const saveJobDetails = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!editingJob) return;
+  const saveJobDetailsDraft = () => {
+    if (!editingJob) return false;
     try {
       prototypeStore.updateJob(editingJob);
-      setEditingJob(null);
+      discardJobEdit();
       triggerNotice('success', 'Job details updated.');
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+  const saveJobDetails = (event: React.FormEvent) => { event.preventDefault(); saveJobDetailsDraft(); };
 
   const handleUpdateTaskStatus = (task: JobTaskItem, completed: boolean) => {
     handleSetTaskStatus(task, completed ? 'Completed' : 'In progress');
@@ -247,17 +243,19 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
     }
   };
 
-  const saveTaskDetails = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!taskToEdit) return;
+  const saveTaskDetailsDraft = () => {
+    if (!taskToEdit || !editTaskTitle.trim()) return false;
     try {
       prototypeStore.updateTask({ ...taskToEdit, title: editTaskTitle.trim(), description: editTaskDescription.trim(), dueDate: editTaskDueDate || undefined });
-      setTaskToEdit(null);
+      discardTaskEdit();
       triggerNotice('success', 'Task details updated.');
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+  const saveTaskDetails = (event: React.FormEvent) => { event.preventDefault(); saveTaskDetailsDraft(); };
 
   const handleUpdateJobStatus = (job: JobRecord, status: JobRecord['status']) => {
     let blockedReason = job.blockedReason;
@@ -289,7 +287,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
           <button className="btn sm ghost" onClick={() => onNavigate('job-templates')}>
             <Icon name="layers" /> Job Templates
           </button>
-          <button className="btn primary sm" onClick={() => setShowAddJobModal(true)}>
+          <button className="btn primary sm" onClick={openAddJobModal}>
             <Icon name="plus" /> New Job
           </button>
         </div>
@@ -320,7 +318,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
             Create a custom job or instantiate a standard delivery template to begin tracking engagement deliverables.
           </p>
           <div className="row mt16" style={{ justifyContent: 'center', gap: 10 }}>
-            <button className="btn primary sm" onClick={() => setShowAddJobModal(true)}>
+            <button className="btn primary sm" onClick={openAddJobModal}>
               <Icon name="plus" /> Create New Job
             </button>
             <button className="btn ghost sm" onClick={() => onNavigate('job-templates')}>
@@ -387,7 +385,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     <span className="eyebrow">JOB WORKSPACE · {selectedJob.id}</span>
                     <h2>{selectedJob.title}</h2>
                     <p className="sub">{client?.name || selectedJob.clientId} · Due: {selectedJob.dueDate} · Owner: {selectedJob.owner}</p>
-                    {['manager', 'partner'].includes(state.currentRole) && selectedJob.status !== 'Cancelled' && <button className="btn sm ghost mt8" onClick={() => setEditingJob(structuredClone(selectedJob))}>Edit Job Details</button>}
+                    {['manager', 'partner'].includes(state.currentRole) && selectedJob.status !== 'Cancelled' && <button className="btn sm ghost mt8" onClick={() => openJobEdit(selectedJob)}>Edit Job Details</button>}
                     <label className="caption block mt8">Manual job status<select aria-label="Selected job status" value={selectedJob.status} disabled={!['manager', 'partner'].includes(state.currentRole) || selectedJob.status === 'Cancelled'} onChange={e => handleUpdateJobStatus(selectedJob, e.target.value as JobRecord['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
                     {selectedJob.status === 'Blocked' && <p className="caption mt4">Blocked: {selectedJob.blockedReason}</p>}
                     {selectedJob.status === 'Cancelled' && <p className="caption mt4" role="status">Cancelled by {selectedJob.cancelledByUserId || 'recorded user'} on {selectedJob.cancelledAt || 'date unavailable'} · {selectedJob.cancellationReason || 'No reason recorded'}. Tasks and linked records are retained.</p>}
@@ -409,7 +407,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     disabled={selectedJob.status === 'Cancelled'}
                     onClick={() => {
                       setParentTaskIdForSubtask(undefined);
-                      setShowAddTaskModal(true);
+                      openAddTaskModal();
                     }}
                   >
                     <Icon name="plus" /> Add Main Task
@@ -443,16 +441,13 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                               </div>
                             </div>
                             <div className="row" style={{ gap: 6 }}>
-                              <button className="btn sm ghost" aria-label={`Edit task ${parent.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToEdit(parent); setEditTaskTitle(parent.title); setEditTaskDescription(parent.description || ''); setEditTaskDueDate(parent.dueDate || ''); }}>Edit</button>
+                              <button className="btn sm ghost" aria-label={`Edit task ${parent.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => openTaskEdit(parent)}>Edit</button>
                               <button className="btn sm ghost" aria-label={`Move ${parent.title} up`} disabled={selectedJob.status === 'Cancelled' || parentTasks[0]?.id === parent.id} onClick={() => moveTask(parent, -1)}>↑</button>
                               <button className="btn sm ghost" aria-label={`Move ${parent.title} down`} disabled={selectedJob.status === 'Cancelled' || parentTasks.at(-1)?.id === parent.id} onClick={() => moveTask(parent, 1)}>↓</button>
                               <button
                                 className="btn sm ghost"
                                 disabled={selectedJob.status === 'Cancelled'}
-                                onClick={() => {
-                                  setTaskToReassign(parent);
-                                  setShowReassignModal(true);
-                                }}
+                                onClick={() => openReassignment(parent)}
                               >
                                 Reassign
                               </button>
@@ -461,7 +456,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                 disabled={selectedJob.status === 'Cancelled'}
                                 onClick={() => {
                                   setParentTaskIdForSubtask(parent.id);
-                                  setShowAddTaskModal(true);
+                                  openAddTaskModal(parent.id);
                                 }}
                               >
                                 + Subtask
@@ -491,10 +486,10 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                     </div>
                                   </div>
                                   <div className="row" style={{ gap: 6 }}>
-                                    <button className="btn sm ghost" aria-label={`Edit task ${sub.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToEdit(sub); setEditTaskTitle(sub.title); setEditTaskDescription(sub.description || ''); setEditTaskDueDate(sub.dueDate || ''); }}>Edit</button>
+                                    <button className="btn sm ghost" aria-label={`Edit task ${sub.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => openTaskEdit(sub)}>Edit</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} up`} disabled={selectedJob.status === 'Cancelled' || subtasks[0]?.id === sub.id} onClick={() => moveTask(sub, -1)}>↑</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} down`} disabled={selectedJob.status === 'Cancelled' || subtasks.at(-1)?.id === sub.id} onClick={() => moveTask(sub, 1)}>↓</button>
-                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => { setTaskToReassign(sub); setShowReassignModal(true); }}>Reassign</button>
+                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => openReassignment(sub)}>Reassign</button>
                                   </div>
                                 </div>
                               ))}
@@ -506,19 +501,19 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                   )}
                 </div>
                 <div className="divider mt20" />
-                <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => {setNoteSubject({type:'job',id:selectedJob.id,label:'Job'});setEditingCommentId(null);setNoteText('');setNoteMentions([]);setShowNoteModal(true);}}>Add Internal Note</button></div>
-                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => {const hidden = isHidden(comment);return <div className="borderbox" style={{ padding: 12, opacity: hidden ? 0.75 : 1 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => { setNoteSubject({type:'job',id:comment.subjectId,label:'Job'}); setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => {const reason=window.prompt(`Reason to ${hidden?'restore':'hide'} this internal note?`)||'';if(!reason.trim())return;try{prototypeStore.moderateComment(comment.id,!hidden,reason);triggerNotice('success',`Internal note ${hidden?'restored':'hidden'} with history recorded.`);}catch(err:any){triggerNotice('error',err.message);}}}>{hidden?'Restore':'Moderate'}</button>}</div></div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}{comment.moderationHistory?.map(item => ` · ${item.action} by ${item.by}: ${item.reason}`).join('')}</div></div>;})}</div>}
+                <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => openNoteModal({type:'job',id:selectedJob.id,label:'Job'})}>Add Internal Note</button></div>
+                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => {const hidden = isHidden(comment);return <div className="borderbox" style={{ padding: 12, opacity: hidden ? 0.75 : 1 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => openNoteModal({type:'job',id:comment.subjectId,label:'Job'}, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => {const reason=window.prompt(`Reason to ${hidden?'restore':'hide'} this internal note?`)||'';if(!reason.trim())return;try{prototypeStore.moderateComment(comment.id,!hidden,reason);triggerNotice('success',`Internal note ${hidden?'restored':'hidden'} with history recorded.`);}catch(err:any){triggerNotice('error',err.message);}}}>{hidden?'Restore':'Moderate'}</button>}</div></div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}{comment.moderationHistory?.map(item => ` · ${item.action} by ${item.by}: ${item.reason}`).join('')}</div></div>;})}</div>}
                 <section className="panel panel-pad mt20" aria-label="Task notes">
                   <h4>Task Notes</h4>
                   <p className="caption">Internal notes stay attached to the selected task and remain staff-only.</p>
                   <div className="stack mt8">
                     {jobTasks.map(task => (
                       <div className="borderbox panel-pad" key={task.id}>
-                        <div className="between"><b>{task.title}</b><button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => { setNoteSubject({ type: 'task', id: task.id, label: `Task: ${task.title}` }); setEditingCommentId(null); setNoteText(''); setNoteMentions([]); setShowNoteModal(true); }}>Add task note</button></div>
+                        <div className="between"><b>{task.title}</b><button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled'} onClick={() => openNoteModal({ type: 'task', id: task.id, label: `Task: ${task.title}` })}>Add task note</button></div>
                         {taskComments.filter(comment => comment.subjectId === task.id).map(comment => {
                           const hidden = isHidden(comment);
                           return <div className="borderbox panel-pad mt8" key={comment.id} style={{ opacity: hidden ? 0.75 : 1 }}>
-                            <div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" onClick={() => { setNoteSubject({ type: 'task', id: task.id, label: `Task: ${task.title}` }); setNoteText(comment.text); setEditingCommentId(comment.id); setShowNoteModal(true); }}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => { const reason = window.prompt(`Reason to ${hidden ? 'restore' : 'hide'} this task note?`) || ''; if (!reason.trim()) return; try { prototypeStore.moderateComment(comment.id, !hidden, reason); triggerNotice('success', `Task note ${hidden ? 'restored' : 'hidden'}.`); } catch (err: any) { triggerNotice('error', err.message); } }}>{hidden ? 'Restore' : 'Moderate'}</button>}</div></div>
+                            <div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" onClick={() => openNoteModal({ type: 'task', id: task.id, label: `Task: ${task.title}` }, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => { const reason = window.prompt(`Reason to ${hidden ? 'restore' : 'hide'} this task note?`) || ''; if (!reason.trim()) return; try { prototypeStore.moderateComment(comment.id, !hidden, reason); triggerNotice('success', `Task note ${hidden ? 'restored' : 'hidden'}.`); } catch (err: any) { triggerNotice('error', err.message); } }}>{hidden ? 'Restore' : 'Moderate'}</button>}</div></div>
                             <div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.moderationHistory?.map(item => `${item.action} by ${item.by}: ${item.reason}`).join(' · ')}</div>
                           </div>;
                         })}
@@ -544,14 +539,14 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
       {/* New Job Modal */}
       {editingJob && (
-        <div className="modal-backdrop" onClick={() => setEditingJob(null)}>
+        <div className="modal-backdrop" onClick={discardJobEdit}>
           <div className="modal" role="dialog" aria-modal="true" aria-label="Edit job details" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-head"><h2>Edit Job Details</h2><button className="icon-btn" onClick={() => setEditingJob(null)}>✕</button></div>
+            <div className="modal-head"><h2>Edit Job Details</h2><button type="button" className="icon-btn" aria-label="Close edit job details" onClick={discardJobEdit}>✕</button></div>
             <form onSubmit={saveJobDetails}><div className="modal-body stack" style={{ gap: 12 }}>
               <label className="caption">Job title<input className="input mt4" aria-label="Edited job title" required value={editingJob.title} onChange={e => setEditingJob({ ...editingJob, title: e.target.value })} /></label>
               <label className="caption">Description<textarea className="input mt4" aria-label="Edited job description" value={editingJob.description || ''} onChange={e => setEditingJob({ ...editingJob, description: e.target.value })} /></label>
               <div className="grid2"><label className="caption">Owner<select className="input mt4" aria-label="Edited job owner" value={editingJob.owner} onChange={e => setEditingJob({ ...editingJob, owner: e.target.value })}>{state.users.filter(user => user.status === 'Active').map(user => <option key={user.id} value={user.name}>{user.name}</option>)}</select></label><label className="caption">Due date<input className="input mt4" aria-label="Edited job due date" type="date" required value={editingJob.dueDate} onChange={e => setEditingJob({ ...editingJob, dueDate: e.target.value })} /></label></div>
-            </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setEditingJob(null)}>Cancel</button><button className="btn primary sm" type="submit">Save Job Details</button></div></form>
+            </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={discardJobEdit}>Cancel</button><button className="btn primary sm" type="submit">Save Job Details</button></div></form>
           </div>
         </div>
       )}
@@ -655,16 +650,16 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
       {/* Edit Task Modal */}
       {taskToEdit && (
-        <div className="modal-backdrop" onClick={() => setTaskToEdit(null)}>
+        <div className="modal-backdrop" onClick={discardTaskEdit}>
           <div className="modal" role="dialog" aria-modal="true" aria-label={`Edit ${taskToEdit.title}`} style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-head"><h2>Edit Task</h2><button className="icon-btn" onClick={() => setTaskToEdit(null)}>✕</button></div>
+            <div className="modal-head"><h2>Edit Task</h2><button type="button" className="icon-btn" aria-label="Close edit task" onClick={discardTaskEdit}>✕</button></div>
             <form onSubmit={saveTaskDetails}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <label className="caption">Task title<input className="input mt4" aria-label="Edited task title" required value={editTaskTitle} onChange={e => setEditTaskTitle(e.target.value)} /></label>
                 <label className="caption">Description<textarea className="input mt4" aria-label="Edited task description" value={editTaskDescription} onChange={e => setEditTaskDescription(e.target.value)} /></label>
                 <label className="caption">Due date<input className="input mt4" aria-label="Edited task due date" type="date" value={editTaskDueDate} onChange={e => setEditTaskDueDate(e.target.value)} /></label>
               </div>
-              <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setTaskToEdit(null)}>Cancel</button><button type="submit" className="btn primary sm">Save Task</button></div>
+              <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={discardTaskEdit}>Cancel</button><button type="submit" className="btn primary sm">Save Task</button></div>
             </form>
           </div>
         </div>
@@ -672,11 +667,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
       {/* Reassign Modal */}
       {showReassignModal && taskToReassign && (
-        <div className="modal-backdrop" onClick={() => setShowReassignModal(false)}>
+        <div className="modal-backdrop" onClick={discardReassignment}>
           <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Reassign Task: {taskToReassign.title}</h2>
-              <button className="icon-btn" onClick={() => setShowReassignModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close reassignment" onClick={discardReassignment}>✕</button>
             </div>
             <form onSubmit={handleReassignSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -709,7 +704,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowReassignModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardReassignment}>Cancel</button>
                 <button type="submit" className="btn primary sm">Confirm Reassignment</button>
               </div>
             </form>
@@ -719,11 +714,11 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
 
       {/* Add Task Modal */}
       {showAddTaskModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddTaskModal(false)}>
+        <div className="modal-backdrop" onClick={discardAddTaskDraft}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>{parentTaskIdForSubtask ? 'Add Subtask (1 Level)' : 'Add Main Task'}</h2>
-              <button className="icon-btn" onClick={() => setShowAddTaskModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close new task dialog" onClick={discardAddTaskDraft}>✕</button>
             </div>
             <form onSubmit={handleAddTaskSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -752,7 +747,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddTaskModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardAddTaskDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Create Task</button>
               </div>
             </form>
@@ -760,7 +755,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
         </div>
       )}
 
-      {showNoteModal && selectedJob && <div className="modal-backdrop" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}><form className="modal" style={{ maxWidth: 500 }} onSubmit={handleAddInternalNote} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>{editingCommentId ? `Edit Internal ${noteSubject.label} Note` : `Add Internal ${noteSubject.label} Note`}</h2><button type="button" className="icon-btn" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}><label className="caption">Note (5,000 characters maximum)<textarea className="input" rows={4} maxLength={5000} required value={noteText} onChange={e => setNoteText(e.target.value)} /></label>{!editingCommentId && <><label className="caption">Mention authorized colleagues<select className="input" multiple value={noteMentions} onChange={e => setNoteMentions(Array.from(e.target.selectedOptions, option => option.value))}>{mentionableUsers.filter(user => user.id !== state.currentUserId).map(user => <option key={user.id} value={user.id}>{user.name} · {user.label}</option>)}</select></label><p className="caption">Mentions are local notices only. They do not grant access or send email.</p></>}</div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => { setShowNoteModal(false); setEditingCommentId(null); }}>Cancel</button><button className="btn primary sm" type="submit">{editingCommentId ? 'Save Note Changes' : 'Save Internal Note'}</button></div></form></div>}
+      {showNoteModal && selectedJob && <div className="modal-backdrop" onClick={discardNoteDraft}><form className="modal" style={{ maxWidth: 500 }} onSubmit={handleAddInternalNote} onClick={e => e.stopPropagation()}><div className="modal-head"><h2>{editingCommentId ? `Edit Internal ${noteSubject.label} Note` : `Add Internal ${noteSubject.label} Note`}</h2><button type="button" className="icon-btn" aria-label="Close internal note dialog" onClick={discardNoteDraft}>✕</button></div><div className="modal-body stack" style={{ gap: 12 }}><label className="caption">Note (5,000 characters maximum)<textarea className="input" rows={4} maxLength={5000} required value={noteText} onChange={e => setNoteText(e.target.value)} /></label>{!editingCommentId && <><label className="caption">Mention authorized colleagues<select className="input" multiple value={noteMentions} onChange={e => setNoteMentions(Array.from(e.target.selectedOptions, option => option.value))}>{mentionableUsers.filter(user => user.id !== state.currentUserId).map(user => <option key={user.id} value={user.id}>{user.name} · {user.label}</option>)}</select></label><p className="caption">Mentions are local notices only. They do not grant access or send email.</p></>}</div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={discardNoteDraft}>Cancel</button><button className="btn primary sm" type="submit">{editingCommentId ? 'Save Note Changes' : 'Save Internal Note'}</button></div></form></div>}
     </div>
   );
 };

@@ -1,15 +1,17 @@
 // Module 12: Staff Time Tracking & Review (VP-028)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatMinutesToHours } from '../../services/calculations';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface TimeTrackingViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }) => {
+export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -25,12 +27,12 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
   const [activity, setActivity] = useState('Audit fieldwork');
   const [narrative, setNarrative] = useState('');
   const [billable, setBillable] = useState(true);
+  const timeBaseline = useRef({ person, taskTitle, minutes, activity, narrative, billable });
+  const returnBaseline = useRef('');
 
   const times = state.times;
 
-  const handleAddTime = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const saveTimeDraft = () => {
     try {
       if (entryToRevise?.mode === 'returned') {
         prototypeStore.resubmitReturnedTime(entryToRevise.entry.id, { taskTitle, durationMinutes: minutes, activity, narrative, billable });
@@ -58,13 +60,43 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
       setNarrative('');
       setNotice({ type: 'success', text: entryToRevise ? 'Time correction submitted for review.' : 'Time entry submitted for review.' });
       setTimeout(() => setNotice(null), 4000);
+      timeBaseline.current = { person, taskTitle, minutes, activity, narrative: '', billable };
+      return true;
     } catch (err: any) {
       setNotice({ type: 'error', text: err.message });
       setTimeout(() => setNotice(null), 6000);
+      return false;
     }
   };
 
+  const handleAddTime = (e: React.FormEvent) => { e.preventDefault(); saveTimeDraft(); };
+
+  const discardTimeDraft = () => {
+    setShowAddModal(false); setEntryToRevise(null); setPerson(state.currentPerson); setTaskTitle('Substantive testing of cash and bank'); setMinutes(120); setActivity('Audit fieldwork'); setNarrative(''); setBillable(true);
+  };
+  const discardReturnDraft = () => { setShowReturnModal(false); setEntryToReturn(null); setReturnReason(''); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const sameTime = () => {
+      const modal = document.querySelector('.modal-backdrop');
+      const baseline = timeBaseline.current;
+      if (!modal) return true;
+      return (modal.querySelector('select') as HTMLSelectElement | null)?.value === baseline.person
+        && (modal.querySelectorAll('select')[1] as HTMLSelectElement | undefined)?.value === baseline.activity
+        && Number((modal.querySelector('input[type="number"]') as HTMLInputElement | null)?.value) === baseline.minutes
+        && (modal.querySelector('input[type="text"]') as HTMLInputElement | null)?.value === baseline.taskTitle
+        && (modal.querySelector('textarea') as HTMLTextAreaElement | null)?.value === baseline.narrative
+        && (modal.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.checked === baseline.billable;
+    };
+    onRegisterUnsavedForm({ label: 'time entry or correction', isDirty: () => showAddModal && !sameTime(), save: saveTimeDraft, discard: discardTimeDraft }, 'time-entry-draft');
+    onRegisterUnsavedForm({ label: 'time return reason', isDirty: () => showReturnModal && returnReason.trim() !== returnBaseline.current, save: () => { if (!entryToReturn || !returnReason.trim()) return false; try { prototypeStore.reviewTimeEntry(entryToReturn.id, 'Returned', returnReason); discardReturnDraft(); return true; } catch { return false; } }, discard: discardReturnDraft }, 'time-return-draft');
+    return () => { onRegisterUnsavedForm(null, 'time-entry-draft'); onRegisterUnsavedForm(null, 'time-return-draft'); };
+  }, [onRegisterUnsavedForm, showAddModal, showReturnModal, person, taskTitle, minutes, activity, narrative, billable, entryToReturn, returnReason, entryToRevise]);
+
+  const openNewTimeModal = () => { setEntryToRevise(null); timeBaseline.current = { person, taskTitle, minutes, activity, narrative, billable }; setShowAddModal(true); };
+
   const openRevision = (entry: TimeEntryItem, mode: 'returned' | 'approved') => {
+    timeBaseline.current = { person: entry.person, taskTitle: entry.taskTitle, minutes: entry.durationMinutes, activity: entry.activity, narrative: mode === 'returned' ? entry.narrative || '' : '', billable: entry.billable };
     setEntryToRevise({ entry, mode });
     setTaskTitle(entry.taskTitle);
     setMinutes(entry.durationMinutes);
@@ -106,7 +138,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
           <h1>Time Tracking & Attendance</h1>
           <p>Record minute-level activity, enforce separation of duties, and manage timesheet approval.</p>
         </div>
-        <button className="btn primary sm" onClick={() => setShowAddModal(true)}>
+        <button className="btn primary sm" onClick={openNewTimeModal}>
           <Icon name="plus" /> Record Time Entry
         </button>
       </div>
@@ -195,6 +227,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                           className="btn sm ghost"
                           onClick={() => {
                             setEntryToReturn(t);
+                            setReturnReason(''); returnBaseline.current = '';
                             setShowReturnModal(true);
                           }}
                         >
@@ -219,11 +252,11 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
 
       {/* Add Time Modal */}
       {showAddModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
+        <div className="modal-backdrop" onClick={discardTimeDraft}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>{entryToRevise?.mode === 'approved' ? 'Correct Approved Time' : entryToRevise ? 'Resubmit Returned Time' : 'Record Time Entry'}</h2>
-              <button className="icon-btn" onClick={() => setShowAddModal(false)}>✕</button>
+              <button className="icon-btn" onClick={discardTimeDraft}>✕</button>
             </div>
             <form onSubmit={handleAddTime}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -297,7 +330,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                 </label>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAddModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardTimeDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">{entryToRevise ? 'Submit Correction' : 'Submit Time Entry'}</button>
               </div>
             </form>
@@ -307,11 +340,11 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
 
       {/* Return Time Modal */}
       {showReturnModal && entryToReturn && (
-        <div className="modal-backdrop" onClick={() => setShowReturnModal(false)}>
+        <div className="modal-backdrop" onClick={discardReturnDraft}>
           <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Return Time Entry</h2>
-              <button className="icon-btn" onClick={() => setShowReturnModal(false)}>✕</button>
+              <button className="icon-btn" onClick={discardReturnDraft}>✕</button>
             </div>
             <form onSubmit={handleReturnSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -332,7 +365,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate }
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowReturnModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardReturnDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Return Entry</button>
               </div>
             </form>

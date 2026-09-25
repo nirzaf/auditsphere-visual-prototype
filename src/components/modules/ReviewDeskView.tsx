@@ -1,16 +1,18 @@
 // Module 35: Review Desk & Clearance Workflow (VP-055)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, ReviewNoteItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { eligibleReviewAssignees, visibleEngagementIds } from '../../services/guards';
 import { exportService } from '../../services/exportService';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ReviewDeskViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) => {
+export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
 
@@ -51,6 +53,8 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
   // Response form
   const [responseText, setResponseText] = useState('');
   const [evidenceDoc, setEvidenceDoc] = useState(state.documents.find(document => document.engagementId === selectedEng?.id)?.id || '');
+  const raiseBaseline = useRef({ subjectType, targetWp, assignee, queryText });
+  const responseBaseline = useRef({ responseText, evidenceDoc, noteId: selectedNote?.id || '' });
 
   const handleRaiseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,10 +100,20 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
     setResponseText('');
   };
 
+  const discardRaiseDraft = () => { setShowRaiseModal(false); setSubjectType('workpaper'); setTargetWp(selectedEng.workpapers[0]?.id || ''); setAssignee(eligibleAssignees.find(user => user.role === 'preparer')?.name || eligibleAssignees[0]?.name || ''); setQueryText(''); };
+  const discardResponseDraft = () => { setShowRespondModal(false); setSelectedNote(null); setResponseText(''); setEvidenceDoc(state.documents.find(document => document.engagementId === selectedEng.id)?.id || ''); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'new review point draft', isDirty: () => showRaiseModal && (subjectType !== raiseBaseline.current.subjectType || targetWp !== raiseBaseline.current.targetWp || assignee !== raiseBaseline.current.assignee || queryText !== raiseBaseline.current.queryText), save: () => { if (!queryText.trim()) return false; prototypeStore.addReviewNote(selectedEng.id, { id: `RN-0${reviews.length + 1}`, wp: targetWp, subjectType, title: queryText.slice(0, 40), body: queryText, author: state.currentPerson, raisedBy: state.currentPerson, assigned: assignee, due: '2026-10-15', response: '', severity: 'Medium', version: 1, text: queryText, status: 'Open', history: [{ actor: state.currentPerson, action: 'Raised review query', time: 'Today · 10:00', text: queryText }] }); discardRaiseDraft(); return true; }, discard: discardRaiseDraft }, 'review-raise-draft');
+    onRegisterUnsavedForm({ label: 'review response draft', isDirty: () => showRespondModal && (responseText !== responseBaseline.current.responseText || evidenceDoc !== responseBaseline.current.evidenceDoc || selectedNote?.id !== responseBaseline.current.noteId), save: () => { if (!selectedNote || !responseText.trim()) return false; prototypeStore.respondReviewNote(selectedNoteEngagementId, selectedNote.id, responseText, evidenceDoc); discardResponseDraft(); return true; }, discard: discardResponseDraft }, 'review-response-draft');
+    return () => { onRegisterUnsavedForm(null, 'review-raise-draft'); onRegisterUnsavedForm(null, 'review-response-draft'); };
+  }, [onRegisterUnsavedForm, showRaiseModal, showRespondModal, subjectType, targetWp, assignee, queryText, selectedNote, selectedNoteEngagementId, responseText, evidenceDoc, selectedEng.id, reviews.length]);
+
   const handleOpenRespond = (engagementId: string, note: ReviewNoteItem) => {
     setSelectedNote(note);
     setSelectedNoteEngagementId(engagementId);
     setEvidenceDoc(state.documents.find(document => document.engagementId === engagementId)?.id || '');
+    responseBaseline.current = { responseText: '', evidenceDoc: state.documents.find(document => document.engagementId === engagementId)?.id || '', noteId: note.id };
     setShowRespondModal(true);
   };
 
@@ -145,7 +159,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
           <p>Multi-tiered review queries, evidentiary responses, and independent sign-off gates.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={() => setShowRaiseModal(true)}>
+          <button className="btn primary sm" onClick={() => { raiseBaseline.current = { subjectType, targetWp, assignee, queryText }; setShowRaiseModal(true); }}>
             <Icon name="plus" /> Raise Review Note
           </button>
         </div>
@@ -257,11 +271,11 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
 
       {/* Raise Modal */}
       {showRaiseModal && (
-        <div className="modal-backdrop" onClick={() => setShowRaiseModal(false)}>
+        <div className="modal-backdrop" onClick={discardRaiseDraft}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Raise Review Point</h2>
-              <button className="icon-btn" onClick={() => setShowRaiseModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close raise review point dialog" onClick={discardRaiseDraft}>✕</button>
             </div>
             <form onSubmit={handleRaiseSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -311,7 +325,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowRaiseModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardRaiseDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm" disabled={!targetWp}>Raise Query</button>
               </div>
             </form>
@@ -321,11 +335,11 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
 
       {/* Respond Modal */}
       {showRespondModal && selectedNote && (
-        <div className="modal-backdrop" onClick={() => setShowRespondModal(false)}>
+        <div className="modal-backdrop" onClick={discardResponseDraft}>
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
             <h2>Respond to {selectedNote.id} ({selectedNote.subjectType === 'finding' ? 'Finding' : 'Workpaper'} {selectedNote.wp})</h2>
-              <button className="icon-btn" onClick={() => setShowRespondModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close review response dialog" onClick={discardResponseDraft}>✕</button>
             </div>
             <form onSubmit={handleRespondSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -355,7 +369,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate }) =>
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowRespondModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardResponseDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Submit Response</button>
               </div>
             </form>

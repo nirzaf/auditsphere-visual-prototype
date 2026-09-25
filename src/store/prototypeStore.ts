@@ -3459,6 +3459,9 @@ class PrototypeStore {
     if (changes.owner !== undefined) {
       const owner = changes.owner.trim();
       if (!owner) throw new GuardError('INVALID_STATE', 'The client recipient cannot be empty.');
+      const client = this.state.clients.find(item => item.id === eng.client);
+      const authorized = this.state.contacts.some(contact => contact.clientId === eng.client && contact.active && contact.name.trim().toLocaleLowerCase() === owner.toLocaleLowerCase()) || owner.toLocaleLowerCase() === client?.contact?.trim().toLocaleLowerCase();
+      if (!authorized) throw new GuardError('FORBIDDEN_SCOPE', 'Recipient must be an active contact assigned to this client.');
       if (owner !== req.owner) { req.owner = owner; changed.push('client recipient'); }
     }
     if (!changed.length) throw new GuardError('INVALID_STATE', 'No changes were entered.');

@@ -70,13 +70,13 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 | Evidence field | Record actual result |
 |---|---|
-| Inspected / tested full commit | Not recorded |
-| Browser / viewport / build | Not recorded |
-| Persona and client/engagement / fixture | Not recorded |
-| Exact original criterion and assertion | Not recorded |
-| Command / test / observed result | Not run |
-| Output or screenshot / hash | Not recorded |
-| Reviewer / date / limitations | Not recorded |
+| Inspected / tested full commit | Worktree based on `78b2920`; updated acceptance test and verification record in the current worktree |
+| Browser / viewport / build | Production Vite build and headless Chrome; focused AT-15/AT-16 1/1 and full E2E 83/83 |
+| Persona and client/engagement / fixture | Manager; synthetic SharePoint site/root, synthetic sender, Example Trading Entity / ENG-26001; initial state reset inside AT-15 |
+| Exact original criterion and assertion | AT-15/AT-16; VP-022-AC01–AC04 subcases: changed settings stale prior verification; disconnect preserves records and logs history; retries are explicit; every failure stays simulated and no Purview/live provider surface appears |
+| Command / test / observed result | `npm run lint`; `npm run build`; `npm run test:unit` 197/197; focused AT-15/AT-16 1/1; `npm run test:e2e` 83/83; `git diff --check` PASS |
+| Output or screenshot / hash | Changed tenant/site/root/sender each invalidate prior checks; denied/missing/expired/throttled/unavailable outcomes offer manual recovery; successful disconnect increments configuration revision and disables workspace prep without deleting client, document or folder metadata; explicit SharePoint re-verification restores it while liveConnected remains false; intercepted browser requests show no external egress. |
+| Reviewer / date / limitations | M.F.M Fazrin (repository owner, completion directive 2026-09-25); source VP-022 remains Partial pending story-level criterion sign-off and broader stakeholder acceptance. |
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 

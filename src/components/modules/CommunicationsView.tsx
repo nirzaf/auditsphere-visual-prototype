@@ -1,18 +1,21 @@
 // Module 11: Team & Client Communications & Email Simulator (VP-026, VP-027)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, CommunicationItem, EmailTemplateItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface CommunicationsViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNavigate }) => {
+export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [showLogNoteModal, setShowLogNoteModal] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [noteError, setNoteError] = useState('');
 
   // Email form
   const [recipientEmail, setRecipientEmail] = useState('omar.nasser@example-trading.demo');
@@ -31,64 +34,47 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
   const [relatedJobId, setRelatedJobId] = useState('');
 
   const communications = state.communications;
-  const client = state.clients[0];
+  const selectedEngagement = state.engagements.find(engagement => engagement.id === state.selectedEngagement);
+  const client = state.clients.find(item => item.id === selectedEngagement?.client) || state.clients[0];
   const clientJobs = state.jobs.filter(job => job.clientId === client?.id);
   const relatedJob = clientJobs.find(job => job.id === relatedJobId);
 
+  const saveEmailDraft = () => {
+    try {
+      prototypeStore.addCommunication({ id: `COMM-${crypto.randomUUID()}`, clientId: client?.id || 'CL-001', engagementId: state.selectedEngagement, direction: 'Outbound', channel: 'Email', participants: `${state.currentPerson} -> ${recipientEmail.trim().toLowerCase()}`, recipientEmail: recipientEmail.trim().toLowerCase(), summary: subject, body: emailBody, author: state.currentPerson, date: new Date().toISOString(), visibility: 'Client visible', status: simulationOutcome, simulationReference: `MAIL-SIM-${crypto.randomUUID()}`, simulationEvidence: `Local simulation recorded ${simulationOutcome}; no provider receipt or external delivery confirmation exists.` });
+      emailBaseline.current = { recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome };
+      setEmailError(''); setShowComposeModal(false); return true;
+    } catch (error) { setEmailError(error instanceof Error ? error.message : 'Simulated email could not be recorded.'); return false; }
+  };
+  const saveNoteDraft = () => {
+    if (!noteSummary.trim()) return false;
+    try {
+      prototypeStore.addCommunication({ id: `COMM-${Date.now().toString().slice(-4)}`, clientId: client?.id || 'CL-001', engagementId: relatedJob?.engagementId || state.selectedEngagement, jobId: relatedJob?.id, direction: 'Inbound', channel, participants, summary: noteSummary, body: noteBody, author: state.currentPerson, date: new Date().toISOString(), visibility: 'Internal', status: 'Recorded manually' });
+      noteBaseline.current = { channel, participants, noteSummary: '', noteBody: '', relatedJobId: '' };
+      setNoteError(''); setShowLogNoteModal(false); setNoteSummary(''); setNoteBody(''); setRelatedJobId(''); return true;
+    } catch (error) { setNoteError(error instanceof Error ? error.message : 'Communication note could not be saved.'); return false; }
+  };
+  const emailBaseline = useRef({ recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome });
+  const noteBaseline = useRef({ channel, participants, noteSummary, noteBody, relatedJobId });
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    const sameEmail = () => recipientEmail === emailBaseline.current.recipientEmail && selectedTemplateId === emailBaseline.current.selectedTemplateId && subject === emailBaseline.current.subject && emailBody === emailBaseline.current.emailBody && simulationOutcome === emailBaseline.current.simulationOutcome;
+    const sameNote = () => channel === noteBaseline.current.channel && participants === noteBaseline.current.participants && noteSummary === noteBaseline.current.noteSummary && noteBody === noteBaseline.current.noteBody && relatedJobId === noteBaseline.current.relatedJobId;
+    const discardEmail = () => { setShowComposeModal(false); setRecipientEmail(emailBaseline.current.recipientEmail); setSelectedTemplateId(emailBaseline.current.selectedTemplateId); setSubject(emailBaseline.current.subject); setEmailBody(emailBaseline.current.emailBody); setSimulationOutcome(emailBaseline.current.simulationOutcome); };
+    const discardNote = () => { setShowLogNoteModal(false); setChannel(noteBaseline.current.channel); setParticipants(noteBaseline.current.participants); setNoteSummary(''); setNoteBody(''); setRelatedJobId(''); };
+    onRegisterUnsavedForm({ label: 'simulated email draft', isDirty: () => showComposeModal && !sameEmail(), save: saveEmailDraft, discard: discardEmail }, 'communications-email-draft');
+    onRegisterUnsavedForm({ label: 'communication note draft', isDirty: () => showLogNoteModal && !sameNote(), save: saveNoteDraft, discard: discardNote }, 'communications-note-draft');
+    return () => { onRegisterUnsavedForm(null, 'communications-email-draft'); onRegisterUnsavedForm(null, 'communications-note-draft'); };
+  }, [showComposeModal, showLogNoteModal, recipientEmail, selectedTemplateId, subject, emailBody, simulationOutcome, channel, participants, noteSummary, noteBody, relatedJobId, onRegisterUnsavedForm]);
+
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const normalizedRecipient = recipientEmail.trim().toLowerCase();
-    const newComm: CommunicationItem = {
-      id: `COMM-${crypto.randomUUID()}`,
-      clientId: client?.id || 'CL-001',
-      engagementId: state.selectedEngagement,
-      direction: 'Outbound',
-      channel: 'Email',
-      participants: `${state.currentPerson} -> ${normalizedRecipient}`,
-      recipientEmail: normalizedRecipient,
-      summary: subject,
-      body: emailBody,
-      author: state.currentPerson,
-      date: new Date().toISOString(),
-      visibility: 'Client visible',
-      status: simulationOutcome,
-      simulationReference: `MAIL-SIM-${crypto.randomUUID()}`,
-      simulationEvidence: `Local simulation recorded ${simulationOutcome}; no provider receipt or external delivery confirmation exists.`
-    };
-
-    try {
-      prototypeStore.addCommunication(newComm);
-      setEmailError('');
-      setShowComposeModal(false);
-    } catch (error) { setEmailError(error instanceof Error ? error.message : 'Simulated email could not be recorded.'); }
+    saveEmailDraft();
   };
 
   const handleLogNote = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!noteSummary.trim()) return;
-
-    const newComm: CommunicationItem = {
-      id: `COMM-${Date.now().toString().slice(-4)}`,
-      clientId: client?.id || 'CL-001',
-      engagementId: relatedJob?.engagementId || state.selectedEngagement,
-      jobId: relatedJob?.id,
-      direction: 'Inbound',
-      channel,
-      participants,
-      summary: noteSummary,
-      body: noteBody,
-      author: state.currentPerson,
-      date: new Date().toISOString(),
-      visibility: 'Internal',
-      status: 'Recorded manually'
-    };
-
-    prototypeStore.addCommunication(newComm);
-    setShowLogNoteModal(false);
-    setNoteSummary('');
-    setNoteBody('');
-    setRelatedJobId('');
+    saveNoteDraft();
   };
 
   const handleTemplateSelect = (tplId: string) => {
@@ -114,7 +100,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
           <p>Microsoft 365 synthetic mail sender, delivery simulation outcomes, and client contact log.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn sm ghost" onClick={() => setShowLogNoteModal(true)}>
+          <button className="btn sm ghost" onClick={() => { setNoteError(''); setShowLogNoteModal(true); }}>
             <Icon name="message" /> Log Call / Meeting Note
           </button>
           <button className="btn primary sm" onClick={() => setShowComposeModal(true)}>
@@ -251,6 +237,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
               <h2>Log Inbound Call or Meeting Note</h2>
               <button className="icon-btn" onClick={() => setShowLogNoteModal(false)}>✕</button>
             </div>
+            {noteError && <p role="alert" className="sub">{noteError}</p>}
             <form onSubmit={handleLogNote}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div className="grid2">

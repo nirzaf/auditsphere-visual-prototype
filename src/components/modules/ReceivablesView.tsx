@@ -1,17 +1,20 @@
 // Module 15: Receivables Aging & Offline Receipts Allocation (VP-032, VP-033)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, ReceiptRecord, InvoiceRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { calculateReceivablesAging, formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
 import { visibleClientIds } from '../../services/guards';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ReceivablesViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
+  onBeforeContextChange?: (change: () => void) => void;
 }
 
-export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) => {
+export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate, onRegisterUnsavedForm, onBeforeContextChange }) => {
   const state = prototypeStore.getSnapshot();
   const allowedClientIds = visibleClientIds(state);
   const scopedClients = state.clients.filter(c => allowedClientIds === 'ALL' || allowedClientIds.includes(c.id));
@@ -37,6 +40,8 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
   // Allocation form
   const [targetInvoiceId, setTargetInvoiceId] = useState<string>('');
   const [allocateAmount, setAllocateAmount] = useState<number>(0);
+  const receiptBaseline = useRef({ receiptNumber, receiptAmount, method, reference });
+  const allocationBaseline = useRef({ targetInvoiceId, allocateAmount, receiptId: selectedReceipt?.id || '' });
 
   const client = scopedClients.find(c => c.id === clientFilter) || scopedClients[0];
   const invoices = state.invoices.filter(i =>
@@ -91,9 +96,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
     })
   ];
 
-  const handleAddReceipt = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const saveReceiptDraft = () => {
     const newRec: ReceiptRecord = {
       id: `RCP-${Date.now().toString().slice(-4)}`,
       clientId: client?.id || 'CL-001',
@@ -108,24 +111,45 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
       allocations: []
     };
 
-    prototypeStore.addReceipt(newRec);
-    setShowReceiptModal(false);
+    try { prototypeStore.addReceipt(newRec); setShowReceiptModal(false); const nextNumber = `RCP-2600${prototypeStore.getSnapshot().receipts.length + 1}`; setReceiptNumber(nextNumber); receiptBaseline.current = { receiptNumber: nextNumber, receiptAmount, method, reference }; return true; }
+    catch (error) { setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Receipt could not be recorded.' }); return false; }
   };
 
-  const handleAllocate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedReceipt || !targetInvoiceId || allocateAmount <= 0) return;
-
+  const handleAddReceipt = (e: React.FormEvent) => { e.preventDefault(); saveReceiptDraft(); };
+  const saveAllocationDraft = () => {
+    if (!selectedReceipt || !targetInvoiceId || allocateAmount <= 0) return false;
     try {
       prototypeStore.allocateReceipt(selectedReceipt.id, targetInvoiceId, allocateAmount);
       setShowAllocateModal(false);
+      allocationBaseline.current = { targetInvoiceId, allocateAmount, receiptId: selectedReceipt.id };
       setSelectedReceipt(null);
       setNotice({ type: 'success', text: `Allocated ${formatCurrency(allocateAmount, selectedReceipt.currency)} to invoice ${targetInvoiceId}.` });
       setTimeout(() => setNotice(null), 4000);
+      return true;
     } catch (err: any) {
       setNotice({ type: 'error', text: err.message });
       setTimeout(() => setNotice(null), 6000);
+      return false;
     }
+  };
+  const handleAllocate = (e: React.FormEvent) => { e.preventDefault(); saveAllocationDraft(); };
+
+  const discardReceiptDraft = () => { setShowReceiptModal(false); setReceiptNumber(`RCP-2600${prototypeStore.getSnapshot().receipts.length + 1}`); setReceiptAmount(150000); setMethod('Bank transfer'); setReference('TX-QNB-998822'); };
+  const discardAllocationDraft = () => { setShowAllocateModal(false); setSelectedReceipt(null); setTargetInvoiceId(''); setAllocateAmount(0); };
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    onRegisterUnsavedForm({ label: 'offline receipt draft', isDirty: () => showReceiptModal && (receiptNumber !== receiptBaseline.current.receiptNumber || receiptAmount !== receiptBaseline.current.receiptAmount || method !== receiptBaseline.current.method || reference !== receiptBaseline.current.reference), save: saveReceiptDraft, discard: discardReceiptDraft }, 'receivables-receipt-draft');
+    onRegisterUnsavedForm({ label: 'receipt allocation draft', isDirty: () => showAllocateModal && Boolean(selectedReceipt) && (targetInvoiceId !== allocationBaseline.current.targetInvoiceId || allocateAmount !== allocationBaseline.current.allocateAmount || selectedReceipt?.id !== allocationBaseline.current.receiptId), save: saveAllocationDraft, discard: discardAllocationDraft }, 'receivables-allocation-draft');
+    return () => { onRegisterUnsavedForm(null, 'receivables-receipt-draft'); onRegisterUnsavedForm(null, 'receivables-allocation-draft'); };
+  }, [onRegisterUnsavedForm, showReceiptModal, showAllocateModal, receiptNumber, receiptAmount, method, reference, selectedReceipt, targetInvoiceId, allocateAmount]);
+
+  const openReceiptModal = () => { receiptBaseline.current = { receiptNumber, receiptAmount, method, reference }; setShowReceiptModal(true); };
+  const openAllocationModal = (receipt: ReceiptRecord) => {
+    const unallocated = receipt.amount - receipt.allocatedAmount;
+    const unpaid = invoices.find(invoice => invoice.paid < invoice.amount);
+    setSelectedReceipt(receipt); setAllocateAmount(unallocated); setTargetInvoiceId(unpaid?.id || '');
+    allocationBaseline.current = { targetInvoiceId: unpaid?.id || '', allocateAmount: unallocated, receiptId: receipt.id };
+    setShowAllocateModal(true);
   };
 
   const handleReverse = (receipt: ReceiptRecord, index: number) => {
@@ -147,18 +171,18 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
           <p>Deterministic 30-day aging buckets, offline manual cash receipts, and audit trail reversals.</p>
           <div className="row mt12" style={{ gap: 10, flexWrap: 'wrap' }}>
             <label className="caption">Client
-              <select className="input" aria-label="Receivables client" value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+            <select className="input" aria-label="Receivables client" value={clientFilter} onChange={e => { const value = e.target.value; onBeforeContextChange ? onBeforeContextChange(() => setClientFilter(value)) : setClientFilter(value); }}>
                 <option value="ALL">All permitted clients</option>
                 {scopedClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </label>
             <label className="caption">Currency
-              <select className="input" aria-label="Receivables currency" value={currencyFilter} onChange={e => setCurrencyFilter(e.target.value)}>
+              <select className="input" aria-label="Receivables currency" value={currencyFilter} onChange={e => { const value = e.target.value; onBeforeContextChange ? onBeforeContextChange(() => setCurrencyFilter(value)) : setCurrencyFilter(value); }}>
                 {currencies.map(currency => <option key={currency} value={currency}>{currency}</option>)}
               </select>
             </label>
             <label className="caption">As of
-              <input className="input" aria-label="Receivables as of date" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} />
+              <input className="input" aria-label="Receivables as of date" type="date" value={asOfDate} onChange={e => { const value = e.target.value; onBeforeContextChange ? onBeforeContextChange(() => setAsOfDate(value)) : setAsOfDate(value); }} />
             </label>
           </div>
         </div>
@@ -169,7 +193,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
           <button className="btn sm ghost" onClick={() => window.print()} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to print a statement.' : undefined}>
             Print Statement
           </button>
-          <button className="btn primary sm" onClick={() => setShowReceiptModal(true)} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to record a receipt.' : undefined}>
+          <button className="btn primary sm" onClick={openReceiptModal} disabled={clientFilter === 'ALL'} title={clientFilter === 'ALL' ? 'Select one client to record a receipt.' : undefined}>
             <Icon name="plus" /> Record Offline Receipt
           </button>
         </div>
@@ -252,13 +276,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
                       {unallocated > 0 && (
                         <button
                           className="btn sm primary"
-                          onClick={() => {
-                            setSelectedReceipt(r);
-                            setAllocateAmount(unallocated);
-                            const unpaid = invoices.find(i => i.paid < i.amount);
-                            if (unpaid) setTargetInvoiceId(unpaid.id);
-                            setShowAllocateModal(true);
-                          }}
+                          onClick={() => openAllocationModal(r)}
                         >
                           Allocate to Invoice
                         </button>
@@ -303,11 +321,11 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
 
       {/* Record Receipt Modal */}
       {showReceiptModal && (
-        <div className="modal-backdrop" onClick={() => setShowReceiptModal(false)}>
+        <div className="modal-backdrop" onClick={discardReceiptDraft}>
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Record Offline Bank Receipt</h2>
-              <button className="icon-btn" onClick={() => setShowReceiptModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close receipt dialog" onClick={discardReceiptDraft}>✕</button>
             </div>
             <form onSubmit={handleAddReceipt}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -359,7 +377,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowReceiptModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardReceiptDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Record Receipt</button>
               </div>
             </form>
@@ -369,11 +387,11 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
 
       {/* Allocate Modal */}
       {showAllocateModal && selectedReceipt && (
-        <div className="modal-backdrop" onClick={() => setShowAllocateModal(false)}>
+        <div className="modal-backdrop" onClick={discardAllocationDraft}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Allocate Receipt {selectedReceipt.receiptNumber}</h2>
-              <button className="icon-btn" onClick={() => setShowAllocateModal(false)}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close allocation dialog" onClick={discardAllocationDraft}>✕</button>
             </div>
             <form onSubmit={handleAllocate}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -410,7 +428,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onNavigate }) 
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowAllocateModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={discardAllocationDraft}>Cancel</button>
                 <button type="submit" className="btn primary sm">Apply Allocation</button>
               </div>
             </form>

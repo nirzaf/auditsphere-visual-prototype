@@ -42,19 +42,26 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     availableClients[0]?.id || ''
   );
 
-  const client = availableClients.find(c => c.id === selectedClientId) || null;
+  // Keep portal context valid when the simulated identity changes without unmounting this view.
+  const resolvedClientId = availableClients.some(c => c.id === selectedClientId)
+    ? selectedClientId
+    : availableClients[0]?.id || '';
+  const client = availableClients.find(c => c.id === resolvedClientId) || null;
   const allowedEngIds = visibleEngagementIds(state);
   const availableEngagements = client ? state.engagements.filter(e => e.client === client.id && (allowedEngIds === 'ALL' || (allowedEngIds as string[]).includes(e.id))) : [];
   const [selectedEngagementId, setSelectedEngagementId] = useState(
     availableEngagements.find(e => e.id === state.selectedEngagement)?.id || availableEngagements[0]?.id || ''
   );
-  const eng = availableEngagements.find(e => e.id === selectedEngagementId) || null;
+  const resolvedEngagementId = availableEngagements.some(e => e.id === selectedEngagementId)
+    ? selectedEngagementId
+    : availableEngagements.find(e => e.id === state.selectedEngagement)?.id || availableEngagements[0]?.id || '';
+  const eng = availableEngagements.find(e => e.id === resolvedEngagementId) || null;
 
   // Strictly filter by client grant and exclude unissued/drafts from client visibility (VP-025, VP-033)
-  const invoices = client ? state.invoices.filter(i => i.clientId === client.id && (i.status === 'Issued' || i.status === 'Paid')) : [];
+  const invoices = client && eng ? state.invoices.filter(i => i.clientId === client.id && (i.engagementId || i.eng) === eng.id && (i.status === 'Issued' || i.status === 'Paid')) : [];
   const pbc = eng?.pbc.filter(request => request.status !== 'Draft' && request.status !== 'Cancelled') || [];
-  const sharedDocs = client ? state.documents.filter(d => d.visibility === 'Client shared' && d.clientId === client.id) : [];
-  const messages = client ? state.communications.filter(c => c.visibility === 'Client visible' && c.clientId === client.id) : [];
+  const sharedDocs = client ? state.documents.filter(d => d.visibility === 'Client shared' && d.clientId === client.id && (!d.engagementId || d.engagementId === eng?.id)) : [];
+  const messages = client ? state.communications.filter(c => c.visibility === 'Client visible' && c.clientId === client.id && (!c.engagementId || c.engagementId === eng?.id)) : [];
 
   const triggerNotice = (msg: string) => {
     setNotice(msg);
@@ -211,7 +218,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                 <select
                   className="input sm"
                   style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }}
-                  value={selectedClientId}
+                  value={resolvedClientId}
                   onChange={e => {
                     const nextClientId = e.target.value;
                     setSelectedClientId(nextClientId);
@@ -229,7 +236,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             {availableEngagements.length > 1 && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                 <span className="caption" style={{ color: '#90a8ab' }}>Engagement:</span>
-                <select className="input sm" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }} value={selectedEngagementId} onChange={e => setSelectedEngagementId(e.target.value)}>
+                <select className="input sm" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661' }} value={resolvedEngagementId} onChange={e => setSelectedEngagementId(e.target.value)}>
                   {availableEngagements.map(item => <option key={item.id} value={item.id} style={{ color: '#000' }}>{item.id} · {item.service} · FY{item.year}</option>)}
                 </select>
               </div>

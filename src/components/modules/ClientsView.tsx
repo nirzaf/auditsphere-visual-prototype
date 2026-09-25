@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientRecord, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { visibleClientIds } from '../../services/guards';
+import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { ClientProfileModal } from './ClientProfileModal';
 
@@ -69,6 +69,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
   }, [showAddModal, editingClient, closeProfileModal]);
 
   const allowedClientIds = visibleClientIds(state);
+  const allowedEngagementIds = visibleEngagementIds(state);
   const canCreateClient = ['relationship', 'manager', 'partner'].includes(state.currentRole) && allowedClientIds === 'ALL';
   const filteredClients = state.clients.filter(c => {
     const q = filterText.toLowerCase();
@@ -124,7 +125,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
 
       <div className="grid3">
         {filteredClients.map(client => {
-          const clientEngs = state.engagements.filter(e => e.client === client.id);
+          const clientEngs = state.engagements.filter(e => e.client === client.id && (allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(e.id)));
           const clientContacts = state.contacts.filter(c => c.clientId === client.id);
 
           return (

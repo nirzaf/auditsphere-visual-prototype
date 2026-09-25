@@ -1,7 +1,7 @@
 // Modules 20–23: Accounting Workbench (VP-034 through VP-039)
 // 5 Tabs: Trial Balance, General Ledger, Mappings, Adjustments, Reconciliations
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule, ClientAccountingProfile } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
@@ -97,6 +97,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [adjCreditAccount, setAdjCreditAccount] = useState('2100');
   const [adjAmount, setAdjAmount] = useState(35000);
   const [adjRationale, setAdjRationale] = useState('Record unbilled professional audit and consulting fees.');
+  const initialAdjustmentDraft = useRef({ title: 'Accrued audit fees and advisory expenses', debit: '5100', credit: '2100', amount: 35000, rationale: 'Record unbilled professional audit and consulting fees.' });
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
@@ -107,7 +108,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     if (!onRegisterUnsavedForm) return;
     const guard: UnsavedFormGuard = {
       label: 'Accounting workbench',
-      isDirty: () => recDraft !== null || editRowCode !== null || showAddAdjModal || amendAdjustment !== null || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
+      isDirty: () => recDraft !== null || editRowCode !== null || (showAddAdjModal && (adjTitle !== initialAdjustmentDraft.current.title || adjDebitAccount !== initialAdjustmentDraft.current.debit || adjCreditAccount !== initialAdjustmentDraft.current.credit || adjAmount !== initialAdjustmentDraft.current.amount || adjRationale !== initialAdjustmentDraft.current.rationale)) || (amendAdjustment !== null && (adjTitle !== amendAdjustment.title || adjDebitAccount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.accountCode || '') || adjCreditAccount !== (amendAdjustment.lines.find(line => line.type === 'credit')?.accountCode || '') || adjAmount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.amount || 0) || adjRationale !== (amendAdjustment.rationale || '') || Boolean(amendmentReason.trim()))) || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
       save: () => {
         try {
           const snapshot = prototypeStore.getSnapshot();
@@ -149,6 +150,12 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         setReflectionEvidenceDrafts({});
         setShowAddAdjModal(false);
         setAmendAdjustment(null);
+        setAdjTitle(initialAdjustmentDraft.current.title);
+        setAdjDebitAccount(initialAdjustmentDraft.current.debit);
+        setAdjCreditAccount(initialAdjustmentDraft.current.credit);
+        setAdjAmount(initialAdjustmentDraft.current.amount);
+        setAdjRationale(initialAdjustmentDraft.current.rationale);
+        setAmendmentReason('');
       },
     };
     onRegisterUnsavedForm(guard, 'accounting-workbench');
