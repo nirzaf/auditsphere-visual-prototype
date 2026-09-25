@@ -18,7 +18,7 @@ interface M365SetupViewProps {
 
 type CardKey = 'identity' | 'sharepoint' | 'mail' | 'onedrive';
 type SimOutcome = 'success' | 'access-denied' | 'missing-resource' | 'expired-session' | 'throttled' | 'unavailable';
-type SetupStep = 0 | 1 | 2 | 3;
+type SetupStep = -1 | 0 | 1 | 2 | 3;
 const SETUP_STEPS = ['Tenant & people', 'SharePoint library', 'Optional services', 'Review & save'];
 
 const OUTCOMES: Array<{ key: SimOutcome; label: string; detail: string }> = [
@@ -45,7 +45,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
   const [permittedUsers, setPermittedUsers] = useState(config.permittedUsers || []);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [wizardStep, setWizardStep] = useState<SetupStep>(0);
+  const [wizardStep, setWizardStep] = useState<SetupStep>(-1);
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement);
   const workspaceClient = state.clients.find(c => c.id === selectedEng?.client);
 
@@ -134,6 +134,14 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
         </p>
       </div>
 
+      {wizardStep === -1 ? <div className="panel panel-pad stack">
+        <h2>Start a local setup demonstration</h2>
+        <p className="sub">Review synthetic tenant identity, selected SharePoint storage, optional services and the permission summary. Starting this flow does not contact Microsoft or change saved configuration.</p>
+        <div className="row" style={{ gap: 10 }}>
+          <button type="button" className="btn primary sm" onClick={() => setWizardStep(0)}>Start setup</button>
+          <button type="button" className="btn sm ghost" onClick={() => onBeforeContextChange(() => onNavigate('overview'))}>Skip setup</button>
+        </div>
+      </div> : <>
       <nav aria-label="Setup progress" className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         {SETUP_STEPS.map((step, index) => <button key={step} type="button" className={`btn sm ${wizardStep === index ? 'primary' : 'ghost'}`} aria-current={wizardStep === index ? 'step' : undefined} onClick={() => setWizardStep(index as SetupStep)}>{index + 1}. {step}</button>)}
       </nav>
@@ -220,9 +228,9 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
         <div className="row mt12" style={{ gap: 10 }}>
           <button type="submit" className="btn primary sm">Save simulated configuration</button>
           {dirty && <span className="tag amber">Unsaved changes — prior verification is stale until re-tested</span>}
-          <button type="button" className="btn sm ghost" disabled={wizardStep === 0} onClick={() => setWizardStep((wizardStep - 1) as SetupStep)}>Back</button>
+          <button type="button" className="btn sm ghost" onClick={() => setWizardStep((wizardStep - 1) as SetupStep)}>Back</button>
           <button type="button" className="btn sm ghost" disabled={wizardStep === 3} onClick={() => setWizardStep((wizardStep + 1) as SetupStep)}>Continue</button>
-          <button type="button" className="btn sm ghost" onClick={() => { discardConfiguration(); setWizardStep(0); }}>Cancel setup</button>
+          <button type="button" className="btn sm ghost" onClick={() => { discardConfiguration(); setWizardStep(-1); }}>Cancel setup</button>
           <button type="button" className="btn sm ghost" onClick={handleDisconnect}>Simulate disconnect</button>
         </div>
       </form>
@@ -290,6 +298,7 @@ export const M365SetupView: React.FC<M365SetupViewProps> = ({ onNavigate, onRegi
           error banner here describes simulated state as production readiness.
         </p>
       </div>
+      </>}
     </div>
   );
 };

@@ -2688,17 +2688,34 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     setPersona((prototypeStore as any).state, 'Daniel James');
     (prototypeStore as any).state.currentRole = 'partner';
 
-    const beforeFolderCount = (prototypeStore as any).state.folders.length;
-    prototypeStore.prepareClientWorkspace('CL-001', 2026);
-    // Calling a second time should be idempotent (no duplicates)
-    prototypeStore.prepareClientWorkspace('CL-001', 2026);
+    const state = (prototypeStore as any).state;
+    assert.throws(() => prototypeStore.prepareClientWorkspace('CL-001', 2026), /current synthetic SharePoint binding succeeds/);
+    prototypeStore.simulateM365Verification('sharepoint', 'success');
 
-    const clientFolders = (prototypeStore as any).state.folders.filter((f: any) => f.clientId === 'CL-001');
+    const beforeFolderCount = state.folders.length;
+    prototypeStore.prepareClientWorkspace('CL-001', 2026, 'ENG-26001');
+    // Calling a second time should be idempotent (no duplicates)
+    prototypeStore.prepareClientWorkspace('CL-001', 2026, 'ENG-26001');
+
+    const clientCode = state.clients.find((client: any) => client.id === 'CL-001').code;
+    const clientPrefix = `${state.m365Config.folderRoot}/${clientCode}/`;
+    const clientFolders = state.folders.filter((f: any) => f.clientId === 'CL-001' && f.path.startsWith(clientPrefix));
     assert.ok(clientFolders.some((f: any) => f.path.includes('01_Acceptance')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('02_Planning')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('03_Fieldwork')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('04_Deliverables')));
     assert.ok(clientFolders.some((f: any) => f.path.includes('05_Correspondence')));
+    assert.equal(clientFolders.filter((f: any) => f.path === clientPrefix).length, 1);
+    assert.equal(state.folders.length, beforeFolderCount + 8, 'the root, year, engagement and five standard subfolders are created once');
+    assert.throws(() => prototypeStore.prepareClientWorkspace('CL-001', 2026, 'ENG-26002'), /does not match this client and year/);
+
+    const inactiveClient = state.clients.find((client: any) => client.status !== 'Active');
+    if (inactiveClient) {
+      const previousStatus = inactiveClient.status;
+      inactiveClient.status = 'Suspended';
+      assert.throws(() => prototypeStore.prepareClientWorkspace(inactiveClient.id, 2026), /active accepted client/);
+      inactiveClient.status = previousStatus;
+    }
   });
 
   it('creates an idempotent fresh next-period continuance draft without prior work (VP-047)', async () => {

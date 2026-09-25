@@ -559,7 +559,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'skipping M365 setup leaves fixture jobs usable');
     await clickButton('Microsoft 365 Setup');
     assert.equal(await waitForBrowser('document.body.innerText.includes("Microsoft 365 Setup (Simulated)")'), true);
-    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Tenant & people') && [...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Back')?.disabled`), true, 'wizard opens at its first step with Back disabled');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Start a local setup demonstration') && [...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Start setup')`), true, 'wizard presents an explicit start and skip choice');
+    const tenantBeforeSkip = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`);
+    await clickButton('Skip setup');
+    assert.equal(await waitForBrowser(`location.hash === '#overview'`), true, 'skip returns to normal local work without saving M365 configuration');
+    assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), tenantBeforeSkip, 'skipping setup preserves the previous local configuration');
+    await clickButton('Microsoft 365 Setup');
+    await clickButton('Start setup');
+    assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Tenant & people')`), true, 'Start enters the first wizard step');
     await clickButton('Continue');
     assert.equal(await waitForBrowser(`document.querySelector('button[aria-current="step"]')?.innerText.includes('SharePoint library')`), true, 'Continue advances to canonical storage');
     await clickButton('Back');
@@ -568,9 +575,13 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'cancelled-tenant-draft');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Cancel setup');
     assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), savedTenantBeforeCancel, 'Cancel discards draft data without writing it');
+    assert.equal(await waitForBrowser(`document.body.innerText.includes('Start a local setup demonstration')`), true, 'Cancel returns to the start screen');
+    await clickButton('Start setup');
     await clickButton('Continue'); await clickButton('Continue'); await clickButton('Continue');
     assert.equal(await waitForBrowser(`document.querySelector('button[aria-current="step"]')?.innerText.includes('Review & save')`), true, 'the guided path reaches its review step');
     assert.equal(await browserTab!.evaluate<boolean>(`document.body.innerText.includes('local role mapping(s); no access grants created') && document.body.innerText.includes('Saving records only this synthetic configuration')`), true, 'review summarizes scope without implying authorization or live setup');
+    await clickButton('Save simulated configuration');
+    assert.equal(await waitForBrowser(`document.querySelector('[role=status]')?.innerText.includes('Simulated configuration saved')`), true, 'review step can save the synthetic configuration');
     await clickButton('Back'); await clickButton('Back'); await clickButton('Back');
     const authBoundary = await browserTab!.evaluate<any>(`(() => ({passwordFields:document.querySelectorAll('input[type="password"],input[autocomplete="current-password"],input[autocomplete="new-password"]').length, microsoftSignInLinks:[...document.querySelectorAll('a[href]')].filter(a=>/microsoftonline|login\.microsoft/i.test(a.href)).length, liveConnected:document.querySelector('main#main')?.innerText.includes('liveConnected: false')}))()`);
     assert.deepEqual(authBoundary, { passwordFields: 0, microsoftSignInLinks: 0, liveConnected: true }, 'setup has no credential or sign-in surface and stays disconnected');
@@ -583,6 +594,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.command('Page.reload');
     assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
     await clickButton('Microsoft 365 Setup');
+    await clickButton('Start setup');
     const persistedText = await browserTab!.evaluate<string>('document.body.innerText');
     const afterReload = await browserTab!.evaluate<string>('JSON.stringify({ route: document.querySelector(".crumb")?.innerText, text: document.body?.innerText.slice(-1800), result: JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2") || "{}").m365Config?.verificationResults })');
     assert.match(persistedText, /Identity — Simulated Test\s+success ·/, `saved result should remain visible after reload: ${afterReload}`);
@@ -615,40 +627,36 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(mapped.grants, beforeConfig.grants, 'identity mapping alone must not create an authorization grant');
     assert.equal(mapped.identity, beforeConfig.identity, 'configuration edits retain prior identity result as stale evidence');
 
+    const unchangedResources = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {site:c.sharePointSite,library:c.sharePointLibrary,root:c.folderRoot};})()`);
     await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'wrong-tenant-fixture');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save simulated configuration');
+    const wrongTenantSaved = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {tenant:c.tenantId,liveConnected:c.liveConnected,status:c.status,identityStale:c.verificationResults.identity.configRevision<c.configRevision,sharePointStale:c.verificationResults.sharepoint.configRevision<c.configRevision};})()`);
+    assert.deepEqual(wrongTenantSaved,{tenant:'wrong-tenant-fixture',liveConnected:false,status:'Not configured',identityStale:true,sharePointStale:true},'a tenant edit saves only the simulated selection and stales prior checks');
     await clickButton('Continue');
+    await clickPanelButton('sharepoint — simulated test', 'Simulate: Missing resource (simulated)');
+    const wrongTenantFailure = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {tenant:c.tenantId,sharepoint:c.verificationResults.sharepoint.outcome,liveConnected:c.liveConnected,status:c.status,site:c.sharePointSite,library:c.sharePointLibrary,root:c.folderRoot};})()`);
+    assert.deepEqual(wrongTenantFailure, {tenant:'wrong-tenant-fixture',sharepoint:'missing-resource',liveConnected:false,status:'Simulated error',...unchangedResources}, 'wrong-tenant failure is isolated from the unchanged site, library and folder selections');
+    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
+    assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return c.verificationResults.sharepoint.outcome==='success'&&c.status==='Not configured'&&c.liveConnected===false;})()`), true, 'SharePoint retry succeeds locally while the stale identity result still gates overall readiness');
 
-    const rootInput = await browserTab!.evaluate<boolean>(`(() => {
-      const label = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === 'Folder root');
-      const input = label?.parentElement?.querySelector('input');
-      if (!input) return false;
-      input.focus(); return true;
-    })()`);
-    assert.equal(rootInput, true);
-    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Control', code: 'ControlLeft', modifiers: 2 });
-    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2 });
-    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2 });
-    await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft' });
-    await browserTab!.command('Input.insertText', { text: '/AuditSphere/Clients/UpdatedRoot' });
+    await browserTab!.evaluate(`(() => {const input=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Folder root')?.parentElement?.querySelector('input');if(!input)throw Error('SharePoint folder root input is missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'/AuditSphere/Clients/UpdatedRoot');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save simulated configuration');
     assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return c.verificationResults.identity.configRevision < c.configRevision && c.verificationResults.sharepoint.configRevision < c.configRevision;})()`), true, 'changing resource selections makes earlier results stale');
-    await clickPanelButton('sharepoint — simulated test', 'Simulate: Missing resource (simulated)');
-    const wrongTenantFailure = await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {tenant:c.tenantId,sharepoint:c.verificationResults.sharepoint.outcome,liveConnected:c.liveConnected,status:c.status};})()`);
-    assert.deepEqual(wrongTenantFailure, {tenant:'wrong-tenant-fixture',sharepoint:'missing-resource',liveConnected:false,status:'Simulated error'}, 'wrong-tenant resource failure is recorded without a false connection or success');
-    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
-    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome==='success'`), true, 'explicit local retry recovers the selected resource simulation');
+    assert.deepEqual(await browserTab!.evaluate<any>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return {site:c.sharePointSite,library:c.sharePointLibrary,root:c.folderRoot};})()`),{...unchangedResources,root:'/AuditSphere/Clients/UpdatedRoot'},'folder correction changes only its own selected resource');
     await clickPanelButton('sharepoint — simulated test', 'Simulate: Access denied (simulated)');
-    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'access-denied'`), true);
+    assert.equal(await waitForBrowser(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config;return c.verificationResults.sharepoint.outcome==='access-denied'&&c.status==='Simulated error'&&c.liveConnected===false;})()`), true, 'changed folder selection can independently produce a recoverable access-denied state');
+    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome==='success'`), true, 'explicit local retry recovers the changed-root simulation');
     await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
     const failures = await browserTab!.evaluate<any>(`(() => { const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return {site:c.verificationResults.sharepoint.outcome,mail:c.verificationResults.mail.outcome}; })()`);
-    assert.equal(failures.site, 'access-denied', 'optional mail failure must not overwrite SharePoint state');
+    assert.equal(failures.site, 'success', 'optional mail failure must not overwrite a recovered SharePoint state');
     assert.equal(failures.mail, 'unavailable');
     await clickButtonStartingWith('Jobs & Tasks');
     assert.equal(await waitForBrowser('document.querySelector("main#main h1")?.innerText.includes("Jobs & Task Delivery")'), true, 'failed provider simulations do not block local business work');
     assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('main#main')?.innerText.includes('JOB-2601')`), true, 'fixture jobs remain available while M365 services fail');
     await clickButton('Microsoft 365 Setup');
-    await clickPanelButton('sharepoint — simulated test', 'Retry with success fixture');
-    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'success'`), true);
+    await clickButton('Start setup');
+    assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.verificationResults.sharepoint.outcome === 'success'`), true, 'recovered SharePoint success survives leaving the setup screen');
     await clickPanelButton('mail — simulated test', 'Simulate: Service unavailable (simulated)');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const c=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config; return c.verificationResults.sharepoint.outcome==='success' && c.verificationResults.mail.outcome==='unavailable';})()`), true, 'mail outage does not invalidate successful SharePoint setup');
     const foldersBefore = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(x=>x.clientId==='CL-001').length`);
@@ -679,7 +687,6 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await chooseSearchTarget();
     await clickButton('Discard and continue');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).selectedEngagement===${JSON.stringify(searchTarget.id)}`), true, 'Discard applies the searched engagement after clearing the draft');
-    await clickButton('Microsoft 365 Setup');
 
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Discarded tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     const beforeDisconnect = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config`);
@@ -698,6 +705,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.notEqual(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), 'Discarded tenant', 'discard leaves stored configuration unchanged');
 
     await clickButton('Microsoft 365 Setup');
+    await clickButton('Start setup');
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Saved tenant');i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButtonStartingWith('Jobs & Tasks');
     await clickButton('Save and continue');
@@ -705,6 +713,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).m365Config.tenantId`), 'Saved tenant', 'save persists the dirty configuration before leaving');
 
     await clickButton('Microsoft 365 Setup');
+    await clickButton('Start setup');
     const originalContext = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {user:s.currentUserId,engagement:s.selectedEngagement};})()`);
     await browserTab!.evaluate(`(() => {const i=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='Synthetic tenant ID (fixture)')?.parentElement?.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Persona draft');i.dispatchEvent(new Event('input',{bubbles:true}));const s=document.querySelector('#role-select');const next=[...s.options].find(o=>o.value!==s.value);Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,next.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     assert.equal(await waitForBrowser('!!document.querySelector("[role=dialog] h2")?.innerText.includes("Unsaved changes")'), true, 'persona changes are guarded while this form is dirty');
@@ -1247,7 +1256,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`document.querySelector('[role=status]')?.innerText.includes('duplicated')`), true, 'invalid replacement reports duplicate references');
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations[0].sourceRevision`), 4, 'invalid file cannot replace the current source');
     await browserTab!.command('Page.reload');
-    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+    assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 15000), true, 'sampling view reloads before retained-source assertions');
     await browserTab!.evaluate(`(() => {const r=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Sampling & Populations');r.click();})()`);
     assert.equal(await waitForBrowser(`(() => {const p=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).samplePopulations[0];return p.sourceRevision===4&&p.sourceSha256===${JSON.stringify(imported.sha)}&&document.body.innerText.includes('Previous source revisions (3)');})()`), true, 'current and prior source identities remain visible after reload');
     assert.deepEqual(browserTab!.exceptions, []);
@@ -2093,11 +2102,24 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'seeded collaboration fixture loads');
     }
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Jobs & Tasks'));if(!b)throw Error('Missing jobs route');b.click();})()`);
+    await browserTab!.evaluate(`(() => {window.__internalNoteOpener=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Add Internal Note');return Boolean(window.__internalNoteOpener);})()`);
+    const commentsBeforeDiscard = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.length`);
     await clickButton('Add Internal Note');
     assert.equal(await browserTab!.evaluate<boolean>(`document.querySelector('.modal-backdrop form').checkValidity()`), false, 'empty internal notes fail required-field validation');
     await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'x'.repeat(5001));t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save Internal Note');
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.filter(c=>c.text.length>5000).length`), 0, 'oversized note does not persist');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 Cancelled draft must not persist.');t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Cancel');
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Cancel closes the internal-note dialog');
+    assert.equal(await browserTab!.evaluate<boolean>('document.activeElement===window.__internalNoteOpener'), true, 'Cancel returns focus to Add Internal Note');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.length`), commentsBeforeDiscard, 'Cancel discards the note draft');
+    await clickButton('Add Internal Note');
+    await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 Backdrop draft must not persist.');t.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.modal-backdrop').dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'backdrop click closes the internal-note dialog');
+    assert.equal(await browserTab!.evaluate<boolean>('document.activeElement===window.__internalNoteOpener'), true, 'backdrop dismissal returns focus to Add Internal Note');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.length`), commentsBeforeDiscard, 'backdrop dismissal discards the note draft');
+    await clickButton('Add Internal Note');
     await browserTab!.evaluate(`(() => {const t=document.querySelector('.modal-backdrop textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,'AT14 staff-only coordination note.');t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}));const s=document.querySelector('.modal-backdrop select[multiple]');for(const name of ['Daniel James','Adam Khan']){const o=[...s.options].find(x=>x.textContent.includes(name));if(!o)throw Error('No authorized staff mention option for '+name);o.selected=true;}s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Save Internal Note');
     const comment = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).comments.find(c=>c.text==='AT14 staff-only coordination note.')`);
@@ -2186,6 +2208,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
   it('AT-26: resolves a mail template and records accepted, failed, and unknown outcomes locally', async () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes('Engagement manager'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Team & Client Comms'));if(!b)throw Error('Missing communications route');b.click();})()`);
     const initialCount = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`);
+    await browserTab!.evaluate(`(() => {window.__composeOpener=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='Compose Simulated Email');return Boolean(window.__composeOpener);})()`);
     await clickButton('Compose Simulated Email');
     await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Email recipient"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'aisha.saleh@northstar.demo');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Simulate Send');
@@ -2193,6 +2216,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount, 'out-of-client recipient produces no attempt record');
     await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Email recipient"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'omar.nasser@example-trading.demo');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Cancel');
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Cancel closes the simulated compose dialog');
+    assert.equal(await browserTab!.evaluate<boolean>('document.activeElement===window.__composeOpener'), true, 'Cancel restores focus to its opener');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount, 'Cancel discards the unsent compose draft');
+    await clickButton('Compose Simulated Email');
+    await browserTab!.evaluate(`(() => {const subject=document.querySelector('.modal-backdrop input[type="text"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subject,'AT26 discarded backdrop draft');subject.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.modal-backdrop').dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'backdrop click dismisses the compose dialog');
+    assert.equal(await browserTab!.evaluate<boolean>('document.activeElement===window.__composeOpener'), true, 'backdrop dismissal restores focus to the compose opener');
+    assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).communications.length`), initialCount, 'backdrop dismissal does not create a communication attempt');
     for (const [outcome, expected] of [['Simulated accepted', 'Simulated accepted'], ['Simulated failed', 'Simulated failed'], ['Outcome unknown', 'Outcome unknown']] as const) {
       await clickButton('Compose Simulated Email');
       await browserTab!.evaluate(`(() => {const label=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Email Template'));const select=label.parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'TPL-EM-01');select.dispatchEvent(new Event('change',{bubbles:true}));const outcome=[...document.querySelectorAll('.modal-backdrop label')].find(x=>x.textContent.includes('Simulated Delivery Outcome')).parentElement.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(outcome,${JSON.stringify(outcome)});outcome.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -2224,7 +2255,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(await waitForBrowser(`[...document.querySelectorAll('nav button')].some(x=>x.innerText.trim()==='Microsoft 365 Setup')`), true, 'administrator can open M365 setup');
     await browserTab!.evaluate(`(() => {const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim()==='Microsoft 365 Setup');if(!b)throw Error('Microsoft 365 Setup navigation is missing');b.click();})()`);
     assert.equal(await waitForBrowser('document.querySelector(".crumb")?.innerText.includes("M365 SETUP")'), true, 'M365 setup route opened');
-    await clickButton('Continue'); await clickButton('Continue');
+    await clickButton('Start setup'); await clickButton('Continue'); await clickButton('Continue');
     const setupText = await browserTab!.evaluate<string>('document.body.innerText');
     assert.match(setupText, /OneDrive/, 'M365 setup renders the optional OneDrive section');
     const disabled = await browserTab!.evaluate<boolean>(`(() => {const label=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Enable bounded OneDrive'));return [...label.closest('.panel').querySelectorAll('button')].filter(x=>x.innerText.includes('Success (simulated)')).every(x=>x.disabled);})()`);
@@ -2257,6 +2288,19 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manager');s.dispatchEvent(new Event('change',{bubbles:true}));const b=[...document.querySelectorAll('nav button')].find(x=>x.innerText.trim().startsWith('Documents & SharePoint'));if(!b)throw Error('Documents navigation is missing');b.click();})()`);
     const opened = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Open in M365');if(!b)return false;b.click();return true;})()`);
     assert.equal(opened, true, 'linked bank statement can be opened');
+    assert.equal(await browserTab!.evaluate<boolean>(`(() => {const modal=document.querySelector('.modal-backdrop');return modal?.innerText.includes('PBC-02')&&modal?.innerText.includes('WP-A1')&&modal?.innerText.includes('JOB-2602');})()`), true, 'the independent library preview exposes the PBC, job and workpaper identities linked to DOC-002');
+    await clickButton('Open PBC request: Bank statement and reconciliation (PBC-02)');
+    assert.equal(await waitForBrowser(`location.hash==='#client-detail'&&!!document.querySelector('tr[data-search-target="true"]')?.innerText.includes('PBC-02')`), true, 'the document link opens the same PBC request in its client context');
+    await clickButtonStartingWith('Documents & SharePoint');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Open in M365').click();})()`);
+    await clickButton('Open job: PBC Information Gathering & Document Verification (JOB-2602)');
+    assert.equal(await waitForBrowser(`location.hash==='#jobs'&&document.querySelector('main#main')?.innerText.includes('DOC-002')`), true, 'the document link opens the same job and its DOC-002 file');
+    await clickButtonStartingWith('Documents & SharePoint');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Open in M365').click();})()`);
+    await clickButton('Open workpaper: Cash & bank (WP-A1)');
+    assert.equal(await waitForBrowser(`location.hash==='#audit'&&document.querySelector('main#main')?.innerText.includes('WP-A1')`), true, 'the document link opens the same workpaper pinned to DOC-002');
+    await clickButtonStartingWith('Documents & SharePoint');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes('DOC-002'));[...row.querySelectorAll('button')].find(x=>x.innerText.trim()==='Open in M365').click();})()`);
     await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input[type=file]');if(!input)throw Error('Replacement file input missing');const transfer=new DataTransfer();transfer.items.add(new File(['replacement bank statement'], 'Bank_Statement_December_v2.pdf', {type:'application/pdf'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await clickButton('Record Replacement v2');
     assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.some(d=>d.supersedesDocumentId==='DOC-002')`), true, 'replacement revision recorded');
@@ -3145,7 +3189,7 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     try {
       await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(createInitialState()))})`);
       await browserTab!.command('Page.reload');
-      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true, 'report fixture reloads from a deterministic manager state');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")', 15000), true, 'report fixture reloads from a deterministic manager state');
       await clickButton('Report Centre');
       assert.equal(await waitForBrowser('!!document.querySelector("#practice-report")'), true);
       await browserTab!.evaluate(`(() => { URL.createObjectURL = blob => { window.__reportCsv = blob; return 'blob:report-test'; }; window.__reportPrints=0; window.print=()=>window.__reportPrints++; })()`);
@@ -4934,12 +4978,21 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
       await clickButtonStartingWith('Documents & SharePoint');
-      await clickButton('Verify Client Workspace');
-      const afterFirst = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(f=>f.path==='/Clients/EXP-TRAD/').length`);
-      await clickButton('Verify Client Workspace');
-      const afterSecond = await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).folders.filter(f=>f.path==='/Clients/EXP-TRAD/').length`);
+      await clickButton('Prepare Selected Client Workspace');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===s.selectedEngagement);const c=s.clients.find(x=>x.id===e.client);const root=s.m365Config.folderRoot.replace(/\\/+$/, '')+'/'+c.code+'/';return !s.folders.some(f=>f.path===root);})()`), true, 'workspace preparation without a current synthetic binding creates no folder');
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /current synthetic SharePoint binding succeeds/);
+      await clickButton('Microsoft 365 Setup');
+      await clickButton('Start setup');
+      await clickPanelButton('sharepoint — simulated test', 'Simulate: Success (simulated)');
+      await clickButton('Prepare selected client workspace');
+      await clickButtonStartingWith('Documents & SharePoint');
+      await clickButton('Prepare Selected Client Workspace');
+      const afterFirst = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===s.selectedEngagement);const c=s.clients.find(x=>x.id===e.client);const root=s.m365Config.folderRoot.replace(/\\/+$/, '')+'/'+c.code+'/';return s.folders.filter(f=>f.path===root).length;})()`);
+      const afterSecond = await browserTab!.evaluate<number>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===s.selectedEngagement);const c=s.clients.find(x=>x.id===e.client);const root=s.m365Config.folderRoot.replace(/\\/+$/, '')+'/'+c.code+'/';return s.folders.filter(f=>f.path===root).length;})()`);
       assert.equal(afterFirst, 1);
       assert.equal(afterSecond, afterFirst, 'repeated preparation leaves exactly one canonical root');
+      const prepared = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const e=s.engagements.find(x=>x.id===s.selectedEngagement);const c=s.clients.find(x=>x.id===e.client);const prefix=s.m365Config.folderRoot.replace(/\\/+$/, '')+'/'+c.code+'/';return s.folders.filter(f=>f.clientId===c.id&&f.path.startsWith(prefix)).map(f=>f.path);})()`);
+      assert.equal(prepared.length, 8, 'the configured root contains one root, year, engagement and five standard folders');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

@@ -4312,6 +4312,14 @@ class PrototypeStore {
     const client = this.state.clients.find(c => c.id === clientId);
     if (!client) throw new GuardError('INVALID_STATE', `Client "${clientId}" not found.`);
     requireClientScope(this.state, clientId);
+    if (client.status !== 'Active') throw new GuardError('INVALID_STATE', 'Only an active accepted client can have a workspace prepared.');
+    const binding = this.state.m365Config;
+    const bindingRevision = binding.configRevision || 1;
+    const sharePointResult = binding.verificationResults?.sharepoint;
+    const expectedResourceId = `${binding.tenantId}|${binding.sharePointSite}|${binding.sharePointLibrary}|${binding.folderRoot}`;
+    if (binding.liveConnected !== false || sharePointResult?.outcome !== 'success' || sharePointResult.configRevision !== bindingRevision || sharePointResult.resourceId !== expectedResourceId) {
+      throw new GuardError('INVALID_STATE', 'Prepare a client workspace only after the current synthetic SharePoint binding succeeds.');
+    }
     const matchingEngagements = this.state.engagements.filter(e => e.client === clientId && e.year === year);
     const engagement = engagementId
       ? matchingEngagements.find(e => e.id === engagementId)
@@ -4319,17 +4327,19 @@ class PrototypeStore {
     if (engagementId && !engagement) throw new GuardError('INVALID_STATE', `Engagement "${engagementId}" does not match this client and year.`);
     if (!engagementId && matchingEngagements.length > 1) throw new GuardError('INVALID_STATE', 'Choose the exact engagement before preparing a year workspace.');
     const code = client.code;
+    const configuredRoot = binding.folderRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+    const clientRoot = `${configuredRoot}/${code}/`;
     if (!this.state.folders) this.state.folders = [];
     const canonical = [
-      { path: `/Clients/${code}/`, label: `${client.name} Root`, clientId },
-      { path: `/Clients/${code}/${year}/`, label: `FY ${year} Records`, clientId, engagementId: engagement?.id },
-      ...(engagement ? [{ path: `/Clients/${code}/${year}/${engagement.id}/`, label: `${engagement.id} Records`, clientId, engagementId: engagement.id }] : []),
+      { path: clientRoot, label: `${client.name} Root`, clientId },
+      { path: `${clientRoot}${year}/`, label: `FY ${year} Records`, clientId, engagementId: engagement?.id },
+      ...(engagement ? [{ path: `${clientRoot}${year}/${engagement.id}/`, label: `${engagement.id} Records`, clientId, engagementId: engagement.id }] : []),
       ...(engagement ? [
-        { path: `/Clients/${code}/${year}/${engagement.id}/01_Acceptance/`, label: '01 Acceptance & KYC', clientId, engagementId: engagement.id },
-        { path: `/Clients/${code}/${year}/${engagement.id}/02_Planning/`, label: '02 Audit Planning', clientId, engagementId: engagement.id },
-        { path: `/Clients/${code}/${year}/${engagement.id}/03_Fieldwork/`, label: '03 Fieldwork', clientId, engagementId: engagement.id },
-        { path: `/Clients/${code}/${year}/${engagement.id}/04_Deliverables/`, label: '04 Deliverables', clientId, engagementId: engagement.id },
-        { path: `/Clients/${code}/${year}/${engagement.id}/05_Correspondence/`, label: '05 Correspondence', clientId, engagementId: engagement.id }
+        { path: `${clientRoot}${year}/${engagement.id}/01_Acceptance/`, label: '01 Acceptance & KYC', clientId, engagementId: engagement.id },
+        { path: `${clientRoot}${year}/${engagement.id}/02_Planning/`, label: '02 Audit Planning', clientId, engagementId: engagement.id },
+        { path: `${clientRoot}${year}/${engagement.id}/03_Fieldwork/`, label: '03 Fieldwork', clientId, engagementId: engagement.id },
+        { path: `${clientRoot}${year}/${engagement.id}/04_Deliverables/`, label: '04 Deliverables', clientId, engagementId: engagement.id },
+        { path: `${clientRoot}${year}/${engagement.id}/05_Correspondence/`, label: '05 Correspondence', clientId, engagementId: engagement.id }
       ] : [])
     ];
     canonical.forEach(folder => {

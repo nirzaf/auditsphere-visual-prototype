@@ -486,16 +486,33 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
     (prototypeStore as any).state = createInitialState();
     const grantsBefore = JSON.stringify((prototypeStore as any).state.roleGrants);
     const originalConfig = structuredClone((prototypeStore as any).state.m365Config);
+    const inactivePerson = (prototypeStore as any).state.users.find((person: any) => person.id !== 'manager' && person.status === 'Active');
+    assert.ok(inactivePerson, 'fixture includes another active person to disable');
+    inactivePerson.status = 'Disabled';
     for (const invalid of [
       { ...originalConfig, tenantId: ' ' },
+      { ...originalConfig, tenantId: 't'.repeat(129) },
+      { ...originalConfig, tenantName: ' ' },
+      { ...originalConfig, tenantName: 'd'.repeat(254) },
       { ...originalConfig, sharePointSite: 'http://contoso.sharepoint.com/sites/audit' },
+      { ...originalConfig, sharePointSite: 'https://user:secret@contoso.sharepoint.com/sites/audit' },
+      { ...originalConfig, sharePointSite: 'https://contoso.sharepoint.com/sites/audit?tenant=other' },
       { ...originalConfig, folderRoot: '/../outside' },
+      { ...originalConfig, folderRoot: 'relative/path' },
+      { ...originalConfig, folderRoot: '/root\\escape' },
+      { ...originalConfig, sharePointLibrary: ' '.repeat(1) },
+      { ...originalConfig, sharePointLibrary: 'L'.repeat(129) },
       { ...originalConfig, mailSenderAccount: 'invalid-mailbox' },
-      { ...originalConfig, permittedUsers: [{ userId: 'missing-user', role: 'manager' }] }
+      { ...originalConfig, mailSenderAccount: 'person@localhost' },
+      { ...originalConfig, permittedUsers: [{ userId: 'missing-user', role: 'manager' }] },
+      { ...originalConfig, permittedUsers: [{ userId: 'manager', role: 'manager' }, { userId: 'manager', role: 'reviewer' }] },
+      { ...originalConfig, permittedUsers: [{ userId: inactivePerson.id, role: 'manager' }] },
+      { ...originalConfig, permittedUsers: [{ userId: 'manager', role: 'unknown-role' as any }] }
     ]) {
       assert.throws(() => prototypeStore.updateM365Config(invalid), /Tenant|SharePoint|folder root|mailbox|Permitted-person/);
       assert.deepEqual(prototypeStore.getSnapshot().m365Config, originalConfig, 'invalid selections do not partially replace the saved setup');
     }
+    inactivePerson.status = 'Active';
     prototypeStore.updateM365Config({
       tenantName: 'Contoso Demo', tenantId: 'tenant-123', permittedUserGroups: ['Auditors'], permittedUsers: [{ userId: 'manager', role: 'manager' }],
       sharePointSite: 'https://contoso.sharepoint.com/sites/audit', sharePointLibrary: 'AuditDocs',
@@ -506,6 +523,51 @@ describe('Reproduction Check Register RR01–RR38 (R01–R14 Remediation)', () =
     prototypeStore.simulateM365Verification('identity', 'success');
     assert.match(prototypeStore.getSnapshot().m365Config.verificationResults!.identity!.resourceId, /manager:manager/);
     assert.equal(JSON.stringify((prototypeStore as any).state.roleGrants), grantsBefore);
+  });
+
+  it('VP-017: keeps every simulated outcome scoped to its selected M365 capability', async () => {
+    const { prototypeStore } = await import('../../src/store/prototypeStore.js');
+    (prototypeStore as any).state = createInitialState();
+    const initial = prototypeStore.getSnapshot().m365Config;
+    prototypeStore.updateM365Config({ ...initial, mailSenderAccount: 'noreply@contoso.demo', oneDriveEnabled: true });
+    const config = prototypeStore.getSnapshot().m365Config;
+    const cards = ['identity', 'sharepoint', 'mail', 'onedrive'] as const;
+    const outcomes = ['success', 'access-denied', 'missing-resource', 'expired-session', 'throttled', 'unavailable'] as const;
+    const expectedResource = (card: typeof cards[number]) => card === 'identity'
+      ? `${config.tenantId}|${config.permittedUsers.map(person => `${person.userId}:${person.role}`).join(',')}`
+      : card === 'sharepoint' ? `${config.tenantId}|${config.sharePointSite}|${config.sharePointLibrary}|${config.folderRoot}`
+        : card === 'mail' ? `${config.tenantId}|${config.mailSenderAccount}` : `${config.tenantId}|${config.folderRoot}`;
+
+    for (const card of cards) {
+      for (const outcome of outcomes) {
+        const before = structuredClone(prototypeStore.getSnapshot().m365Config.verificationResults || {});
+        prototypeStore.simulateM365Verification(card, outcome);
+        const current = prototypeStore.getSnapshot().m365Config;
+        assert.equal(current.verificationResults?.[card]?.outcome, outcome, `${card} records ${outcome}`);
+        assert.equal(current.verificationResults?.[card]?.resourceId, expectedResource(card), `${card} pins its own selection`);
+        assert.equal(current.verificationResults?.[card]?.configRevision, current.configRevision);
+        assert.equal(current.liveConnected, false, `${card}/${outcome} never implies a live connection`);
+        assert.deepEqual(
+          Object.fromEntries(Object.entries(current.verificationResults || {}).filter(([key]) => key !== card)),
+          Object.fromEntries(Object.entries(before).filter(([key]) => key !== card)),
+          `${card}/${outcome} must not overwrite another capability result`
+        );
+      }
+    }
+
+    prototypeStore.simulateM365Verification('identity', 'success');
+    prototypeStore.simulateM365Verification('sharepoint', 'success');
+    assert.equal(prototypeStore.getSnapshot().m365Config.status, 'Simulated verified');
+    for (const card of ['mail', 'onedrive'] as const) {
+      for (const outcome of ['access-denied', 'missing-resource', 'expired-session', 'throttled', 'unavailable'] as const) {
+        prototypeStore.simulateM365Verification(card, outcome);
+        assert.equal(prototypeStore.getSnapshot().m365Config.status, 'Simulated verified', `${card}/${outcome} does not downgrade ready required capabilities`);
+      }
+    }
+
+    const beforeUnsupported = structuredClone(prototypeStore.getSnapshot().m365Config);
+    assert.throws(() => prototypeStore.simulateM365Verification('sharepoint', 'connected'), /Unsupported simulation outcome/);
+    assert.deepEqual(prototypeStore.getSnapshot().m365Config, beforeUnsupported, 'unsupported provider outcomes leave all saved results unchanged');
   });
 
   // RR36: Changed root invalidates saved verified status

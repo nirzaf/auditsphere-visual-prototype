@@ -714,6 +714,7 @@ export function createInitialState(): PrototypeState {
         source: 'SharePoint',
         linkedPbcId: 'PBC-02',
         linkedWorkpaperId: 'WP-A1',
+        linkedJobId: 'JOB-2602',
         uploadedBy: 'Omar Nasser',
         uploadedAt: '2026-09-20T11:20:00Z'
       },

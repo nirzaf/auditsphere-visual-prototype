@@ -124,8 +124,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
     if (!existingCase || partnerDecision === 'Pending') return;
     try {
       prototypeStore.decideAcceptanceCase(existingCase.id, partnerDecision, partnerRationale);
-      if (partnerDecision === 'Accepted' && client) prototypeStore.prepareClientWorkspace(client.id, selectedEng.year, selectedEng.id);
-      triggerNotice('success', `Partner ${partnerDecision.toLowerCase()} decision recorded for ${existingCase.id}.`);
+      triggerNotice('success', `Partner ${partnerDecision.toLowerCase()} decision recorded for ${existingCase.id}.${partnerDecision === 'Accepted' ? ' Prepare the client workspace separately after the synthetic SharePoint binding succeeds.' : ''}`);
     } catch (err: any) {
       triggerNotice('error', err.message);
     }

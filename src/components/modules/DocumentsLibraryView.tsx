@@ -6,11 +6,12 @@ import { Icon } from '../common/Icons';
 import { sha256OfFile } from '../../services/fileMetadata';
 
 interface DocumentsLibraryViewProps {
-  onNavigate: (route: RouteKey) => void;
+  onNavigate: (route: RouteKey, targetId?: string) => void;
+  onNavigateToPbc: (clientId: string, requestId: string) => void;
   searchTargetId?: string;
 }
 
-export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate, searchTargetId }) => {
+export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNavigate, onNavigateToPbc, searchTargetId }) => {
   const state = prototypeStore.getSnapshot();
   const [selectedFolder, setSelectedFolder] = useState<string>(() => state.documents.find(document => document.id === searchTargetId)?.folderPath || '/Engagements/2026/');
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
@@ -28,6 +29,10 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
   const filteredDocs = selectedFolder === '/'
     ? documents
     : documents.filter(d => d.folderPath.startsWith(selectedFolder));
+  const previewEngagement = previewDoc && state.engagements.find(engagement => engagement.id === previewDoc.engagementId && engagement.client === previewDoc.clientId);
+  const linkedPbc = previewDoc?.linkedPbcId && previewEngagement?.pbc.find(request => request.id === previewDoc.linkedPbcId);
+  const linkedWorkpaper = previewDoc?.linkedWorkpaperId && previewEngagement?.workpapers.find(workpaper => workpaper.id === previewDoc.linkedWorkpaperId);
+  const linkedJob = previewDoc?.linkedJobId && state.jobs.find(job => job.id === previewDoc.linkedJobId && job.clientId === previewDoc.clientId && job.engagementId === previewDoc.engagementId);
 
   const folders = (state.folders && state.folders.length > 0)
     ? state.folders
@@ -157,12 +162,18 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
               className="btn sm"
               style={{ width: '100%' }}
               onClick={() => {
-                prototypeStore.prepareClientWorkspace(state.clients[0]?.id || 'CL-001');
-                setNotice('SharePoint workspace folder structure verified and provisioned.');
-                setTimeout(() => setNotice(null), 4000);
+                const engagement = state.engagements.find(item => item.id === state.selectedEngagement);
+                if (!engagement) { setNotice('Select an engagement before preparing its client workspace.'); return; }
+                try {
+                  prototypeStore.prepareClientWorkspace(engagement.client, engagement.year, engagement.id);
+                  setNotice('Local workspace folders were verified under the configured synthetic SharePoint root. No remote folders were provisioned.');
+                  setTimeout(() => setNotice(null), 4000);
+                } catch (err) {
+                  setNotice(err instanceof Error ? err.message : 'Workspace folders could not be prepared.');
+                }
               }}
             >
-              Verify Client Workspace
+              Prepare Selected Client Workspace
             </button>
           </div>
         </div>
@@ -283,6 +294,13 @@ export const DocumentsLibraryView: React.FC<DocumentsLibraryViewProps> = ({ onNa
                   Original file content is unavailable. This screen shows metadata only.<br />
                   Linked to engagement: {previewDoc.engagementId || 'No engagement'}
                 </p>
+              </div>
+              <div className="borderbox stack" style={{ padding: 16, gap: 8 }}>
+                <b>Related records</b>
+                {linkedJob && <button type="button" className="btn sm ghost" onClick={() => { setPreviewDoc(null); onNavigate('jobs', linkedJob.id); }}>Open job: {linkedJob.title} ({linkedJob.id})</button>}
+                {linkedPbc && <button type="button" className="btn sm ghost" onClick={() => onNavigateToPbc(previewDoc.clientId, linkedPbc.id)}>Open PBC request: {linkedPbc.title} ({linkedPbc.id})</button>}
+                {linkedWorkpaper && <button type="button" className="btn sm ghost" onClick={() => { setPreviewDoc(null); onNavigate('audit', linkedWorkpaper.id); }}>Open workpaper: {linkedWorkpaper.title} ({linkedWorkpaper.id})</button>}
+                {!linkedJob && !linkedPbc && !linkedWorkpaper && <span className="caption">No linked job, request or workpaper.</span>}
               </div>
               <form className="borderbox stack" style={{ padding: 16, gap: 10 }} onSubmit={handleReplacementSubmit}>
                 <b>Register a replacement revision</b>

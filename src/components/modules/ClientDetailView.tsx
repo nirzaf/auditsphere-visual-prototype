@@ -363,10 +363,17 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                 <button
                   className="btn sm"
                   onClick={() => {
-                    prototypeStore.prepareClientWorkspace(client.id);
+                    const engagement = engagements.find(item => item.id === state.selectedEngagement) || engagements[0];
+                    if (!engagement) { setClientNotice('Select an engagement before preparing its client workspace.'); return; }
+                    try {
+                      prototypeStore.prepareClientWorkspace(client.id, engagement.year, engagement.id);
+                      setClientNotice('Local workspace folders were verified under the configured synthetic SharePoint root. No remote folders were provisioned.');
+                    } catch (error) {
+                      setClientNotice(error instanceof Error ? error.message : 'Workspace folders could not be prepared.');
+                    }
                   }}
                 >
-                  <Icon name="folder" /> Prepare SharePoint Workspace
+                  <Icon name="folder" /> Prepare Local Workspace Folders
                 </button>
                 <button
                   className="btn sm"

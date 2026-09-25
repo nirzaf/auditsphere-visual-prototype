@@ -236,6 +236,17 @@ export const App: React.FC = () => {
       if (window.location.hash !== `#${nextRoute}`) window.history.pushState(null, '', `#${nextRoute}`);
     });
   };
+  const navigateToPbcRequest = (clientId: string, requestId: string) => {
+    requestContextChange(() => {
+      const current = prototypeStore.getSnapshot();
+      const active = current.users.find(user => user.id === current.currentUserId)?.status === 'Active';
+      const route: RouteKey = canOpenRoute(current.currentRole, 'client-detail', active) ? 'client-detail' : active && isClientRole(current.currentRole) ? 'portal' : 'overview';
+      setSelectedClientId(clientId);
+      setSearchTargetId(requestId);
+      setCurrentRoute(route);
+      if (window.location.hash !== `#${route}`) window.history.pushState(null, '', `#${route}`);
+    });
+  };
   const effectiveRoute: RouteKey = !activeIdentity
     ? 'requirements'
     : isClient
@@ -291,7 +302,7 @@ export const App: React.FC = () => {
       case 'job-templates':
         return <JobTemplatesView onNavigate={navigate} />;
       case 'documents':
-        return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} />;
+        return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onNavigateToPbc={navigateToPbcRequest} />;
       case 'communications':
         return <CommunicationsView onNavigate={navigate} />;
 
