@@ -100,9 +100,12 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   at the current source revision can now be recorded as Reporting included in a
   live session, which makes the linked finding's Corrected-in-TB disposition
   reachable end-to-end (unit + Chrome verified, 2026-09-26); technical-review
-  rejection also records a bounded rationale shown on the journal. Reasoned
-  journal amendments and complete evidence/workpaper linkage scenarios
-  remain open.
+  rejection also records a bounded rationale shown on the journal. VP-038-E01/E02
+  Chrome imports a replacement TB, shows stale reflected journals excluded from
+  financial statements, and verifies a new evidence reference/re-confirmation
+  against the current source, preserved v1 decision history and no duplicate
+  reporting effect. Journal amendment combinations and broader evidence/workpaper/
+  finding linkage matrices remain open.
 
 - **VP-034 — accounting setup:** client legal entity, reporting basis and
   currency; versioned chart accounts with parent/posting/active state; owned
@@ -360,8 +363,9 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   and history retains prior status, source revision and evidence through reload.
   Reasoned amendment now preserves the previous journal/approval/reflection revision,
   clears current approvals, and requires fresh technical and management review.
-  Replacement-source correction, rejection and evidence/workpaper/finding linkage
-  matrices, general-ledger and remaining downstream lineage workflows are still incomplete. Chrome also
+  Replacement-source correction/re-review is now browser verified; rejection and
+  evidence/workpaper/finding linkage matrices, general-ledger and remaining downstream
+  lineage workflows are still incomplete. Chrome also
   opens all 16 reports and checks CSV structure/client scoping; TB import retains
   predecessor rows and source hashes for balanced CSV and actual XLSX. AT-35
   also exercises UI-level rejection of duplicate codes, formula amounts, CSV
