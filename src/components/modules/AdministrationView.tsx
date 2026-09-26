@@ -549,7 +549,7 @@ const FirmSettingsPanel: React.FC<{
           </div>
           <div>
             <label className="caption" htmlFor="firm-inv-prefix">Invoice Number Prefix</label>
-            <input id="firm-inv-prefix" type="text" className="input" required maxLength={16} disabled={!isAdmin} value={draft.invoiceNumberPrefix} onChange={e => setDraft({ ...draft, invoiceNumberPrefix: e.target.value })} />
+            <input id="firm-inv-prefix" type="text" className="input" required maxLength={16} aria-label="Invoice number prefix" disabled={!isAdmin} value={draft.invoiceNumberPrefix} onChange={e => setDraft({ ...draft, invoiceNumberPrefix: e.target.value })} />
           </div>
           <div>
             <label className="caption" htmlFor="firm-inv-next">Next Invoice Number</label>
@@ -571,6 +571,18 @@ const FirmSettingsPanel: React.FC<{
             <label className="caption" htmlFor="firm-locale">Locale</label>
             <input id="firm-locale" type="text" className="input" required maxLength={16} disabled={!isAdmin} value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value })} />
           </div>
+          <div>
+            <label className="caption" htmlFor="firm-timezone">Display Timezone</label>
+            <input id="firm-timezone" type="text" className="input" required maxLength={32} disabled={!isAdmin} value={draft.timezone} onChange={e => setDraft({ ...draft, timezone: e.target.value })} />
+          </div>
+          <div>
+            <label className="caption" htmlFor="firm-logo">Firm Logo Reference (optional)</label>
+            <input id="firm-logo" type="text" className="input" maxLength={80} disabled={!isAdmin} value={draft.logoRef || ''} onChange={e => setDraft({ ...draft, logoRef: e.target.value || undefined })} placeholder="e.g. brand/firm-logo-2026" />
+          </div>
+        </div>
+        <div className="borderbox" style={{ padding: 12 }}>
+          <b className="caption">Firm logo placeholder</b>
+          <div className="sub mt4">{draft.logoRef ? <>Reference “{draft.logoRef}” recorded. This browser-local prototype stores no image payload, so generated outputs continue to render the firm name in text.</> : <>No logo reference is configured. Generated outputs render the firm name in text — this is the expected placeholder state, not an error.</>}</div>
         </div>
         <label className="caption" htmlFor="firm-reason">Reason for this change</label>
         <input id="firm-reason" type="text" className="input" maxLength={200} disabled={!isAdmin} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Annual legal-name refresh" />

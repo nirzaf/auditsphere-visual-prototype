@@ -3147,6 +3147,38 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-061-E02: search labels unavailable documents truthfully, blocks their preview, and revoked scopes exclude sibling records', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.evaluate(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));s.documents.find(d=>d.id==='DOC-004').brokenLink=true;localStorage.setItem('ste-auditsphere-role-portals-v2',JSON.stringify(s));})()`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    const openSearch = async (query: string) => {
+      await browserTab!.evaluate(`document.querySelector('.search-trigger')?.click()`);
+      assert.equal(await waitForBrowser('!!document.querySelector(".modal-backdrop input")'), true, 'search dialog opens');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal-backdrop input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(query)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return browserTab!.evaluate<string>('document.querySelector(".modal-backdrop .modal-body")?.innerText || ""');
+    };
+    // (a) Unavailable document keeps its truthful label and cannot be previewed.
+    const docName = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.find(d=>d.id==='DOC-004').name`);
+    const unavailableResult = await openSearch(docName);
+    assert.match(unavailableResult, /Unavailable/, 'the unavailable document result carries its truthful Unavailable label');
+    await browserTab!.evaluate(`(() => {const result=[...document.querySelectorAll('.modal-body button')].find(button=>button.innerText.includes(${JSON.stringify(docName)}));if(!result)throw Error('unavailable document result missing');result.click();})()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.crumb')?.innerText.includes('DOCUMENTS')`), true, 'unavailable result opens the document library');
+    assert.equal(await waitForBrowser(`(() => {const row=[...document.querySelectorAll('tr')].find(tr=>tr.innerText.includes(${JSON.stringify(docName)}));const btn=row&&[...row.querySelectorAll('button')].find(b=>b.innerText.trim()==='Unavailable');return !!btn&&btn.disabled;})()`), true, 'the unavailable document preview control is disabled and labeled Unavailable');
+    // (b) A revoked/narrow scope excludes sibling records entirely.
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'group-user');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'&&JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentUserId==='group-user'`), true, 'narrow ENG-26001 manager persona active');
+    const foreignInvoice = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.clientId==='CL-002').invoiceNumber`);
+    assert.match(await openSearch(foreignInvoice), /No matching records found/, 'an invoice outside the narrow grant contributes no result');
+    const ownInvoice = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).invoices.find(i=>i.clientId==='CL-001').invoiceNumber`);
+    assert.match(await openSearch(ownInvoice), /Invoice ·/, 'the granted client invoice remains searchable');
+    await browserTab!.evaluate(`(() => {const close=[...document.querySelectorAll('.modal-backdrop button')].find(b=>b.innerText.trim()==='✕');close&&close.click();})()`);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
   it('AT-32/AT-33 VP-032/033: filters aging and statements, splits one offline receipt across invoices and reverses one allocation', async t => {
     const priorState = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     t.after(async () => {
@@ -6651,10 +6683,52 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await clickButtonStartingWith('Firm Administration');
     await clickButton('Firm Legal Details & Branding');
     assert.equal(await waitForBrowser(`!!document.querySelector('#firm-name')`), true, 'firm profile form renders from saved settings');
-    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const name=document.querySelector('#firm-name');set.call(name,'STE Audit & Accounting International');name.dispatchEvent(new Event('input',{bubbles:true}));const legal=document.querySelector('#firm-legal-name');set.call(legal,'STE Audit & Accounting International L.L.C.');legal.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('#firm-reason');set.call(reason,'International rebrand');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const name=document.querySelector('#firm-name');set.call(name,'STE Audit & Accounting International');name.dispatchEvent(new Event('input',{bubbles:true}));const legal=document.querySelector('#firm-legal-name');set.call(legal,'STE Audit & Accounting International L.L.C.');legal.dispatchEvent(new Event('input',{bubbles:true}));const invPrefix=document.querySelector('[aria-label="Invoice number prefix"]');set.call(invPrefix,'BILL-');invPrefix.dispatchEvent(new Event('input',{bubbles:true}));const invNext=document.querySelector('#firm-inv-next');set.call(invNext,'100');invNext.dispatchEvent(new Event('input',{bubbles:true}));const terms=document.querySelector('#firm-terms');set.call(terms,'14');terms.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('#firm-reason');set.call(reason,'International rebrand and renumbering');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Save Firm Settings');
-    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.firmSettings.firmName==='STE Audit & Accounting International' && s.firmSettings.firmLegalName==='STE Audit & Accounting International L.L.C.' && s.events.some(e=>e.ref==='FIRM'&&e.text.includes('International rebrand'));})()`), true, 'firm settings save prospectively with a logged reason');
+    assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.firmSettings.firmName==='STE Audit & Accounting International' && s.firmSettings.firmLegalName==='STE Audit & Accounting International L.L.C.' && s.firmSettings.invoiceNumberPrefix==='BILL-' && s.firmSettings.paymentTermsDays===14 && s.events.some(e=>e.ref==='FIRM'&&e.text.includes('International rebrand'));})()`), true, 'firm settings save prospectively with a logged reason');
     assert.equal(await waitForBrowser(`document.body.innerText.includes('existing issued invoices, releases and archives are unchanged')`), true, 'prospective-application disclosure is shown');
+    // VP-062-AC01/AC02: the billing draft form consumes the saved numbering and payment terms prospectively.
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='manager'`), true);
+    await clickButtonStartingWith('Billing & Invoices');
+    await clickButton('Draft New Invoice');
+    assert.equal(await waitForBrowser(`(() => {const inputs=[...document.querySelectorAll('.modal input')];const num=inputs.find(i=>i.value.startsWith('BILL-'));return !!num && num.value==='BILL-100';})()`), true, 'draft modal pre-fills the saved invoice prefix and next number');
+    const expectedDue = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const b=new Date(s.asOfDate+'T00:00:00Z');b.setUTCDate(b.getUTCDate()+s.firmSettings.paymentTermsDays);return b.toISOString().slice(0,10);})()`);
+    assert.equal(await waitForBrowser(`(() => {const inputs=[...document.querySelectorAll('.modal input[type="date"]')];return inputs.some(i=>i.value==='${expectedDue}');})()`), true, `draft due date defaults to the scenario date plus the saved payment terms (${expectedDue})`);
+    await browserTab!.evaluate(`(() => {const close=[...document.querySelectorAll('.modal button')].find(b=>b.innerText.trim()==='✕');close&&close.click();})()`);
+    assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('VP-030-E01/VP-031-E01: revises a source-linked invoice draft with pinned source lines and cleared approval', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+    await browserTab!.command('Page.reload');
+    assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+    await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'billing');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).currentRole==='billing'`), true);
+    await clickButtonStartingWith('Billing & Invoices');
+    await clickButton('Draft New Invoice');
+    const timeId = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.times.find(t=>t.id==='TIME-01'&&t.status==='Approved'&&t.billable).id;})()`);
+    await browserTab!.evaluate(`(() => {const box=document.querySelector('.modal fieldset input[type="checkbox"]');if(!box)throw Error('time source checkbox missing');box.click();return true;})()`);
+    assert.equal(await waitForBrowser(`(() => {const inputs=[...document.querySelectorAll('.modal input[type="number"]')];return inputs[0] && inputs[0].readOnly;})()`), true, 'amount becomes read-only once a pinned source is selected');
+    await clickButton('Create Draft');
+    const draftNumber = await browserTab!.evaluate<string>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.firmSettings.invoiceNumberPrefix + (s.firmSettings.invoiceNextNumber - 1);})()`);
+    const draft = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.invoices.find(i=>i.invoiceNumber==='${draftNumber}');})()`);
+    assert.ok(draft, 'source-linked draft created');
+    assert.equal(draft.status, 'Draft');
+    assert.ok(draft.lines.some(line => line.sourceType === 'Time entry' && line.sourceId === timeId), 'draft carries the selected time source line');
+    assert.equal(await waitForBrowser(`(() => {const row=[...document.querySelectorAll('tr')].find(tr=>tr.innerText.includes('${draftNumber}'));const btn=row&&[...row.querySelectorAll('button')].find(b=>b.innerText.trim()==='Edit');return !!btn&&!btn.disabled;})()`), true, 'the source-linked draft row exposes its Edit action');
+    await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tr')].find(tr=>tr.innerText.includes('${draftNumber}'));const btn=row&&[...row.querySelectorAll('button')].find(b=>b.innerText.trim()==='Edit');btn.click();return true;})()`);
+    assert.equal(await waitForBrowser(`!!document.querySelector('.modal') && document.body.innerText.includes('Source-linked lines are pinned')`), true, 'revision modal opens with the pinned-source disclosure');
+    const revisedDue = '2027-03-01';
+    await browserTab!.evaluate(`(() => {const input=document.querySelector('.modal input[type="date"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'${revisedDue}');input.dispatchEvent(new Event('input',{bubbles:true}));const reason=document.querySelector('#invoice-revision-reason');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Client requested revised payment terms.');reason.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Save Invoice Revision');
+    const revised = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.invoices.find(x=>x.id==='${draft.id}');})()`);
+    assert.equal(revised.revision, 2, 'the revision advances to revision 2');
+    assert.equal(revised.due, revisedDue, 'the editable due date changed');
+    assert.equal(revised.status, 'Draft');
+    assert.equal(revised.commercialApproval, undefined, 'revision clears any prior approval');
+    assert.equal(revised.revisionHistory.length, 1, 'revision history retains the prior snapshot');
+    assert.equal(JSON.stringify(revised.lines.filter((line: any) => line.sourceType === 'Time entry')), JSON.stringify(draft.lines.filter((line: any) => line.sourceType === 'Time entry')), 'pinned time-source lines are byte-identical across the revision');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 

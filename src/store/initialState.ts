@@ -1115,6 +1115,7 @@ export function createInitialState(): PrototypeState {
       firmLegalName: 'STE Audit & Accounting LLC',
       jurisdiction: 'State of Qatar',
       currency: 'QAR',
+      timezone: 'UTC+03:00 (Asia/Qatar)',
       invoiceNumberPrefix: 'INV-2026-',
       invoiceNextNumber: 4,
       creditNumberPrefix: 'CRN-2026-',

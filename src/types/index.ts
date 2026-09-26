@@ -1531,6 +1531,10 @@ export interface FirmSettings {
   firmLegalName: string;
   jurisdiction: string;
   currency: string;
+  /** Display timezone label for the firm profile (browser-local prototype; display only). */
+  timezone: string;
+  /** Optional logo reference label. The prototype stores no binary logo payload. */
+  logoRef?: string;
   invoiceNumberPrefix: string;
   invoiceNextNumber: number;
   creditNumberPrefix: string;

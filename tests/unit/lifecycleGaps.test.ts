@@ -203,3 +203,104 @@ describe('reasoned template retirement (MOD-06)', () => {
     assert.ok(state.events.some(event => event.ref === tpl.id && event.text.includes('replaced by')));
   });
 });
+
+describe('firm settings prospective consumption (VP-062)', () => {
+  it('consumes the configured invoice and credit numbers prospectively and advances the counter once', () => {
+    setPersona(state, 'Layla Rahman');
+    const source = structuredClone(state.invoices.find(i => i.id === 'INV-26003')!);
+    const nextNumber = `${state.firmSettings.invoiceNumberPrefix}${state.firmSettings.invoiceNextNumber}`;
+    prototypeStore.addInvoice({ ...source, id: 'INV-NUMBERING', invoiceNumber: nextNumber, status: 'Draft', paid: 0, amount: 5000, lines: [{ id: 'L1', description: 'Ad hoc advisory line', quantity: 1, rate: 5000, amount: 5000, sourceType: 'Ad hoc' }] });
+    assert.equal(state.firmSettings.invoiceNextNumber, 5, 'consuming the configured next number advances it');
+    assert.throws(() => prototypeStore.addInvoice({ ...source, id: 'INV-DUP', invoiceNumber: nextNumber, status: 'Draft', paid: 0, amount: 10, lines: [{ id: 'L2', description: 'Ad hoc advisory line', quantity: 1, rate: 10, amount: 10, sourceType: 'Ad hoc' }] }), /must be unique/, 'a duplicate number is rejected instead of colliding');
+    const credit = structuredClone(state.creditNotes[0] || { invoiceId: 'INV-26002', clientId: 'CL-002', amount: 100, currency: 'QAR', reason: 'Numbering fixture', status: 'Draft', issueDate: state.asOfDate, date: state.asOfDate, preparedBy: 'Layla Rahman' });
+    credit.id = 'CN-NUMBERING';
+    credit.creditNumber = `${state.firmSettings.creditNumberPrefix}${state.firmSettings.creditNextNumber}`;
+    prototypeStore.addCreditNote(credit);
+    assert.equal(state.firmSettings.creditNextNumber, 3, 'credit counter advances prospectively');
+  });
+
+  it('an explicit non-configured number leaves the counter unchanged', () => {
+    setPersona(state, 'Leila Hassan');
+    const source = structuredClone(state.invoices.find(i => i.id === 'INV-26003')!);
+    prototypeStore.addInvoice({ ...source, id: 'INV-EXPLICIT', invoiceNumber: 'INV-CUSTOM-9001', status: 'Draft', paid: 0, amount: 10, lines: [{ id: 'L3', description: 'Ad hoc advisory line', quantity: 1, rate: 10, amount: 10, sourceType: 'Ad hoc' }] });
+    assert.equal(state.firmSettings.invoiceNextNumber, 4, 'counter does not advance for an explicit custom number');
+  });
+
+  it('numbering and default changes never rewrite issued invoices, credits or template-derived jobs', () => {
+    setPersona(state, 'Khalid Al-Nuaimi');
+    const issuedBefore = structuredClone(state.invoices.filter(i => i.status === 'Issued' || i.status === 'Paid'));
+    const jobsBefore = structuredClone(state.jobs);
+    prototypeStore.updateFirmSettings({ invoiceNumberPrefix: 'BILL-', invoiceNextNumber: 100, creditNumberPrefix: 'CR-', paymentTermsDays: 14 }, 'Renumbering policy');
+    assert.deepEqual(state.invoices.filter(i => i.status === 'Issued' || i.status === 'Paid').map(i => [i.invoiceNumber, i.amount, i.due]), issuedBefore.map(i => [i.invoiceNumber, i.amount, i.due]), 'settings changes are prospective only');
+    assert.deepEqual(state.jobs, jobsBefore, 'template-derived jobs are untouched');
+  });
+
+  it('system-admin identity alone cannot approve budgets, publish templates or approve mappings (VP-062-AC03)', () => {
+    setPersona(state, 'Khalid Al-Nuaimi');
+    assert.throws(() => prototypeStore.updateBudget(structuredClone(state.budgets.find(b => b.engagementId === 'ENG-26001')!)), /cannot/);
+    assert.throws(() => prototypeStore.publishJobTemplate(state.jobTemplates[0]!.id), /cannot/);
+    assert.throws(() => prototypeStore.approveAccountMappings('ENG-26001', 1), /cannot/);
+  });
+
+  it('invalid timezone and logo references are rejected atomically; valid ones save (VP-062-AC04)', () => {
+    setPersona(state, 'Khalid Al-Nuaimi');
+    assert.throws(() => prototypeStore.updateFirmSettings({ timezone: '' }), /Timezone/);
+    assert.throws(() => prototypeStore.updateFirmSettings({ timezone: 'x'.repeat(33) }), /Timezone/);
+    assert.throws(() => prototypeStore.updateFirmSettings({ logoRef: 'x'.repeat(81) }), /logo reference/);
+    const before = structuredClone(state.firmSettings);
+    assert.throws(() => prototypeStore.updateFirmSettings({ logoRef: 'x'.repeat(81) }), /logo reference/);
+    assert.deepEqual(state.firmSettings, before, 'invalid logo patch does not partially apply');
+    prototypeStore.updateFirmSettings({ logoRef: 'brand/firm-logo-2026' }, 'Brand refresh');
+    assert.equal(state.firmSettings.logoRef, 'brand/firm-logo-2026');
+    prototypeStore.updateFirmSettings({ logoRef: undefined }, 'Remove logo reference');
+    assert.equal(state.firmSettings.logoRef, undefined);
+  });
+});
+
+describe('trial-balance replacement stales journal reflection (VP-038-E01/E02)', () => {
+  it('a new TB source revision blocks reporting inclusion until the reflection is re-confirmed', () => {
+    setPersona(state, 'Layla Rahman');
+    // AJ-01 is seeded management-accepted; reflect it at source v1 and include it in reporting.
+    const journal = state.adjustmentJournals.find(j => j.id === 'AJ-01')!;
+    prototypeStore.updateAdjustmentJournal({ ...journal, reflectionStatus: 'Reflected in TB', reflectedInClientBooks: true, reflectionSourceVersion: 1, reflectionEvidenceRef: 'TB-IMPORT-REV-1' });
+    prototypeStore.markAdjustmentJournalReportingIncluded('AJ-01');
+    assert.equal(state.adjustmentJournals.find(j => j.id === 'AJ-01')!.status, 'Reporting included');
+    // Replace the trial balance with a rebalanced row set: sourceVersion advances.
+    setPersona(state, 'Adam Khan');
+    const rows = structuredClone(state.engagements.find(e => e.id === 'ENG-26001')!.rows);
+    rows[0].balance += 100;
+    rows[1].balance -= 100;
+    prototypeStore.updateTrialBalanceRows('ENG-26001', rows);
+    assert.equal(state.engagements.find(e => e.id === 'ENG-26001')!.sourceVersion, 2);
+    // The included journal is now stale: its reflection pins v1 while the source is v2.
+    const stale = state.adjustmentJournals.find(j => j.id === 'AJ-01')!;
+    assert.equal(stale.reflectionSourceVersion, 1);
+    assert.notEqual(stale.reflectionSourceVersion, state.engagements.find(e => e.id === 'ENG-26001')!.sourceVersion, 'the reflection pins its original source revision');
+    setPersona(state, 'Layla Rahman');
+    assert.throws(() => prototypeStore.updateAdjustmentJournal({ ...stale, reflectionStatus: 'Reflected in TB', reflectedInClientBooks: true, reflectionSourceVersion: 1, reflectionEvidenceRef: 'TB-IMPORT-REV-1' }), /current trial-balance source revision/, 'a stale reflection decision cannot be re-asserted against the old source version');
+  });
+});
+
+describe('grant approval-evidence and compatible-role combinations (VP-019-E01)', () => {
+  it('professional and management-approver grants require distinct approval evidence across roles', () => {
+    setPersona(state, 'Khalid Al-Nuaimi');
+    for (const [userId, role] of [['preparer-2', 'preparer'], ['reviewer-2', 'reviewer'], ['eqr-2', 'eqr'], ['client-northstar', 'client']] as Array<[string, RoleKey]>) {
+      // These personas hold seeded grants; revocation returns them to the applicant pool.
+      const isClient = role === 'client';
+      prototypeStore.revokeAccess(userId, role, isClient ? 'CL-002' : undefined, 'evidence-matrix re-grant rehearsal');
+      const scopeKind = isClient ? 'Client' as const : 'Global' as const;
+      const scopeId = isClient ? 'CL-002' : undefined;
+      assert.throws(() => prototypeStore.grantAccess(userId, role, scopeKind, scopeId, 'evidence matrix check', { requestRef: `REQ-${userId}` }), /approval-evidence reference/, `${role} grant without evidence is rejected`);
+      assert.throws(() => prototypeStore.grantAccess(userId, role, scopeKind, scopeId, 'evidence matrix check', { requestRef: 'REQ-X', approvalEvidenceRef: 'REQ-X' }), /separate reference from the access request/, `${role} grant reusing the request reference as evidence is rejected`);
+      prototypeStore.grantAccess(userId, role, scopeKind, scopeId, 'evidence matrix check', { requestRef: `REQ-${userId}`, approvalEvidenceRef: `EVD-${userId}` });
+      const history = state.roleGrantHistory.filter(entry => entry.userId === userId);
+      assert.ok(history.length >= 2, `${role} grant and revocation both record history entries`);
+    }
+  });
+
+  it('granting a role that does not match the persona is rejected; revocation restores re-grantability', () => {
+    setPersona(state, 'Khalid Al-Nuaimi');
+    assert.throws(() => prototypeStore.grantAccess('preparer-2', 'reviewer', 'Global', undefined, 'role mismatch check', { requestRef: 'REQ-M', approvalEvidenceRef: 'EVD-M' }), /assigned role/, 'a persona cannot be granted a different role');
+    assert.throws(() => prototypeStore.grantAccess('preparer-2', 'reviewer', 'Client', 'CL-002', 'role mismatch check', { requestRef: 'REQ-M', approvalEvidenceRef: 'EVD-M' }), /assigned role/, 'the mismatch rule holds for every scope kind');
+  });
+});

@@ -24,12 +24,17 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
   const [editingCreditId, setEditingCreditId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // New draft invoice form
-  const [invNumber, setInvNumber] = useState(`INV-2600${state.invoices.length + 1}`);
+  // New draft invoice form — numbering and due-date defaults come from the saved firm settings
+  // (VP-062-AC01/AC02 prospective application).
+  const [invNumber, setInvNumber] = useState(() => `${state.firmSettings.invoiceNumberPrefix}${state.firmSettings.invoiceNextNumber}`);
   const [description, setDescription] = useState('Interim audit fee billing - Phase 1 Fieldwork');
   const [amount, setAmount] = useState(200000);
   const [additionalLines, setAdditionalLines] = useState<Array<{ description: string; quantity: number; rate: number }>>([]);
-  const [due, setDue] = useState('2026-10-31');
+  const [due, setDue] = useState(() => {
+    const base = new Date(`${state.asOfDate}T00:00:00Z`);
+    base.setUTCDate(base.getUTCDate() + state.firmSettings.paymentTermsDays);
+    return base.toISOString().slice(0, 10);
+  });
 
   // Credit note form
   const [creditAmount, setCreditAmount] = useState(25000);
@@ -151,6 +156,23 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       lines
     };
 
+    // Source-linked revision: pinned time/fixed-service lines are carried over byte-for-byte
+    // (the store rejects any change to them); ad-hoc lines are rebuilt from the editor.
+    if (originalInvoice && originalInvoice.lines.some(line => line.sourceType !== 'Ad hoc')) {
+      const originalAdHoc = originalInvoice.lines.filter(line => line.sourceType === 'Ad hoc');
+      const revisedAdHoc = additionalLines.map((line, index) => ({
+        id: originalAdHoc[index]?.id || `LINE-ADHOC-R${index + 1}`,
+        description: line.description.trim(),
+        quantity: line.quantity,
+        rate: line.rate,
+        amount: Math.round(line.quantity * line.rate * 100) / 100,
+        sourceType: 'Ad hoc' as const
+      }));
+      newInv.lines = [...originalInvoice.lines.filter(line => line.sourceType !== 'Ad hoc').map(line => ({ ...line })), ...revisedAdHoc];
+      newInv.amount = Math.round(newInv.lines.reduce((sum, line) => sum + line.amount, 0) * 100) / 100;
+      newInv.description = description;
+    }
+
     try {
       if (originalInvoice) {
         prototypeStore.reviseInvoiceDraft(originalInvoice.id, { description: newInv.description, due: newInv.due, amount: newInv.amount, lines: newInv.lines, reason: invoiceEditReason });
@@ -194,15 +216,25 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
     prototypeStore.issueInvoice(inv.id);
   };
 
-  const canReviseAdHocInvoice = (inv: InvoiceRecord) => inv.lines.length > 0 && inv.lines[0].quantity === 1 && inv.lines.every(line => line.sourceType === 'Ad hoc');
+  const canReviseInvoice = (inv: InvoiceRecord) => inv.status === 'Draft' || inv.status === 'Approved';
+  const editingInvoice = editingInvoiceId ? state.invoices.find(item => item.id === editingInvoiceId) : undefined;
+  const editingSourceInvoice = Boolean(editingInvoice?.lines.some(line => line.sourceType !== 'Ad hoc'));
 
   const handleReviseInvoice = (inv: InvoiceRecord) => {
-    if (!canReviseAdHocInvoice(inv)) return;
     setEditingInvoiceId(inv.id);
     setInvNumber(inv.invoiceNumber);
-    setDescription(inv.lines[0]?.description || inv.description);
-    setAmount(inv.lines[0]?.amount || inv.amount);
-    setAdditionalLines(inv.lines.slice(1).map(line => ({ description: line.description, quantity: line.quantity, rate: line.rate })));
+    setDescription(inv.description);
+    const adHocLines = inv.lines.filter(line => line.sourceType === 'Ad hoc');
+    const sourceLinked = inv.lines.some(line => line.sourceType !== 'Ad hoc');
+    if (sourceLinked) {
+      // Source-linked revision: the header description and due date are editable; every
+      // ad-hoc line (including the first) is edited through the ad-hoc editor below.
+      setAmount(inv.amount);
+      setAdditionalLines(adHocLines.map(line => ({ description: line.description, quantity: line.quantity, rate: line.rate })));
+    } else {
+      setAmount(adHocLines[0]?.amount ?? inv.amount);
+      setAdditionalLines(adHocLines.slice(1).map(line => ({ description: line.description, quantity: line.quantity, rate: line.rate })));
+    }
     setDue(inv.due);
     setSelectedTimeSourceIds([]);
     setSelectedFixedServiceSource(false);
@@ -236,7 +268,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
       id: `CN-${Date.now().toString().slice(-4)}`,
       clientId: selectedInvoice.clientId,
       invoiceId: selectedInvoice.id,
-      creditNumber: `CN-2600${state.creditNotes.length + 1}`,
+      creditNumber: `${state.firmSettings.creditNumberPrefix}${state.firmSettings.creditNextNumber}`,
       amount: creditAmount,
       currency: selectedInvoice.currency,
       reason: creditReason,
@@ -314,7 +346,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
           <h1>Billing, Invoicing & Credit Notes</h1>
           <p>Multi-currency professional fee invoicing, independent approval, and local PDF billing records.</p>
         </div>
-        <button className="btn primary sm" onClick={() => { setEditingInvoiceId(null); setInvoiceEditReason(''); setAdditionalLines([]); setInvNumber(`INV-2600${state.invoices.length + 1}`); setShowDraftModal(true); }}>
+        <button className="btn primary sm" onClick={() => { setEditingInvoiceId(null); setInvoiceEditReason(''); setAdditionalLines([]); setInvNumber(`${state.firmSettings.invoiceNumberPrefix}${state.firmSettings.invoiceNextNumber}`); const base = new Date(`${state.asOfDate}T00:00:00Z`); base.setUTCDate(base.getUTCDate() + state.firmSettings.paymentTermsDays); setDue(base.toISOString().slice(0, 10)); setShowDraftModal(true); }}>
           <Icon name="plus" /> Draft New Invoice
         </button>
       </div>
@@ -394,7 +426,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                         </button>
                         {inv.status === 'Draft' && (
                           <>
-                            {canReviseAdHocInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Edit</button>}
+                            {canReviseInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Edit</button>}
                             <button className="btn sm ghost" onClick={() => handleApprove(inv)}>Approve</button>
                             <button className="btn sm ghost text-danger" onClick={() => handleReturnInvoice(inv)}>Return</button>
                             {['billing', 'manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
@@ -402,7 +434,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                         )}
                         {inv.status === 'Approved' && (
                           <>
-                            {canReviseAdHocInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Revise</button>}
+                            {canReviseInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Revise</button>}
                             <button className="btn sm primary" onClick={() => handleIssue(inv)}>Issue</button>
                           </>
                         )}
@@ -548,11 +580,14 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                   <input
                     type="number"
                     className="input"
-                    value={hasSources ? sourcedTotal : amount}
+                    value={editingSourceInvoice
+                      ? Math.round(((editingInvoice?.lines.filter(line => line.sourceType !== 'Ad hoc').reduce((sum, line) => sum + line.amount, 0) || 0) + additionalLines.reduce((sum, line) => sum + line.quantity * line.rate, 0)) * 100) / 100
+                      : hasSources ? sourcedTotal : amount}
                     onChange={e => setAmount(Number(e.target.value))}
-                    readOnly={hasSources}
+                    readOnly={hasSources || editingSourceInvoice}
                     required
                   />
+                  {editingSourceInvoice && <div className="caption">Source-linked lines are pinned and carried unchanged into the revision; only the description, due date, and ad-hoc lines can change.</div>}
                 </div>
                 {!hasSources && <div className="stack" style={{ gap: 8 }}>
                   {additionalLines.map((line, index) => <fieldset key={index} className="grid2" style={{ gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>

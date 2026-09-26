@@ -1866,6 +1866,11 @@ class PrototypeStore {
     }
     this.state.invoices.push(inv);
     timeSources.forEach(time => { time.billedInvoiceId = inv.id; });
+    // Prospective numbering (VP-062-AC02): consuming the configured next number advances it;
+    // any other explicit number leaves the counter unchanged. Uniqueness is enforced above.
+    if (inv.invoiceNumber === `${this.state.firmSettings.invoiceNumberPrefix}${this.state.firmSettings.invoiceNextNumber}`) {
+      this.state.firmSettings.invoiceNextNumber += 1;
+    }
     this.logEvent(`Invoice draft created: ${inv.invoiceNumber}`, inv.id);
     this.notify();
   }
@@ -1997,6 +2002,9 @@ class PrototypeStore {
     credit.reviewedBy = undefined;
     credit.reviewedRevision = undefined;
     credit.issuedBy = undefined;
+    if (credit.creditNumber === `${this.state.firmSettings.creditNumberPrefix}${this.state.firmSettings.creditNextNumber}`) {
+      this.state.firmSettings.creditNextNumber += 1;
+    }
     this.logEvent(`Credit note drafted: ${credit.creditNumber} (${credit.amount} ${credit.currency || inv.currency})`, credit.id);
     this.notify();
   }
@@ -4361,6 +4369,8 @@ class PrototypeStore {
     if ('jurisdiction' in patch && !bounded(patch.jurisdiction, 80)) throw new GuardError('INVALID_STATE', 'Jurisdiction is required and must be 80 characters or fewer.');
     if ('currency' in patch && !/^[A-Z]{3}$/.test(patch.currency || '')) throw new GuardError('INVALID_STATE', 'Firm reporting currency must be a three-letter ISO code.');
     if ('locale' in patch && !bounded(patch.locale, 16)) throw new GuardError('INVALID_STATE', 'Locale is required and must be 16 characters or fewer.');
+    if ('timezone' in patch && !bounded(patch.timezone, 32)) throw new GuardError('INVALID_STATE', 'Timezone label is required and must be 32 characters or fewer.');
+    if ('logoRef' in patch && patch.logoRef !== undefined && (!bounded(patch.logoRef, 80))) throw new GuardError('INVALID_STATE', 'A logo reference, when provided, must be 80 characters or fewer; this browser-local prototype stores no binary logo payload.');
     if ('invoiceNumberPrefix' in patch && !bounded(patch.invoiceNumberPrefix, 16)) throw new GuardError('INVALID_STATE', 'Invoice number prefix is required and must be 16 characters or fewer.');
     if ('creditNumberPrefix' in patch && !bounded(patch.creditNumberPrefix, 16)) throw new GuardError('INVALID_STATE', 'Credit number prefix is required and must be 16 characters or fewer.');
     if ('invoiceNextNumber' in patch && (!Number.isInteger(patch.invoiceNextNumber) || patch.invoiceNextNumber! < 1)) throw new GuardError('INVALID_STATE', 'Next invoice number must be a positive whole number.');
