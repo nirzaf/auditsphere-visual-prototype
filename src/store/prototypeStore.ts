@@ -1531,7 +1531,7 @@ class PrototypeStore {
     this.notify();
   }
 
-  public replaceDocumentRevision(documentId: string, file: { name: string; size: number; sha256: string }): DocumentItem {
+  public replaceDocumentRevision(documentId: string, file: { name: string; size: number; sha256: string }, revisionId?: string): DocumentItem {
     requireActiveIdentity(this.state);
     const previous = this.state.documents.find(doc => doc.id === documentId);
     if (!previous) throw new GuardError('INVALID_STATE', 'Document to replace was not found.');
@@ -1541,7 +1541,7 @@ class PrototypeStore {
     if (this.state.documents.some(doc => doc.supersedesDocumentId === previous.id)) throw new GuardError('STALE_REVISION', 'This document already has a replacement. Select its current revision.');
     const revision: DocumentItem = {
       ...previous,
-      id: `DOC-${crypto.randomUUID()}`,
+      id: revisionId || `DOC-${crypto.randomUUID()}`,
       name: file.name,
       version: previous.version + 1,
       size: file.size,
@@ -1555,6 +1555,7 @@ class PrototypeStore {
       spItemId: undefined,
       brokenLink: undefined
     };
+    if (!/^DOC-[\w-]+$/.test(revision.id) || this.state.documents.some(doc => doc.id === revision.id)) throw new GuardError('INVALID_STATE', 'Replacement document identity must be unique and valid.');
     this.state.documents.push(revision);
     const affectedEngagementIds = new Set<string>();
     const replacementEvidence = this.state.evidenceCatalogue.filter(item => item.documentId === previous.id).map(item => ({
@@ -3502,23 +3503,29 @@ class PrototypeStore {
     if (!/^DOC-PBC-[\w-]+$/.test(docId) || this.state.documents.some(document => document.id === docId)) throw new GuardError('INVALID_STATE', 'PBC response identity must be unique and valid.');
     const uploadedAt = new Date().toISOString();
     const uploadVersion = (req.sharedFiles?.at(-1)?.version || 0) + 1;
-    const newDoc: DocumentItem = {
-      id: docId,
-      clientId: eng.client,
-      engagementId: eng.id,
-      name: file.name,
-      folderPath: `/PBC/`,
-      version: uploadVersion,
-      size: file.size!,
-      sha: file.sha256,
-      classification: 'Client provided',
-      visibility: 'Client shared',
-      source: 'Local In-Session',
-      linkedPbcId: req.id,
-      uploadedBy: this.state.currentPerson,
-      uploadedAt
-    };
-    this.state.documents.unshift(newDoc);
+    const previousSubmission = req.sharedFiles?.at(-1);
+    const previousDocument = previousSubmission && this.state.documents.find(document => document.id === previousSubmission.id);
+    if (previousDocument) {
+      this.replaceDocumentRevision(previousDocument.id, { name: file.name, size: file.size!, sha256: file.sha256 }, docId);
+    } else {
+      const newDoc: DocumentItem = {
+        id: docId,
+        clientId: eng.client,
+        engagementId: eng.id,
+        name: file.name,
+        folderPath: `/PBC/`,
+        version: uploadVersion,
+        size: file.size!,
+        sha: file.sha256,
+        classification: 'Client provided',
+        visibility: 'Client shared',
+        source: 'Local In-Session',
+        linkedPbcId: req.id,
+        uploadedBy: this.state.currentPerson,
+        uploadedAt
+      };
+      this.state.documents.unshift(newDoc);
+    }
 
     if (!req.sharedFiles) req.sharedFiles = [];
     req.sharedFiles.push({

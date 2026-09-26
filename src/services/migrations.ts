@@ -161,6 +161,9 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
   const p = parsed as Record<string, unknown>;
   const from = typeof p?.schema === 'number' ? (p.schema as number) : 0;
   let state: PrototypeState = { ...fresh, ...(parsed as Partial<PrototypeState>) };
+  // The spread above is shallow: an older persisted firmSettings object replaces the fresh
+  // one wholesale, so fields added in newer schemas (timezone, logoRef) must be backfilled.
+  state.firmSettings = { ...fresh.firmSettings, ...((p?.firmSettings as Partial<PrototypeState['firmSettings']> | undefined) || {}) };
   if (!Array.isArray(state.proposalServices)) state.proposalServices = structuredClone(fresh.proposalServices || []);
   if (!Array.isArray(state.proposalServiceHistory)) state.proposalServiceHistory = [];
   if (!Array.isArray(state.proposalTemplates)) state.proposalTemplates = structuredClone(fresh.proposalTemplates || []);

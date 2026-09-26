@@ -4755,6 +4755,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const acceptedReplacement = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').pbc.find(p=>p.id===${JSON.stringify(created.id)})`);
     assert.deepEqual(acceptedReplacement.acceptanceHistory.map((item: any) => [item.version, item.acceptedBy]), [[2, 'Layla Rahman'], [3, 'Layla Rahman']]);
     assert.deepEqual(acceptedReplacement.sharedFiles.map((f: any) => [f.name, f.version]), [['fixed-assets-v1.txt', 1], ['fixed-assets-v2.txt', 2], ['fixed-assets-v3.txt', 3]]);
+    const pbcDocumentLineage = await browserTab!.evaluate<any[]>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).documents.filter(d=>d.linkedPbcId===${JSON.stringify(created.id)}).map(d=>[d.id,d.version,d.supersedesDocumentId]))()`);
+    assert.equal(pbcDocumentLineage.length, 3, 'every client upload remains a separate shared-library document');
+    assert.deepEqual(pbcDocumentLineage.slice().sort((a,b)=>a[1]-b[1]).map(([,version,supersedes])=>[version,supersedes]), [[1,null],[2,pbcDocumentLineage.find(d=>d[1]===1)[0]],[3,pbcDocumentLineage.find(d=>d[1]===2)[0]]], 'replacement uploads form a traceable document revision chain');
     await browserTab!.evaluate(`window.prompt=()=> 'Client withdrew the request after receiving all versions.'`);
     const cancelButton = await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('tbody tr')].find(x=>x.innerText.includes(${JSON.stringify(created.id)}));const b=[...(row?.querySelectorAll('button')||[])].find(x=>x.innerText.trim()==='Cancel request');if(!b)return false;b.click();return true;})()`);
     assert.equal(cancelButton, true, 'request cancellation remains available after accepted response history');

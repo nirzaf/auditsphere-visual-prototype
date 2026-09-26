@@ -7,6 +7,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
+import { migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 
 let state: PrototypeState;
@@ -302,5 +303,19 @@ describe('grant approval-evidence and compatible-role combinations (VP-019-E01)'
     setPersona(state, 'Khalid Al-Nuaimi');
     assert.throws(() => prototypeStore.grantAccess('preparer-2', 'reviewer', 'Global', undefined, 'role mismatch check', { requestRef: 'REQ-M', approvalEvidenceRef: 'EVD-M' }), /assigned role/, 'a persona cannot be granted a different role');
     assert.throws(() => prototypeStore.grantAccess('preparer-2', 'reviewer', 'Client', 'CL-002', 'role mismatch check', { requestRef: 'REQ-M', approvalEvidenceRef: 'EVD-M' }), /assigned role/, 'the mismatch rule holds for every scope kind');
+  });
+});
+
+describe('firm settings migration backfill (VP-004)', () => {
+  it('backfills settings fields added in newer schemas while preserving saved values', () => {
+    const legacy = createInitialState() as any;
+    legacy.firmSettings = { firmName: 'Legacy Saved Firm', firmLegalName: 'Legacy Saved Firm LLC', jurisdiction: 'State of Qatar', currency: 'QAR', invoiceNumberPrefix: 'INV-OLD-', invoiceNextNumber: 9, creditNumberPrefix: 'CRN-OLD-', creditNextNumber: 3, paymentTermsDays: 21, locale: 'en-GB' };
+    delete legacy.firmSettings.timezone;
+    delete legacy.firmSettings.logoRef;
+    const { state: migrated } = migratePersistedState(legacy, createInitialState());
+    assert.equal(migrated.firmSettings.firmName, 'Legacy Saved Firm', 'saved values survive the backfill');
+    assert.equal(migrated.firmSettings.invoiceNextNumber, 9);
+    assert.equal(migrated.firmSettings.timezone, 'UTC+03:00 (Asia/Qatar)', 'new required settings fields are backfilled from the fresh seed');
+    assert.equal(migrated.firmSettings.logoRef, undefined);
   });
 });

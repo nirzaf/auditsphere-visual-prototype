@@ -472,9 +472,11 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   only the named contributor can upload, acceptance records actor/time/version,
   and accepted submissions can be reopened only through a reasoned replacement
   request. Prior acceptance decisions remain in history. Chrome verifies all
-  replacement bytes/digests after reload, plus empty, >10 MB, unsupported type,
-  MIME mismatch and IndexedDB quota failures. No external upload occurs; linked
-  evidence adequacy and workpaper dependency reassessment remains incomplete.
+  replacement bytes/digests after reload and the superseding document chain, plus empty,
+  >10 MB, unsupported type, MIME mismatch and IndexedDB quota failures. A store regression
+  verifies replacement evidence returns to Pending verification, linked cleared procedures
+  require reassessment, and submitted workpapers reopen as Changes required. No external
+  upload occurs; broader reviewer, source and evidence-type matrices remain open.
 - **R14 — archive integrity:** archive creation now copies every released package
   artifact into a separate IndexedDB record and verifies size, MIME type and
   SHA-256 before recording the archive. The copies remain browser-local and can

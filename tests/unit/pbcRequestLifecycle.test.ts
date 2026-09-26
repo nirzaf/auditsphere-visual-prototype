@@ -62,6 +62,45 @@ describe('PBC request lifecycle (VP-023)', () => {
     assert.throws(() => prototypeStore.cancelPbcRequest('ENG-26001', 'PBC-TEST-03', 'again'), /already cancelled/i);
   });
 
+  it('links a post-acceptance PBC replacement to the prior document and reopens dependent review', () => {
+    prototypeStore.addPbcRequest('ENG-26001', { id: 'PBC-TEST-07', title: 'Signed bank statement', category: 'Bank evidence', status: 'Draft', due: '2026-09-30', owner: 'Rami Nasser', contributor: 'Rami Nasser', version: 1, engagementId: 'ENG-26001' });
+    prototypeStore.presentPbcRequest('ENG-26001', 'PBC-TEST-07');
+    prototypeStore.setPersona('client_finance');
+    prototypeStore.uploadPbcResponse('ENG-26001', 'PBC-TEST-07', { id: 'DOC-PBC-FIRST', name: 'bank-statement-v1.pdf', size: 120, sha256: 'a'.repeat(64), type: 'application/pdf' });
+
+    prototypeStore.setPersona('manager');
+    const state = (prototypeStore as any).state;
+    const request = state.engagements.find((engagement: any) => engagement.id === 'ENG-26001').pbc.find((item: any) => item.id === 'PBC-TEST-07');
+    const procedure = state.auditPrograms.flatMap((program: any) => program.procedures).find((item: any) => item.id === 'PRC-01');
+    const workpaper = state.engagements.find((engagement: any) => engagement.id === 'ENG-26001').workpapers.find((item: any) => item.id === 'WP-A1');
+    state.evidenceCatalogue.push({ id: 'EVD-PBC-TEST', title: 'Signed bank statement', documentId: 'DOC-PBC-FIRST', version: 1, sha: 'a'.repeat(64), adequacyStatus: 'Adequate', receivedDate: '2026-09-26', owner: 'Rami Nasser', linkedProcedures: [] });
+    prototypeStore.linkEvidenceProcedure('EVD-PBC-TEST', 'PRC-01');
+    procedure.status = 'Cleared';
+    procedure.reviewedByUserId = state.currentUserId;
+    procedure.reviewedAt = '2026-09-26T09:00:00.000Z';
+    workpaper.evidenceRefs = ['DOC-PBC-FIRST'];
+    workpaper.status = 'Submitted';
+    workpaper.submittedBy = 'Adam Khan';
+    workpaper.submittedVersion = workpaper.version;
+
+    prototypeStore.acceptPbcResponse('ENG-26001', 'PBC-TEST-07');
+    prototypeStore.requestPbcClarification('ENG-26001', 'PBC-TEST-07', 'Please provide the signed final page.');
+    prototypeStore.setPersona('client_finance');
+    prototypeStore.uploadPbcResponse('ENG-26001', 'PBC-TEST-07', { id: 'DOC-PBC-SECOND', name: 'bank-statement-v2.pdf', size: 140, sha256: 'b'.repeat(64), type: 'application/pdf' });
+
+    const replacement = state.documents.find((document: any) => document.id === 'DOC-PBC-SECOND');
+    const replacementEvidence = state.evidenceCatalogue.find((item: any) => item.documentId === replacement.id);
+    assert.equal(replacement.supersedesDocumentId, 'DOC-PBC-FIRST');
+    assert.equal(replacement.version, 2);
+    assert.equal(request.status, 'Received', 'replacement is received but needs a new independent acceptance');
+    assert.equal(request.acceptanceHistory.at(-1).version, 1, 'the prior acceptance remains in history');
+    assert.equal(replacementEvidence.adequacyStatus, 'Pending verification');
+    assert.equal(procedure.evidenceReassessmentRequired, true);
+    assert.equal(procedure.status, 'In progress');
+    assert.equal(workpaper.status, 'Changes required');
+    assert.equal(workpaper.clearance, null);
+  });
+
   it('requires an in-scope staff role to edit or cancel', () => {
     prototypeStore.addPbcRequest('ENG-26001', { id: 'PBC-TEST-04', title: 'Fixed asset register', category: 'Accounting', status: 'Draft', due: '2026-09-30', owner: 'client@example.test', contributor: 'Rami Nasser', version: 1, engagementId: 'ENG-26001' });
     prototypeStore.setPersona('client_finance');
