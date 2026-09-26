@@ -27,6 +27,20 @@ export function formatMinutesToHours(minutes: number): string {
   return `${hrs.toFixed(1)} hrs`;
 }
 
+export function getPackageContextDisplay(engagement?: EngagementRecord): { revision: string; status: 'Unavailable' | 'Not created' | 'Current' | 'Stale / blocked' } {
+  if (!engagement) return { revision: '', status: 'Unavailable' };
+  const history = engagement.packageHistory || [];
+  if (!history.length) return { revision: '', status: 'Not created' };
+  const packageRevision = history.find(item => item.revision === engagement.packageRevision);
+  const visibleRevision = packageRevision || [...history].sort((left, right) => right.revision - left.revision)[0];
+  const current = Boolean(packageRevision
+    && packageRevision.generation === engagement.generation
+    && packageRevision.generation === engagement.builtGeneration
+    && packageRevision.sourceVersion === engagement.sourceVersion
+    && packageRevision.validation.passed);
+  return { revision: `v${visibleRevision.revision}`, status: current ? 'Current' : 'Stale / blocked' };
+}
+
 /** Return the leaf time records that represent current work, keeping prior correction revisions out of totals. */
 export function getEffectiveTimeEntries(entries: TimeEntryItem[]): TimeEntryItem[] {
   const supersededIds = new Set(entries.flatMap(entry => entry.supersedesId ? [entry.supersedesId] : []));

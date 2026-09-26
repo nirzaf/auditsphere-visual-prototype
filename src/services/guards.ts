@@ -206,3 +206,33 @@ export function canOpenRoute(role: RoleKey, route: RouteKey, active = true): boo
   if (role === 'admin') return ['overview', 'administration', 'm365-setup', 'requirements'].includes(route);
   return false;
 }
+
+/**
+ * Search must apply the same role and record-scope rules before projecting any
+ * metadata. Client visibility can be inherited from one engagement grant, so a
+ * client grant alone is never enough for an engagement-owned record.
+ */
+export function canReadSearchRecord(
+  state: PrototypeState,
+  record: { route: RouteKey; clientId?: string; engagementId?: string; requiresEngagement?: boolean; clientWide?: boolean }
+): boolean {
+  const persona = activePersona(state);
+  if (!persona.active || !canOpenRoute(state.currentRole, record.route, persona.active)) return false;
+
+  const clients = visibleClientIds(state);
+  const engagements = visibleEngagementIds(state);
+  if (record.clientId && clients !== 'ALL' && !clients.includes(record.clientId)) return false;
+
+  if (record.engagementId) {
+    const engagement = state.engagements.find(item => item.id === record.engagementId);
+    if (!engagement || (record.clientId && engagement.client !== record.clientId)) return false;
+    if (engagements !== 'ALL' && !engagements.includes(record.engagementId)) return false;
+  } else if (record.requiresEngagement) {
+    return false;
+  } else if (record.clientWide && !record.clientId) {
+    // A client-wide record must name the client whose grant authorizes it.
+    return false;
+  }
+
+  return true;
+}

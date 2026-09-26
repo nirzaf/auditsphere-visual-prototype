@@ -155,7 +155,7 @@ export const App: React.FC = () => {
     const syncDialogs = () => {
       const dialogs = [...document.querySelectorAll<HTMLElement>('.modal-backdrop .modal')];
       dialogs.forEach(dialog => {
-        dialog.setAttribute('role', 'dialog');
+        if (!dialog.hasAttribute('role')) dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
         if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
           const title = dialog.querySelector<HTMLElement>('h1,h2,h3');
@@ -311,7 +311,7 @@ export const App: React.FC = () => {
       case 'jobs':
         return <JobsTasksView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'job-templates':
-        return <JobTemplatesView onNavigate={navigate} />;
+        return <JobTemplatesView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'documents':
         return <DocumentsLibraryView key={`${state.selectedEngagement}:${searchTargetId || ''}`} searchTargetId={searchTargetId} onNavigate={navigate} onNavigateToPbc={navigateToPbcRequest} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'communications':
@@ -322,7 +322,7 @@ export const App: React.FC = () => {
       case 'time-tracking' as any:
         return <TimeTrackingView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'budgets':
-        return <BudgetsView onNavigate={navigate} />;
+        return <BudgetsView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} onBeforeContextChange={requestContextChange} />;
       case 'billing':
         return <BillingInvoicingView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'receivables':

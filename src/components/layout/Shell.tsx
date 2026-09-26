@@ -4,8 +4,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, RoleKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { canOpenRoute, visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
+import { canOpenRoute, canReadSearchRecord, visibleClientIds, visibleEngagementIds, isClientRole } from '../../services/guards';
 import { SCENARIO_DEFINITIONS, ScenarioName } from '../../store/scenarios';
+import { getPackageContextDisplay } from '../../services/calculations';
 import { Icon } from '../common/Icons';
 
 interface ShellProps {
@@ -122,7 +123,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     });
   };
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
-  const [recoveryResetArmed, setRecoveryResetArmed] = useState(false);
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const recoveryBannerVisible = Boolean(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode());
   useEffect(() => {
     // A reload restores the previous scroll position, which can leave the
@@ -176,7 +177,13 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       [
         { key: 'my-time', label: 'Time Tracking', icon: 'clock' },
         { key: 'budgets', label: 'Budgets & Variances', icon: 'calculator' },
-        { key: 'billing', label: 'Billing & Invoices', icon: 'receipt', count: state.invoices.filter(i => i.status === 'Issued' && (allowedClientIds === 'ALL' || allowedClientIds.includes(i.clientId))).length },
+        { key: 'billing', label: 'Billing & Invoices', icon: 'receipt', count: state.invoices.filter(i => {
+          const engagementId = i.engagementId || i.eng;
+          const engagement = state.engagements.find(item => item.id === engagementId);
+          return i.status === 'Issued' && Boolean(engagement) && engagement?.client === i.clientId
+            && (allowedClientIds === 'ALL' || allowedClientIds.includes(i.clientId))
+            && (allowedEngagementIds === 'ALL' || allowedEngagementIds.includes(engagementId));
+        }).length },
         { key: 'receivables', label: 'Receivables & Receipts', icon: 'receipt' }
       ]
     ],
@@ -256,6 +263,16 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     });
   };
 
+  const requestDemoReset = () => {
+    onBeforeContextChange(() => setShowResetConfirmation(true));
+  };
+  const confirmDemoReset = () => {
+    prototypeStore.resetState();
+    setShowResetConfirmation(false);
+    setShowScenarioModal(false);
+    triggerToast('Demo state reset to initial baseline. Previous data remains available as a recovery backup.');
+  };
+
   const downloadJSON = (filename: string, json: string) => {
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const link = document.createElement('a');
@@ -287,47 +304,45 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
     const matches = (...values: Array<string | undefined>) => values.some(value => value?.toLowerCase().includes(q));
-    const allowedClients = visibleClientIds(state);
-    const allowedEngs = visibleEngagementIds(state);
-    const clientAllowed = (id?: string) =>
-      allowedClients === 'ALL' || (!!id && allowedClients.includes(id));
-    const engAllowed = (id?: string) =>
-      allowedEngs === 'ALL' || (!!id && allowedEngs.includes(id));
     const clientRole = isClientRole(state.currentRole);
-    const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string }> = [];
-    state.clients.filter(c => clientAllowed(c.id) && matches(c.name, c.id))
-      .forEach(c => out.push({ title: c.name, sub: `Client · ${c.id} · ${c.industry}${c.status === 'Archived' ? ' · Archived' : ''}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
-    state.contacts.filter(c => clientAllowed(c.clientId) && matches(c.name, c.id))
-      .forEach(c => out.push({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
-    state.engagements.filter(e => engAllowed(e.id) && matches(e.service, e.id))
-      .forEach(e => out.push({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements', objectId: e.id, clientId: e.client, engagementId: e.id }));
-    state.jobs.filter(j => engAllowed(j.engagementId) && matches(j.title, j.id))
-      .forEach(j => out.push({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs', objectId: j.id, clientId: j.clientId, engagementId: j.engagementId }));
+    const out: Array<{ title: string; sub: string; route: RouteKey; objectId: string; clientId?: string; engagementId?: string; requiresEngagement?: boolean; clientWide?: boolean }> = [];
+    const add = (item: typeof out[number]) => {
+      if (canReadSearchRecord(state, item)) out.push(item);
+    };
+    state.clients.filter(c => matches(c.name, c.id))
+      .forEach(c => add({ title: c.name, sub: `Client · ${c.id} · ${c.industry}${c.status === 'Archived' ? ' · Archived' : ''}`, route: 'client-detail', objectId: c.id, clientId: c.id }));
+    state.contacts.filter(c => matches(c.name, c.id))
+      .forEach(c => add({ title: c.name, sub: `Contact · ${c.clientId}`, route: 'client-detail', objectId: c.id, clientId: c.clientId }));
     if (!clientRole) {
-      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && matches(d.name, d.id))
-        .forEach(d => out.push({ title: d.name, sub: `Document · ${d.brokenLink ? 'Unavailable · ' : ''}v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
+      state.engagements.filter(e => matches(e.service, e.id))
+        .forEach(e => add({ title: `${e.id} · ${e.service}`, sub: `Engagement · FY ${e.year}`, route: 'engagements', objectId: e.id, clientId: e.client, engagementId: e.id, requiresEngagement: true }));
+      state.jobs.filter(j => matches(j.title, j.id))
+        .forEach(j => add({ title: j.title, sub: `Job · ${j.id}`, route: 'jobs', objectId: j.id, clientId: j.clientId, engagementId: j.engagementId, requiresEngagement: true }));
+    }
+    if (!clientRole) {
+      state.documents.filter(d => matches(d.name, d.id))
+        .forEach(d => add({ title: d.name, sub: `Document · ${d.brokenLink ? 'Unavailable · ' : ''}v${d.version}`, route: 'documents', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId, requiresEngagement: true }));
       state.jobTasks.filter(t => {
         const job = state.jobs.find(j => j.id === t.jobId);
-        return job && engAllowed(job.engagementId) && matches(t.title, t.id);
-      }).forEach(t => { const j = state.jobs.find(x => x.id === t.jobId)!; out.push({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs', objectId: t.id, clientId: j.clientId, engagementId: j.engagementId }); });
-      state.invoices.filter(i => clientAllowed(i.clientId) && matches(i.invoiceNumber, i.id))
-        .forEach(i => out.push({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId, engagementId: i.engagementId || i.eng }));
-      state.communications.filter(c => clientAllowed(c.clientId) && matches(c.summary, c.participants, c.id))
-        .forEach(c => out.push({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications', objectId: c.id, clientId: c.clientId, engagementId: c.engagementId }));
+        return job && matches(t.title, t.id);
+      }).forEach(t => { const j = state.jobs.find(x => x.id === t.jobId)!; add({ title: t.title, sub: `Task · ${t.id}`, route: 'jobs', objectId: t.id, clientId: j.clientId, engagementId: j.engagementId, requiresEngagement: true }); });
+      state.invoices.filter(i => matches(i.invoiceNumber, i.id))
+        .forEach(i => add({ title: i.invoiceNumber, sub: `Invoice · ${i.amount} ${i.currency}`, route: 'billing', objectId: i.id, clientId: i.clientId, engagementId: i.engagementId || i.eng, requiresEngagement: true }));
+      state.communications.filter(c => matches(c.summary, c.participants, c.id))
+        .forEach(c => add({ title: c.summary, sub: `Communication · ${c.channel}`, route: 'communications', objectId: c.id, clientId: c.clientId, engagementId: c.engagementId, requiresEngagement: c.engagementId ? true : c.scopeKind !== 'Client', clientWide: !c.engagementId && c.scopeKind === 'Client' }));
       state.findings.filter(f => {
-        const eng = state.engagements.find(e => e.id === f.engagementId);
-        return eng && engAllowed(eng.id) && matches(f.title, f.id);
-      }).forEach(f => out.push({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings', objectId: f.id, engagementId: f.engagementId }));
-      state.engagements.filter(e => engAllowed(e.id)).forEach(e => {
+        return matches(f.title, f.id);
+      }).forEach(f => add({ title: f.title, sub: `Finding · ${f.id}`, route: 'findings', objectId: f.id, engagementId: f.engagementId, requiresEngagement: true }));
+      state.engagements.forEach(e => {
         e.workpapers.filter(w => matches(w.title, w.id))
-          .forEach(w => out.push({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit', objectId: w.id, clientId: e.client, engagementId: e.id }));
+          .forEach(w => add({ title: w.title, sub: `Workpaper · ${w.id}`, route: 'audit', objectId: w.id, clientId: e.client, engagementId: e.id, requiresEngagement: true }));
         e.pbc.filter(p => matches(p.title, p.id))
-          .forEach(p => out.push({ title: p.title, sub: `PBC · ${p.id}`, route: 'client-detail', objectId: p.id, clientId: e.client, engagementId: e.id }));
+          .forEach(p => add({ title: p.title, sub: `PBC · ${p.id}`, route: 'client-detail', objectId: p.id, clientId: e.client, engagementId: e.id, requiresEngagement: true }));
       });
     } else {
       // Client projection: only explicitly shared documents/packages surface.
-      state.documents.filter(d => clientAllowed(d.clientId) && engAllowed(d.engagementId) && d.visibility === 'Client shared' && matches(d.name, d.id))
-        .forEach(d => out.push({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId }));
+      state.documents.filter(d => d.visibility === 'Client shared' && matches(d.name, d.id))
+        .forEach(d => add({ title: d.name, sub: `Shared document · v${d.version}`, route: 'portal', objectId: d.id, clientId: d.clientId, engagementId: d.engagementId, requiresEngagement: true }));
     }
     return out;
   })();
@@ -372,13 +387,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             <button className="btn sm" onClick={() => downloadJSON(`auditsphere-state-${state.asOfDate}.json`, prototypeStore.exportStateJSON())}>Export current state</button>
             {prototypeStore.getPreservedStateJSON() && <button className="btn sm" onClick={() => downloadJSON(`auditsphere-preserved-${state.asOfDate}.json`, prototypeStore.getPreservedStateJSON()!)}>Export preserved payload</button>}
             {importStateButton}
-            {recoveryResetArmed
-              ? <span className="row" style={{ gap: 8 }}>
-                  <button className="btn sm" onClick={() => prototypeStore.resetState()}>Confirm reset</button>
-                  <button className="btn sm ghost" onClick={() => setRecoveryResetArmed(false)}>Cancel reset</button>
-                  <span className="caption">The current payload stays available as a recovery backup.</span>
-                </span>
-              : <button className="btn sm ghost" onClick={() => setRecoveryResetArmed(true)}>Reset to default</button>}
+            <button className="btn sm ghost" onClick={requestDemoReset}>Reset to default</button>
+            <span className="caption">A reset keeps the current payload as a recovery backup.</span>
           </div>
         </div>
       )}
@@ -450,10 +460,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
             className="navitem"
             aria-label={sidebarCollapsed ? 'Reset Demo State' : undefined}
             title="Reset Demo State"
-            onClick={() => {
-              prototypeStore.resetState();
-              triggerToast('Demo state reset to initial baseline.');
-            }}
+            onClick={requestDemoReset}
           >
             <Icon name="refresh" />
             <span>Reset Demo State</span>
@@ -557,20 +564,26 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
           </div>
           <div className="context-item">
             <label>Service</label>
-            <span>{selectedEng?.service || 'External audit'}</span>
+            <span>{selectedEng?.service || 'Unavailable'}</span>
           </div>
           <div className="context-item">
             <label>Period</label>
-            <span>FY {selectedEng?.year || 2026}</span>
+            <span>{selectedEng ? selectedEng.period || `FY ${selectedEng.year}` : 'Unavailable'}</span>
           </div>
           <div className="context-item">
             <label>Mode / Currency</label>
-            <span>{selectedEng?.mode || 'External books'} · QAR</span>
+            <span>{selectedEng ? `${selectedEng.mode} · ${selectedEng.currency}` : 'Unavailable'}</span>
           </div>
           <div className="context-item">
             <label>Package Rev</label>
-            <span className="mono">v{selectedEng?.packageRevision || 3}</span>
-            <span className="tag green" style={{ marginLeft: 6 }}>Current</span>
+            {(() => {
+              const display = getPackageContextDisplay(selectedEng);
+              if (!display.revision) return <span>{display.status}</span>;
+              return <>
+                <span className="mono">{display.revision}</span>
+                <span className={`tag ${display.status === 'Current' ? 'green' : 'amber'}`} style={{ marginLeft: 6 }}>{display.status}</span>
+              </>;
+            })()}
           </div>
         </div>
 
@@ -616,17 +629,31 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               <button
                 className="btn sm"
                 onClick={() => {
-                  if (window.confirm('Reset local demo data to the default baseline? The current payload remains available as a recovery backup.')) {
-                    prototypeStore.resetState();
-                    setShowScenarioModal(false);
-                    triggerToast('Reset to default initial baseline');
-                  }
+                  requestDemoReset();
                 }}
               >
                 Reset Default
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showResetConfirmation && (
+        <div className="modal-backdrop" onClick={() => setShowResetConfirmation(false)}>
+          <section className="modal" role="alertdialog" aria-labelledby="reset-demo-title" aria-describedby="reset-demo-description" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
+            <div className="modal-head">
+              <h2 id="reset-demo-title">Reset local demo data?</h2>
+              <button className="icon-btn" aria-label="Cancel reset" onClick={() => setShowResetConfirmation(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p id="reset-demo-description">This replaces the current browser demo state with the default baseline. The current payload is retained as a recovery backup; unsaved drafts must first be saved or discarded.</p>
+            </div>
+            <div className="modal-foot">
+              <button className="btn sm ghost" onClick={() => setShowResetConfirmation(false)}>Cancel reset</button>
+              <button className="btn sm" onClick={confirmDemoReset}>Confirm reset</button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -680,6 +707,11 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
                         style={{ textAlign: 'left', width: '100%', cursor: 'pointer', padding: 10 }}
                         onClick={() => {
                           onBeforeContextChange(() => {
+                            const currentState = prototypeStore.getSnapshot();
+                            if (!canReadSearchRecord(currentState, item)) {
+                              triggerToast('This search result is no longer available in your current access scope.', 'error');
+                              return;
+                            }
                             if (item.clientId) onSelectClient(item.clientId);
                             if (item.engagementId) prototypeStore.setSelectedEngagement(item.engagementId);
                             onRouteChange(item.route, item.objectId);

@@ -1,23 +1,34 @@
 // Module 06: Job Template Authoring & Instantiation (VP-015)
 // Reusable template authoring, lifecycle gates (Draft -> Published -> Retired), and instantiation.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, JobTemplateItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { visibleEngagementIds } from '../../services/guards';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 
 interface JobTemplatesViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }) => {
+export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(state.jobTemplates[0]?.id || '');
   const [showInstantiateModal, setShowInstantiateModal] = useState(false);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
   const [revisionSourceId, setRevisionSourceId] = useState<string | null>(null);
   const [templateOperationId, setTemplateOperationId] = useState('');
+  const instantiationOpen = useRef(false);
+  const templateAuthorOpen = useRef(false);
+  const [instantiationContext, setInstantiationContext] = useState<{
+    userId: string; role: string; activeEngagementId: string; targetEngagementId: string;
+    templateId: string; templateRevision: number;
+  } | null>(null);
+  const [templateDraftContext, setTemplateDraftContext] = useState<{
+    userId: string; role: string; sourceId: string | null; sourceRevision: number | null;
+  } | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Instantiation form
@@ -40,37 +51,99 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
   };
 
   const openInstantiation = (template: JobTemplateItem) => {
+    const current = prototypeStore.getSnapshot();
     setSelectedTemplateId(template.id);
     setJobTitle(template.defaultJobTitle);
     setTemplateOperationId(crypto.randomUUID());
+    setTargetEngId(current.selectedEngagement);
+    setInstantiationContext({ userId: current.currentUserId, role: current.currentRole, activeEngagementId: current.selectedEngagement, targetEngagementId: current.selectedEngagement, templateId: template.id, templateRevision: template.revision });
     setStartDate('');
     setDueDate('');
     setOwner('');
+    instantiationOpen.current = true;
     setShowInstantiateModal(true);
+  };
+
+  const closeInstantiation = () => {
+    instantiationOpen.current = false;
+    setShowInstantiateModal(false);
+    setInstantiationContext(null);
+  };
+
+  const openNewTemplate = () => {
+    const current = prototypeStore.getSnapshot();
+    setRevisionSourceId(null);
+    setNewTplName('');
+    setNewTplDescription('');
+    setNewTplDefaultJobTitle('');
+    setNewTplTasksText('Planning & Risk Assessment\nSubstantive Fieldwork Procedures\nReporting & Final Deliverables');
+    setTemplateDraftContext({ userId: current.currentUserId, role: current.currentRole, sourceId: null, sourceRevision: null });
+    templateAuthorOpen.current = true;
+    setShowNewTemplateModal(true);
+  };
+
+  const openTemplateRevision = (template: JobTemplateItem) => {
+    const current = prototypeStore.getSnapshot();
+    setRevisionSourceId(template.id);
+    setNewTplName(template.name);
+    setNewTplService(template.service);
+    setNewTplDescription(template.description);
+    setNewTplDefaultJobTitle(template.defaultJobTitle);
+    setNewTplTasksText(template.tasks.map(task => task.title).join('\n'));
+    setTemplateDraftContext({ userId: current.currentUserId, role: current.currentRole, sourceId: template.id, sourceRevision: template.revision });
+    templateAuthorOpen.current = true;
+    setShowNewTemplateModal(true);
+  };
+
+  const closeTemplateAuthoring = () => {
+    templateAuthorOpen.current = false;
+    setShowNewTemplateModal(false);
+    setTemplateDraftContext(null);
+    setRevisionSourceId(null);
   };
 
   const templates = state.jobTemplates;
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
 
-  const handleInstantiate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTemplate) return;
-
+  const saveInstantiation = (navigateAfterSave: boolean): boolean => {
+    const current = prototypeStore.getSnapshot();
+    const context = instantiationContext;
+    const template = context && current.jobTemplates.find(item => item.id === context.templateId);
+    const engagement = context && current.engagements.find(item => item.id === context.targetEngagementId);
+    const visible = visibleEngagementIds(current);
+    if (!context || !template || !engagement || current.currentUserId !== context.userId || current.currentRole !== context.role
+      || current.selectedEngagement !== context.activeEngagementId || targetEngId !== context.targetEngagementId
+      || template.revision !== context.templateRevision || template.status !== 'Published'
+      || (visible !== 'ALL' && !visible.includes(context.targetEngagementId))) {
+      triggerNotice('error', 'The template or target engagement changed or is no longer permitted. Reopen the job draft and verify its context.');
+      return false;
+    }
+    if (!jobTitle.trim() || !startDate || !dueDate || !owner) {
+      triggerNotice('error', 'Complete the job title, start date, delivery date and accountable owner before saving.');
+      return false;
+    }
     try {
       prototypeStore.applyJobTemplate(
-        selectedTemplate.id,
-        targetEngId,
-        jobTitle || selectedTemplate.defaultJobTitle,
+        template.id,
+        context.targetEngagementId,
+        jobTitle,
         dueDate,
         owner,
         templateOperationId,
         startDate
       );
-      setShowInstantiateModal(false);
-      onNavigate('jobs');
+      closeInstantiation();
+      if (navigateAfterSave) onNavigate('jobs');
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
+  };
+
+  const handleInstantiate = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveInstantiation(true);
   };
 
   const handlePublishTemplate = (tplId: string) => {
@@ -93,16 +166,26 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
     }
   };
 
-  const handleCreateTemplateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTplName.trim()) return;
+  const saveTemplateDraft = (): boolean => {
+    const current = prototypeStore.getSnapshot();
+    const context = templateDraftContext;
+    const revisionSource = context?.sourceId ? current.jobTemplates.find(template => template.id === context.sourceId) : undefined;
+    if (!context || current.currentUserId !== context.userId || current.currentRole !== context.role
+      || (context.sourceId && (!revisionSource || revisionSource.revision !== context.sourceRevision || revisionSource.status !== 'Published'))
+      || (!context.sourceId && revisionSourceId)) {
+      triggerNotice('error', 'The template authoring identity or source revision changed. Reopen the draft and verify its context.');
+      return false;
+    }
+    if (!newTplName.trim() || !newTplTasksText.split('\n').some(line => line.trim())) {
+      triggerNotice('error', 'Provide a template name and at least one non-empty phase before saving.');
+      return false;
+    }
 
     const taskLines = newTplTasksText
       .split('\n')
       .map(l => l.trim())
       .filter(l => l.length > 0);
 
-    const revisionSource = templates.find(template => template.id === revisionSourceId);
     const templateFields = {
       name: newTplName.trim(),
       service: newTplService,
@@ -122,16 +205,44 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
         prototypeStore.addJobTemplate(newTemplate);
       }
       setSelectedTemplateId(newTemplate.id);
-      setShowNewTemplateModal(false);
-      setRevisionSourceId(null);
+      closeTemplateAuthoring();
       setNewTplName('');
       setNewTplDescription('');
       setNewTplDefaultJobTitle('');
       triggerNotice('success', `Draft template "${newTemplate.name}" authored (${newTemplate.id}). Publish it when ready.`);
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+
+  const handleCreateTemplateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveTemplateDraft();
+  };
+
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    if (!showInstantiateModal) {
+      onRegisterUnsavedForm(null, 'template-instantiation');
+      return;
+    }
+    const guard: UnsavedFormGuard = { label: 'Job instantiation', isDirty: () => instantiationOpen.current, save: () => saveInstantiation(false), discard: closeInstantiation };
+    onRegisterUnsavedForm(guard, 'template-instantiation');
+    return () => onRegisterUnsavedForm(null, 'template-instantiation');
+  }, [onRegisterUnsavedForm, showInstantiateModal, instantiationContext, targetEngId, jobTitle, startDate, dueDate, owner, templateOperationId]);
+
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    if (!showNewTemplateModal) {
+      onRegisterUnsavedForm(null, 'template-authoring');
+      return;
+    }
+    const guard: UnsavedFormGuard = { label: 'Job template authoring', isDirty: () => templateAuthorOpen.current, save: saveTemplateDraft, discard: closeTemplateAuthoring };
+    onRegisterUnsavedForm(guard, 'template-authoring');
+    return () => onRegisterUnsavedForm(null, 'template-authoring');
+  }, [onRegisterUnsavedForm, showNewTemplateModal, templateDraftContext, revisionSourceId, newTplName, newTplService, newTplDescription, newTplDefaultJobTitle, newTplTasksText]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -141,7 +252,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
           <p>Reusable workflow structures with defined phases and substantive subtasks.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={() => { setRevisionSourceId(null); setNewTplName(''); setNewTplDescription(''); setNewTplDefaultJobTitle(''); setNewTplTasksText('Planning & Risk Assessment\nSubstantive Fieldwork Procedures\nReporting & Final Deliverables'); setShowNewTemplateModal(true); }}>
+          <button className="btn primary sm" onClick={openNewTemplate}>
             <Icon name="plus" /> Author New Template
           </button>
         </div>
@@ -265,7 +376,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                       >
                         <Icon name="plus" /> Create Job from Template
                       </button>
-                      <button className="btn sm ghost" onClick={() => { setRevisionSourceId(selectedTemplate.id); setNewTplName(selectedTemplate.name); setNewTplService(selectedTemplate.service); setNewTplDescription(selectedTemplate.description); setNewTplDefaultJobTitle(selectedTemplate.defaultJobTitle); setNewTplTasksText(selectedTemplate.tasks.map(task => task.title).join('\n')); setShowNewTemplateModal(true); }}>Create New Revision</button>
+                      <button className="btn sm ghost" onClick={() => openTemplateRevision(selectedTemplate)}>Create New Revision</button>
                       <button
                         className="btn sm ghost"
                         onClick={() => handleRetireTemplate(selectedTemplate.id)}
@@ -313,11 +424,11 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
 
       {/* Instantiate Modal */}
       {showInstantiateModal && selectedTemplate && (
-        <div className="modal-backdrop" onClick={() => setShowInstantiateModal(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>Create Job from "{selectedTemplate.name}"</h2>
-              <button className="icon-btn" onClick={() => setShowInstantiateModal(false)}>✕</button>
+              <button className="icon-btn" aria-label="Discard job instantiation draft" onClick={closeInstantiation}>✕</button>
             </div>
             <form onSubmit={handleInstantiate}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -326,7 +437,11 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                   <select
                     className="input"
                     value={targetEngId}
-                    onChange={e => setTargetEngId(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setTargetEngId(value);
+                      setInstantiationContext(current => current ? { ...current, targetEngagementId: value } : current);
+                    }}
                   >
                     {state.engagements.filter(eng => {
                       const visible = visibleEngagementIds(state);
@@ -390,7 +505,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowInstantiateModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={closeInstantiation}>Discard draft</button>
                 <button type="submit" className="btn primary sm">Instantiate Job</button>
               </div>
             </form>
@@ -400,11 +515,11 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
 
       {/* Author New Template Modal */}
       {showNewTemplateModal && (
-        <div className="modal-backdrop" onClick={() => setShowNewTemplateModal(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>{revisionSourceId ? `Revise ${templates.find(template => template.id === revisionSourceId)?.name}` : 'Author New Job Template'}</h2>
-              <button className="icon-btn" onClick={() => setShowNewTemplateModal(false)}>✕</button>
+              <button className="icon-btn" aria-label="Discard template draft" onClick={closeTemplateAuthoring}>✕</button>
             </div>
             <form onSubmit={handleCreateTemplateSubmit}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -470,7 +585,7 @@ export const JobTemplatesView: React.FC<JobTemplatesViewProps> = ({ onNavigate }
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => setShowNewTemplateModal(false)}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={closeTemplateAuthoring}>Discard draft</button>
                 <button type="submit" className="btn primary sm">{revisionSourceId ? 'Save Draft Revision' : 'Create Draft Template'}</button>
               </div>
             </form>

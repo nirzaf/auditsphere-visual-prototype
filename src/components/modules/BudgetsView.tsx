@@ -2,22 +2,27 @@
 // Actuals are computed ONLY from approved time entries (§5.5). Submitted-but-
 // unapproved time is shown separately; missing cost rates render as unknown,
 // never zero. Supports authoring new budget versions, editing rates, and practice aggregation.
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, BudgetRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
-import { visibleEngagementIds } from '../../services/guards';
+import { canOpenRoute, visibleEngagementIds } from '../../services/guards';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 
 interface BudgetsViewProps {
   onNavigate: (route: RouteKey) => void;
+  onRegisterUnsavedForm?: (guard: UnsavedFormGuard | null, key?: string) => void;
+  onBeforeContextChange?: (change: () => void) => void;
 }
 
-export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
+export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate, onRegisterUnsavedForm, onBeforeContextChange }) => {
   const state = prototypeStore.getSnapshot();
   const canViewInternalCosts = state.currentRole !== 'billing';
   const [activeTab, setActiveTab] = useState<'single' | 'aggregation'>('single');
   const [showAuthorModal, setShowAuthorModal] = useState(false);
+  const authorModalOpen = useRef(false);
+  const [budgetDraftContext, setBudgetDraftContext] = useState<{ engagementId: string; baseVersion: number } | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const allowedEngagementIds = visibleEngagementIds(state);
@@ -42,12 +47,16 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
   };
 
   const handleOpenAuthorModal = () => {
+    if (!selectedEng) return;
+    const budget = state.budgets.find(item => item.engagementId === selectedEng.id);
+    setBudgetDraftContext({ engagementId: selectedEng.id, baseVersion: budget?.version || 0 });
     setEditLines(rawBudget?.lines.map(l => ({
         roleOrActivity: l.roleOrActivity,
         plannedHours: l.plannedMinutes / 60,
         billingRatePerHour: l.billingRatePerHour,
         costRatePerHour: l.costRatePerHour ?? ''
       })) || [{ roleOrActivity: '', plannedHours: 0, billingRatePerHour: 0, costRatePerHour: '' }]);
+    authorModalOpen.current = true;
     setShowAuthorModal(true);
   };
 
@@ -59,10 +68,24 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
     setEditLines(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveBudgetVersion = () => {
-    if (!selectedEng) return;
+  const handleSaveBudgetVersion = (): boolean => {
+    const currentState = prototypeStore.getSnapshot();
+    const context = budgetDraftContext;
+    const targetEngagement = context && currentState.engagements.find(item => item.id === context.engagementId);
+    const targetBudget = context && currentState.budgets.find(item => item.engagementId === context.engagementId);
+    const visible = visibleEngagementIds(currentState);
+    if (!context || !targetEngagement || currentState.selectedEngagement !== context.engagementId
+      || !canOpenRoute(currentState.currentRole, 'budgets', currentState.users.some(user => user.id === currentState.currentUserId && user.status === 'Active'))
+      || (visible !== 'ALL' && !visible.includes(context.engagementId))) {
+      triggerNotice('error', 'The original budget engagement is no longer the active permitted context. Reopen the budget draft before saving.');
+      return false;
+    }
+    if ((targetBudget?.version || 0) !== context.baseVersion) {
+      triggerNotice('error', 'This budget changed after the draft was opened. Reload the current version and reapply your edits.');
+      return false;
+    }
     try {
-      const nextVersion = (rawBudget?.version || 0) + 1;
+      const nextVersion = context.baseVersion + 1;
       const newBudgetLines = editLines.map((l, idx) => ({
         id: `BL-${nextVersion}-${idx + 1}`,
         roleOrActivity: l.roleOrActivity.trim(),
@@ -70,25 +93,51 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
         billingRatePerHour: l.billingRatePerHour,
         costRatePerHour: canViewInternalCosts
           ? l.costRatePerHour === '' ? undefined : l.costRatePerHour
-          : rawBudget?.lines.find(prior => prior.roleOrActivity.trim().toLowerCase() === l.roleOrActivity.trim().toLowerCase())?.costRatePerHour
+          : targetBudget?.lines.find(prior => prior.roleOrActivity.trim().toLowerCase() === l.roleOrActivity.trim().toLowerCase())?.costRatePerHour
       }));
 
       const newBudget: BudgetRecord = {
-        id: rawBudget?.id || `BDG-${selectedEng.id}`,
-        engagementId: selectedEng.id,
+        id: targetBudget?.id || `BDG-${targetEngagement.id}`,
+        engagementId: targetEngagement.id,
         version: nextVersion,
-        currency,
+        currency: targetBudget?.currency || targetEngagement.currency,
         status: 'Approved',
         lines: newBudgetLines
       };
 
       prototypeStore.updateBudget(newBudget);
+      authorModalOpen.current = false;
       setShowAuthorModal(false);
+      setBudgetDraftContext(null);
       triggerNotice('success', `Budget Version ${nextVersion} saved successfully with ${newBudgetLines.length} rate-bound activities.`);
+      return true;
     } catch (err: any) {
       triggerNotice('error', err.message);
+      return false;
     }
   };
+
+  const discardBudgetDraft = () => {
+    authorModalOpen.current = false;
+    setShowAuthorModal(false);
+    setBudgetDraftContext(null);
+  };
+
+  useEffect(() => {
+    if (!onRegisterUnsavedForm) return;
+    if (!showAuthorModal) {
+      onRegisterUnsavedForm(null, 'budget-authoring');
+      return;
+    }
+    const guard: UnsavedFormGuard = {
+      label: 'Budget authoring',
+      isDirty: () => authorModalOpen.current,
+      save: handleSaveBudgetVersion,
+      discard: discardBudgetDraft
+    };
+    onRegisterUnsavedForm(guard, 'budget-authoring');
+    return () => onRegisterUnsavedForm(null, 'budget-authoring');
+  }, [onRegisterUnsavedForm, showAuthorModal, budgetDraftContext, editLines]);
 
   if (!selectedEng) {
     return (
@@ -378,8 +427,12 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
                         <button
                           className="btn sm"
                           onClick={() => {
-                            prototypeStore.setSelectedEngagement(eng.id);
-                            setActiveTab('single');
+                            const drillDown = () => {
+                              prototypeStore.setSelectedEngagement(eng.id);
+                              setActiveTab('single');
+                            };
+                            if (onBeforeContextChange) onBeforeContextChange(drillDown);
+                            else drillDown();
                           }}
                         >
                           Drill Down
@@ -400,7 +453,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
           <div className="modal-card" style={{ maxWidth: 700 }}>
             <div className="between">
               <h3>Author Budget Version (v{(rawBudget?.version || 0) + 1})</h3>
-              <button className="btn sm ghost" onClick={() => setShowAuthorModal(false)}>✕</button>
+              <button className="btn sm ghost" aria-label="Discard budget draft" onClick={discardBudgetDraft}>✕</button>
             </div>
             <p className="sub mt4">
               Configure planned hours, billing realization rates, and staff delivery cost rates for {client?.name} ({selectedEng.id}).
@@ -476,8 +529,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate }) => {
             </button>
 
             <div className="row mt20" style={{ gap: 10, justifyContent: 'flex-end' }}>
-              <button className="btn sm ghost" onClick={() => setShowAuthorModal(false)}>Cancel</button>
-              <button className="btn primary sm" onClick={handleSaveBudgetVersion}>
+              <button className="btn sm ghost" onClick={discardBudgetDraft}>Discard draft</button>
+              <button className="btn primary sm" onClick={() => { handleSaveBudgetVersion(); }}>
                 Save Version {(rawBudget?.version || 0) + 1}
               </button>
             </div>

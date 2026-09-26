@@ -11,9 +11,12 @@ import {
   calculateMateriality,
   calculateBalanceSheet,
   applyReportingAdjustments,
-  getEffectiveTimeEntries
+  getEffectiveTimeEntries,
+  getPackageContextDisplay
 } from '../../src/services/calculations.js';
 import type { TrialBalanceRow } from '../../src/types/index.js';
+import { createInitialState } from '../../src/store/initialState.js';
+import { seedPackageDefinition } from './packageFixture.js';
 
 const TB_8: TrialBalanceRow[] = [
   { code: '1000', name: 'Cash', type: 'asset', balance: 10000 },
@@ -25,6 +28,19 @@ const TB_8: TrialBalanceRow[] = [
   { code: '4000', name: 'Revenue', type: 'revenue', balance: -6000 },
   { code: '5000', name: 'Expenses', type: 'expense', balance: 3000 }
 ];
+
+describe('engagement package context header (F03)', () => {
+  it('distinguishes unavailable, not-created, current and stale package output', () => {
+    const engagement = structuredClone(createInitialState().engagements[0]);
+    assert.deepEqual(getPackageContextDisplay(undefined), { revision: '', status: 'Unavailable' });
+    assert.deepEqual(getPackageContextDisplay(engagement), { revision: '', status: 'Not created' });
+
+    seedPackageDefinition(engagement);
+    assert.deepEqual(getPackageContextDisplay(engagement), { revision: `v${engagement.packageRevision}`, status: 'Current' });
+    assert.deepEqual(getPackageContextDisplay({ ...engagement, sourceVersion: engagement.sourceVersion + 1 }), { revision: `v${engagement.packageRevision}`, status: 'Stale / blocked' });
+    assert.deepEqual(getPackageContextDisplay({ ...engagement, generation: engagement.generation + 1 }), { revision: `v${engagement.packageRevision}`, status: 'Stale / blocked' });
+  });
+});
 
 describe('accounting fixed example (AT-38/AT-40)', () => {
   it('nets to zero with assets 23,000 / liabilities 10,000 / profit 3,000', () => {

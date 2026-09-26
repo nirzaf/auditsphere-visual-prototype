@@ -779,6 +779,8 @@ export interface CommunicationItem {
   id: string;
   clientId: string;
   engagementId?: string;
+  /** Explicitly client-wide communications must opt in; missing engagement ownership is not a scope grant. */
+  scopeKind?: 'Client' | 'Engagement';
   jobId?: string;
   direction: 'Outbound' | 'Inbound';
   channel: 'Email' | 'Phone' | 'Meeting' | 'Portal message';

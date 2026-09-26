@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope, eligibleAuditRiskOwners } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, canReadSearchRecord, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope, eligibleAuditRiskOwners } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition, seedManagementAcknowledgement } from './packageFixture.js';
@@ -62,6 +62,30 @@ describe('scope guards (AT-18)', () => {
   it('client identity with two grants sees both entities', () => {
     const clients = visibleClientIds(state, 'client_admin');
     assert.deepEqual([...(clients as string[])].sort(), ['CL-001', 'CL-003']);
+  });
+});
+
+describe('global search access projection (F01)', () => {
+  it('requires the record engagement as well as the shared client grant', () => {
+    setPersona(state, 'Mona Khalil');
+    const siblingInvoice = { route: 'billing' as const, clientId: 'CL-001', engagementId: 'ENG-26003', requiresEngagement: true };
+    const permittedInvoice = { ...siblingInvoice, engagementId: 'ENG-26001' };
+    assert.equal(visibleClientIds(state).includes('CL-001'), true, 'the single engagement grant still exposes the client summary');
+    assert.equal(canReadSearchRecord(state, siblingInvoice), false, 'same-client sibling engagement metadata is denied');
+    assert.equal(canReadSearchRecord(state, permittedInvoice), true, 'the granted engagement invoice is readable by the manager');
+    assert.equal(canReadSearchRecord(state, { ...permittedInvoice, engagementId: 'ENG-26002' }), false, 'engagement ownership must match the stated client');
+  });
+
+  it('hides billing search from preparers and only permits explicitly client-wide communications', () => {
+    setPersona(state, 'Adam Khan');
+    const invoice = { route: 'billing' as const, clientId: 'CL-001', engagementId: 'ENG-26001', requiresEngagement: true };
+    assert.equal(canReadSearchRecord(state, invoice), false, 'a wide engagement grant does not grant the billing route');
+
+    setPersona(state, 'Mona Khalil');
+    assert.equal(canReadSearchRecord(state, { route: 'communications', clientId: 'CL-001', clientWide: true }), true);
+    assert.equal(canReadSearchRecord(state, { route: 'communications', clientId: 'CL-001', requiresEngagement: true }), false, 'missing engagement ownership does not become a client-wide permission');
+    const communication = { route: 'communications' as const, clientId: 'CL-001', engagementId: 'ENG-26003', requiresEngagement: true };
+    assert.equal(canReadSearchRecord(state, communication), false, 'a stale or revoked sibling-scope click is rejected against current state');
   });
 });
 
@@ -304,7 +328,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 26);
+    assert.equal(migrated.schema, 27);
   });
   it('adds proposal catalogue and historical period/fee metadata when upgrading pre-v25 state', () => {
     const legacy = structuredClone(createInitialState()) as any;
@@ -359,9 +383,26 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(unresolved.invoices[0].clientId, undefined, 'do not guess when an engagement ID is ambiguous');
     assert.ok(validateFixtures(unresolved).some(issue => issue.code === 'FK_INVOICE_CLIENT'));
   });
-  it('upgrades each persisted schema revision through current v26 without losing histories', () => {
+  it('restores missing invoice lines only when the remaining invoice identity matches its seed', () => {
+    const legacy = structuredClone(createInitialState()) as any;
+    legacy.schema = 26;
+    delete legacy.invoices[0].lines;
+    const { state: migrated, warnings } = migratePersistedState(legacy, createInitialState());
+    assert.deepEqual(migrated.invoices[0].lines, createInitialState().invoices[0].lines);
+    assert.ok(warnings.some(warning => warning.includes('Restored the missing line collection for unchanged seeded invoice INV-26001')));
+    assert.deepEqual(validateFixtures(migrated), []);
+
+    const customized = structuredClone(createInitialState()) as any;
+    customized.schema = 26;
+    delete customized.invoices[0].lines;
+    customized.invoices[0].description = 'Custom audit invoice';
+    const unresolved = migratePersistedState(customized, createInitialState()).state;
+    assert.equal(unresolved.invoices[0].lines, undefined, 'custom invoice details must not receive invented lines');
+    assert.ok(validateFixtures(unresolved).some(issue => issue.code === 'INVOICE_LINES'));
+  });
+  it('upgrades each persisted schema revision through current v27 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 25; version++) {
+    for (let version = 0; version <= 26; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 22) {
@@ -392,7 +433,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       if (version < 23) for (const group of legacy.consolidationGroups) { delete group.reportingBasis; group.components.forEach((component: any) => delete component.packageReview); }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 26, `schema ${version} should reach v26`);
+      assert.equal(migrated.schema, 27, `schema ${version} should reach v27`);
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, version < 23 ? 'Pending' : seed.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status);
       assert.ok(Array.isArray(migrated.statementSetRevisions));

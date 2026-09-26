@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 26;
+export const CURRENT_SCHEMA = 27;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -414,6 +414,26 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       if (clientId && state.clients.some(client => client.id === clientId)) {
         invoice.clientId = clientId;
         warnings.push(`Linked invoice ${invoice.id} to client ${clientId} using its unique engagement ${engagementId} (v26).`);
+      }
+    }
+  }
+  if (from < 27) {
+    for (const invoice of state.invoices || []) {
+      if (Array.isArray(invoice.lines)) continue;
+      const seededInvoices = fresh.invoices.filter(item => item.id === invoice.id);
+      if (seededInvoices.length !== 1) continue;
+      const seeded = seededInvoices[0];
+      const engagementId = invoice.engagementId || invoice.eng;
+      const seededEngagementId = seeded.engagementId || seeded.eng;
+      const matchesSeedIdentity = invoice.clientId === seeded.clientId
+        && engagementId === seededEngagementId
+        && invoice.invoiceNumber === seeded.invoiceNumber
+        && invoice.description === seeded.description
+        && invoice.amount === seeded.amount
+        && invoice.currency === seeded.currency;
+      if (matchesSeedIdentity && Array.isArray(seeded.lines) && seeded.lines.length > 0) {
+        invoice.lines = structuredClone(seeded.lines);
+        warnings.push(`Restored the missing line collection for unchanged seeded invoice ${invoice.id} (v27).`);
       }
     }
   }
