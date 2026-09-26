@@ -112,8 +112,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
   }, []);
   // Desktop sidebar collapse is a presenter preference, persisted separately from
   // the validated business state.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('ste-auditsphere-sidebar-collapsed') === '1'; } catch { return false; }
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {    try { return localStorage.getItem('ste-auditsphere-sidebar-collapsed') === '1'; } catch { return false; }
   });
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed(current => {
@@ -123,6 +122,13 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     });
   };
   const [toasts, setToasts] = useState<Array<{ id: number; text: string; type?: string }>>([]);
+  const [recoveryResetArmed, setRecoveryResetArmed] = useState(false);
+  const recoveryBannerVisible = Boolean(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode());
+  useEffect(() => {
+    // A reload restores the previous scroll position, which can leave the
+    // top-anchored integrity banner above the fold; surface it immediately.
+    if (recoveryBannerVisible) window.scrollTo(0, 0);
+  }, [recoveryBannerVisible]);
   const importInput = useRef<HTMLInputElement>(null);
   const activeIdentity = state.users.find(user => user.id === state.currentUserId)?.status === 'Active';
 
@@ -359,14 +365,20 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
     <div id="app-root" className={sidebarCollapsed ? 'sidebar-collapsed' : undefined}>
       <a className="skip-link" href="#main">Skip to main content</a>
       <input ref={importInput} type="file" accept="application/json,.json" aria-label="Import validated state JSON" onChange={handleImportState} style={{ display: 'none' }} />
-      {(prototypeStore.getLoadError() || prototypeStore.isSessionOnlyMode()) && (
-        <div role="status" className="panel panel-pad" style={{ background: '#fff7ed', color: '#9a3412', margin: 12 }}>
+      {recoveryBannerVisible && (
+        <div role="status" className="panel panel-pad recovery-banner" style={{ background: '#fff7ed', color: '#9a3412' }}>
           {prototypeStore.getLoadError() || 'Browser storage is unavailable; changes last only for this session.'}
           <div className="row mt8" style={{ gap: 8 }}>
             <button className="btn sm" onClick={() => downloadJSON(`auditsphere-state-${state.asOfDate}.json`, prototypeStore.exportStateJSON())}>Export current state</button>
             {prototypeStore.getPreservedStateJSON() && <button className="btn sm" onClick={() => downloadJSON(`auditsphere-preserved-${state.asOfDate}.json`, prototypeStore.getPreservedStateJSON()!)}>Export preserved payload</button>}
             {importStateButton}
-            <button className="btn sm ghost" onClick={() => { if (window.confirm('Reset local demo data to the default baseline? The current payload remains available as a recovery backup.')) prototypeStore.resetState(); }}>Reset to default</button>
+            {recoveryResetArmed
+              ? <span className="row" style={{ gap: 8 }}>
+                  <button className="btn sm" onClick={() => prototypeStore.resetState()}>Confirm reset</button>
+                  <button className="btn sm ghost" onClick={() => setRecoveryResetArmed(false)}>Cancel reset</button>
+                  <span className="caption">The current payload stays available as a recovery backup.</span>
+                </span>
+              : <button className="btn sm ghost" onClick={() => setRecoveryResetArmed(true)}>Reset to default</button>}
           </div>
         </div>
       )}

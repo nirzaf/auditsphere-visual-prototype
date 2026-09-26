@@ -101,3 +101,8 @@ main[id],h1{scroll-margin-top:90px}
   .portal-hero select{width:100%;max-width:100%}
   .portal-hero .btn{width:100%;justify-content:center}
 }
+
+/* Recovery banner sits beside the fixed sidebar like .shell content (GUI test finding). */
+.recovery-banner{margin:12px 12px 0 calc(var(--sidebar) + 12px)}
+#app-root.sidebar-collapsed .recovery-banner{margin-left:calc(66px + 12px)}
+@media(max-width:760px){.recovery-banner{margin-left:12px}}

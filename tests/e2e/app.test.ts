@@ -4954,6 +4954,60 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
+  it('VP-038-E01/E02: re-confirms reflected journals after a replacement trial balance', async () => {
+    const key = 'ste-auditsphere-role-portals-v2';
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(key)})`);
+    try {
+      const fixture = createInitialState();
+      const journal = fixture.adjustmentJournals.find(item => item.id === 'AJ-01')!;
+      journal.reflectionStatus = 'Reflected in TB';
+      journal.reflectedInClientBooks = true;
+      journal.reflectionSourceVersion = 1;
+      journal.reflectionEvidenceRef = 'TB-IMPORT-REV-1';
+      journal.reflectionHistory = [{ status: 'Reflected in TB', sourceVersion: 1, evidenceRef: 'TB-IMPORT-REV-1', recordedAt: '2026-09-24T08:00:00.000Z', recordedByUserId: 'manager' }];
+      journal.status = 'Reporting included';
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(JSON.stringify(fixture))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await browserTab!.evaluate(`(() => {const role=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(role,'manager');role.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem(${JSON.stringify(key)})).currentRole==='manager'`), true);
+      await clickButton('Accounting Workbench');
+      await clickButton('Trial Balance & Intake');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Trial-Balance Intake")'), true);
+
+      const csv = await browserTab!.evaluate<string>(`(() => {const e=JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.find(x=>x.id==='ENG-26001');const rows=structuredClone(e.rows);rows[0].balance+=100;rows[1].balance-=100;return ['code,name,balance',...rows.map(r=>[r.code,r.name.replaceAll(',',' '),r.balance].join(','))].join(String.fromCharCode(10));})()`);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Trial balance source file"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(csv)}],'reflection-replacement.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Selected: reflection-replacement.csv")'), true, 'the current TB replacement is selected before preview');
+      await clickButton('Preview & validate');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Preview ready:")'), true, await browserTab!.evaluate<string>('([...document.querySelectorAll(".panel")].find(p=>p.innerText.includes("Trial-Balance Intake"))?.innerText||document.body.innerText.slice(-1400))'));
+      await clickButton('Commit as new source revision');
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));const e=s.engagements.find(x=>x.id==='ENG-26001');const j=s.adjustmentJournals.find(x=>x.id==='AJ-01');return e.sourceVersion===2&&j.reflectionSourceVersion===1&&j.reflectionStatus==='Reflected in TB';})()`), true, `TB replacement preserves the historical reflection while making its source pin stale: ${await browserTab!.evaluate<string>(`JSON.stringify((()=>{const s=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));return {engagement:s.engagements.find(x=>x.id==='ENG-26001'),journal:s.adjustmentJournals.find(x=>x.id==='AJ-01')};})())`)}`);
+
+      await clickButton('Financial Statements');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("AJ-01: Reflection must be confirmed against current TB source v2.")'), true, 'the report shows why the prior reflected adjustment is excluded after replacement');
+      assert.equal(await browserTab!.evaluate<boolean>('document.body.innerText.includes("Accepted, unreflected adjustments included: None.")'), true, 'a stale reflection contributes no reporting adjustment');
+      await clickButton('Accounting Workbench');
+      await clickButton('Trial Balance & Intake');
+
+      const adjustments = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('.tab-btn')].find(x=>x.innerText.trim().startsWith('Adjustments'));if(!b)return false;b.click();return true;})()`);
+      assert.equal(adjustments, true);
+      assert.equal(await waitForBrowser('document.querySelector("[aria-label=\\"Reflection status for AJ-01\\"]")?.value==="Unknown"'), true, 'stale reflection is visibly presented as requiring review');
+      await browserTab!.evaluate(`(() => {const evidence=document.querySelector('[aria-label="Reflection evidence reference for AJ-01"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'TB-IMPORT-REV-2');evidence.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[aria-label="Save reflection evidence for AJ-01"]').click();})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem(${JSON.stringify(key)})).adjustmentJournals.find(x=>x.id==='AJ-01').reflectionEvidenceRef==='TB-IMPORT-REV-2'`), true);
+      await browserTab!.evaluate(`(() => {const status=document.querySelector('[aria-label="Reflection status for AJ-01"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'Reflected in TB');status.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`(() => {const s=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));const e=s.engagements.find(x=>x.id==='ENG-26001');const j=s.adjustmentJournals.find(x=>x.id==='AJ-01');return j.reflectionSourceVersion===e.sourceVersion&&j.reflectionStatus==='Reflected in TB'&&j.reflectionEvidenceRef==='TB-IMPORT-REV-2'&&j.reflectionHistory.some(h=>h.sourceVersion===1&&h.status==='Reflected in TB'&&h.evidenceRef==='TB-IMPORT-REV-1');})()`), true, 'the reviewer re-confirms against the current source while preserving the previous reflection decision');
+      await clickButton('Financial Statements');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Accepted, unreflected adjustments included: None.")'), true, 're-confirmed reflected journal adds no duplicate reporting adjustment');
+      assert.equal(await browserTab!.evaluate<boolean>('!document.body.innerText.includes("Reflection must be confirmed against current TB source")'), true, 'the stale-source reporting exception clears only after re-confirmation');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem(${JSON.stringify(key)})`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('AT-38: routes a new adjustment through independent technical review and client acceptance', async () => {
     const switchPersona = async (label: string, role: string) => {
       await browserTab!.evaluate(`(() => {const s=document.querySelector('#role-select');const o=[...s.options].find(x=>x.textContent.includes(${JSON.stringify(label)}));if(!o)throw Error('Missing persona: '+${JSON.stringify(label)});Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -5549,13 +5603,15 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      await browserTab!.evaluate('window.confirm = () => false');
       await clickButton('Reset to default');
-      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'declining reset preserves the unsupported payload');
-      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'declining reset leaves the exact backup intact');
+      assert.equal(await waitForBrowser(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Confirm reset')`), true, 'the first click arms the reset with an explicit confirmation step');
+      await clickButton('Cancel reset');
+      assert.equal(await waitForBrowser(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Reset to default')`), true, 'cancel disarms the reset without changing state');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'disarmed reset preserves the unsupported payload');
+      assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'disarmed reset leaves the exact backup intact');
       assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v26, newer than supported v25/);
-      await browserTab!.evaluate('window.confirm = () => true');
       await clickButton('Reset to default');
+      await clickButton('Confirm reset');
       assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v25")'), true, 'confirmed reset returns to a usable baseline');
       const resetState = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
       assert.equal(resetState.schema, 25);
