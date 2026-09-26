@@ -4,7 +4,7 @@ import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
-import { visibleEngagementIds } from '../../services/guards';
+import { hasAnyRole, visibleEngagementIds } from '../../services/guards';
 import { parsePopulation, POPULATION_FILE_LIMIT } from '../../services/populationImport';
 
 interface SamplingViewProps { onNavigate: (route: RouteKey) => void }
@@ -45,7 +45,7 @@ export const SamplingView: React.FC<SamplingViewProps> = ({ onNavigate }) => {
   const selectedValue = population?.items.filter(item => item.selected).reduce((sum, item) => sum + item.amount, 0) || 0;
   const tested = population?.items.filter(item => item.selected && item.tested).length || 0;
   const limited = population?.items.filter(item => item.selected && item.limitation).length || 0;
-  const canReviewSelection = ['reviewer', 'partner'].includes(state.users.find(user => user.id === state.currentUserId)?.role || '');
+  const canReviewSelection = hasAnyRole(state, ['reviewer', 'partner']);
   const exceptions = population?.items.filter(item => item.selected && item.result === 'Exception noted').length || 0;
   const difference = population?.items.filter(item => item.selected).reduce((sum, item) => sum + (item.difference || 0), 0) || 0;
 

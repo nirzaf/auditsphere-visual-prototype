@@ -279,6 +279,8 @@ export const App: React.FC = () => {
         return (
           <ClientsView
             onNavigate={navigate}
+            onBeforeContextChange={requestContextChange}
+            onRegisterUnsavedForm={registerUnsavedForm}
             onSelectClientDetail={(cid) => {
               setSelectedClientId(cid);
               navigate('client-detail');
@@ -293,12 +295,13 @@ export const App: React.FC = () => {
             searchTargetId={searchTargetId}
             onBack={() => navigate('clients')}
             onNavigate={navigate}
+            onBeforeContextChange={requestContextChange}
             onRegisterUnsavedForm={registerUnsavedForm}
           />
         );
       case 'acquisition':
       case 'crm' as any:
-        return <LeadsPipelineView onNavigate={navigate} />;
+        return <LeadsPipelineView onNavigate={navigate} onBeforeContextChange={requestContextChange} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'proposals':
         return <ProposalsView onNavigate={navigate} onRegisterUnsavedForm={registerUnsavedForm} />;
       case 'engagements':
@@ -394,8 +397,8 @@ export const App: React.FC = () => {
   return (
     <Shell currentRoute={effectiveRoute} onRouteChange={navigate} onSelectClient={(clientId) => requestContextChange(() => setSelectedClientId(clientId))} onBeforeContextChange={requestContextChange}>
       {renderModule()}
-      {pendingTransition && <div className="modal-backdrop" onClick={stayOnCurrentRoute}><section className="modal" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
-        <div className="modal-head"><h2>Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={stayOnCurrentRoute}>✕</button></div>
+      {pendingTransition && <div className="modal-backdrop" onClick={stayOnCurrentRoute}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title" style={{ maxWidth: 480 }} onClick={event => event.stopPropagation()}>
+        <div className="modal-head"><h2 id="unsaved-changes-title">Unsaved changes</h2><button type="button" className="icon-btn" aria-label="Cancel navigation" onClick={stayOnCurrentRoute}>✕</button></div>
         <div className="modal-body"><p>{pendingTransition.label} has unsaved changes. Save them before leaving, discard them, or stay here.</p>{transitionError && <p className="banner amber mt12" role="alert">{transitionError}</p>}</div>
         <div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => resolveTransition('discard')}>Discard and continue</button><button type="button" className="btn sm" onClick={stayOnCurrentRoute}>Stay</button><button type="button" className="btn primary sm" onClick={() => void resolveTransition('save')}>Save and continue</button></div>
       </section></div>}

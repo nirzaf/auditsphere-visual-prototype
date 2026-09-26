@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, CommunicationItem, EmailTemplateItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
@@ -150,7 +151,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
             </div>
           )}
           {communications.map(comm => {
-            const canCorrect = comm.direction === 'Inbound' && (comm.author === state.currentPerson || state.currentRole === 'manager' || state.currentRole === 'partner');
+            const canCorrect = comm.direction === 'Inbound' && (comm.author === state.currentPerson || hasAnyRole(state, ['manager', 'partner']));
             return <div key={comm.id} className="borderbox" style={{ padding: 16 }}>
               <div className="between">
                 <div className="row" style={{ gap: 10 }}>
@@ -306,7 +307,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ onNaviga
                 <label className="caption">Related job (optional)<select className="input mt4" value={relatedJobId} onChange={e => setRelatedJobId(e.target.value)}><option value="">No job link</option>{clientJobs.map(job => <option key={job.id} value={job.id}>{job.title}</option>)}</select></label>
                 <label className="caption">Recorded date<input type="date" className="input mt4" aria-label="Communication date" max={state.asOfDate} value={noteDate} onChange={e => setNoteDate(e.target.value)} required /></label>
                 <label className="caption">Related document (optional)<select className="input mt4" aria-label="Communication document" value={noteDocumentId} onChange={event => { setNoteDocumentId(event.target.value); setNoteError(''); }}><option value="">No document link</option>{communicationDocuments.filter(document => noteVisibility !== 'Client visible' || document.visibility === 'Client shared' && !document.brokenLink).map(document => <option key={document.id} value={document.id}>{document.name} · {document.visibility}{document.brokenLink ? ' · Unavailable' : ''}</option>)}</select></label>
-                {(state.currentRole === 'manager' || state.currentRole === 'partner') && <label className="caption">Visibility<select className="input mt4" aria-label="Communication visibility" value={noteVisibility} onChange={event => { const next = event.target.value as CommunicationItem['visibility']; const linked = noteDocumentId ? state.documents.find(document => document.id === noteDocumentId) : undefined; if (next === 'Client visible' && linked && (linked.brokenLink || linked.visibility !== 'Client shared')) { setNoteError('An internal or unavailable document cannot be linked to a client-visible communication. Remove the document link or choose a shared document first.'); return; } if (next === 'Client visible' && !window.confirm('This note will be published in the client portal. Confirm it contains only information approved for client viewing.')) return; setNoteError(''); setNoteVisibility(next); }}><option value="Internal">Internal only</option><option value="Client visible">Client visible</option></select></label>}
+                {hasAnyRole(state, ['manager', 'partner']) && <label className="caption">Visibility<select className="input mt4" aria-label="Communication visibility" value={noteVisibility} onChange={event => { const next = event.target.value as CommunicationItem['visibility']; const linked = noteDocumentId ? state.documents.find(document => document.id === noteDocumentId) : undefined; if (next === 'Client visible' && linked && (linked.brokenLink || linked.visibility !== 'Client shared')) { setNoteError('An internal or unavailable document cannot be linked to a client-visible communication. Remove the document link or choose a shared document first.'); return; } if (next === 'Client visible' && !window.confirm('This note will be published in the client portal. Confirm it contains only information approved for client viewing.')) return; setNoteError(''); setNoteVisibility(next); }}><option value="Internal">Internal only</option><option value="Client visible">Client visible</option></select></label>}
                 {noteVisibility === 'Client visible' && <div className="banner warning" role="note">This communication will appear in the client portal for this client and engagement.</div>}
                 {editingCommunicationId && <label className="caption">Correction reason (500 characters maximum)<textarea className="input" aria-label="Communication correction reason" maxLength={500} rows={2} value={correctionReason} onChange={event => setCorrectionReason(event.target.value)} required /></label>}
                 <div>

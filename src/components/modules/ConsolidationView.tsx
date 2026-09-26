@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TrialBalanceRow } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { hasConsolidationGroupScope, visibleEngagementIds } from '../../services/guards';
+import { hasConsolidationGroupScope, isSuperuserRole, visibleEngagementIds } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { calculateConsolidatedBalanceSheet, formatCurrency } from '../../services/calculations';
 import { artifactSha256, downloadVerifiedArtifact, persistArtifact } from '../../services/artifactStore';
@@ -603,7 +603,7 @@ export const ConsolidationView: React.FC<ConsolidationViewProps> = ({ onNavigate
             {latestOutput && <div className="borderbox panel-pad mt12">
               <b>Revision {latestOutput.revision} · {outputIsCurrent ? latestOutput.status : 'Stale — rebuild required'}</b>
               <div className="caption mt4">Prepared by {latestOutput.preparedByUserId} · {latestOutput.evidenceRef} · SHA-256 {latestOutput.artifact.sha256}</div>
-              {outputIsCurrent && latestOutput.status !== 'Approved' && state.users.find(user => user.id === state.currentUserId)?.role === 'partner' && latestOutput.preparedByUserId !== state.currentUserId && <>
+              {outputIsCurrent && latestOutput.status !== 'Approved' && (state.currentRole === 'partner' || isSuperuserRole(state.currentRole)) && (latestOutput.preparedByUserId !== state.currentUserId || isSuperuserRole(state.currentRole)) && <>
                 <label className="caption mt8">Independent review rationale<input className="input mt4" aria-label="Group output review rationale" value={outputReviewNote} onChange={event => setOutputReviewNote(event.target.value)} /></label>
                 <label className="caption mt8">Review evidence reference<input className="input mt4" aria-label="Group output review evidence" value={outputReviewEvidence} onChange={event => setOutputReviewEvidence(event.target.value)} /></label>
                 <div className="row mt8"><button className="btn primary sm" onClick={() => { try { prototypeStore.reviewConsolidationOutputPackage(group.id, latestOutput.id, 'Approved', outputReviewNote, outputReviewEvidence); setOutputNotice('Group output independently approved.'); } catch (error: any) { setOutputNotice(error.message); } }}>Approve group output</button><button className="btn sm" onClick={() => { try { prototypeStore.reviewConsolidationOutputPackage(group.id, latestOutput.id, 'Returned', outputReviewNote, outputReviewEvidence); setOutputNotice('Group output returned with review history retained.'); } catch (error: any) { setOutputNotice(error.message); } }}>Return for rework</button></div>

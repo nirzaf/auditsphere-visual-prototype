@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { RoleKey, RouteKey, UserPersona } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { roleRequiresApprovalEvidence } from '../../services/guards';
+import { roleRequiresApprovalEvidence, isSuperuserRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface AdministrationViewProps {
@@ -503,7 +503,7 @@ const FirmSettingsPanel: React.FC<{
   const firm = state.firmSettings;
   const [draft, setDraft] = useState({ ...firm });
   const [reason, setReason] = useState('');
-  const isAdmin = state.currentRole === 'admin' && state.roleGrants.some(g => g.userId === state.currentUserId && g.role === 'admin' && g.scopeKind === 'Global');
+  const isAdmin = isSuperuserRole(state.currentRole) || (state.currentRole === 'admin' && state.roleGrants.some(g => g.userId === state.currentUserId && g.role === 'admin' && g.scopeKind === 'Global'));
   const firmEvents = state.events.filter(event => event.ref === 'FIRM').slice(0, 5);
   const changed = JSON.stringify(draft) !== JSON.stringify(firm);
 

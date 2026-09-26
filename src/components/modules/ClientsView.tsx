@@ -2,16 +2,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientRecord, RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
-import { visibleClientIds, visibleEngagementIds } from '../../services/guards';
+import { visibleClientIds, visibleEngagementIds, hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { ClientProfileModal } from './ClientProfileModal';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface ClientsViewProps {
   onNavigate: (route: RouteKey) => void;
   onSelectClientDetail: (clientId: string) => void;
+  onBeforeContextChange: (change: () => void) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectClientDetail }) => {
+export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectClientDetail, onBeforeContextChange, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const filterStorageKey = `ste-auditsphere-client-list-filters:${state.currentRole}`;
   const [filterText, setFilterText] = useState(() => {
@@ -41,6 +44,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
     setEditingClient(null);
     restoreModalFocus();
   }, [restoreModalFocus]);
+  const requestProfileClose = useCallback(() => onBeforeContextChange(closeProfileModal), [onBeforeContextChange, closeProfileModal]);
 
   useEffect(() => {
     if (!showAddModal && !editingClient) return;
@@ -51,7 +55,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeProfileModal();
+        requestProfileClose();
       } else if (event.key === 'Tab') {
         const items = controls();
         if (!items.length) return;
@@ -66,11 +70,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
     return () => {
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [showAddModal, editingClient, closeProfileModal]);
+  }, [showAddModal, editingClient, closeProfileModal, requestProfileClose]);
 
   const allowedClientIds = visibleClientIds(state);
   const allowedEngagementIds = visibleEngagementIds(state);
-  const canCreateClient = ['relationship', 'manager', 'partner'].includes(state.currentRole) && allowedClientIds === 'ALL';
+  const canCreateClient = hasAnyRole(state, ['relationship', 'manager', 'partner']) && allowedClientIds === 'ALL';
   const filteredClients = state.clients.filter(c => {
     const q = filterText.toLowerCase();
     return (allowedClientIds === 'ALL' || allowedClientIds.includes(c.id))
@@ -165,7 +169,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
               </div>
 
               <div className="between mt20">
-                {['relationship', 'manager', 'partner'].includes(state.currentRole) && (allowedClientIds === 'ALL' || allowedClientIds.includes(client.id)) && <button id={`client-edit-trigger-${client.id}`} className="btn sm ghost" onClick={() => { modalTriggerId.current = `client-edit-trigger-${client.id}`; setEditingClient(client); }}>
+                {hasAnyRole(state, ['relationship', 'manager', 'partner']) && (allowedClientIds === 'ALL' || allowedClientIds.includes(client.id)) && <button id={`client-edit-trigger-${client.id}`} className="btn sm ghost" onClick={() => { modalTriggerId.current = `client-edit-trigger-${client.id}`; setEditingClient(client); }}>
                   Edit Profile
                 </button>}
                 <button
@@ -198,7 +202,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate, onSelectCl
         currentPerson={state.currentPerson}
         state={state}
         onClose={closeProfileModal}
+        onRequestClose={requestProfileClose}
         onSave={handleSaveClient}
+        onRegisterUnsavedForm={onRegisterUnsavedForm}
       />}
     </div>
   );

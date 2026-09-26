@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { RouteKey, AcceptanceCaseRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, hasRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface AuditAcceptanceViewProps {
@@ -148,7 +149,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           <p>Annual continuance evaluation, independence verification, engagement conditions, and partner sign-off trail.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn primary sm" onClick={handleSaveEvaluation} disabled={!['onboarding', 'compliance', 'manager', 'reviewer'].includes(state.currentRole)}>
+          <button className="btn primary sm" onClick={handleSaveEvaluation} disabled={!hasAnyRole(state, ['onboarding', 'compliance', 'manager', 'reviewer'])}>
             <Icon name="check" /> Save Recommendation
           </button>
         </div>
@@ -339,7 +340,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
                 aria-label="Final decision status"
                 className="input"
                 value={partnerDecision}
-                disabled={state.currentRole !== 'partner' || !existingCase}
+                disabled={!hasRole(state, 'partner') || !existingCase}
                 onChange={e => setPartnerDecision(e.target.value as any)}
               >
                 <option value="Pending">Pending Further Clarifications / Conditions</option>
@@ -360,7 +361,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
               className="input"
               rows={2}
               value={partnerRationale}
-              disabled={state.currentRole !== 'partner'}
+              disabled={!hasRole(state, 'partner')}
               onChange={e => setPartnerRationale(e.target.value)}
             />
           </div>
@@ -368,7 +369,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
           <button
             className="btn primary sm mt16"
             onClick={handleRecordPartnerDecision}
-            disabled={state.currentRole !== 'partner' || !existingCase || partnerDecision === 'Pending'}
+            disabled={!hasRole(state, 'partner') || !existingCase || partnerDecision === 'Pending'}
           >
             Record Partner Decision
           </button>
@@ -392,7 +393,7 @@ export const AuditAcceptanceView: React.FC<AuditAcceptanceViewProps> = ({ onNavi
             <>
               <label className="caption mt12" htmlFor="continuance-changed-facts">Current-period changes from prior period</label>
               <textarea id="continuance-changed-facts" className="input mt4" rows={3} value={changedFacts} onChange={e => setChangedFacts(e.target.value)} placeholder="Record changed ownership, activities, risks, independence or other relevant facts" />
-              <button className="btn primary sm mt12" onClick={handleCreateContinuance} disabled={!['manager', 'partner'].includes(state.currentRole) || !changedFacts.trim()}>
+              <button className="btn primary sm mt12" onClick={handleCreateContinuance} disabled={!hasAnyRole(state, ['manager', 'partner']) || !changedFacts.trim()}>
                 Create Fresh FY{selectedEng.year + 1} Draft
               </button>
             </>

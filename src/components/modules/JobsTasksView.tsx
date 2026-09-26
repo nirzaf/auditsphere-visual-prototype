@@ -6,7 +6,7 @@ import { RouteKey, JobRecord, JobTaskItem, CommentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { getEffectiveTimeEntries } from '../../services/calculations';
 import { Icon } from '../common/Icons';
-import { visibleEngagementIds, isClientRole, canOpenRoute } from '../../services/guards';
+import { visibleEngagementIds, isClientRole, canOpenRoute, hasAnyRole, isSuperuserRole } from '../../services/guards';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface JobsTasksViewProps {
@@ -105,7 +105,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
   // Filter tasks for selected job
   const jobTasks = state.jobTasks.filter(t => scopedJobIds.has(t.jobId) && t.jobId === selectedJob?.id);
   const parentTasks = jobTasks.filter(t => !t.parentTaskId).sort((a, b) => a.order - b.order);
-  const isModerator = ['manager', 'partner'].includes(state.currentRole);
+  const isModerator = hasAnyRole(state, ['manager', 'partner']);
   const isHidden = (comment: CommentItem) => comment.moderationHistory?.at(-1)?.action === 'Hidden';
   const jobComments = state.comments.filter(comment => comment.subjectType === 'job' && comment.subjectId === selectedJob?.id && comment.visibility === 'internal' && (isModerator || !isHidden(comment)));
   const taskComments = state.comments.filter(comment => comment.subjectType === 'task' && jobTasks.some(task => task.id === comment.subjectId) && comment.visibility === 'internal' && (isModerator || !isHidden(comment)));
@@ -289,7 +289,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
           <button className="btn sm ghost" onClick={() => onNavigate('job-templates')}>
             <Icon name="layers" /> Job Templates
           </button>
-          {['manager', 'partner'].includes(state.currentRole) ? (
+          {isModerator ? (
             <button className="btn primary sm" onClick={openAddJobModal}>
               <Icon name="plus" /> New Job
             </button>
@@ -324,7 +324,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
             Create a custom job or instantiate a standard delivery template to begin tracking engagement deliverables.
           </p>
           <div className="row mt16" style={{ justifyContent: 'center', gap: 10 }}>
-            {['manager', 'partner'].includes(state.currentRole) && (
+            {isModerator && (
               <button className="btn primary sm" onClick={openAddJobModal}>
                 <Icon name="plus" /> Create New Job
               </button>
@@ -393,8 +393,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                     <span className="eyebrow">JOB WORKSPACE · {selectedJob.id}</span>
                     <h2>{selectedJob.title}</h2>
                     <p className="sub">{client?.name || selectedJob.clientId} · Due: {selectedJob.dueDate} · Owner: {selectedJob.owner}</p>
-                    {['manager', 'partner'].includes(state.currentRole) && selectedJob.status !== 'Cancelled' && <button className="btn sm ghost mt8" onClick={() => openJobEdit(selectedJob)}>Edit Job Details</button>}
-                    <label className="caption block mt8">Manual job status<select aria-label="Selected job status" value={selectedJob.status} disabled={!['manager', 'partner'].includes(state.currentRole) || selectedJob.status === 'Cancelled'} onChange={e => handleUpdateJobStatus(selectedJob, e.target.value as JobRecord['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
+                    {isModerator && selectedJob.status !== 'Cancelled' && <button className="btn sm ghost mt8" onClick={() => openJobEdit(selectedJob)}>Edit Job Details</button>}
+                    <label className="caption block mt8">Manual job status<select aria-label="Selected job status" value={selectedJob.status} disabled={!isModerator || selectedJob.status === 'Cancelled'} onChange={e => handleUpdateJobStatus(selectedJob, e.target.value as JobRecord['status'])}>{['Not started', 'In progress', 'Blocked', 'Completed', 'Cancelled'].map(status => <option key={status}>{status}</option>)}</select></label>
                     {selectedJob.status === 'Blocked' && <p className="caption mt4">Blocked: {selectedJob.blockedReason}</p>}
                     {selectedJob.status === 'Cancelled' && <p className="caption mt4" role="status">Cancelled by {selectedJob.cancelledByUserId || 'recorded user'} on {selectedJob.cancelledAt || 'date unavailable'} · {selectedJob.cancellationReason || 'No reason recorded'}. Tasks and linked records are retained.</p>}
                   </div>
@@ -456,8 +456,8 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                               <button className="btn sm ghost" aria-label={`Move ${parent.title} down`} disabled={selectedJob.status === 'Cancelled' || parentTasks.at(-1)?.id === parent.id} onClick={() => moveTask(parent, 1)}>↓</button>
                               <button
                                 className="btn sm ghost"
-                                disabled={selectedJob.status === 'Cancelled' || !['manager', 'partner'].includes(state.currentRole)}
-                                title={!['manager', 'partner'].includes(state.currentRole) ? 'Reassignment requires a manager or partner' : undefined}
+                                disabled={selectedJob.status === 'Cancelled' || !isModerator}
+                                title={!isModerator ? 'Reassignment requires a manager or partner' : undefined}
                                 onClick={() => openReassignment(parent)}
                               >
                                 Reassign
@@ -501,7 +501,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                                     <button className="btn sm ghost" aria-label={`Edit task ${sub.id}`} disabled={selectedJob.status === 'Cancelled'} onClick={() => openTaskEdit(sub)}>Edit</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} up`} disabled={selectedJob.status === 'Cancelled' || subtasks[0]?.id === sub.id} onClick={() => moveTask(sub, -1)}>↑</button>
                                     <button className="btn sm ghost" aria-label={`Move ${sub.title} down`} disabled={selectedJob.status === 'Cancelled' || subtasks.at(-1)?.id === sub.id} onClick={() => moveTask(sub, 1)}>↓</button>
-                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled' || !['manager', 'partner'].includes(state.currentRole)} title={!['manager', 'partner'].includes(state.currentRole) ? 'Reassignment requires a manager or partner' : undefined} onClick={() => openReassignment(sub)}>Reassign</button>
+                                    <button className="btn sm ghost" disabled={selectedJob.status === 'Cancelled' || !isModerator} title={!isModerator ? 'Reassignment requires a manager or partner' : undefined} onClick={() => openReassignment(sub)}>Reassign</button>
                                   </div>
                                 </div>
                               ))}
@@ -514,7 +514,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                 </div>
                 <div className="divider mt20" />
                 <div className="between"><div><h4>Internal Job Notes</h4><p className="caption">Visible to authorized staff only · mentions create local notices only</p></div><button className="btn sm ghost" onClick={() => openNoteModal({type:'job',id:selectedJob.id,label:'Job'})}>Add Internal Note</button></div>
-                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => {const hidden = isHidden(comment);return <div className="borderbox" style={{ padding: 12, opacity: hidden ? 0.75 : 1 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => openNoteModal({type:'job',id:comment.subjectId,label:'Job'}, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => {const reason=window.prompt(`Reason to ${hidden?'restore':'hide'} this internal note?`)||'';if(!reason.trim())return;try{prototypeStore.moderateComment(comment.id,!hidden,reason);triggerNotice('success',`Internal note ${hidden?'restored':'hidden'} with history recorded.`);}catch(err:any){triggerNotice('error',err.message);}}}>{hidden?'Restore':'Moderate'}</button>}</div></div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}{comment.moderationHistory?.map(item => ` · ${item.action} by ${item.by}: ${item.reason}`).join('')}</div></div>;})}</div>}
+                {jobComments.length === 0 ? <p className="sub mt8">No internal notes on this job.</p> : <div className="stack mt12">{jobComments.map(comment => {const hidden = isHidden(comment);return <div className="borderbox" style={{ padding: 12, opacity: hidden ? 0.75 : 1 }} key={comment.id}><div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{(comment.author === state.currentPerson || isSuperuserRole(state.currentRole)) && !hidden && <button className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => openNoteModal({type:'job',id:comment.subjectId,label:'Job'}, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => {const reason=window.prompt(`Reason to ${hidden?'restore':'hide'} this internal note?`)||'';if(!reason.trim())return;try{prototypeStore.moderateComment(comment.id,!hidden,reason);triggerNotice('success',`Internal note ${hidden?'restored':'hidden'} with history recorded.`);}catch(err:any){triggerNotice('error',err.message);}}}>{hidden?'Restore':'Moderate'}</button>}</div></div><div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.mentions?.map(id => mentionableUsers.find(user => user.id === id)?.name || id).join(', ')}{comment.moderationHistory?.map(item => ` · ${item.action} by ${item.by}: ${item.reason}`).join('')}</div></div>;})}</div>}
                 <section className="panel panel-pad mt20" aria-label="Task notes">
                   <h4>Task Notes</h4>
                   <p className="caption">Internal notes stay attached to the selected task and remain staff-only.</p>
@@ -525,7 +525,7 @@ export const JobsTasksView: React.FC<JobsTasksViewProps> = ({ onNavigate, search
                         {taskComments.filter(comment => comment.subjectId === task.id).map(comment => {
                           const hidden = isHidden(comment);
                           return <div className="borderbox panel-pad mt8" key={comment.id} style={{ opacity: hidden ? 0.75 : 1 }}>
-                            <div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{comment.author === state.currentPerson && !hidden && <button className="btn sm ghost" onClick={() => openNoteModal({ type: 'task', id: task.id, label: `Task: ${task.title}` }, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => { const reason = window.prompt(`Reason to ${hidden ? 'restore' : 'hide'} this task note?`) || ''; if (!reason.trim()) return; try { prototypeStore.moderateComment(comment.id, !hidden, reason); triggerNotice('success', `Task note ${hidden ? 'restored' : 'hidden'}.`); } catch (err: any) { triggerNotice('error', err.message); } }}>{hidden ? 'Restore' : 'Moderate'}</button>}</div></div>
+                            <div className="between"><p style={{ whiteSpace: 'pre-wrap' }}>{comment.text}{hidden && <span className="tag amber ml8">Hidden by moderation</span>}</p><div className="row">{(comment.author === state.currentPerson || isSuperuserRole(state.currentRole)) && !hidden && <button className="btn sm ghost" onClick={() => openNoteModal({ type: 'task', id: task.id, label: `Task: ${task.title}` }, comment)}>Edit</button>}{isModerator && <button className="btn sm ghost" onClick={() => { const reason = window.prompt(`Reason to ${hidden ? 'restore' : 'hide'} this task note?`) || ''; if (!reason.trim()) return; try { prototypeStore.moderateComment(comment.id, !hidden, reason); triggerNotice('success', `Task note ${hidden ? 'restored' : 'hidden'}.`); } catch (err: any) { triggerNotice('error', err.message); } }}>{hidden ? 'Restore' : 'Moderate'}</button>}</div></div>
                             <div className="cell-sub mt8">{comment.author} · {new Date(comment.createdAt).toLocaleString()}{comment.edited ? ` · Edited by ${comment.editedBy} at ${new Date(comment.editedAt!).toLocaleString()}` : ''} · {comment.moderationHistory?.map(item => `${item.action} by ${item.by}: ${item.reason}`).join(' · ')}</div>
                           </div>;
                         })}

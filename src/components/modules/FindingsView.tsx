@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { RouteKey, AuditFindingItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 
@@ -15,7 +16,7 @@ export const FindingsView: React.FC<FindingsViewProps> = ({ onNavigate, searchTa
   const findings = state.findings.filter(item => item.engagementId === state.selectedEngagement);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notice, setNotice] = useState('');
-  const canDisposition = ['manager', 'reviewer', 'partner'].includes(state.currentRole);
+  const canDisposition = hasAnyRole(state, ['manager', 'reviewer', 'partner']);
 
   // New finding form
   const [title, setTitle] = useState('');

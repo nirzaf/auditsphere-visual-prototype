@@ -5,6 +5,7 @@ import { PrototypeState, UserPersona, RoleKey } from '../types';
 import { CURRENT_SCHEMA } from '../services/migrations';
 
 export const ALL_PERSONAS: UserPersona[] = [
+  { id: 'superuser', role: 'superuser', name: 'AuditSphere Superuser', initials: 'SU', label: 'Superuser · Full Prototype Access', group: 'System / Prototype Testing', email: 'superuser@auditsphere.demo', status: 'Active' },
   { id: 'manager', role: 'manager', name: 'Layla Rahman', initials: 'LR', label: 'Engagement manager', group: 'Professional', email: 'layla.rahman@ste-audit.demo', status: 'Active' },
   { id: 'manager-2', role: 'manager', name: 'Mariam Saeed', initials: 'MS', label: 'Engagement manager (second)', group: 'Professional', email: 'mariam.saeed@ste-audit.demo', status: 'Active' },
   { id: 'partner', role: 'partner', name: 'Daniel James', initials: 'DJ', label: 'Engagement partner', group: 'Professional', email: 'daniel.james@ste-audit.demo', status: 'Active' },
@@ -44,6 +45,7 @@ export function createInitialState(): PrototypeState {
     currentPerson: 'Layla Rahman',
     users: ALL_PERSONAS,
     roleGrants: [
+      { userId: 'superuser', role: 'superuser', scopeKind: 'Global' },
       { userId: 'manager', role: 'manager', scopeKind: 'Global' },
       { userId: 'manager-2', role: 'manager', scopeKind: 'Global' },
       { userId: 'partner', role: 'partner', scopeKind: 'Global' },

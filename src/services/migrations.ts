@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 27;
+export const CURRENT_SCHEMA = 28;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -72,7 +72,7 @@ export function validateFixtures(state: PrototypeState): IntegrityIssue[] {
         if (totals.date !== line.date || totals.currency !== line.currency) issues.push({ code: 'GL_SOURCE_JOURNAL', message: `GL journal ${line.journalId} on ${e.id} mixes dates or currencies.` });
         totals.debit += line.debit; totals.credit += line.credit; journals.set(line.journalId, totals);
       }
-      const validColumnMapping = revision?.columnMapping === undefined || revision.columnMapping && typeof revision.columnMapping === 'object' && !Array.isArray(revision.columnMapping) && Object.keys(revision.columnMapping).length <= 10 && Object.entries(revision.columnMapping).every(([key, value]) => /^(journal|line|date|account|name|debit|credit|currency|description|opening)$/.test(key) && typeof value === 'string' && value.length <= 256);
+      const validColumnMapping = revision?.columnMapping === undefined || revision.columnMapping && typeof revision.columnMapping === 'object' && !Array.isArray(revision.columnMapping) && Object.keys(revision.columnMapping).length <= 14 && Object.entries(revision.columnMapping).every(([key, value]) => /^(journal|line|date|account|name|debit|credit|currency|description|opening|serviceDate|department|costCentre|project)$/.test(key) && typeof value === 'string' && value.length <= 256);
       if (!revision || !validColumnMapping || revision.revision !== index + 1 || !Number.isInteger(revision.revision) || revision.revision < 1 || glRevisionNumbers.has(revision.revision) || revision.predecessorRevision !== (revision.revision > 1 ? revision.revision - 1 : undefined) || typeof revision.fileName !== 'string' || !revision.fileName.trim() || !['CSV', 'XLSX', 'Legacy'].includes(revision.format) || revision.format !== 'Legacy' && !/^[a-f0-9]{64}$/i.test(revision.sha256 || '') || typeof revision.importedAt !== 'string' || !validDate(revision.importedAt.slice(0, 10)) || !userIds.has(revision.importedByUserId) || !book || !lines.length || !revision.openingBalances || typeof revision.openingBalances !== 'object' || Array.isArray(revision.openingBalances) || Object.values(revision.openingBalances).some(value => !Number.isFinite(value) || Math.abs(value * 100 - Math.round(value * 100)) > 1e-7) || [...journals.values()].some(totals => Math.abs(totals.debit - totals.credit) > 0.005)) {
         issues.push({ code: 'GL_SOURCE_REVISION', message: `GL revision ${revision?.revision ?? '(missing revision)'} on ${e.id} contains invalid source metadata, period, opening balances or journal totals.` });
       }
@@ -435,6 +435,14 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
         invoice.lines = structuredClone(seeded.lines);
         warnings.push(`Restored the missing line collection for unchanged seeded invoice ${invoice.id} (v27).`);
       }
+    }
+  }
+  if (from < 28) {
+    state.users = Array.isArray(state.users) ? state.users : [];
+    const seededSuperuser = fresh.users.find(user => user.id === 'superuser');
+    if (seededSuperuser && !state.users.some(user => user.id === seededSuperuser.id)) {
+      state.users.push(structuredClone(seededSuperuser));
+      warnings.push('Added the synthetic full-access prototype testing persona (v28).');
     }
   }
   for (const evidence of state.evidenceCatalogue || []) {

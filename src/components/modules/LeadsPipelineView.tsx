@@ -1,16 +1,19 @@
 // Module 03: Leads & Opportunities Pipeline (VP-009)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, LeadOpportunity } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { Icon } from '../common/Icons';
 import { formatCurrency } from '../../services/calculations';
 import { visibleClientIds } from '../../services/guards';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 interface LeadsPipelineViewProps {
   onNavigate: (route: RouteKey) => void;
+  onBeforeContextChange: (change: () => void) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate }) => {
+export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate, onBeforeContextChange, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadOpportunity | null>(null);
@@ -28,15 +31,15 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
   const [targetDate, setTargetDate] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [discoveryNotes, setDiscoveryNotes] = useState('');
+  const leadForm = useRef<HTMLFormElement>(null);
+  const initialLeadDraft = useRef({ name: '', contact: '', service: 'External audit', value: 1000000, currency: 'QAR', stage: 'Inquiry' as LeadOpportunity['stage'], source: '', targetDate: '', nextAction: '', discoveryNotes: '' });
 
   const stages: Array<LeadOpportunity['stage']> = ['Inquiry', 'Discovery', 'Evaluation', 'Proposal', 'Won', 'Lost', 'Unqualified'];
   const clientScope = visibleClientIds(state);
   const convertibleClients = state.clients.filter(client => clientScope === 'ALL' || clientScope.includes(client.id));
 
-  const handleAddLead = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!leadName.trim()) return;
-
+  const saveLeadDraft = () => {
+    if (!leadForm.current?.reportValidity()) return false;
     const newLead: LeadOpportunity = {
       id: `LD-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       name: leadName,
@@ -54,15 +57,31 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
       terms: false
     };
 
-    prototypeStore.addLead(newLead);
-    setShowAddModal(false);
-    setLeadName('');
-    setContact('');
-    setSource('');
-    setTargetDate('');
-    setNextAction('');
-    setDiscoveryNotes('');
+    try {
+      prototypeStore.addLead(newLead);
+      setShowAddModal(false);
+      setLeadName(''); setContact(''); setService('External audit'); setValue(1000000); setCurrency('QAR'); setStage('Inquiry');
+      setSource(''); setTargetDate(''); setNextAction(''); setDiscoveryNotes('');
+      return true;
+    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); return false; }
   };
+  const handleAddLead = (e: React.FormEvent) => { e.preventDefault(); saveLeadDraft(); };
+
+  useEffect(() => {
+    const guard: UnsavedFormGuard = {
+      label: 'commercial inquiry draft',
+      isDirty: () => showAddModal && JSON.stringify({ name: leadName, contact, service, value, currency, stage, source, targetDate, nextAction, discoveryNotes }) !== JSON.stringify(initialLeadDraft.current),
+      save: saveLeadDraft,
+      discard: () => {
+        setShowAddModal(false); setLeadName(''); setContact(''); setService('External audit'); setValue(1000000); setCurrency('QAR'); setStage('Inquiry');
+        setSource(''); setTargetDate(''); setNextAction(''); setDiscoveryNotes('');
+      }
+    };
+    onRegisterUnsavedForm(guard, 'lead-create');
+    return () => onRegisterUnsavedForm(null, 'lead-create');
+  }, [showAddModal, leadName, contact, service, value, currency, stage, source, targetDate, nextAction, discoveryNotes, onRegisterUnsavedForm]);
+
+  const requestLeadClose = () => onBeforeContextChange(() => setShowAddModal(false));
 
   const saveLeadDetails = () => {
     if (!selectedLead) return;
@@ -237,13 +256,13 @@ export const LeadsPipelineView: React.FC<LeadsPipelineViewProps> = ({ onNavigate
 
       {/* New Opportunity Modal */}
       {showAddModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={requestLeadClose}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="lead-create-title" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>Register Commercial Inquiry</h2>
-              <button className="icon-btn" onClick={() => setShowAddModal(false)}>✕</button>
+              <h2 id="lead-create-title">Register Commercial Inquiry</h2>
+              <button type="button" className="icon-btn" onClick={requestLeadClose}>✕</button>
             </div>
-            <form onSubmit={handleAddLead}>
+            <form ref={leadForm} onSubmit={handleAddLead}>
               <div className="modal-body stack" style={{ gap: 12 }}>
                 <div>
                   <label className="caption">Prospective Client Name</label>

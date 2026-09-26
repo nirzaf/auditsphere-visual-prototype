@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CashFlowScheduleRevision, RouteKey, TrialBalanceRow, StatementLayoutRevision } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { applyReportingAdjustments, calculateBalanceSheet, calculateIncomeStatement, formatCurrency } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
@@ -36,7 +37,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const client = state.clients.find(c => c.id === selectedEng?.client);
   const mappingHistory = (state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id);
   const currentMapping = [...mappingHistory].sort((a, b) => b.revision - a.revision)[0];
-  const canEditLayout = ['manager', 'preparer', 'partner'].includes(state.currentRole);
+  const canEditLayout = hasAnyRole(state, ['manager', 'preparer', 'partner']);
   const layoutHistory = (state.statementLayoutRevisions || []).filter(item => item.engagementId === selectedEng?.id).sort((a, b) => b.revision - a.revision);
   const latestLayout = layoutHistory[0];
   const layoutVersion = latestLayout?.revision || 1;
@@ -89,7 +90,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
     );
   }
 
-  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion, prototypeStore.getAdjustmentSupportIssues(selectedEng.id));
   const mappedAccounts = currentMapping?.mappings || [];
   const unmappedRows = selectedEng.rows.filter(row => !mappedAccounts.some(mapping => mapping.accountCode === row.code));
   const mappingReady = Boolean(currentMapping?.status === 'Approved' && !unmappedRows.length);
@@ -131,7 +132,7 @@ export const FinancialStatementsView: React.FC<FinancialStatementsViewProps> = (
   const priorMapping = comparativeEngagement && [...(state.accountMappingRevisions || []).filter(item => item.engagementId === comparativeEngagement.id)].sort((a, b) => b.revision - a.revision)[0];
   const priorUnmapped = comparativeEngagement?.rows.filter(row => !priorMapping?.mappings.some(mapping => mapping.accountCode === row.code)) || [];
   const priorMappingReady = Boolean(priorMapping?.status === 'Approved' && priorUnmapped.length === 0);
-  const priorAdjustmentResult = comparativeEngagement && applyReportingAdjustments(comparativeEngagement.rows, state.adjustmentJournals.filter(j => j.engagementId === comparativeEngagement.id), comparativeEngagement.sourceVersion);
+  const priorAdjustmentResult = comparativeEngagement && applyReportingAdjustments(comparativeEngagement.rows, state.adjustmentJournals.filter(j => j.engagementId === comparativeEngagement.id), comparativeEngagement.sourceVersion, prototypeStore.getAdjustmentSupportIssues(comparativeEngagement.id));
   const priorRows = comparativeEngagement && priorMappingReady && priorAdjustmentResult ? mapRows(priorAdjustmentResult.rows, priorMapping!.mappings) : [];
   const priorBalanceSheet = priorRows.length ? calculateBalanceSheet(priorRows) : null;
   const priorIncomeStatement = priorRows.length ? calculateIncomeStatement(priorRows) : null;

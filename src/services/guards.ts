@@ -27,6 +27,28 @@ export function roleRequiresApprovalEvidence(role: RoleKey): boolean {
   return ['partner', 'manager', 'preparer', 'reviewer', 'eqr', 'client'].includes(role);
 }
 
+/** Prototype-only full-access identity; it does not represent production authentication. */
+export function isSuperuserRole(role: RoleKey): boolean {
+  return role === 'superuser';
+}
+
+/** Shared capability predicate used by UI affordances and centralized store authorization. */
+export function hasAnyRole(state: PrototypeState, roles: readonly RoleKey[]): boolean {
+  return isSuperuserRole(state.currentRole) || roles.includes(state.currentRole);
+}
+
+export function hasRole(state: PrototypeState, role: RoleKey): boolean {
+  return isSuperuserRole(state.currentRole) || state.currentRole === role;
+}
+
+/** Record each prototype-only authorization/actor override; never changes validation rules. */
+export function recordPrototypeSuperuserOverride(state: PrototypeState, action: string): boolean {
+  if (!isSuperuserRole(state.currentRole) || !activePersona(state).active) return false;
+  state.events.unshift({ text: `Prototype Superuser Override: ${state.currentPerson} accessed ${action}; this is a test-only override, not an independent approval.`, ref: 'SUPERUSER-OVERRIDE', time: new Date().toISOString(), type: 'shield' });
+  if (state.events.length > 50) state.events.pop();
+  return true;
+}
+
 const staleStates = new WeakSet<object>();
 
 export function markStateStale(state: PrototypeState, stale: boolean): void {
@@ -60,6 +82,7 @@ export function requireActiveIdentity(state: PrototypeState): void {
 export function visibleClientIds(state: PrototypeState, userId = state.currentUserId): string[] | 'ALL' {
   const user = state.users.find(u => u.id === userId && u.status === 'Active');
   if (!user || (userId === state.currentUserId && !activePersona(state).active)) return [];
+  if (isSuperuserRole(user.role)) return 'ALL';
   const today = state.asOfDate || new Date().toISOString().slice(0, 10);
   const grants = state.roleGrants.filter(g => g.userId === userId && g.role === user.role && (!g.effectiveFrom || g.effectiveFrom <= today) && (!g.expiresAt || g.expiresAt >= today));
   if (grants.length === 0) return [];
@@ -78,6 +101,7 @@ export function visibleClientIds(state: PrototypeState, userId = state.currentUs
 export function visibleEngagementIds(state: PrototypeState, userId = state.currentUserId): string[] | 'ALL' {
   const user = state.users.find(u => u.id === userId && u.status === 'Active');
   if (!user || (userId === state.currentUserId && !activePersona(state).active)) return [];
+  if (isSuperuserRole(user.role)) return 'ALL';
   const today = state.asOfDate || new Date().toISOString().slice(0, 10);
   const grants = state.roleGrants.filter(g => g.userId === userId && g.role === user.role && (!g.effectiveFrom || g.effectiveFrom <= today) && (!g.expiresAt || g.expiresAt >= today));
   if (grants.length === 0) return [];
@@ -102,6 +126,7 @@ export function hasSelectedEngagementScope(state: PrototypeState): boolean {
 export function hasConsolidationGroupScope(state: PrototypeState, groupId: string, userId = state.currentUserId): boolean {
   const user = state.users.find(item => item.id === userId && item.status === 'Active');
   if (!user || (userId === state.currentUserId && !activePersona(state).active)) return false;
+  if (isSuperuserRole(user.role)) return state.consolidationGroups.some(item => item.id === groupId);
   const today = state.asOfDate || new Date().toISOString().slice(0, 10);
   const grants = state.roleGrants.filter(grant => grant.userId === userId && grant.role === user.role && (!grant.effectiveFrom || grant.effectiveFrom <= today) && (!grant.expiresAt || grant.expiresAt >= today));
   if (grants.some(grant => grant.scopeKind === 'Global')) return true;
@@ -156,6 +181,7 @@ export function requireEngagementScope(state: PrototypeState, engagementId: stri
 
 /** Same natural person cannot approve their own preparation by switching role labels. */
 export function requireIndependentActor(preparer: string, actor: string, action: string, state?: PrototypeState): void {
+  if (state && recordPrototypeSuperuserOverride(state, action)) return;
   const naturalId = (identity: string) => {
     const user = state?.users.find(u => u.id === identity || u.name === identity);
     return user?.personId || user?.id || identity;
@@ -189,6 +215,7 @@ const PROFESSIONAL_ROUTES: RouteKey[] = [
 /** Shared UI route policy; App checks it again so direct navigation cannot bypass the sidebar. */
 export function canOpenRoute(role: RoleKey, route: RouteKey, active = true): boolean {
   if (!active) return route === 'requirements';
+  if (isSuperuserRole(role)) return true;
   if (route === 'requirements') return true;
   // The module guide is read-only client-demo guidance available to every active persona.
   if (route === 'module-guide') return true;

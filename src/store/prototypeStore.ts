@@ -1,11 +1,11 @@
 // AuditSphere Single Typed Store & Command Boundary
 // VP-002, VP-004, VP-019, VP-056: Single state, guarded actions, reactive subscriptions
 
-import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, InvoiceLineItem, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, StatementLayoutRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision, ProposalServiceDefinition, ProposalContentTemplate } from '../types';
+import { PrototypeState, RoleKey, ClientRecord, EngagementRecord, JobRecord, JobTaskItem, JobTemplateItem, TimeEntryItem, InvoiceRecord, InvoiceLineItem, ReceiptRecord, CreditNoteRecord, PbcRequestItem, WorkpaperItem, WorkpaperTemplateItem, ReviewNoteItem, AdjustmentJournalItem, AdjustmentJournalSupportLinks, ConsolidationGroupRecord, DocumentItem, CommunicationItem, AcceptanceCaseRecord, AuditPlanRecord, ArchiveRecord, ArchiveHistoryEntry, ArchivedArtifactRecord, SimulatedInvitation, IdentityStatusEvent, StatementSetRevision, StatementLayoutRevision, CashFlowScheduleRevision, ReconciliationSchedule, ClientAccountingProfile, GLSourceRevision, ProposalServiceDefinition, ProposalContentTemplate } from '../types';
 import { createInitialState } from './initialState';
 import { ScenarioName, loadScenarioState } from './scenarios';
 import { CURRENT_SCHEMA, migratePersistedState, validateFixtures } from '../services/migrations';
-import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, eligibleAuditRiskOwners, isClientRole, canOpenRoute, GuardError, markStateStale, roleRequiresApprovalEvidence, requireConsolidationGroupScope } from '../services/guards';
+import { requireActiveIdentity, requireIndependentActor, requireEngagementScope, requireClientScope, visibleClientIds, visibleEngagementIds, eligibleReviewAssignees, eligibleAuditRiskOwners, isClientRole, canOpenRoute, GuardError, markStateStale, roleRequiresApprovalEvidence, requireConsolidationGroupScope, isSuperuserRole, hasAnyRole, recordPrototypeSuperuserOverride } from '../services/guards';
 import { applyReportingAdjustments, calculateReconciliationVariance } from '../services/calculations';
 import { validatePbcUpload } from '../services/pbcUpload';
 import { consolidationOutputFingerprint } from '../services/consolidationOutput';
@@ -24,12 +24,12 @@ const isSampleFrameReconciled = (state: PrototypeState, population: PrototypeSta
 };
 
 const requireRole = (state: PrototypeState, allowed: RoleKey[], action: string) => {
-  if (!allowed.includes(state.currentRole)) {
+  if (!isSuperuserRole(state.currentRole) && !allowed.includes(state.currentRole)) {
     throw new GuardError('FORBIDDEN_SCOPE', `Role "${state.currentRole}" cannot ${action}.`);
   }
 };
 const requireGlobalAdmin = (state: PrototypeState, action: string) => {
-  if (state.currentRole !== 'admin' || !state.roleGrants.some(g => g.userId === state.currentUserId && g.role === 'admin' && g.scopeKind === 'Global')) {
+  if (!isSuperuserRole(state.currentRole) && (state.currentRole !== 'admin' || !state.roleGrants.some(g => g.userId === state.currentUserId && g.role === 'admin' && g.scopeKind === 'Global'))) {
     throw new GuardError('FORBIDDEN_SCOPE', `Only administrators with an active Global grant can ${action}.`);
   }
 };
@@ -88,6 +88,52 @@ class PrototypeStore {
   }
   public isSessionOnlyMode(): boolean { return this.isSessionOnly; }
   public getLoadError(): string | null { return this.loadError; }
+
+  private assertCurrentAdjustmentSupport(engagementId: string, links?: AdjustmentJournalSupportLinks) {
+    if (!links || (!links.evidence && !links.workpaper && !links.finding)) return;
+    const engagement = this.state.engagements.find(item => item.id === engagementId);
+    if (!engagement) throw new GuardError('FORBIDDEN_SCOPE', 'Journal support must belong to an available engagement.');
+    if (links.evidence) {
+      const pin = links.evidence;
+      const evidence = this.state.evidenceCatalogue.find(item => item.id === pin.id);
+      const document = evidence && this.state.documents.find(item => item.id === evidence.documentId);
+      if (!evidence || !document || document.id !== pin.documentId || document.clientId !== engagement.client || document.engagementId !== engagementId || document.brokenLink) {
+        throw new GuardError('FORBIDDEN_SCOPE', 'Linked evidence must resolve to an available document within this engagement and client.');
+      }
+      if (this.state.documents.some(item => item.supersedesDocumentId === document.id)) throw new GuardError('STALE_REVISION', 'Linked evidence points to a superseded document. Select evidence for the current document revision.');
+      if (evidence.adequacyStatus !== 'Adequate' || evidence.version !== pin.evidenceVersion || document.version !== pin.documentVersion || evidence.version !== document.version) {
+        throw new GuardError('STALE_REVISION', 'Linked evidence is not adequate at the pinned current evidence and document revisions. Select a current adequate evidence record.');
+      }
+    }
+    if (links.workpaper) {
+      const workpaper = engagement.workpapers.find(item => item.id === links.workpaper!.id);
+      if (!workpaper || !workpaper.applicable || workpaper.status === 'Not applicable') throw new GuardError('FORBIDDEN_SCOPE', 'Linked workpaper must be available and applicable within this engagement.');
+      if (workpaper.version !== links.workpaper.version) throw new GuardError('STALE_REVISION', 'Linked workpaper revision is stale. Select its current revision.');
+    }
+    if (links.finding) {
+      const finding = this.state.findings.find(item => item.id === links.finding!.id && item.engagementId === engagementId);
+      if (!finding) throw new GuardError('FORBIDDEN_SCOPE', 'Linked finding must belong to this engagement.');
+      if ((finding.revision || 1) !== links.finding.revision) throw new GuardError('STALE_REVISION', 'Linked finding revision is stale. Select its current revision.');
+    }
+  }
+
+  public getAdjustmentSupportIssue(engagementId: string, links?: AdjustmentJournalSupportLinks): string | null {
+    try {
+      this.assertCurrentAdjustmentSupport(engagementId, links);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Journal support could not be verified.';
+    }
+  }
+
+  public getAdjustmentSupportIssues(engagementId: string): Record<string, string> {
+    return Object.fromEntries(this.state.adjustmentJournals
+      .filter(journal => journal.engagementId === engagementId && journal.supportLinks)
+      .flatMap(journal => {
+        const issue = this.getAdjustmentSupportIssue(engagementId, journal.supportLinks);
+        return issue ? [[journal.id, issue] as const] : [];
+      }));
+  }
 
   private loadInitialState(): PrototypeState {
     if (typeof localStorage === 'undefined') {
@@ -562,9 +608,10 @@ class PrototypeStore {
   }
 
   // --- Identity Lifecycle & Simulated Invitations (VP-018) ---
-  public createDemoIdentity(identity: { name: string; email: string; role: RoleKey; label: string; group?: 'Commercial' | 'Professional' | 'Client' | 'Operations' }) {
+  public createDemoIdentity(identity: { name: string; email: string; role: RoleKey; label: string; group?: 'Commercial' | 'Professional' | 'Client' | 'Operations' | 'System / Prototype Testing' }) {
     requireActiveIdentity(this.state);
     requireGlobalAdmin(this.state, 'create demo identities');
+    if (identity.role === 'superuser') throw new GuardError('INVALID_STATE', 'The reserved prototype superuser is seeded for testing and cannot be duplicated or granted through ordinary identity creation.');
     if (!identity.name?.trim() || !identity.email?.trim()) throw new GuardError('INVALID_STATE', 'Identity name and email are required.');
     const normalizedEmail = identity.email.trim().toLowerCase();
     if (this.state.users.some(u => u.email.toLowerCase() === normalizedEmail)) {
@@ -939,7 +986,7 @@ class PrototypeStore {
 
   public reviewProposal(propId: string, approved: boolean, notes?: string) {
     requireActiveIdentity(this.state);
-    if (!['partner', 'manager'].includes(this.state.currentRole)) {
+    if (!hasAnyRole(this.state, ['partner', 'manager'])) {
       throw new GuardError('FORBIDDEN_SCOPE', `Role "${this.state.currentRole}" is not authorized to commercially review proposals. Requires partner or manager.`);
     }
     const prop = this.state.proposals.find(p => p.id === propId);
@@ -1432,7 +1479,7 @@ class PrototypeStore {
       if (!job) throw new GuardError('INVALID_STATE', 'Comment subject was not found.');
       requireEngagementScope(this.state, job.engagementId);
     }
-    if (comment.author === this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'The comment author cannot moderate their own comment.');
+    if (comment.author === this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, 'moderate their own comment')) throw new GuardError('FORBIDDEN_SCOPE', 'The comment author cannot moderate their own comment.');
     if (typeof reason !== 'string' || !reason.trim() || reason.length > 1000) throw new GuardError('INVALID_STATE', 'Comment moderation requires a reason of 1,000 characters or fewer.');
     const currentlyHidden = comment.moderationHistory?.at(-1)?.action === 'Hidden';
     if (currentlyHidden === hidden) throw new GuardError('INVALID_STATE', `Comment is already ${hidden ? 'hidden' : 'visible'}.`);
@@ -1454,7 +1501,7 @@ class PrototypeStore {
       if (!job) throw new GuardError('INVALID_STATE', 'Comment subject was not found.');
       requireEngagementScope(this.state, job.engagementId);
     }
-    if (comment.author !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the comment author can edit this note.');
+    if (comment.author !== this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, 'edit another persona\'s comment')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the comment author can edit this note.');
     if (!text.trim() || text.length > 5000) throw new GuardError('INVALID_STATE', 'Comment text is required and must be 5,000 characters or fewer.');
     comment.text = text.trim();
     comment.edited = true;
@@ -1701,7 +1748,7 @@ class PrototypeStore {
     if (!communication || communication.direction !== 'Inbound') throw new GuardError('INVALID_STATE', 'Only a manually recorded inbound communication can be corrected.');
     requireClientScope(this.state, communication.clientId);
     if (communication.engagementId) requireEngagementScope(this.state, communication.engagementId);
-    if (communication.author !== this.state.currentPerson && !['manager', 'partner'].includes(this.state.currentRole)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the communication author or a manager/partner can correct this record.');
+    if (communication.author !== this.state.currentPerson && !hasAnyRole(this.state, ['manager', 'partner'])) throw new GuardError('FORBIDDEN_SCOPE', 'Only the communication author or a manager/partner can correct this record.');
     if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) throw new GuardError('INVALID_STATE', 'Communication correction requires a reason of 500 characters or fewer.');
     const next = { ...communication, ...changes };
     const recordDate = typeof next.date === 'string' ? next.date.slice(0, 10) : '';
@@ -1757,7 +1804,7 @@ class PrototypeStore {
       throw new GuardError('INVALID_STATE', 'A task-linked time entry must also reference its job.');
     }
     if (!Number.isInteger(entry.durationMinutes) || entry.durationMinutes <= 0 || !entry.activity.trim() || !entry.taskTitle.trim()) throw new GuardError('INVALID_STATE', 'Time entry needs an activity, task, and positive whole-minute duration.');
-    if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'A persona can record time only for itself.');
+    if (entry.person !== this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, `record time for ${entry.person}`)) throw new GuardError('FORBIDDEN_SCOPE', 'A persona can record time only for itself.');
     this.state.times.unshift(entry);
     this.logEvent(`Time entry recorded by ${entry.person} (${entry.durationMinutes} min)`, entry.id);
     this.notify();
@@ -1794,7 +1841,7 @@ class PrototypeStore {
     const entry = this.state.times.find(t => t.id === entryId);
     if (!entry || entry.status !== 'Returned') throw new GuardError('INVALID_STATE', 'Only returned time entries can be resubmitted.');
     requireEngagementScope(this.state, entry.engagementId);
-    if (entry.person !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original time owner can resubmit a returned entry.');
+    if (entry.person !== this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, `resubmit returned time for ${entry.person}`)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original time owner can resubmit a returned entry.');
     if (entry.date > this.state.asOfDate) throw new GuardError('INVALID_STATE', 'Time entry date must be on or before the active scenario date.');
     if (!correction.taskTitle.trim() || !correction.activity.trim() || !Number.isInteger(correction.durationMinutes) || correction.durationMinutes <= 0) throw new GuardError('INVALID_STATE', 'Corrected time requires a task, activity and positive whole-minute duration.');
     entry.status = 'Superseded';
@@ -2283,14 +2330,21 @@ class PrototypeStore {
     const book = profile?.periodBooks.find(item => item.id === engagement?.accountingPeriodBookId && item.ownerEngagementId === engagementId);
     if (!engagement || !book || book.status !== 'Open' || !profile || profile.reportingBasis === 'Not selected' || engagement.accountingProfileRevision !== profile.revision || engagement.accountingChartRevision !== profile.chartRevision) throw new GuardError('INVALID_STATE', 'Select this engagement’s current open accounting period book before importing its general ledger.');
     if (Object.keys(input.openingBalances || {}).some(code => !profile.accounts.some(account => account.code === code && account.active && account.posting))) throw new GuardError('INVALID_STATE', 'GL opening balances must reference active posting accounts in the selected chart.');
-    if (input.columnMapping && (Object.keys(input.columnMapping).length > 10 || Object.entries(input.columnMapping).some(([key, value]) => !/^(journal|line|date|account|name|debit|credit|currency|description|opening)$/.test(key) || typeof value !== 'string' || value.length > 256))) throw new GuardError('INVALID_STATE', 'GL column mapping must contain only bounded, known source fields.');
+    if (input.columnMapping && (Object.keys(input.columnMapping).length > 14 || Object.entries(input.columnMapping).some(([key, value]) => !/^(journal|line|date|account|name|debit|credit|currency|description|opening|serviceDate|department|costCentre|project)$/.test(key) || typeof value !== 'string' || value.length > 256))) throw new GuardError('INVALID_STATE', 'GL column mapping must contain only bounded, known source fields.');
     const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
     const cents = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
     const journalTotals = new Map<string, { debit: number; credit: number; date: string; currency: string }>();
     const keys = new Set<string>();
     if (!input || typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 255 || !['CSV', 'XLSX'].includes(input.format) || typeof input.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(input.sha256) || !Array.isArray(input.transactions) || !input.transactions.length || input.transactions.length > 5000 || !input.openingBalances || typeof input.openingBalances !== 'object' || Array.isArray(input.openingBalances) || Object.values(input.openingBalances).some(value => !Number.isFinite(value) || !cents(value))) throw new GuardError('INVALID_STATE', 'GL import requires a named bounded source, SHA-256, transactions, and cent-accurate opening balances.');
     for (const line of input.transactions) {
-      if (!line || typeof line.journalId !== 'string' || !line.journalId.trim() || line.journalId.length > 128 || typeof line.lineId !== 'string' || !line.lineId.trim() || line.lineId.length > 128 || typeof line.accountCode !== 'string' || !line.accountCode.trim() || line.accountCode.length > 128 || !profile.accounts.some(account => account.code === line.accountCode && account.active && account.posting) || typeof line.accountName !== 'string' || !line.accountName.trim() || line.accountName.length > 255 || typeof line.description !== 'string' || !line.description.trim() || line.description.length > 2048 || typeof line.date !== 'string' || !validDate(line.date) || line.date < book.startDate || line.date > book.endDate || line.currency !== profile.baseCurrency || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || !cents(line.debit) || !cents(line.credit) || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || keys.has(`${line.journalId}\u0000${line.lineId}`)) throw new GuardError('INVALID_STATE', 'GL lines must reference active posting accounts and have unique keys, valid in-period dates, matching currency and exactly one cent-accurate non-negative debit or credit.');
+      const dimensions = line?.dimensions || {};
+      const activeDimensions = new Map((profile.dimensions || []).filter(dimension => dimension.active).map(dimension => [dimension.name, dimension]));
+      const invalidDimension = !dimensions || typeof dimensions !== 'object' || Array.isArray(dimensions) || Object.entries(dimensions).some(([name, value]) => {
+        const configured = activeDimensions.get(name as 'Department' | 'Cost centre' | 'Project');
+        return !configured || typeof value !== 'string' || !value.trim() || value.length > 128 || configured.values.length > 0 && !configured.values.includes(value);
+      });
+      const serviceDateValid = line?.serviceDate === undefined || typeof line.serviceDate === 'string' && validDate(line.serviceDate);
+      if (!line || typeof line.journalId !== 'string' || !line.journalId.trim() || line.journalId.length > 128 || typeof line.lineId !== 'string' || !line.lineId.trim() || line.lineId.length > 128 || typeof line.accountCode !== 'string' || !line.accountCode.trim() || line.accountCode.length > 128 || !profile.accounts.some(account => account.code === line.accountCode && account.active && account.posting) || typeof line.accountName !== 'string' || !line.accountName.trim() || line.accountName.length > 255 || typeof line.description !== 'string' || !line.description.trim() || line.description.length > 2048 || typeof line.date !== 'string' || !validDate(line.date) || line.date < book.startDate || line.date > book.endDate || !serviceDateValid || !cents(line.debit) || !cents(line.credit) || line.currency !== profile.baseCurrency || !Number.isFinite(line.debit) || !Number.isFinite(line.credit) || line.debit < 0 || line.credit < 0 || line.debit > 0 && line.credit > 0 || line.debit === 0 && line.credit === 0 || invalidDimension || keys.has(`${line.journalId}\u0000${line.lineId}`)) throw new GuardError('INVALID_STATE', 'GL lines must reference active posting accounts, use configured dimensions and valid service dates, and have unique keys, in-period dates, matching currency and exactly one cent-accurate non-negative debit or credit.');
       keys.add(`${line.journalId}\u0000${line.lineId}`);
       const totals = journalTotals.get(line.journalId) || { debit: 0, credit: 0, date: line.date, currency: line.currency };
       if (totals.date !== line.date || totals.currency !== line.currency) throw new GuardError('INVALID_STATE', `Journal ${line.journalId} mixes dates or currencies.`);
@@ -2541,7 +2595,7 @@ class PrototypeStore {
       return item.targets.filter(target => target.statementLine === 'Cash and cash equivalents').map(target => (row?.balance || 0) * target.percentage / 100);
     }).reduce((sum, amount) => sum + amount, 0);
     const equityMovements = revision.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)).reduce((sum, item) => sum + item.amount, 0);
-    const adjustedRows = applyReportingAdjustments(engagement.rows, this.state.adjustmentJournals.filter(item => item.engagementId === engagementId), engagement.sourceVersion).rows;
+    const adjustedRows = applyReportingAdjustments(engagement.rows, this.state.adjustmentJournals.filter(item => item.engagementId === engagementId), engagement.sourceVersion, this.getAdjustmentSupportIssues(engagementId)).rows;
     const equityTarget = mapping.mappings.flatMap(item => {
       const row = adjustedRows.find(source => source.code === item.accountCode);
       return item.targets.filter(target => target.statementLine === 'Share capital and reserves').map(target => Math.abs((row?.balance || 0) * target.percentage / 100));
@@ -2563,6 +2617,7 @@ class PrototypeStore {
     if (!journal.title.trim() || journal.lines.length < 2 || journal.lines.some(l => !l.accountCode.trim() || !l.accountName.trim() || !isValidMoney(l.amount)) || this.state.adjustmentJournals.some(j => j.id === journal.id)) throw new GuardError('INVALID_STATE', 'Journal needs a unique ID, title, at least two coded lines, and finite positive amounts.');
     const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
     if (!engagement || journal.lines.some(line => !engagement.rows.some(row => row.code === line.accountCode))) throw new GuardError('INVALID_STATE', 'Every adjustment account must exist in the engagement trial balance.');
+    this.assertCurrentAdjustmentSupport(journal.engagementId, journal.supportLinks);
     const debits = journal.lines.filter(l => l.type === 'debit').reduce((s, l) => s + l.amount, 0);
     const credits = journal.lines.filter(l => l.type === 'credit').reduce((s, l) => s + l.amount, 0);
     if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Adjustment journal must balance before it can be saved.');
@@ -2571,7 +2626,7 @@ class PrototypeStore {
     this.notify();
   }
 
-  public amendAdjustmentJournal(journalId: string, changes: { title: string; lines: AdjustmentJournalItem['lines']; rationale: string }, reason: string) {
+  public amendAdjustmentJournal(journalId: string, changes: { title: string; lines: AdjustmentJournalItem['lines']; rationale: string; supportLinks?: AdjustmentJournalSupportLinks }, reason: string) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['preparer', 'manager', 'partner'], 'amend adjustment journals');
     const journal = this.state.adjustmentJournals.find(item => item.id === journalId);
@@ -2582,10 +2637,12 @@ class PrototypeStore {
     if (!changes.title.trim() || !changes.rationale.trim() || !Array.isArray(changes.lines) || changes.lines.length < 2 || changes.lines.some(line => !line.accountCode.trim() || !line.accountName.trim() || !isValidMoney(line.amount))) throw new GuardError('INVALID_STATE', 'An amended journal needs a title, rationale, and at least two coded lines with finite positive amounts.');
     const engagement = this.state.engagements.find(item => item.id === journal.engagementId);
     if (!engagement || changes.lines.some(line => !engagement.rows.some(row => row.code === line.accountCode))) throw new GuardError('INVALID_STATE', 'Every amended account must exist in the engagement trial balance.');
+    const supportLinks = Object.prototype.hasOwnProperty.call(changes, 'supportLinks') ? changes.supportLinks : journal.supportLinks;
+    this.assertCurrentAdjustmentSupport(journal.engagementId, supportLinks);
     const debits = changes.lines.filter(line => line.type === 'debit').reduce((sum, line) => sum + line.amount, 0);
     const credits = changes.lines.filter(line => line.type === 'credit').reduce((sum, line) => sum + line.amount, 0);
     if (Math.abs(debits - credits) > 0.005) throw new GuardError('INVALID_STATE', 'Amended journal must balance before it can be resubmitted.');
-    if (journal.title === changes.title.trim() && journal.rationale === changes.rationale.trim() && JSON.stringify(journal.lines) === JSON.stringify(changes.lines)) throw new GuardError('INVALID_STATE', 'Amendment must change the journal content.');
+    if (journal.title === changes.title.trim() && journal.rationale === changes.rationale.trim() && JSON.stringify(journal.lines) === JSON.stringify(changes.lines) && JSON.stringify(journal.supportLinks) === JSON.stringify(supportLinks)) throw new GuardError('INVALID_STATE', 'Amendment must change the journal content or its supporting references.');
 
     const amendedAt = new Date().toISOString();
     journal.amendmentHistory = [...(journal.amendmentHistory || []), {
@@ -2601,6 +2658,7 @@ class PrototypeStore {
       reflectionStatus: journal.reflectionStatus,
       reflectionSourceVersion: journal.reflectionSourceVersion,
       reflectionEvidenceRef: journal.reflectionEvidenceRef,
+      supportLinks: structuredClone(journal.supportLinks),
       amendedAt,
       amendedByUserId: this.state.currentUserId,
       reason: reason.trim()
@@ -2609,6 +2667,7 @@ class PrototypeStore {
     journal.title = changes.title.trim();
     journal.lines = structuredClone(changes.lines);
     journal.rationale = changes.rationale.trim();
+    journal.supportLinks = structuredClone(supportLinks);
     journal.preparedBy = this.state.currentPerson;
     journal.status = 'Draft';
     journal.reviewedBy = undefined;
@@ -2634,6 +2693,7 @@ class PrototypeStore {
     requireEngagementScope(this.state, journal.engagementId);
     if (journal.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only draft adjustments can enter technical review.');
     requireIndependentActor(journal.preparedBy, this.state.currentPerson, 'technically review this adjustment journal', this.state);
+    if (approved) this.assertCurrentAdjustmentSupport(journal.engagementId, journal.supportLinks);
     if (!approved) {
       if (!note.trim() || note.trim().length > 500) throw new GuardError('INVALID_STATE', 'A rejected adjustment requires a bounded technical-review rationale so the preparer can rework it.');
       journal.reviewNote = note.trim();
@@ -2657,6 +2717,7 @@ class PrototypeStore {
     const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
     if (!engagement) throw new GuardError('INVALID_STATE', 'Adjustment engagement was not found.');
     if (journal.status !== 'Management accepted') throw new GuardError('INVALID_STATE', 'Only a management-accepted adjustment can be recorded as included in reporting.');
+    this.assertCurrentAdjustmentSupport(journal.engagementId, journal.supportLinks);
     if (journal.reflectionStatus !== 'Reflected in TB' || journal.reflectionSourceVersion !== engagement.sourceVersion) throw new GuardError('INVALID_STATE', 'Record the journal as reflected in the current trial balance before including it in reporting.');
     journal.status = 'Reporting included';
     journal.reportingIncludedBy = this.state.currentPerson;
@@ -2678,6 +2739,7 @@ class PrototypeStore {
     if (journal.status !== 'Technical review' || !journal.reviewedBy) throw new GuardError('INVALID_STATE', 'Only technically reviewed adjustments can receive a management decision.');
     requireIndependentActor(journal.preparedBy, this.state.currentPerson, 'record management acceptance of this adjustment', this.state);
     requireIndependentActor(journal.reviewedBy, this.state.currentPerson, 'record management acceptance of this adjustment', this.state);
+    if (accepted) this.assertCurrentAdjustmentSupport(journal.engagementId, journal.supportLinks);
     if (!accepted && !note.trim()) throw new GuardError('INVALID_STATE', 'A rejected adjustment requires a management rationale.');
     journal.status = accepted ? 'Management accepted' : 'Rejected';
     journal.managementAcceptedBy = accepted ? this.state.currentPerson : undefined;
@@ -2695,7 +2757,7 @@ class PrototypeStore {
     if (index >= 0) {
       const current = this.state.adjustmentJournals[index];
       requireEngagementScope(this.state, current.engagementId);
-      if (journal.engagementId !== current.engagementId || journal.preparedBy !== current.preparedBy || journal.title !== current.title || journal.status !== current.status || journal.reviewedBy !== current.reviewedBy || journal.managementAcceptedBy !== current.managementAcceptedBy || journal.managementDecisionNote !== current.managementDecisionNote || JSON.stringify(journal.lines) !== JSON.stringify(current.lines)) throw new GuardError('INVALID_STATE', 'Journal content, ownership and approval state are immutable after proposal. Use the guarded review and management-decision actions.');
+      if (journal.engagementId !== current.engagementId || journal.preparedBy !== current.preparedBy || journal.title !== current.title || journal.status !== current.status || journal.reviewedBy !== current.reviewedBy || journal.managementAcceptedBy !== current.managementAcceptedBy || journal.managementDecisionNote !== current.managementDecisionNote || JSON.stringify(journal.lines) !== JSON.stringify(current.lines) || JSON.stringify(journal.supportLinks) !== JSON.stringify(current.supportLinks)) throw new GuardError('INVALID_STATE', 'Journal content, ownership, supporting references and approval state are immutable after proposal. Use the guarded review, management-decision and amendment actions.');
       const engagement = this.state.engagements.find(e => e.id === journal.engagementId);
       if (!engagement || journal.reflectionSourceVersion !== engagement.sourceVersion) throw new GuardError('STALE_REVISION', 'Confirm the journal reflection status against the current trial-balance source revision.');
       if (Boolean(journal.reflectedInClientBooks) !== (journal.reflectionStatus === 'Reflected in TB')) throw new GuardError('INVALID_STATE', 'The source-reflected flag and reflection status must agree.');
@@ -2803,7 +2865,7 @@ class PrototypeStore {
     const current = group.eliminations[index];
     if (current?.status === 'Approved') throw new GuardError('INVALID_STATE', 'Approved elimination content is immutable; create a new revision after a reasoned return.');
     if (current?.status === 'Submitted') throw new GuardError('INVALID_STATE', 'Submitted elimination content is locked until an independent reviewer returns it.');
-    if (current && current.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can amend this elimination draft.');
+    if (current && current.preparedByUserId !== this.state.currentUserId && !recordPrototypeSuperuserOverride(this.state, 'amend another preparer\'s group elimination draft')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can amend this elimination draft.');
     const revision = (current?.revision || 0) + 1;
     if (current && current.status === 'Returned') {
       current.reviewHistory ||= [];
@@ -2840,7 +2902,7 @@ class PrototypeStore {
     const elimination = group?.eliminations.find(item => item.id === eliminationId);
     if (!group || !elimination || elimination.status !== 'Draft') throw new GuardError('INVALID_STATE', 'Only a saved draft group elimination can be submitted.');
     requireConsolidationGroupScope(this.state, group.id);
-    if (elimination.preparedByUserId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can submit this group elimination.');
+    if (elimination.preparedByUserId !== this.state.currentUserId && !recordPrototypeSuperuserOverride(this.state, 'submit another preparer\'s group elimination')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the original preparer can submit this group elimination.');
     elimination.status = 'Submitted';
     elimination.submittedByUserId = this.state.currentUserId;
     elimination.submittedAt = new Date().toISOString();
@@ -2918,7 +2980,10 @@ class PrototypeStore {
     requireRole(this.state, ['partner'], 'review consolidated output packages');
     const group = this.state.consolidationGroups.find(item => item.id === groupId);
     const record = group?.outputPackages?.find(item => item.id === packageId);
-    if (!group || !record || record.status === 'Approved' || !note.trim() || !evidenceRef.trim() || record.preparedByUserId === this.state.currentUserId || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'A different partner, current exact group-output revision, rationale and review evidence are required. Rebuild stale output packages.');
+    const superuserOverride = isSuperuserRole(this.state.currentRole) && record?.preparedByUserId === this.state.currentUserId
+      ? recordPrototypeSuperuserOverride(this.state, 'review own consolidated output package')
+      : false;
+    if (!group || !record || record.status === 'Approved' || !note.trim() || !evidenceRef.trim() || (record.preparedByUserId === this.state.currentUserId && !superuserOverride) || record.fingerprint !== consolidationOutputFingerprint(group, this.state)) throw new GuardError('STALE_REVISION', 'A different partner, current exact group-output revision, rationale and review evidence are required. Rebuild stale output packages.');
     requireConsolidationGroupScope(this.state, group.id);
     record.reviewHistory.push({ status: decision, byUserId: this.state.currentUserId, by: this.state.currentPerson, at: new Date().toISOString(), note: note.trim(), evidenceRef: evidenceRef.trim() });
     record.status = decision;
@@ -3134,7 +3199,7 @@ class PrototypeStore {
     if (!wp) return;
     if (!wp.applicable || !notes.trim()) throw new GuardError('INVALID_STATE', 'Only applicable workpapers with a clearance rationale can be cleared.');
     if (wp.status !== 'Submitted' || wp.submittedVersion !== wp.version || !wp.submittedBy) throw new GuardError('INVALID_STATE', 'Only the exact current submitted revision can be cleared.');
-    if (wp.reviewer !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned reviewer may clear this workpaper.');
+    if (wp.reviewer !== this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, 'clear a workpaper as a non-assigned reviewer')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned reviewer may clear this workpaper.');
 
     // Check separation of duties: preparer cannot clear own workpaper!
     requireIndependentActor(wp.preparer, this.state.currentPerson, 'independently clear this workpaper', this.state);
@@ -3265,32 +3330,36 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     if (!eng) return;
+    const testOverride = recordPrototypeSuperuserOverride(this.state, `record ${roleKey} approval as the prototype superuser`);
+    const latestGLSource = eng.glSourceHistory?.at(-1);
+    const currentPackage = eng.packageHistory?.find(item => item.revision === eng.packageRevision);
+    if (currentPackage && (currentPackage.generation !== eng.generation || currentPackage.glSourceRevision !== latestGLSource?.revision || currentPackage.glSourceSha256 !== latestGLSource?.sha256)) throw new GuardError('STALE_REVISION', 'The current financial package does not match the accepted GL source; regenerate and review it before recording a stage approval.');
 
     // Role authority checks (VP-019, VP-056 / EX14, RR17, RR18)
     const role = this.state.currentRole;
-    if (roleKey === 'partner' && role !== 'partner') {
+    if (roleKey === 'partner' && role !== 'partner' && !testOverride) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only a partner can record partner clearance.');
     }
     if (roleKey === 'partner') {
       const assigned = this.state.users.find(u => u.name === eng.partner && u.role === 'partner');
       const actor = this.state.users.find(u => u.id === this.state.currentUserId);
-      if (!assigned || !actor || (assigned.personId || assigned.id) !== (actor.personId || actor.id)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can record partner clearance.');
+      if ((!assigned || !actor || (assigned.personId || assigned.id) !== (actor.personId || actor.id)) && !testOverride) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can record partner clearance.');
     }
-    if (roleKey === 'eqr' && role !== 'eqr') {
+    if (roleKey === 'eqr' && role !== 'eqr' && !testOverride) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an Engagement Quality Reviewer can record EQR concurrence.');
     }
     if (roleKey === 'eqr') {
       const assignedEqrId = eng.eqrReviewerUserId || this.state.users.find(u => u.role === 'eqr' && u.status === 'Active')?.id;
-      if (assignedEqrId !== this.state.currentUserId) throw new GuardError('FORBIDDEN_SCOPE', 'Only the currently assigned EQR can record concurrence.');
+      if (assignedEqrId !== this.state.currentUserId && !testOverride) throw new GuardError('FORBIDDEN_SCOPE', 'Only the currently assigned EQR can record concurrence.');
     }
     if (roleKey !== 'client') {
       const pkg = eng.packageHistory?.find(item => item.revision === eng.packageRevision && item.generation === eng.generation);
       if (pkg?.createdByUserId) requireIndependentActor(pkg.createdByUserId, this.state.currentUserId, 'approve a package they prepared', this.state);
     }
-    if (roleKey === 'manager' && !['manager', 'partner'].includes(role)) {
+    if (roleKey === 'manager' && !['manager', 'partner'].includes(role) && !testOverride) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an engagement manager or partner can record manager clearance.');
     }
-    if (roleKey === 'client' && role !== 'client') {
+    if (roleKey === 'client' && role !== 'client' && !testOverride) {
       throw new GuardError('FORBIDDEN_SCOPE', 'Only an authorized client management approver (role: "client") can record representation sign-off.');
     }
 
@@ -3353,7 +3422,8 @@ class PrototypeStore {
     requireEngagementScope(this.state, engId);
     const eng = this.state.engagements.find(e => e.id === engId);
     const pkg = eng?.packageHistory?.find(p => p.revision === eng.packageRevision);
-    if (!eng || !pkg || pkg.generation !== eng.generation || pkg.sourceVersion !== eng.sourceVersion || !pkg.validation.passed || pkg.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Only the complete, validated current package revision can be presented to management.');
+    const latestGLSource = eng?.glSourceHistory?.at(-1);
+    if (!eng || !pkg || pkg.generation !== eng.generation || pkg.sourceVersion !== eng.sourceVersion || pkg.glSourceRevision !== latestGLSource?.revision || pkg.glSourceSha256 !== latestGLSource?.sha256 || !pkg.validation.passed || pkg.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Only the complete, validated package for the current TB/GL source can be presented to management.');
     if (eng.managementPackageDecision) (eng.managementPackageDecisionHistory ||= []).push(eng.managementPackageDecision);
     eng.managementPresentation = { generation: eng.generation, sourceVersion: eng.sourceVersion, packageRevision: eng.packageRevision, presentedAt: new Date().toISOString(), presentedBy: this.state.currentPerson, presentedByUserId: this.state.currentUserId, preparedByUserId: pkg.createdByUserId, artifacts: structuredClone(pkg.artifacts) };
     eng.managementPackageDecision = undefined;
@@ -3496,7 +3566,7 @@ class PrototypeStore {
     const uploadError = validatePbcUpload({ name: file.name, size: file.size || 0, type: file.type });
     if (uploadError) throw new GuardError('INVALID_STATE', uploadError);
     if (!file.sha256 || !/^[a-f0-9]{64}$/i.test(file.sha256)) throw new GuardError('INVALID_STATE', 'A SHA-256 digest of the selected file is required.');
-    if (req.contributor !== this.state.currentPerson) throw new GuardError('FORBIDDEN_SCOPE', 'Only the named client contributor can submit this PBC response.');
+    if (req.contributor !== this.state.currentPerson && !recordPrototypeSuperuserOverride(this.state, `submit a client PBC response assigned to ${req.contributor}`)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the named client contributor can submit this PBC response.');
     if (!['Requested', 'Needs clarification', 'Received'].includes(req.status)) throw new GuardError('INVALID_STATE', `A response cannot be uploaded while the request is ${req.status}.`);
 
     const docId = file.id || `DOC-PBC-${crypto.randomUUID()}`;
@@ -3562,6 +3632,33 @@ class PrototypeStore {
     this.logEvent(`PBC response file uploaded by ${this.state.currentPerson}: ${file.name}`, req.id);
     this.notify();
   }
+  public replyToPbcRequest(engId: string, requestId: string, text: string) {
+    requireActiveIdentity(this.state);
+    requireRole(this.state, ['client_admin', 'client_finance', 'client'], 'reply to a client PBC request');
+    requireEngagementScope(this.state, engId);
+    const engagement = this.state.engagements.find(item => item.id === engId);
+    const request = engagement?.pbc.find(item => item.id === requestId);
+    const message = text.trim();
+    if (!request) throw new GuardError('INVALID_STATE', 'PBC request not found.');
+    if (!message) throw new GuardError('INVALID_STATE', 'A reply message is required.');
+    if (message.length > 2000) throw new GuardError('INVALID_STATE', 'A PBC reply cannot exceed 2,000 characters.');
+    if (!['Requested', 'Needs clarification', 'Received'].includes(request.status)) {
+      throw new GuardError('INVALID_STATE', `A reply cannot be added while the request is ${request.status}.`);
+    }
+    request.thread ||= [];
+    request.thread.push({
+      id: `TH-${crypto.randomUUID()}`,
+      kind: 'email',
+      author: this.state.currentPerson,
+      role: this.state.currentRole,
+      text: message,
+      time: new Date().toISOString(),
+      clientVisible: true
+    });
+    this.logEvent(`Client replied to PBC request: ${request.title}`, request.id);
+    this.notify();
+  }
+
   public addPbcRequest(engId: string, request: PbcRequestItem) {
     requireActiveIdentity(this.state);
     requireRole(this.state, ['manager', 'partner', 'preparer'], 'create PBC requests');
@@ -3707,7 +3804,7 @@ class PrototypeStore {
     requireEngagementScope(this.state, entry.engagementId);
     if (entry.status !== 'Approved') throw new GuardError('INVALID_STATE', 'Only approved entries use correction revisions.');
     if (!Number.isInteger(correctedMinutes) || correctedMinutes <= 0 || !reason.trim()) throw new GuardError('INVALID_STATE', 'Corrected duration must be positive whole minutes with a reason.');
-    if (entry.person !== this.state.currentPerson && !['manager', 'partner'].includes(this.state.currentRole)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the time owner or an engagement manager/partner can submit a correction.');
+    if (entry.person !== this.state.currentPerson && !hasAnyRole(this.state, ['manager', 'partner'])) throw new GuardError('FORBIDDEN_SCOPE', 'Only the time owner or an engagement manager/partner can submit a correction.');
     entry.status = 'Superseded';
     const correction: TimeEntryItem = {
       ...entry,
@@ -4454,8 +4551,9 @@ class PrototypeStore {
     }
 
     const packageDefinition = eng.packageHistory?.find(p => p.revision === eng.packageRevision);
+    const latestGLSource = eng.glSourceHistory?.at(-1);
     const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === engId).map(r => r.revision));
-    if (!packageDefinition || packageDefinition.generation !== eng.generation || packageDefinition.sourceVersion !== eng.sourceVersion || packageDefinition.mappingRevision !== mappingRevision || !packageDefinition.validation.passed || packageDefinition.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Cannot prepare release candidate: assemble a valid current package revision with current source/mapping and XLSX, DOCX and PDF artifacts first.');
+    if (!packageDefinition || packageDefinition.generation !== eng.generation || packageDefinition.sourceVersion !== eng.sourceVersion || packageDefinition.glSourceRevision !== latestGLSource?.revision || packageDefinition.glSourceSha256 !== latestGLSource?.sha256 || packageDefinition.mappingRevision !== mappingRevision || !packageDefinition.validation.passed || packageDefinition.artifacts.length !== 3) throw new GuardError('INVALID_STATE', 'Cannot prepare release candidate: assemble a valid current package revision with current TB/GL source, mapping and XLSX, DOCX and PDF artifacts first.');
     if (eng.candidate && eng.candidate.generation === eng.generation && eng.candidate.sourceVersion === eng.sourceVersion && eng.candidate.packageRevision === eng.packageRevision && eng.candidate.packageDefinitionId === packageDefinition.id) {
       return eng.candidate;
     }
@@ -4517,6 +4615,7 @@ class PrototypeStore {
     if (this.isSessionOnly) throw new GuardError('INVALID_STATE', 'Browser state storage is unavailable; package revisions cannot be claimed as persisted.');
     requireEngagementScope(this.state, record.engagementId);
     const eng = this.state.engagements.find(e => e.id === record.engagementId);
+    const latestGLSource = eng?.glSourceHistory?.at(-1);
     const requiredKinds = ['XLSX', 'DOCX', 'PDF'];
     const mappingRevision = Math.max(0, ...(this.state.accountMappingRevisions || []).filter(r => r.engagementId === record.engagementId).map(r => r.revision));
     const cashFlowSectionEnabled = record.sections.some(section => ['cf', 'eq'].includes(section.id) && section.enabled);
@@ -4528,7 +4627,7 @@ class PrototypeStore {
     const notesEnabled = record.sections.some(section => section.id === 'notes' && section.enabled);
     const currentDisclosures = eng?.disclosureHistory || [];
     const disclosureLineageValid = !notesEnabled || currentDisclosures.length > 0 && currentDisclosures.every(item => item.status === 'Reviewed' && item.reviewedByUserId && item.reviewedByUserId !== item.preparedByUserId) && JSON.stringify(record.disclosures || []) === JSON.stringify(currentDisclosures);
-    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || !cashFlowLineageValid || !disclosureLineageValid || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must be the next generation/version with current source/mapping, reviewed disclosure lineage, valid cash-flow lineage, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
+    if (!eng || record.revision !== eng.packageRevision + 1 || record.generation !== eng.generation + 1 || record.sourceVersion !== eng.sourceVersion || record.glSourceRevision !== latestGLSource?.revision || record.glSourceSha256 !== latestGLSource?.sha256 || record.mappingRevision !== mappingRevision || record.noteRevision !== record.revision || !cashFlowLineageValid || !disclosureLineageValid || record.artifacts.length !== 3 || new Set(record.artifacts.map(a => a.kind)).size !== 3 || requiredKinds.some(kind => !record.artifacts.some(a => a.kind === kind)) || record.artifacts.some(a => !a.id || !a.name || !a.mimeType || a.size <= 0 || !/^[0-9a-f]{64}$/i.test(a.sha256)) || !record.sections.some(s => s.enabled) || new Set(record.sections.map(s => s.id)).size !== record.sections.length || record.sections.some((s, i) => s.order !== i + 1)) throw new GuardError('INVALID_STATE', 'Package revision must pin the current TB/GL source and mapping, reviewed disclosure lineage, valid cash-flow lineage, unique ordered sections, and genuine XLSX/DOCX artifact digests.');
     eng.packageHistory ||= [];
     if (eng.packageHistory.some(p => p.revision === record.revision || p.id === record.id) || this.state.engagements.some(other => other.packageHistory?.some(p => p.artifacts.some(a => record.artifacts.some(n => n.id === a.id))))) throw new GuardError('INVALID_STATE', 'Package revision or artifact identity already exists.');
     eng.packageHistory.push(structuredClone(record));
@@ -4547,7 +4646,7 @@ class PrototypeStore {
     if (!eng) throw new GuardError('INVALID_STATE', `Engagement "${engId}" not found.`);
     const assignedPartner = this.state.users.find(u => u.name === eng.partner && u.role === 'partner');
     const activeActor = this.state.users.find(u => u.id === this.state.currentUserId);
-    if (!assignedPartner || !activeActor || (assignedPartner.personId || assignedPartner.id) !== (activeActor.personId || activeActor.id)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can issue this release record.');
+    if ((!assignedPartner || !activeActor || (assignedPartner.personId || assignedPartner.id) !== (activeActor.personId || activeActor.id)) && !recordPrototypeSuperuserOverride(this.state, 'issue a release as a non-assigned partner')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can issue this release record.');
     if (!eng.candidate) {
       throw new GuardError('INVALID_STATE', 'Cannot issue release: no release candidate prepared.');
     }
@@ -4556,8 +4655,9 @@ class PrototypeStore {
     }
     if (eng.candidate.sourceVersion !== eng.sourceVersion || eng.candidate.packageRevision !== eng.packageRevision) throw new GuardError('STALE_REVISION', 'Release candidate no longer matches the pinned source and package revisions.');
     const packageDefinition = eng.packageHistory?.find(p => p.id === eng.candidate!.packageDefinitionId && p.revision === eng.packageRevision && p.generation === eng.generation);
-    if (!packageDefinition || JSON.stringify(packageDefinition.artifacts) !== JSON.stringify(eng.candidate.manifest)) throw new GuardError('STALE_REVISION', 'Release candidate artifact identities no longer match the frozen package revision.');
-    if ((eng.approvals.partner?.byUserId ? eng.approvals.partner.byUserId !== this.state.currentUserId : eng.approvals.partner?.by !== this.state.currentPerson) || eng.approvals.partner?.generation !== eng.generation) throw new GuardError('FORBIDDEN_SCOPE', 'The active partner must record current-generation sign-off before issue.');
+    const latestGLSource = eng.glSourceHistory?.at(-1);
+    if (!packageDefinition || packageDefinition.glSourceRevision !== latestGLSource?.revision || packageDefinition.glSourceSha256 !== latestGLSource?.sha256 || JSON.stringify(packageDefinition.artifacts) !== JSON.stringify(eng.candidate.manifest)) throw new GuardError('STALE_REVISION', 'Release candidate artifact identities or GL source lineage no longer match the frozen package revision.');
+    if (((eng.approvals.partner?.byUserId ? eng.approvals.partner.byUserId !== this.state.currentUserId : eng.approvals.partner?.by !== this.state.currentPerson) && !recordPrototypeSuperuserOverride(this.state, 'issue a release after a different partner recorded sign-off')) || eng.approvals.partner?.generation !== eng.generation) throw new GuardError('FORBIDDEN_SCOPE', 'The active partner must record current-generation sign-off before issue.');
     const seenRecipients = new Set<string>();
     const cleanRecipients = recipients.map(r => r.trim()).filter(r => {
       const key = r.toLowerCase();
@@ -4797,7 +4897,7 @@ class PrototypeStore {
     requireEngagementScope(this.state, eng.id);
     const assignedPartner = this.state.users.find(u => u.name === eng.partner && u.role === 'partner');
     const actor = this.state.users.find(u => u.id === this.state.currentUserId);
-    if (!assignedPartner || !actor || (assignedPartner.personId || assignedPartner.id) !== (actor.personId || actor.id)) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can decide this case.');
+    if ((!assignedPartner || !actor || (assignedPartner.personId || assignedPartner.id) !== (actor.personId || actor.id)) && !recordPrototypeSuperuserOverride(this.state, 'decide an acceptance case as a non-assigned partner')) throw new GuardError('FORBIDDEN_SCOPE', 'Only the assigned engagement partner can decide this case.');
     if (!rationale.trim()) throw new GuardError('INVALID_STATE', 'Partner decision requires a rationale.');
     if (decision === 'Accepted' && (record.riskRating === 'Prohibited' || !record.independenceConfirmed || !record.amlKycCompleted || !record.conflictsCleared || !record.prohibitionsChecked || !record.competenceConfirmed || ['amlKyc', 'independence', 'conflicts', 'prohibitions', 'competence'].some(key => !record.screeningEvidence?.[key as keyof NonNullable<AcceptanceCaseRecord['screeningEvidence']>]?.trim()))) throw new GuardError('INVALID_STATE', 'Acceptance is blocked until all required checks have evidence references and the mandate is not prohibited.');
     requireIndependentActor(record.recommendationByUserId || record.recommendationBy, this.state.currentUserId, 'decide a case they recommended', this.state);

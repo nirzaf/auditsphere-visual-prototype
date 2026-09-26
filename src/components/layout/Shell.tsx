@@ -421,6 +421,11 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
           </span>
         </div>
 
+        {state.currentRole === 'superuser' && <div className="banner amber" role="status" aria-label="Superuser full prototype access">
+          <b>SUPERUSER · FULL PROTOTYPE ACCESS</b>
+          <div className="caption mt4">Synthetic testing identity · overrides are logged</div>
+        </div>}
+
         <nav id="primary-navigation" className="side-scroll" aria-label="Main navigation">
           {navGroups.map(([groupName, items]) => (
             <React.Fragment key={groupName}>

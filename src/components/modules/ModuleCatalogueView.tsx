@@ -35,7 +35,7 @@ const ITINERARY_STORAGE_KEY = 'ste-auditsphere-presenter-itinerary';
 
 const primaryRouteFor = (guide: ModuleGuideEntry): RouteKey => {
   const first = guide.route.replace(/`/g, '').split('→')[0].trim().split(' ')[0];
-  const mapped: Record<string, RouteKey> = { 'client-detail': 'clients', 'crm': 'clients', 'trial-balance': 'accounting-setup', 'requirements': 'requirements' };
+  const mapped: Record<string, RouteKey> = { 'client-detail': 'clients', 'crm': 'clients', 'Shell': 'clients', 'trial-balance': 'accounting-setup', 'requirements': 'requirements' };
   return (mapped[first] || (first as RouteKey) || 'overview');
 };
 

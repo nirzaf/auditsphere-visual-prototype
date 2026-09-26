@@ -2,8 +2,9 @@
 // 5 Tabs: Trial Balance, General Ledger, Mappings, Adjustments, Reconciliations
 
 import React, { useEffect, useRef, useState } from 'react';
-import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, ReconciliationSchedule, ClientAccountingProfile } from '../../types';
+import { RouteKey, TrialBalanceRow, AdjustmentJournalItem, AdjustmentJournalSupportLinks, ReconciliationSchedule, ClientAccountingProfile } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 import { calculateTrialBalanceTotals, verifyGLCompleteness, calculateReconciliationVariance, formatCurrency } from '../../services/calculations';
@@ -97,10 +98,49 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
   const [adjCreditAccount, setAdjCreditAccount] = useState('2100');
   const [adjAmount, setAdjAmount] = useState(35000);
   const [adjRationale, setAdjRationale] = useState('Record unbilled professional audit and consulting fees.');
+  const [adjEvidenceId, setAdjEvidenceId] = useState('');
+  const [adjWorkpaperId, setAdjWorkpaperId] = useState('');
+  const [adjFindingId, setAdjFindingId] = useState('');
+  const [journalFormNotice, setJournalFormNotice] = useState('');
   const initialAdjustmentDraft = useRef({ title: 'Accrued audit fees and advisory expenses', debit: '5100', credit: '2100', amount: 35000, rationale: 'Record unbilled professional audit and consulting fees.' });
 
   const selectedEng = state.engagements.find(e => e.id === state.selectedEngagement) || state.engagements[0];
   const client = state.clients.find(c => c.id === selectedEng?.client);
+  const engagementEvidence = selectedEng ? state.evidenceCatalogue.flatMap(evidence => {
+    const document = state.documents.find(item => item.id === evidence.documentId);
+    return document && document.clientId === selectedEng.client && document.engagementId === selectedEng.id ? [{ evidence, document }] : [];
+  }) : [];
+  const journalSupportLinksForDraft = (): AdjustmentJournalSupportLinks | undefined => {
+    if (!selectedEng) return undefined;
+    const evidenceLink = adjEvidenceId ? engagementEvidence.find(item => item.evidence.id === adjEvidenceId) : undefined;
+    const workpaperLink = adjWorkpaperId ? selectedEng.workpapers.find(item => item.id === adjWorkpaperId) : undefined;
+    const findingLink = adjFindingId ? state.findings.find(item => item.id === adjFindingId && item.engagementId === selectedEng.id) : undefined;
+    if ((adjEvidenceId && !evidenceLink) || (adjWorkpaperId && !workpaperLink) || (adjFindingId && !findingLink)) throw new Error('A selected support record is no longer available in this engagement. Choose a current in-scope record or clear that link.');
+    const links: AdjustmentJournalSupportLinks = {
+      evidence: evidenceLink ? { id: evidenceLink.evidence.id, evidenceVersion: evidenceLink.evidence.version, documentId: evidenceLink.document.id, documentVersion: evidenceLink.document.version } : undefined,
+      workpaper: workpaperLink ? { id: workpaperLink.id, version: workpaperLink.version } : undefined,
+      finding: findingLink ? { id: findingLink.id, revision: findingLink.revision || 1 } : undefined,
+    };
+    return links.evidence || links.workpaper || links.finding ? links : undefined;
+  };
+  const describeJournalSupport = (links?: AdjustmentJournalSupportLinks) => {
+    if (!links) return 'No linked evidence, workpaper or finding';
+    const labels: string[] = [];
+    if (links.evidence) {
+      const record = state.evidenceCatalogue.find(item => item.id === links.evidence!.id);
+      const document = state.documents.find(item => item.id === links.evidence!.documentId);
+      labels.push(`Evidence ${record?.title || links.evidence.id} (${links.evidence.id} v${links.evidence.evidenceVersion}; ${document?.name || links.evidence.documentId} v${links.evidence.documentVersion})`);
+    }
+    if (links.workpaper) {
+      const workpaper = selectedEng?.workpapers.find(item => item.id === links.workpaper!.id);
+      labels.push(`Workpaper ${workpaper?.title || links.workpaper.id} (${links.workpaper.id} v${links.workpaper.version})`);
+    }
+    if (links.finding) {
+      const finding = state.findings.find(item => item.id === links.finding!.id);
+      labels.push(`Finding ${finding?.title || links.finding.id} (${links.finding.id} v${links.finding.revision})`);
+    }
+    return labels.join(' · ');
+  };
 
   // VP-003: reconciliation schedules, TB balance edits and reflection-evidence drafts
   // are inline edit surfaces; register them so context changes cannot silently drop them.
@@ -108,7 +148,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     if (!onRegisterUnsavedForm) return;
     const guard: UnsavedFormGuard = {
       label: 'Accounting workbench',
-      isDirty: () => recDraft !== null || editRowCode !== null || (showAddAdjModal && (adjTitle !== initialAdjustmentDraft.current.title || adjDebitAccount !== initialAdjustmentDraft.current.debit || adjCreditAccount !== initialAdjustmentDraft.current.credit || adjAmount !== initialAdjustmentDraft.current.amount || adjRationale !== initialAdjustmentDraft.current.rationale)) || (amendAdjustment !== null && (adjTitle !== amendAdjustment.title || adjDebitAccount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.accountCode || '') || adjCreditAccount !== (amendAdjustment.lines.find(line => line.type === 'credit')?.accountCode || '') || adjAmount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.amount || 0) || adjRationale !== (amendAdjustment.rationale || '') || Boolean(amendmentReason.trim()))) || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
+      isDirty: () => recDraft !== null || editRowCode !== null || (showAddAdjModal && (adjTitle !== initialAdjustmentDraft.current.title || adjDebitAccount !== initialAdjustmentDraft.current.debit || adjCreditAccount !== initialAdjustmentDraft.current.credit || adjAmount !== initialAdjustmentDraft.current.amount || adjRationale !== initialAdjustmentDraft.current.rationale || Boolean(adjEvidenceId || adjWorkpaperId || adjFindingId))) || (amendAdjustment !== null && (adjTitle !== amendAdjustment.title || adjDebitAccount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.accountCode || '') || adjCreditAccount !== (amendAdjustment.lines.find(line => line.type === 'credit')?.accountCode || '') || adjAmount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.amount || 0) || adjRationale !== (amendAdjustment.rationale || '') || adjEvidenceId !== (amendAdjustment.supportLinks?.evidence?.id || '') || adjWorkpaperId !== (amendAdjustment.supportLinks?.workpaper?.id || '') || adjFindingId !== (amendAdjustment.supportLinks?.finding?.id || '') || Boolean(amendmentReason.trim()))) || Object.values(reflectionEvidenceDrafts).some(value => value.trim() !== ''),
       save: () => {
         try {
           const snapshot = prototypeStore.getSnapshot();
@@ -133,14 +173,16 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
               { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
               { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
             ];
+            const supportLinks = journalSupportLinksForDraft();
             if (amendAdjustment) {
-              prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale }, amendmentReason);
+              prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale, supportLinks }, amendmentReason);
               setAmendAdjustment(null);
-            } else prototypeStore.addAdjustmentJournal({ id: `AJ-${crypto.randomUUID().slice(0, 8)}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale });
+            } else prototypeStore.addAdjustmentJournal({ id: `AJ-${crypto.randomUUID().slice(0, 8)}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale, supportLinks });
             setShowAddAdjModal(false);
           }
           return true;
-        } catch {
+        } catch (error) {
+          setJournalFormNotice(error instanceof Error ? error.message : 'The journal and its support references could not be saved.');
           return false;
         }
       },
@@ -156,11 +198,15 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
         setAdjAmount(initialAdjustmentDraft.current.amount);
         setAdjRationale(initialAdjustmentDraft.current.rationale);
         setAmendmentReason('');
+        setAdjEvidenceId('');
+        setAdjWorkpaperId('');
+        setAdjFindingId('');
+        setJournalFormNotice('');
       },
     };
     onRegisterUnsavedForm(guard, 'accounting-workbench');
     return () => onRegisterUnsavedForm(null, 'accounting-workbench');
-  }, [recDraft, editRowCode, editBalance, reflectionEvidenceDrafts, showAddAdjModal, amendAdjustment, adjTitle, adjDebitAccount, adjCreditAccount, adjAmount, adjRationale, amendmentReason, selectedEng, state.currentPerson, onRegisterUnsavedForm]);
+  }, [recDraft, editRowCode, editBalance, reflectionEvidenceDrafts, showAddAdjModal, amendAdjustment, adjTitle, adjDebitAccount, adjCreditAccount, adjAmount, adjRationale, adjEvidenceId, adjWorkpaperId, adjFindingId, amendmentReason, selectedEng, state.currentPerson, onRegisterUnsavedForm]);
 
   if (!selectedEng) {
     return (
@@ -196,19 +242,28 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
   const handleAddAdjustment = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const lines: AdjustmentJournalItem['lines'] = [
-      { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
-      { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
-    ];
-    if (amendAdjustment) {
-      prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale }, amendmentReason);
-      setAmendAdjustment(null);
-      setAmendmentReason('');
-      return;
+    try {
+      const lines: AdjustmentJournalItem['lines'] = [
+        { accountCode: adjDebitAccount, accountName: selectedEng.rows.find(r => r.code === adjDebitAccount)?.name || 'Expense', type: 'debit', amount: adjAmount, debit: adjAmount, credit: 0 },
+        { accountCode: adjCreditAccount, accountName: selectedEng.rows.find(r => r.code === adjCreditAccount)?.name || 'Accruals', type: 'credit', amount: adjAmount, debit: 0, credit: adjAmount }
+      ];
+      const supportLinks = journalSupportLinksForDraft();
+      if (amendAdjustment) {
+        prototypeStore.amendAdjustmentJournal(amendAdjustment.id, { title: adjTitle, lines, rationale: adjRationale, supportLinks }, amendmentReason);
+        setAmendAdjustment(null);
+        setAmendmentReason('');
+      } else {
+        prototypeStore.addAdjustmentJournal({ id: `AJ-2600${state.adjustmentJournals.length + 1}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale, supportLinks });
+        setShowAddAdjModal(false);
+      }
+      setAdjEvidenceId('');
+      setAdjWorkpaperId('');
+      setAdjFindingId('');
+      setJournalFormNotice('');
+      setAdjustmentNotice(amendAdjustment ? 'Amended journal saved as a new revision. Prior support pins and decisions remain in history.' : 'Adjustment journal proposed with its selected support revisions pinned.');
+    } catch (error) {
+      setJournalFormNotice(error instanceof Error ? error.message : 'The journal and its support references could not be saved.');
     }
-    prototypeStore.addAdjustmentJournal({ id: `AJ-2600${state.adjustmentJournals.length + 1}`, engagementId: selectedEng.id, title: adjTitle, status: 'Draft', reflectionStatus: 'Not reflected', lines, reflectedInClientBooks: false, preparedBy: state.currentPerson, rationale: adjRationale });
-    setShowAddAdjModal(false);
   };
 
   const startAdjustmentAmendment = (journal: AdjustmentJournalItem) => {
@@ -218,6 +273,33 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
     setAdjCreditAccount(journal.lines.find(line => line.type === 'credit')?.accountCode || selectedEng.rows[1]?.code || '');
     setAdjAmount(journal.lines.find(line => line.type === 'debit')?.amount || 0);
     setAdjRationale(journal.rationale || '');
+    setAdjEvidenceId(journal.supportLinks?.evidence?.id || '');
+    setAdjWorkpaperId(journal.supportLinks?.workpaper?.id || '');
+    setAdjFindingId(journal.supportLinks?.finding?.id || '');
+    setAmendmentReason('');
+    setJournalFormNotice('');
+  };
+
+  const openAdjustmentProposal = () => {
+    setAmendAdjustment(null);
+    setAdjEvidenceId('');
+    setAdjWorkpaperId('');
+    setAdjFindingId('');
+    setJournalFormNotice('');
+    setShowAddAdjModal(true);
+  };
+
+  const closeAdjustmentModal = () => {
+    const draftChanged = amendAdjustment
+      ? adjTitle !== amendAdjustment.title || adjDebitAccount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.accountCode || '') || adjCreditAccount !== (amendAdjustment.lines.find(line => line.type === 'credit')?.accountCode || '') || adjAmount !== (amendAdjustment.lines.find(line => line.type === 'debit')?.amount || 0) || adjRationale !== (amendAdjustment.rationale || '') || adjEvidenceId !== (amendAdjustment.supportLinks?.evidence?.id || '') || adjWorkpaperId !== (amendAdjustment.supportLinks?.workpaper?.id || '') || adjFindingId !== (amendAdjustment.supportLinks?.finding?.id || '') || Boolean(amendmentReason.trim())
+      : showAddAdjModal && (adjTitle !== initialAdjustmentDraft.current.title || adjDebitAccount !== initialAdjustmentDraft.current.debit || adjCreditAccount !== initialAdjustmentDraft.current.credit || adjAmount !== initialAdjustmentDraft.current.amount || adjRationale !== initialAdjustmentDraft.current.rationale || Boolean(adjEvidenceId || adjWorkpaperId || adjFindingId));
+    if (draftChanged && !window.confirm('Discard this unsaved adjustment journal draft?')) return;
+    setShowAddAdjModal(false);
+    setAmendAdjustment(null);
+    setAdjEvidenceId('');
+    setAdjWorkpaperId('');
+    setAdjFindingId('');
+    setJournalFormNotice('');
     setAmendmentReason('');
   };
 
@@ -408,7 +490,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                   setGLNotice(`GL source revision ${revision} saved with ${glPreview.transactions.length} lines and its column mapping. Prior revisions and dependent review history remain retained.`); setGLPreview(null); setGLBytes(null);
                 } catch (error) { setGLNotice(error instanceof Error ? error.message : 'GL source was not imported.'); }
               }}>Import new revision</button>
-              <button className="btn sm ghost" disabled={!visibleGLTransactions.length} onClick={() => exportService.exportCSV(`GL_${selectedEng.id}_v${glSource?.revision || 0}.csv`, [['Journal ID','Line ID','Date','Account Code','Account Name','Debit','Credit','Currency','Description'], ...visibleGLTransactions.map(line => [line.journalId,line.lineId,safeCSVText(line.date),safeCSVText(line.accountCode),safeCSVText(line.accountName),String(line.debit),String(line.credit),safeCSVText(line.currency),safeCSVText(line.description)])])}>Export filtered CSV</button>
+              <button className="btn sm ghost" disabled={!visibleGLTransactions.length} onClick={() => exportService.exportCSV(`GL_${selectedEng.id}_v${glSource?.revision || 0}.csv`, [['Journal ID','Line ID','Date','Service Date','Account Code','Account Name','Department','Cost centre','Project','Debit','Credit','Currency','Description'], ...visibleGLTransactions.map(line => [line.journalId,line.lineId,safeCSVText(line.date),line.serviceDate ? safeCSVText(line.serviceDate) : '',safeCSVText(line.accountCode),safeCSVText(line.accountName),safeCSVText(line.dimensions?.Department || line.dimensionDept || ''),safeCSVText(line.dimensions?.['Cost centre'] || ''),safeCSVText(line.dimensions?.Project || ''),String(line.debit),String(line.credit),safeCSVText(line.currency),safeCSVText(line.description)])])}>Export filtered CSV</button>
             </div>
             {glNotice && <p role="status" className="mt8">{glNotice}</p>}
             {glPreview && <div className="borderbox mt12 panel-pad"><b>Preview: {glFileName}</b><p>{glPreview.transactions.length} lines · {Object.keys(glPreview.openingBalances).length} explicit opening balances · {glPreview.errors.length} validation errors</p><div className="grid grid-cols-2 gap12 mt12">{GL_IMPORT_COLUMNS.map(({ key, label, required }) => <label key={key} className="caption">{label}{required ? ' *' : ' (optional)'}<select className="input mt4" aria-label={`GL source column: ${label}`} value={glColumnMap[key] ?? -1} onChange={event => {const next = { ...glColumnMap, [key]: Number(event.target.value) }; setGLColumnMap(next); const profile = state.clients.find(item => item.id === selectedEng.client)?.accountingProfile; const book = profile?.periodBooks.find(item => item.id === selectedEng.accountingPeriodBookId); if (book && glBytes) setGLPreview(parseGLWorkbook(glFileName, glBytes, selectedEng.currency, book.startDate, book.endDate, next));}}><option value={-1}>{required ? 'Select source column' : 'Not included'}</option>{(glPreview.headers || []).map((header, index) => <option key={`${index}:${header}`} value={index}>{index + 1}: {header || '(blank header)'}</option>)}</select></label>)}</div>{glPreview.errors.map(error => <p className="text-danger" key={error}>{error}</p>)}{!glPreview.errors.length && <p className="caption">Journal balance, date/currency consistency, and period checks passed. Unmatched account codes remain visible in completeness results.</p>}</div>}
@@ -449,8 +531,11 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
+                    <th>Posting date</th>
+                    <th>Service date</th>
+                    <th>Journal ID</th>
                     <th>Account</th>
+                    <th>Dimensions</th>
                     <th>Reference</th>
                     <th>Description</th>
                     <th>Debit (QAR)</th>
@@ -461,7 +546,10 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                   {visibleGLTransactions.map(tx => (
                     <tr key={tx.id}>
                       <td>{tx.date}</td>
+                      <td>{tx.serviceDate || '—'}</td>
+                      <td><span className="mono">{tx.journalId}</span></td>
                       <td><span className="mono">{tx.accountCode}</span></td>
+                      <td>{Object.entries(tx.dimensions || (tx.dimensionDept ? { Department: tx.dimensionDept } : {})).map(([name, value]) => `${name}: ${value}`).join(' · ') || '—'}</td>
                       <td><span className="mono">{tx.reference}</span></td>
                       <td>{tx.description}</td>
                       <td>{tx.debit > 0 ? formatCurrency(tx.debit) : '—'}</td>
@@ -489,7 +577,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                 </p>
               </div>
               <div className="row" style={{ gap: 8 }}>
-                {activeMapping?.status === 'Draft' && ['reviewer', 'partner'].includes(state.currentRole) && (
+                {activeMapping?.status === 'Draft' && hasAnyRole(state, ['reviewer', 'partner']) && (
                   <button className="btn sm primary" onClick={() => {
                     try {
                       prototypeStore.approveAccountMappings(selectedEng.id, activeMapping.revision);
@@ -794,7 +882,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                   Proposed correcting journals. State tracks whether the client reflected the adjustment in their source ledger.
                 </p>
               </div>
-              <button className="btn primary sm" onClick={() => setShowAddAdjModal(true)}>
+              <button className="btn primary sm" onClick={openAdjustmentProposal}>
                 <Icon name="plus" /> Propose Adjustment Journal
               </button>
             </div>
@@ -818,14 +906,16 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     <span className={`badge ${adj.status === 'Management accepted' || adj.status === 'Reporting included' ? 'green' : adj.status === 'Rejected' ? 'red' : 'amber'}`}>
                       {adj.status} · Rev {adj.revision || 1}
                     </span>
-                    {adj.status !== 'Draft' && ['preparer', 'manager', 'partner'].includes(state.currentRole) && <button type="button" className="btn sm ghost" aria-label={`Amend adjustment ${adj.id}`} onClick={() => startAdjustmentAmendment(adj)}>Amend journal</button>}
-                    {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => { try { prototypeStore.reviewAdjustmentJournal(adj.id, true); setAdjustmentNotice('Independent technical review recorded.'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Approve technical review</button>}
-                    {adj.status === 'Draft' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && adj.preparedBy !== state.currentPerson && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Technical-review rationale for returning this adjustment to the preparer:'); if (reason?.trim()) try { prototypeStore.reviewAdjustmentJournal(adj.id, false, reason); setAdjustmentNotice('Adjustment returned to the preparer with your rationale.'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Return for rework</button>}
-                    {adj.status === 'Management accepted' && ['manager', 'reviewer', 'partner'].includes(state.currentRole) && <button type="button" className="btn sm ghost" aria-label={`Record reporting inclusion for ${adj.id}`} onClick={() => { try { prototypeStore.markAdjustmentJournalReportingIncluded(adj.id); setAdjustmentNotice('Adjustment recorded as included in reporting.'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Record as included in reporting</button>}
+                    {adj.status !== 'Draft' && hasAnyRole(state, ['preparer', 'manager', 'partner']) && <button type="button" className="btn sm ghost" aria-label={`Amend adjustment ${adj.id}`} onClick={() => startAdjustmentAmendment(adj)}>Amend journal</button>}
+                    {adj.status === 'Draft' && hasAnyRole(state, ['manager', 'reviewer', 'partner']) && (adj.preparedBy !== state.currentPerson || state.currentRole === 'superuser') && <button className="btn sm ghost" onClick={() => { try { prototypeStore.reviewAdjustmentJournal(adj.id, true); setAdjustmentNotice('Technical review recorded (superuser actions are logged as test overrides).'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Approve technical review</button>}
+                    {adj.status === 'Draft' && hasAnyRole(state, ['manager', 'reviewer', 'partner']) && (adj.preparedBy !== state.currentPerson || state.currentRole === 'superuser') && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Technical-review rationale for returning this adjustment to the preparer:'); if (reason?.trim()) try { prototypeStore.reviewAdjustmentJournal(adj.id, false, reason); setAdjustmentNotice('Adjustment returned to the preparer with your rationale.'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Return for rework</button>}
+                    {adj.status === 'Management accepted' && hasAnyRole(state, ['manager', 'reviewer', 'partner']) && <button type="button" className="btn sm ghost" aria-label={`Record reporting inclusion for ${adj.id}`} onClick={() => { try { prototypeStore.markAdjustmentJournalReportingIncluded(adj.id); setAdjustmentNotice('Adjustment recorded as included in reporting.'); } catch (error) { setAdjustmentNotice(error instanceof Error ? error.message : String(error)); } }}>Record as included in reporting</button>}
                     {['Management accepted', 'Reporting included'].includes(adj.status) && <div className="stack" style={{ gap: 6 }}><label>Reflection on TB v{selectedEng.sourceVersion}<select aria-label={`Reflection status for ${adj.id}`} value={adj.reflectionSourceVersion === selectedEng.sourceVersion ? adj.reflectionStatus : 'Unknown'} onChange={event => handleReflectionChange(adj, event.target.value as AdjustmentJournalItem['reflectionStatus'])}><option>Not reflected</option><option>Reflected in TB</option><option>Partially reflected</option><option>Unknown</option></select></label><label>Reflection evidence reference<div className="row"><input aria-label={`Reflection evidence reference for ${adj.id}`} value={reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? ''} onChange={event => setReflectionEvidenceDrafts(current => ({ ...current, [adj.id]: event.target.value }))} maxLength={160} /><button type="button" className="btn sm ghost" aria-label={`Save reflection evidence for ${adj.id}`} onClick={() => handleReflectionEvidenceSave(adj, reflectionEvidenceDrafts[adj.id] ?? adj.reflectionEvidenceRef ?? '')}>Save evidence</button></div></label></div>}
                   </div>
                 </div>
                 <div className="caption mt4">Source reflection: {adj.reflectionStatus} · {adj.reflectionSourceVersion === undefined ? 'unversioned source' : `TB v${adj.reflectionSourceVersion}`}{adj.reflectionSourceVersion !== undefined && adj.reflectionSourceVersion !== selectedEng.sourceVersion ? ' · re-review required' : ''} · Prepared by {adj.preparedBy}{adj.reviewedBy ? ` · Technical review by ${adj.reviewedBy}` : ''}{adj.managementAcceptedBy ? ` · Accepted by ${adj.managementAcceptedBy}` : ''}{adj.reportingIncludedBy ? ` · Reporting inclusion by ${adj.reportingIncludedBy}` : ''}</div>
+                {adj.supportLinks && <div className="caption mt4" aria-label={`Pinned journal support for ${adj.id}`}><b>Support pinned:</b> {describeJournalSupport(adj.supportLinks)}</div>}
+                {prototypeStore.getAdjustmentSupportIssue(adj.engagementId, adj.supportLinks) && <p className="caption mt4" role="alert">Pinned journal support needs attention: {prototypeStore.getAdjustmentSupportIssue(adj.engagementId, adj.supportLinks)} Amend the journal to select current in-scope revisions before fresh review.</p>}
                 {adj.reviewNote && <div className="caption mt4">Technical-review rationale: {adj.reviewNote}</div>}
                 {adj.managementDecisionNote && <div className="caption mt4">Management decision note: {adj.managementDecisionNote}</div>}
 
@@ -856,7 +946,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     <strong>Rationale:</strong> {adj.rationale}
                   </div>
                 )}
-                {Boolean(adj.amendmentHistory?.length) && <details className="mt8"><summary>Prior journal revisions ({adj.amendmentHistory!.length})</summary>{adj.amendmentHistory!.map(version => <div className="borderbox mt8" key={version.revision}><b>Revision {version.revision} · {version.status}</b><div className="caption">Amended by {state.users.find(user => user.id === version.amendedByUserId)?.name || version.amendedByUserId} on {new Date(version.amendedAt).toLocaleString()} · {version.reason}</div><div>{version.title} · {version.reflectionStatus} on TB v{version.reflectionSourceVersion ?? '—'}{version.reflectionEvidenceRef ? ` · Evidence ${version.reflectionEvidenceRef}` : ''}</div><div className="caption">{version.lines.map(line => `${line.accountCode} ${line.type} ${formatCurrency(line.amount, selectedEng.currency)}`).join(' · ')}{version.rationale ? ` · ${version.rationale}` : ''}</div>{(version.reviewedBy || version.managementAcceptedBy || version.managementDecisionNote) && <div className="caption">Prior decision: reviewer {version.reviewedBy || '—'} · management {version.managementAcceptedBy || '—'}{version.managementDecisionNote ? ` · ${version.managementDecisionNote}` : ''}</div>}</div>)}</details>}
+                {Boolean(adj.amendmentHistory?.length) && <details className="mt8"><summary>Prior journal revisions ({adj.amendmentHistory!.length})</summary>{adj.amendmentHistory!.map(version => <div className="borderbox mt8" key={version.revision}><b>Revision {version.revision} · {version.status}</b><div className="caption">Amended by {state.users.find(user => user.id === version.amendedByUserId)?.name || version.amendedByUserId} on {new Date(version.amendedAt).toLocaleString()} · {version.reason}</div><div>{version.title} · {version.reflectionStatus} on TB v{version.reflectionSourceVersion ?? '—'}{version.reflectionEvidenceRef ? ` · Evidence ${version.reflectionEvidenceRef}` : ''}</div><div className="caption">{version.lines.map(line => `${line.accountCode} ${line.type} ${formatCurrency(line.amount, selectedEng.currency)}`).join(' · ')}{version.rationale ? ` · ${version.rationale}` : ''}</div><div className="caption">Prior support pins: {describeJournalSupport(version.supportLinks)}</div>{(version.reviewedBy || version.managementAcceptedBy || version.managementDecisionNote) && <div className="caption">Prior decision: reviewer {version.reviewedBy || '—'} · management {version.managementAcceptedBy || '—'}{version.managementDecisionNote ? ` · ${version.managementDecisionNote}` : ''}</div>}</div>)}</details>}
               </div>
             ))}
           </div>
@@ -927,7 +1017,7 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     </tbody>
                   </table>
                 </div>
-                <div className="row mt12">{!['Approved', 'Stale'].includes(rec.status) && <button className="btn sm" onClick={() => setRecDraft({ ...rec, name: rec.name, asOfDate: rec.asOfDate || state.asOfDate, statementBalance: rec.statementBalance ?? rec.supportingBalance ?? 0, glBalance: rec.glBalance ?? rec.sourceBalance, sourceVersion: rec.sourceVersion ?? selectedEng.sourceVersion, items: structuredClone(rec.items || []) })}>Edit schedule</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm primary" onClick={() => { try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Approved'); setRecNotice('Independent approval recorded.'); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Approve schedule</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Reason for returning this reconciliation:'); if (reason?.trim()) try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Returned', reason); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Return for rework</button>}</div>
+                <div className="row mt12">{rec.status !== 'Approved' && <button className="btn sm" onClick={() => setRecDraft({ ...rec, name: rec.name, asOfDate: rec.asOfDate || state.asOfDate, statementBalance: rec.statementBalance ?? rec.supportingBalance ?? 0, glBalance: rec.glBalance ?? rec.sourceBalance, sourceVersion: selectedEng.sourceVersion, items: structuredClone(rec.items || []) })}>{rec.status === 'Stale' ? 'Rework stale schedule' : 'Edit schedule'}</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm primary" onClick={() => { try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Approved'); setRecNotice('Independent approval recorded.'); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Approve schedule</button>}{['Draft', 'Returned'].includes(rec.status) && <button className="btn sm ghost" onClick={() => { const reason = window.prompt('Reason for returning this reconciliation:'); if (reason?.trim()) try { prototypeStore.reviewReconciliationSchedule(selectedEng.id, rec.id, 'Returned', reason); } catch (error) { setRecNotice(error instanceof Error ? error.message : String(error)); } }}>Return for rework</button>}</div>
                 {rec.reviewedByUserId && <p className="caption">Reviewed by {state.users.find(user => user.id === rec.reviewedByUserId)?.name || rec.reviewedByUserId} · {rec.reviewedAt}{rec.reviewNote ? ` · ${rec.reviewNote}` : ''}</p>}
                 {rec.history?.length > 0 && <details><summary>Prior reconciliation revisions ({rec.history.length})</summary>{rec.history.map((version: any) => <div className="caption" key={`${version.revision}-${version.savedAt}`}>v{version.revision} · {version.status} · TB v{version.sourceVersion} · saved by {state.users.find(user => user.id === version.savedByUserId)?.name || version.savedByUserId}{version.reviewedByUserId ? ` · reviewed by ${state.users.find(user => user.id === version.reviewedByUserId)?.name || version.reviewedByUserId}` : ''}{version.reviewNote ? ` · review note: ${version.reviewNote}` : ''}</div>)}</details>}
               </div>
@@ -938,11 +1028,11 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
 
       {/* Add Adjustment Modal */}
       {(showAddAdjModal || amendAdjustment) && (
-        <div className="modal-backdrop" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>
-          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={closeAdjustmentModal}>
+          <div className="modal" style={{ maxWidth: 620 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head">
               <h2>{amendAdjustment ? 'Amend ' + amendAdjustment.id + ' · Rev ' + ((amendAdjustment.revision || 1) + 1) : 'Propose Correcting Adjustment Journal'}</h2>
-              <button type="button" className="icon-btn" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>✕</button>
+              <button type="button" className="icon-btn" aria-label="Close adjustment journal form" onClick={closeAdjustmentModal}>✕</button>
             </div>
             <form onSubmit={handleAddAdjustment}>
               <div className="modal-body stack" style={{ gap: 12 }}>
@@ -1002,10 +1092,40 @@ export const AccountingWorkbenchView: React.FC<AccountingWorkbenchViewProps> = (
                     onChange={e => setAdjRationale(e.target.value)}
                   />
                 </div>
+                <fieldset className="panel panel-pad stack" style={{ gap: 10 }}>
+                  <legend className="caption">Supporting records · optional</legend>
+                  <p className="sub">Links are restricted to this engagement and saved with exact revisions. If a source changes, amend the journal and obtain fresh review.</p>
+                  <label htmlFor="adjustment-support-evidence">Evidence
+                    <select id="adjustment-support-evidence" className="input" value={adjEvidenceId} onChange={event => { setAdjEvidenceId(event.target.value); setJournalFormNotice(''); }}>
+                      <option value="">No evidence linked</option>
+                      {engagementEvidence.map(({ evidence, document }) => {
+                        const superseded = state.documents.some(item => item.supersedesDocumentId === document.id);
+                        const eligible = evidence.adequacyStatus === 'Adequate' && evidence.version === document.version && !document.brokenLink && !superseded;
+                        return <option key={evidence.id} value={evidence.id} disabled={!eligible}>{evidence.title || evidence.id} · {evidence.id} v{evidence.version} / {document.name} v{document.version}{eligible ? '' : ' · unavailable or stale'}</option>;
+                      })}
+                      {amendAdjustment?.supportLinks?.evidence && !engagementEvidence.some(item => item.evidence.id === amendAdjustment.supportLinks!.evidence!.id) && <option value={amendAdjustment.supportLinks.evidence.id} disabled>Prior pin {amendAdjustment.supportLinks.evidence.id} v{amendAdjustment.supportLinks.evidence.evidenceVersion} · unavailable</option>}
+                    </select>
+                  </label>
+                  <label htmlFor="adjustment-support-workpaper">Workpaper
+                    <select id="adjustment-support-workpaper" className="input" value={adjWorkpaperId} onChange={event => { setAdjWorkpaperId(event.target.value); setJournalFormNotice(''); }}>
+                      <option value="">No workpaper linked</option>
+                      {selectedEng.workpapers.map(workpaper => <option key={workpaper.id} value={workpaper.id} disabled={!workpaper.applicable || workpaper.status === 'Not applicable'}>{workpaper.title} · {workpaper.id} v{workpaper.version}{workpaper.status === 'Not applicable' ? ' · unavailable' : ''}</option>)}
+                      {amendAdjustment?.supportLinks?.workpaper && !selectedEng.workpapers.some(item => item.id === amendAdjustment.supportLinks!.workpaper!.id) && <option value={amendAdjustment.supportLinks.workpaper.id} disabled>Prior pin {amendAdjustment.supportLinks.workpaper.id} v{amendAdjustment.supportLinks.workpaper.version} · unavailable</option>}
+                    </select>
+                  </label>
+                  <label htmlFor="adjustment-support-finding">Finding
+                    <select id="adjustment-support-finding" className="input" value={adjFindingId} onChange={event => { setAdjFindingId(event.target.value); setJournalFormNotice(''); }}>
+                      <option value="">No finding linked</option>
+                      {state.findings.filter(finding => finding.engagementId === selectedEng.id).map(finding => <option key={finding.id} value={finding.id}>{finding.title} · {finding.id} v{finding.revision || 1}</option>)}
+                      {amendAdjustment?.supportLinks?.finding && !state.findings.some(item => item.id === amendAdjustment.supportLinks!.finding!.id && item.engagementId === selectedEng.id) && <option value={amendAdjustment.supportLinks.finding.id} disabled>Prior pin {amendAdjustment.supportLinks.finding.id} v{amendAdjustment.supportLinks.finding.revision} · unavailable</option>}
+                    </select>
+                  </label>
+                  {journalFormNotice && <p className="caption" role="alert">{journalFormNotice}</p>}
+                </fieldset>
                 {amendAdjustment && <div><label className="caption">Reason for amendment</label><textarea aria-label="Adjustment amendment reason" className="input" rows={2} value={amendmentReason} onChange={e => setAmendmentReason(e.target.value)} required /></div>}
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn ghost sm" onClick={() => { setShowAddAdjModal(false); setAmendAdjustment(null); }}>Cancel</button>
+                <button type="button" className="btn ghost sm" onClick={closeAdjustmentModal}>Cancel</button>
                 <button type="submit" className="btn primary sm">{amendAdjustment ? 'Save amended revision' : 'Propose Journal'}</button>
               </div>
             </form>

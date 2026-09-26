@@ -106,6 +106,9 @@ describe('accounting fixed example (AT-38/AT-40)', () => {
     const current = applyReportingAdjustments(TB_8, [{ ...journal, reflectionStatus: 'Reflected in TB', reflectionSourceVersion: 2 } as any], 2);
     assert.deepEqual(current.rows, TB_8, 'only reflection confirmed for the current source avoids duplicate reporting');
     assert.deepEqual(current.unapplied, []);
+    const staleSupport = applyReportingAdjustments(TB_8, [{ ...journal, reflectionSourceVersion: 2 } as any], 2, { 'AJ-TEST': 'Workpaper WP-A1 is now v3; pinned v2.' });
+    assert.deepEqual(staleSupport.rows, TB_8, 'a journal with stale linked support cannot affect reporting');
+    assert.match(staleSupport.unapplied[0].reason, /Workpaper WP-A1 is now v3/);
     const rejected = applyReportingAdjustments(TB_8, [{ ...journal, status: 'Rejected' } as any], 2);
     assert.deepEqual(rejected.rows, TB_8, 'rejected adjustments are never included');
     assert.deepEqual(rejected.unapplied, []);

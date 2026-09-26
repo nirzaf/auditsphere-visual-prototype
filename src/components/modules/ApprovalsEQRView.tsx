@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, hasRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface ApprovalsEQRViewProps {
@@ -241,7 +242,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                 Sign Off as Assigned EQR
               </button>
             )}
-            {['manager', 'partner'].includes(state.currentRole) && <div className="row mt12">
+            {hasAnyRole(state, ['manager', 'partner']) && <div className="row mt12">
               <select className="input" aria-label="Assigned EQR" value={eqrUserId} onChange={event => setEqrUserId(event.target.value)}>
                 {state.users.filter(user => user.role === 'eqr' && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
               </select>
@@ -252,7 +253,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
         </div>
       </div>
 
-      {['manager', 'partner'].includes(state.currentRole) && <div className="panel panel-pad">
+      {hasAnyRole(state, ['manager', 'partner']) && <div className="panel panel-pad">
         <div className="between"><div><h3>Management Package Presentation</h3><p className="sub mt4">Present the validated current package revision for an independent management decision.</p></div>
           <button className="btn primary sm" onClick={handlePresentPackage}>Present Current Package</button></div>
         {selectedEng.managementPresentation && <p className="cell-sub mt8">Presented by {selectedEng.managementPresentation.presentedBy} · Package v{selectedEng.managementPresentation.packageRevision} · Source v{selectedEng.managementPresentation.sourceVersion} · Gen {selectedEng.managementPresentation.generation}{selectedEng.managementPackageDecision ? ` · Management ${selectedEng.managementPackageDecision.decision}` : ' · Awaiting management decision'}</p>}
@@ -283,7 +284,7 @@ export const ApprovalsEQRView: React.FC<ApprovalsEQRViewProps> = ({ onNavigate }
                     type="checkbox"
                     aria-label="Mark EQR concern resolved"
                     checked={c.resolved}
-                    disabled={state.currentRole !== 'eqr' || (!c.resolved && !c.response)}
+                    disabled={!hasRole(state, 'eqr') || (!c.resolved && !c.response)}
                     onChange={() => handleToggleConcern(c.id)}
                   />
                   <div>

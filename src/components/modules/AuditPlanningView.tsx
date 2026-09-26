@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, AuditPlanRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 import { calculateMateriality, formatCurrency } from '../../services/calculations';
@@ -198,7 +199,7 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
           <button className="btn sm ghost" onClick={() => onNavigate('audit-risks')}>
             <Icon name="shield" /> Audit Risk Register
           </button>
-              <button className="btn primary sm" onClick={handleSavePlan} disabled={!['manager', 'preparer', 'partner'].includes(state.currentRole)}>
+              <button className="btn primary sm" onClick={handleSavePlan} disabled={!hasAnyRole(state, ['manager', 'preparer', 'partner'])}>
             <Icon name="check" /> Save Version {(existingPlan?.version || 0) + 1}
           </button>
         </div>
@@ -517,14 +518,14 @@ export const AuditPlanningView: React.FC<AuditPlanningViewProps> = ({ onNavigate
                 <button
                   className="btn primary sm"
                   onClick={() => handleReviewPlan(true)}
-                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !['manager', 'reviewer', 'partner'].includes(state.currentRole)}
+                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !hasAnyRole(state, ['manager', 'reviewer', 'partner'])}
                 >
                   Approve Audit Plan Strategy
                 </button>
                 <button
                   className="btn sm ghost"
                   onClick={() => handleReviewPlan(false)}
-                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !['manager', 'reviewer', 'partner'].includes(state.currentRole)}
+                  disabled={!existingPlan || existingPlan.status !== 'Under review' || !hasAnyRole(state, ['manager', 'reviewer', 'partner'])}
                 >
                   Return for Rework
                 </button>

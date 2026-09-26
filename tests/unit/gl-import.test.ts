@@ -33,6 +33,23 @@ describe('VP-036 GL source intake', () => {
     assert.ok(parseGLWorkbook('custom.csv', bytes(custom), 'QAR', '2026-01-01', '2026-12-31', { journal: 0, line: 0, date: 2, account: 3, name: 4, debit: 5, credit: 6, currency: 7, description: 8 }).errors.some(error => error.includes('different source column')));
   });
 
+  it('maps optional service dates and configured accounting dimensions from CSV/XLSX source columns', () => {
+    const extendedHeaders = 'Journal ID,Line ID,Date,Service Date,Account Code,Account Name,Debit,Credit,Currency,Description,Department,Cost Centre,Project';
+    const extended = `${extendedHeaders}\nJ1,L1,2026-01-15,2025-12-31,1000,Cash,10,0,QAR,Receipt,Audit,CC-01,Project A\nJ1,L2,2026-01-15,2025-12-31,2000,Payable,0,10,QAR,Receipt,Audit,CC-01,Project A`;
+    const parsed = parseGLWorkbook('extended.csv', bytes(extended), 'QAR', '2026-01-01', '2026-12-31');
+    assert.deepEqual(parsed.errors, []);
+    assert.equal(parsed.transactions[0].serviceDate, '2025-12-31', 'service date is retained separately from posting date');
+    assert.deepEqual(parsed.transactions[0].dimensions, { Department: 'Audit', 'Cost centre': 'CC-01', Project: 'Project A' });
+    assert.equal(parsed.transactions[0].dimensionDept, 'Audit', 'department remains available to the legacy department projection');
+
+    const malformed = extended.replace('2025-12-31', 'not-a-date');
+    assert.ok(parseGLWorkbook('extended.csv', bytes(malformed), 'QAR', '2026-01-01', '2026-12-31').errors.some(error => error.includes('service date')));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([extendedHeaders.split(','), ['J1','L1','2026-01-15','2025-12-31','1000','Cash',10,0,'QAR','Receipt','Audit','CC-01','Project A'], ['J1','L2','2026-01-15','2025-12-31','2000','Payable',0,10,'QAR','Receipt','Audit','CC-01','Project A']]), 'GL');
+    const xlsx = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    assert.deepEqual(parseGLWorkbook('extended.xlsx', xlsx, 'QAR', '2026-01-01', '2026-12-31').transactions[0].dimensions, parsed.transactions[0].dimensions);
+  });
+
   it('accepts an explicit opening-only row and a genuine XLSX workbook', () => {
     const withOpeningOnly = `${headers}\nJ1,L1,2026-01-15,1000,Cash,10,0,QAR,Receipt,100\nJ1,L2,2026-01-15,2000,Payable,0,10,QAR,Receipt,-100\n,,,3000,Capital,,,,,500`;
     const openingResult = parseGLWorkbook('gl.csv', bytes(withOpeningOnly), 'QAR', '2026-01-01', '2026-12-31');
@@ -76,6 +93,28 @@ describe('VP-036 GL source intake', () => {
     assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'unknown-account.csv', format: 'CSV', sha256: 'd'.repeat(64), openingBalances: parsed.openingBalances, transactions: [{ ...parsed.transactions[0], accountCode: '9999' }, ...parsed.transactions.slice(1)] }), /active posting accounts/);
     assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'unknown-opening.csv', format: 'CSV', sha256: 'e'.repeat(64), openingBalances: { ...parsed.openingBalances, '9999': 1 }, transactions: parsed.transactions }), /opening balances must reference active posting accounts/);
     assert.equal(engagement.glSourceHistory?.length || 0, 0, 'unknown chart codes do not create any GL revision');
+  });
+
+  it('validates imported dimensions against the active accounting setup before creating a revision', () => {
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const client = state.clients.find(item => item.id === engagement.client)!;
+    const preparer = state.users.find(user => user.role === 'preparer')!;
+    state.currentRole = 'preparer'; state.currentUserId = preparer.id; state.currentPerson = preparer.name;
+    client.accountingProfile!.dimensions = [{ id: 'department', name: 'Department', values: ['Audit', 'Tax'], active: true }];
+    const source = 'Journal ID,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance,Department,Service Date\nJ1,L1,2026-09-23,1000,Cash,10,0,QAR,Receipt,100,Audit,2026-09-20\nJ1,L2,2026-09-23,2000,Payable,0,10,QAR,Receipt,-100,Audit,2026-09-20';
+    const parsed = parseGLWorkbook('dimensioned.csv', bytes(source), 'QAR', '2026-01-01', '2026-12-31');
+    assert.deepEqual(parsed.errors, []);
+    const revision = prototypeStore.importGeneralLedgerSource(engagement.id, { fileName: 'dimensioned.csv', format: 'CSV', sha256: 'f'.repeat(64), openingBalances: parsed.openingBalances, transactions: parsed.transactions });
+    assert.equal(revision, 1);
+    const saved = prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)!.glSourceHistory![0].transactions[0];
+    assert.equal(saved.serviceDate, '2026-09-20');
+    assert.equal(saved.dimensions?.Department, 'Audit');
+
+    assert.throws(() => prototypeStore.importGeneralLedgerSource(engagement.id, {
+      fileName: 'invalid-dimension.csv', format: 'CSV', sha256: 'e'.repeat(64), openingBalances: parsed.openingBalances,
+      transactions: parsed.transactions.map(line => ({ ...line, dimensions: { Department: 'Unconfigured' }, dimensionDept: 'Unconfigured' }))
+    }), /configured dimensions/);
+    assert.equal(prototypeStore.getSnapshot().engagements.find(item => item.id === engagement.id)!.glSourceHistory!.length, 1, 'invalid dimensions do not create or partially append a source revision');
   });
 
   it('commits engagement-bound immutable revisions and invalidates dependent approvals', () => {

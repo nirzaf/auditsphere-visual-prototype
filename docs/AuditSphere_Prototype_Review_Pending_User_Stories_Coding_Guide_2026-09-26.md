@@ -1,7 +1,7 @@
 # AuditSphere Visual Prototype — Updated Code Review, Pending User Stories and Coding Guide
 
 
-> **Verdict: not 100% complete.** All 39 functional areas are represented in the module map and routed implementation, but five concrete source-code issues remain, the original acceptance contract is still open, and the progress summary is inconsistent with its own detailed action tables. “A module exists,” “a bounded demo worked,” and “every required lifecycle is accepted” are different claims.
+> **Verdict: the bounded repair slice and seven cross-cutting evidence/scope actions are complete; the whole simulation is not.** The five source-code findings from the original review have been fixed and regression-tested. VP-064-R03, VP-063-E03, VP-017-E01/E02, VP-036-E03, VP-036-R01 and VP-038-E01 have been reconciled as bounded actions, leaving 34 open action rows (the original review baseline was 41). The original acceptance contract remains open. “A module exists,” “a bounded demo worked,” and “every required lifecycle is accepted” are different claims.
 
 ## Contents
 
@@ -27,27 +27,28 @@
 | Modules labelled Partial by the repository | 29 | Some require code changes; others mainly require acceptance reconciliation. |
 | Original user stories / criteria | 64 / 256 | Preserve the original IDs and wording. |
 | Stories labelled Verified / Partial | 16 / 48 | Do not convert this ratio into a software-completion percentage. |
-| Open actions claimed by the tracker header | 47 | This summary is stale relative to its detailed tables. |
-| Open verification rows found in §9.3 | **37** | 29 Partial, 5 Pending, 3 explicitly verified subcases with wider acceptance open. |
-| Open scope/reconciliation rows found in §9.4 | **4** | 3 Partial and 1 Open. |
-| **Actual open action-row inventory** | **41** | 37 + 4; these are action rows, not 41 distinct missing features. |
-| Newly identified source-code finding groups | **5** | Search visibility, destructive reset, misleading context, duplicate IDs, unguarded drafts. |
+| Open actions claimed by the original queue summary | 47 | Historical stale count; current tracker reports 34 after bounded action closures, preserving the dated 41-, 40-, 39-, 38-, 37-, 36- and 35-row baselines. |
+| Open verification rows found in §9.3 | **32** | 26 Partial, 4 Pending, 2 explicitly verified subcases with wider acceptance open. |
+| Open scope/reconciliation rows at original review baseline | **4** | 3 Partial and 1 Open; VP-064-R03 has since been reconciled. |
+| Open action-row inventory at original review baseline | **41** | 37 + 4; these are action rows, not distinct missing features. |
+| **Current open action-row inventory** | **34** | 32 + 2 after VP-064-R03, VP-063-E03, VP-017-E01/E02, VP-036-E03, VP-036-R01 and VP-038-E01 action closure. |
+| Source-code finding groups identified by the review | **5** | Search visibility, destructive reset, misleading context, duplicate IDs, unguarded drafts; all five are now fixed and tested. |
 
-The 84 verification rows comprise 43 Complete, 4 Verified, 29 Partial, 5 Pending and 3 subcase-only rows. The 38 scope rows comprise 34 Complete/Reconciled and 4 open rows. The header instead describes 40 open verification and 7 open scope actions. Correct the summary from the underlying records; do not arbitrarily close six actions just to make the numbers agree. Exact row IDs are retained in Section 8. [S1] [S2]
+The 82 enumerated verification rows comprise 46 Complete, 4 Verified, 26 Partial, 4 Pending and 2 verified-subcase rows with follow-up still open. The earlier 84-row denominator in verification entry 81 cannot be reconciled to the actual §9.3 table and is corrected here by a row-level recount; the status categories and action totals now add to 82. At the original review baseline, 38 scope rows comprised 34 Complete/Reconciled and 4 open rows, for 41 total actions. VP-064-R03 was reconciled (interim total 40), VP-063-E03 was completed (39), VP-017-E02 was closed (38), VP-017-E01 was closed on AT-15/RR35 evidence (37), VP-036-E03 was closed after GL v1→v2 reconciliation and reviewed-package lifecycle evidence (36), VP-036-R01's bounded control comparison was closed (35), and VP-038-E01's journal evidence/decision matrix was closed (34), leaving 36 Complete/Reconciled scope rows, 2 Partial scope rows and 34 current open actions. The original queue prose described 40 open verification and 7 open scope actions. Verified subcases with wider criterion follow-up remain open rather than being hidden in the Verified category. Exact open row IDs are retained in Section 8; seven bounded actions are noted separately. VP-017 acceptance criteria remain subcase-verified rather than fully signed off, including its broader optional-service/provider matrix. [S1] [S2]
 
-All five new code findings overlap existing scope, navigation or acceptance obligations. **Do not add them arithmetically to the 41 action rows** or invent MOD-40 and later modules.
+All five code findings overlap existing scope, navigation or acceptance obligations. **Do not add them arithmetically to the 35 current open actions** or invent MOD-40 and later modules.
 
-The current `App.tsx` imports the feature views and maps the application routes; `01_MODULE_INDEX.md` identifies all 39 functional areas. That establishes representation, not full lifecycle acceptance. This review did not independently click through all 39 modules. [S3] [S10]
+The current `App.tsx` imports the feature views and maps the application routes; `01_MODULE_INDEX.md` identifies all 39 functional areas. That establishes representation, not full lifecycle acceptance. A later deployed-browser sweep exercised all 34 staff navigation routes; shared routes and that sweep do not establish criterion-level acceptance of all 39 functional areas (see verification entry 88). [S3] [S10]
 
 ### 1.2 What was actually checked
 
-This review resolved `main` to the full SHA above, read the current tracker and all remaining action rows, inspected the route/guard architecture and the relevant Shell, Budget and Job Template source, and compared recent completed actions with older missing-feature claims.
+The original review pinned its source findings to `975502a1f0fb31db3814da6d6bf6854cf9c8879e`, read the tracker and remaining action rows, inspected the route/guard architecture and relevant Shell, Budget and Job Template source, and compared recent completed actions with older missing-feature claims. The follow-up implementation landed in `e6a6edb`; the current documentation baseline was `ffcf34c0000c9cc18bc9dc2c8d1fff87b6ca060f`.
 
 Five **isolated JavaScript source-expression probes** were run locally. They reproduced three search-policy mismatches and two misleading context outputs. These probes use transcribed source expressions and small synthetic fixtures; they are **not** the repository's unit suite, React rendering tests or Chrome journeys. Their exact scope and output are in Section 10.
 
-A fresh repository checkout could not be obtained in the execution environment: the Git command failed to resolve `github.com`, and the source-archive download was unavailable. Consequently **`npm ci`, the full build, the repository unit suite, and browser E2E were not rerun here**. Source-confirmed findings must receive in-repository regressions before a fix is accepted.
+At the original review snapshot, a fresh checkout and full test run were unavailable, so the source probes were not repository regressions. The first follow-up ran checks at documentation baseline `ffcf34c0000c9cc18bc9dc2c8d1fff87b6ca060f` (application source then unchanged from `e6a6edb`): lint, 231/231 unit tests, 105/105 E2E (5 static + 100 Chrome), build and legacy syntax passed. A subsequent uncommitted UI-guard change extends that tested state: lint, 231/231 unit tests, build and 109/109 serialized E2E (5 static + 104 Chrome) now pass, including acquisition, profile and PBC draft-guard journeys. The current tracker records the code delta and exact commands. The focused regressions cover the five original findings and the added draft guards. `npm ci` was not rerun; the installed dependencies were used.
 
-The tracker reports 216/216 unit and 96/96 E2E checks from a recorded run. These are historical repository-reported results, not independently observed passes at the reviewed HEAD. Several evidence rows also say “current worktree”; they need exact source/build attribution before supporting final acceptance. [S1] [S12]
+The 216/216 unit and 96/96 E2E results in older tracker entries remain historical snapshots. The latest observed 231/231 unit and 109/109 E2E results include the uncommitted draft-guard delta and verify tested paths, not the complete original 256-criterion contract. Earlier “current worktree” entries remain historical unless their own source/build attribution is stated. [S1] [S12]
 
 ### 1.3 Correct earlier missing-feature claims
 
@@ -73,7 +74,7 @@ Do not recreate the following capabilities. The **current** action table already
 
 ## 2. Source-confirmed findings
 
-These are concrete implementation findings, not deductions from a Partial label.
+These were concrete implementation findings at the pinned original-review source, not deductions from a Partial label. All five are fixed in the current source and have dedicated unit/browser regressions; retain the descriptions below as defect rationale and acceptance targets, not as claims that the current tree still contains those defects.
 
 ### F01 — Global search exposes records outside engagement or role scope
 
@@ -138,9 +139,9 @@ Budget save also derives its target engagement and next revision from the curren
 
 **Acceptance:** Budget and Template authoring/instantiation preserve draft values on Stay; Discard creates no records; permitted Save executes exactly its advertised operation once; validation failure keeps the user and draft; direct hash/back, persona and engagement changes cannot lose or misapply data.
 
-### D01 — Acceptance and documentation reconciliation is itself unfinished
+### D01 — Reconcile acceptance and documentation without fabricating closure
 
-The header's 47 open actions disagree with the 41 detailed open rows. Older descriptions also call completed features missing. The README describes client-upload bytes as session-only, while VP-024-R03 now distinguishes durable PBC IndexedDB bytes from metadata/session-only library files. Treat this as a documentation inconsistency requiring a source-backed reconciliation, not a reason to replace the storage implementation. [S1] [S2] [S11]
+At the original review snapshot, the queue prose claimed 47 open actions while its rows yielded 41, and older descriptions called completed features missing. The current tracker reports 34 open actions after VP-064-R03, VP-063-E03, VP-017-E01/E02, VP-036-E03, VP-036-R01 and VP-038-E01 closure; it retains 32 verification follow-ups (including two verified-subcase follow-ups) and two other Partial scope rows. The README and storage guidance distinguish durable PBC IndexedDB bytes from metadata/session-only library originals, consistent with VP-024-R03; no storage implementation change was needed. Preserve historical run entries and keep closure-card status separate from product acceptance. [S1] [S2] [S11]
 
 Preserve historical run entries, but clearly distinguish historical snapshots from current status. Do not bulk change every story to Verified because closure cards are Complete.
 
@@ -150,26 +151,26 @@ Preserve historical run entries, but clearly distinguish historical snapshots fr
 
 | Module | Repository label | Current review disposition | Completion story |
 |---|---|---|---|
-| MOD-01 — Practice Dashboard | Partial | Local dashboard action rows are complete; close original criteria and shared context defects, not a rebuild. | RV-M01 |
+| MOD-01 — Practice Dashboard | Partial | Local dashboard action rows are complete; F03 shared-context display is fixed; close original criteria, not a rebuild. | RV-M01 |
 | MOD-02 — CRM & Client Management | Partial | Remaining tab-action/scope evidence; preserve implemented contacts, custom fields and shared projections. | RV-M02 |
 | MOD-03 — Leads & Opportunities | Verified | Preserve the accepted baseline; run the relevant shared-change and cross-module regressions. | Section 6 |
 | MOD-04 — Proposals & Engagements | Partial | Proposal field/print and stale-response matrices; engagement Closed-state/history cases. | RV-M04 |
 | MOD-05 — Jobs & Tasks | Partial | Local job actions complete. Task notes/document links already exist; criterion sign-off and shared regressions remain. | RV-M05 |
-| MOD-06 — Job Templates | Partial | Lifecycle action complete, but authoring/instantiation drafts do not register with the shared guard (F05). | RV-M06 |
+| MOD-06 — Job Templates | Partial | Lifecycle action complete; F05 authoring/instantiation draft guards are fixed and tested; original acceptance remains. | RV-M06 |
 | MOD-07 — Team Collaboration | Partial | Moderation/notices exist. Remaining communication publication/correction and actor/context cases. | RV-M07 |
 | MOD-08 — Client Portal | Partial | Remaining portal persona/entity/engagement/action matrix; do not rebuild entity scoping. | RV-M08 |
 | MOD-09 — Client Requests / PBC | Partial | Request-filter and recipient/context verification; accepted-evidence replacement is now complete. | RV-M09 |
-| MOD-10 — Document Management | Partial | Workspace retry/root/scope and availability matrices; correct contradictory PBC storage documentation. | RV-M10 |
-| MOD-11 — Communications | Partial | Sender/placeholder/template/link cases; source-confirmed global-search projection leak (F01). | RV-M11 |
+| MOD-10 — Document Management | Partial | Workspace retry/root/scope and availability matrices remain; PBC and library storage classes are now documented separately. | RV-M10 |
+| MOD-11 — Communications | Partial | Sender/placeholder/template/link cases remain; the F01 search projection leak is fixed and tested. | RV-M11 |
 | MOD-12 — Time Tracking | Partial | Date/duration/link-scope matrix; billed-time correction is already implemented. | RV-M12 |
-| MOD-13 — Budgets | Partial | Unallocated aggregation and variance cases, plus unregistered budget drafts (F05). | RV-M13 |
-| MOD-14 — Billing & Invoicing | Partial | Date/reference/correction acceptance; source-linked invoice editing is now complete; F01 exposes invoice metadata. | RV-M14 |
+| MOD-13 — Budgets | Partial | Unallocated aggregation and variance cases remain; F05 budget draft guards are fixed and tested. | RV-M13 |
+| MOD-14 — Billing & Invoicing | Partial | Date/reference/correction acceptance remains; source-linked invoice editing is complete and F01 invoice search is scoped. | RV-M14 |
 | MOD-15 — Receivables | Partial | Local allocation/aging actions complete; close full criteria and shared regressions. | RV-M15 |
 | MOD-16 — Reporting & Analytics | Verified | Preserve the accepted baseline; run the relevant shared-change and cross-module regressions. | Section 6 |
-| MOD-17 — Search & Centralized Client View | Partial | Confirmed role and sibling-engagement search leaks (F01), plus remaining target/scope tests. | RV-M17 |
+| MOD-17 — Search & Centralized Client View | Partial | F01 role and sibling-engagement search leaks are fixed and tested; remaining target/scope acceptance stays open. | RV-M17 |
 | MOD-18 — Microsoft 365 Integration Simulation | Partial | Remaining invalid setup selections and full skipped-service criterion; provider failure matrix already covered. | RV-M18 |
 | MOD-19 — Identity & Access Management | Partial | Remaining expiry/professional-role/group matrix; enforce the same boundaries in search. | RV-M19 |
-| MOD-20 — Accounting Setup | Partial | Period/book/archive/dimension rework matrix; remove misleading shared context labels (F03). | RV-M20 |
+| MOD-20 — Accounting Setup | Partial | Period/book/archive/dimension rework matrix remains; F03 shared context labels are fixed and tested. | RV-M20 |
 | MOD-21 — Trial Balance & GL | Partial | GL replacement → reviewed-package rework and original-control comparison; core intake negatives already covered. | RV-M21 |
 | MOD-22 — Adjustments & Journals | Partial | Residual evidence/workpaper/finding linkage; source replacement/reconfirmation action is now complete. | RV-M22 |
 | MOD-23 — Reconciliations | Partial | Remaining bounded date/currency/scope acceptance, not new bank integrations. | RV-M23 |
@@ -188,7 +189,7 @@ Preserve historical run entries, but clearly distinguish historical snapshots fr
 | MOD-36 — Reviews & Approvals | Verified | Preserve the accepted baseline; run the relevant shared-change and cross-module regressions. | Section 6 |
 | MOD-37 — Completion & Release | Verified | Preserve the accepted baseline; run the relevant shared-change and cross-module regressions. | Section 6 |
 | MOD-38 — Records & Archive | Verified | Preserve the accepted baseline; run the relevant shared-change and cross-module regressions. | Section 6 |
-| MOD-39 — Administration | Partial | Settings actions complete; remaining IAM matrix and stale documentation; no second settings system. | RV-M39 |
+| MOD-39 — Administration | Partial | Settings actions and storage/count documentation are reconciled; the remaining IAM matrix is open. No second settings system. | RV-M39 |
 
 Source: the current module index and route wiring, cross-checked against the current action table. [S2] [S3] [S10]
 
@@ -204,6 +205,8 @@ The `RV-*` identifiers below identify sections of **this review**. They do not r
 
 **Priority:** P1. **Finding:** F01. **Canonical links:** VP-061-E02; relevant VP-019 and VP-003 criteria.  
 **Lifecycle:** enter query → authorize category and record → filter → show permitted metadata → open exact authorized target → revalidate after grant change.
+
+**Implementation status:** Fixed in the current source. The unit selector tests and F01 Chrome regression pass, including same-client sibling invoice/communication sentinels, preparer billing denial and filtering before the type selector is built. The broader original VP-019/VP-061 acceptance matrix remains open.
 
 **Acceptance criteria**
 - [ ] Two engagements share one client. An ENG-A-only manager cannot find ENG-B's invoice number, amount, communication summary or participant sentinel.
@@ -221,6 +224,8 @@ The `RV-*` identifiers below identify sections of **this review**. They do not r
 **Priority:** P1. **Findings:** F02/F05. **Canonical links:** VP-003-E01/E02/R03 and VP-004.  
 **Lifecycle:** open editor → capture identity/context/revision → edit → request transition → Stay / Save / Discard → revalidate → continue.
 
+**Implementation status:** Sidebar reset now runs through the shared unsaved-form decision and a separate destructive confirmation with recovery backup. Budget, template-authoring and template-instantiation drafts register with the shared guard and revalidate captured context. F02/F05 Chrome regressions pass; the inventory and full VP-003 route/persona/form matrix remain open.
+
 **Acceptance criteria**
 - [ ] Inventory every actual editable form, including Budget and Job Template authoring/instantiation. Record guard key, scope, save behavior and cleanup.
 - [ ] Exercise hash/back navigation as well as normal navigation; Stay preserves values and the accepted URL, Discard does not mutate persisted business records, and failed Save does not navigate.
@@ -236,6 +241,7 @@ The `RV-*` identifiers below identify sections of **this review**. They do not r
 **As a presenter, I want the header to describe the actual selected record and its readiness, so that a client never sees a fabricated currency, package version or approval status.**
 
 **Priority:** P2. **Finding:** F03. **Canonical links:** shared VP-003, VP-034/040 and VP-064.  
+**Implementation status:** The header now derives currency from the authorized selected engagement and package readiness from the owning calculation. Unit and F03 Chrome regressions pass for USD, Not created and unavailable context; full downstream rework acceptance remains open.
 **Acceptance criteria**
 - [ ] QAR and USD engagements show the selected reporting currency; absent or inconsistent context shows an explicit unavailable state.
 - [ ] A package not yet created has no invented revision. A stale package is not labelled Current.
@@ -250,6 +256,7 @@ The `RV-*` identifiers below identify sections of **this review**. They do not r
 **As a keyboard or assistive-technology user, I want each menu and dialog to have one clear control relationship and predictable focus behavior, so that every lifecycle is usable without pointer-only actions.**
 
 **Priority:** P2. **Finding:** F04. **Canonical links:** VP-003-E01 and approved UI acceptance.  
+**Implementation status:** `primary-navigation` is unique and `aria-controls` targets the sidebar. The UIX-02 Chrome regression verifies the unique target and desktop collapse behavior; broad mobile drawer and active-modal accessibility acceptance remains open.
 **Acceptance criteria**
 - [ ] `primary-navigation` resolves to exactly one element; `aria-controls` points to the element actually expanded/collapsed.
 - [ ] Keyboard opening, focus containment, Escape/overlay dismissal and focus restoration work for the mobile drawer and each remaining active modal family.
@@ -296,10 +303,10 @@ The `RV-*` identifiers below identify sections of **this review**. They do not r
 
 **Priority:** P1. **Finding:** D01. **Canonical links:** VP-064-E01/E02/R03.  
 **Acceptance criteria**
-- [ ] Recompute the detailed action inventory; at this snapshot it is 37 verification + 4 scope = 41, not the header's 47.
+- [x] Recompute the detailed action inventory; the current result is 32 verification + 2 scope = 34 after VP-064-R03, VP-063-E03, VP-017-E01/E02, VP-036-E03, VP-036-R01 and VP-038-E01 action closure. Preserve prior 41-, 40-, 39-, 38-, 37-, 36- and 35-row totals as dated history.
 - [ ] Preserve each original criterion and historical result; distinguish passed subcases, unrun checks, failed behavior, scope decisions and actual reviewer approval.
-- [ ] Reconcile contradictory README/PBC storage guidance and stale missing-feature prose using current source and observed reload behavior.
-- [ ] Update module guides, demo steps and the canonical tracker together. Keep closure-card execution status separate from product acceptance and demo outcomes.
+- [x] Reconcile README/PBC storage guidance using current source and observed reload behavior; feature-specific storage classes are documented separately.
+- [x] Update the module guide, demo playbook, recovery/document task cards, verification record and canonical tracker together. Keep closure-card execution status separate from product acceptance and demo outcomes.
 - [ ] Promote a story only after all four original criteria and applicable shared obligations are evidenced; promote a module from its real constituent stories.
 - [ ] Never invent reviewer acceptance, a commit SHA, a run log or a live provider result. Missing human approval remains explicitly open while other authorized work proceeds.
 
@@ -691,13 +698,13 @@ An empty “local open action” list means the module's named action rows are c
 
 **Work type:** Targeted verification / acceptance; implement only a reproduced gap.  
 **Original stories:** VP-017, VP-020, VP-021, VP-022, VP-026.  
-**Local open action rows:** `VP-017-E01`, `VP-017-E02`, `VP-020-E01`, `VP-021-E01`, `VP-026-E01`  
+**Local open action rows:** `VP-020-E01`, `VP-021-E01`, `VP-026-E01`
 **Route/workspace:** `m365-setup`.  
 **Implementation touchpoints:** [M365SetupView.tsx](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/src/components/modules/M365SetupView.tsx); existing `prototypeStore` commands, selectors and services.
 
 **User story:** As a setup administrator, I want to finish configuration validation while keeping disconnected local workflows usable, so that the simulation explains failure and recovery without implying a live provider.
 
-**Preserve / current evidence:** Changed-resource, outage, disconnect and recovery tests are already recorded complete under VP-022. Remaining work is VP-017-E01 and the full E02 criterion, plus dependent document/mail cases. [S2]
+**Preserve / current evidence:** Changed-resource, outage, disconnect and recovery evidence covers the bounded VP-017-E01 action; broader VP-017 criterion acceptance remains open. VP-020-E01, VP-021-E01 and VP-026-E01, plus dependent document/mail cases, remain. [S2]
 
 **Required supported lifecycle:** start/skip → choose synthetic resources → validate → simulate per-capability outcomes → review/save → resource change/stale result → explicit recovery/disconnect.
 
@@ -764,20 +771,24 @@ An empty “local open action” list means the module's named action rows are c
 
 ### RV-M21 — MOD-21: Trial Balance & GL
 
-**Work type:** Targeted verification / acceptance; implement only a reproduced gap.  
-**Original stories:** VP-035, VP-036, VP-037.  
-**Local open action rows:** `VP-036-E03`, `VP-036-R01`  
-**Route/workspace:** `accounting-setup / trial-balance / gl-transactions`.  
+**Work type:** Targeted verification / acceptance; implement only a reproduced gap.
+
+**Original stories:** VP-035, VP-036, VP-037.
+
+**Local open action rows:** None — bounded control-comparison action VP-036-R01 is closed; broader original acceptance remains open.
+
+**Route/workspace:** `accounting-setup / trial-balance / gl-transactions`.
+
 **Implementation touchpoints:** [AccountingWorkbenchView.tsx](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/src/components/modules/AccountingWorkbenchView.tsx), [TBImportWizard.tsx](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/src/components/modules/TBImportWizard.tsx); existing `prototypeStore` commands, selectors and services.
 
 **User story:** As a GL preparer and reviewer, I want to complete the replacement-to-reviewed-output lifecycle, so that new GL input invalidates dependent current work without rewriting accepted history.
 
-**Preserve / current evidence:** TB import is Verified and VP-036-E02 core GL negatives are Complete. The remaining work is VP-036-E03 and VP-036-R01. [S2]
+**Preserve / current evidence:** TB import is Verified; VP-036-E02 core GL negatives, VP-036-E03 replacement-to-reviewed-output lifecycle and VP-036-R01's bounded original-control comparison are Complete. VP-036 story acceptance remains Partial. [S2]
 
 **Required supported lifecycle:** choose context → map/import/validate → accept source → reconcile opening/movement/closing → review dependent work → replace source → preserve predecessor → regenerate/review.
 
 **Acceptance criteria**
-- [ ] Compare each original bounded GL control with the current UI; document supported mapping, openings, filters, journal drill-down and export.
+- [x] Compare the bounded original GL controls with current mapping, opening coverage, account/journal filters, visible journal drill-down, filtered export and no-posting behavior (VP-036-R01; bounded comparison only).
 - [ ] Replace a reviewed GL source and retain exact prior rows, mapping choices, source hash and unchanged TB data.
 - [ ] Dependent reconciliation and reviewed package readiness become stale immediately; an old candidate cannot authorize release.
 - [ ] Complete the post-replacement correction/regeneration/re-review journey, and confirm the prior package history remains reproducible.
@@ -785,32 +796,42 @@ An empty “local open action” list means the module's named action rows are c
 
 **Coding guide:** Extend AccountingWorkbenchView and existing GL parser/source/invalidation services. Preserve approved size limits and immutable revisions; no ledger posting or external accounting API.
 
-**Verification:** Extend AT-36 through a reviewed package and the re-review cycle; retain gl-import, TB parser and source-history regressions. Record the actual source/build, fixture and assertion; use the existing unit/Chrome harness and do not manufacture reviewer approval.
+**Verification:** AT-36 exercises the bounded mapped-source, opening/movement/TB tie-out, visible journal drill-down, account filter and CSV export. AT-36/AT-41 also cover replacement, preserved history and independent re-review. Broader fixture-size responsiveness, actor/criterion matrix and story sign-off remain open; do not manufacture reviewer approval.
+
+**VP-036-R01 original-control comparison (bounded evidence; not full AC04 sign-off):**
+
+| Original control | Current UI/evidence | Boundary still open |
+|---|---|---|
+| Map journal/line/account/date/debit-credit or signed amount/currency/description and optional dimensions; preview before import. | Accounting Workbench maps a nonstandard journal header and retains mapping/context; parser tests cover CSV/XLSX and invalid period/currency/date, duplicate and unbalanced rows. | Broader format/column/size/actor matrix remains open. |
+| Opening source is explicit; missing opening coverage is unknown, not zero. | Optional `Opening Balance` mapping is visible; AT-36 reconciles per-account opening + movement to TB close; EX06/RR10 prove omitted/unmapped opening cannot report complete. | Multiple opening-source and mismatch combinations remain in the wider criterion matrix. |
+| Source-bound filtering and journal drill-down preserve source references. | AT-36 applies journal J1 filter and asserts each displayed detail row visibly identifies J1; account 1000 filtering is independently checked. | Broader multi-journal, account and dimension combinations remain open. |
+| Source counts and filtered CSV export agree with the active filters. | AT-36 checks the eight-row source count, account-filtered result and one-row CSV plus header. | The eight-row deterministic test fixture does not establish responsiveness at the documented fixture size. |
+| Intake is not a posting engine; failed input does not mutate accepted sources. | Story scope and guards retain imported source rows; parser/guard regressions reject invalid input atomically and no-posting is explicitly disclosed. | No client/firm ledger posting or external accounting provider is in scope. |
 
 ### RV-M22 — MOD-22: Adjustments & Journals
 
 **Work type:** Targeted verification / acceptance; implement only a reproduced gap.  
 **Original stories:** VP-038.  
-**Local open action rows:** `VP-038-E01`  
+**Local open action rows:** None — VP-038-E01/E02 bounded verification follow-ups are closed; original VP-038 acceptance and human sign-off remain open.  
 **Route/workspace:** `adjustments / accounting-setup`.  
 **Implementation touchpoints:** [AccountingWorkbenchView.tsx](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/src/components/modules/AccountingWorkbenchView.tsx); existing `prototypeStore` commands, selectors and services.
 
 **User story:** As a adjustment preparer and independent reviewer, I want to finish evidence-linked journal decision and amendment cases, so that reporting uses each accepted adjustment exactly once against the correct source.
 
-**Preserve / current evidence:** VP-038-E02 source replacement/reconfirmation is now Complete. VP-038-E01 retains evidence/workpaper/finding linkage and remaining decision permutations. [S2]
+**Preserve / current evidence:** VP-038-E01/E02 bounded follow-ups are Complete. Revision-pinned evidence/document, workpaper and finding links reject foreign, unavailable and stale references; stale pins block decisions/reporting and remain visible with reasons. Amendment history preserves predecessor support pins; decision matrix covers accepted/unreflected, reflected, partial, unknown, rejected, stale-source and stale-support cases. Chrome records independent review/management acceptance, partial/unknown reporting explanations, reload history, amendment reapproval, unchanged source TB and source replacement/reconfirmation. The VP-038 story remains Partial: AC01/AC04 criterion sign-off and human review are not claimed. [S2]
 
 **Required supported lifecycle:** draft balanced journal → submit → technical decision → management decision → evidenced reflection → reporting inclusion → link finding → source replacement/amendment → fresh decisions.
 
 **Acceptance criteria**
-- [ ] Link journal support to the correct engagement and exact evidence/workpaper/finding revisions; reject foreign, stale or unavailable references.
-- [ ] Rejected, Unknown and Partially reflected states cannot masquerade as approved included corrections.
-- [ ] Amending an eligible journal preserves the predecessor and clears/requires exactly the decisions made stale by the change.
-- [ ] Source replacement and reconfirmation retain the already-proven prior reflection history and never double apply an amount.
-- [ ] Corrected-in-TB finding disposition is reachable only through the existing valid current journal/reporting conditions.
+- [x] Link journal support to the correct engagement and exact evidence/workpaper/finding revisions; reject foreign, stale or unavailable references (bounded implementation/evidence verified).
+- [x] Rejected, Unknown and Partially reflected states cannot masquerade as approved included corrections (bounded implementation/evidence verified; original story sign-off remains open).
+- [x] Amending an eligible journal preserves the predecessor and clears/requires exactly the decisions made stale by the change (bounded implementation/evidence verified).
+- [x] Source replacement and reconfirmation retain the already-proven prior reflection history and never double apply an amount (bounded implementation/evidence verified).
+- [x] Corrected-in-TB finding disposition is reachable only through the existing valid current journal/reporting conditions (bounded implementation/evidence verified).
 
 **Coding guide:** Reuse the existing journal commands, reflection records and reporting-inclusion command in the accounting store/view. Do not mutate imported source rows, introduce a ledger or create a second approval chain.
 
-**Verification:** Extend AT-38 and current journal guards with exact linked-revision failures; retain the new VP-038-E01/E02 replacement proof. Record the actual source/build, fixture and assertion; use the existing unit/Chrome harness and do not manufacture reviewer approval.
+**Verification:** `tests/unit/calculations.test.ts`, `tests/unit/guards.test.ts`, `tests/unit/lifecycleGaps.test.ts`; Chrome `tests/e2e/app.test.ts::AT-38` and `::VP-038-E01/E02`. Current build PASS, unit 240/240, full E2E 110/110 (5 static + 105 Chrome), focused journal Chrome 2/2, 2026-09-26. No reviewer approval is manufactured. Original AC01/AC04 sign-off remains open.
 
 ### RV-M23 — MOD-23: Reconciliations
 
@@ -1191,7 +1212,7 @@ npm run test:e2e
 npm run build
 ```
 
-Use `npm run legacy:check` when required by existing checks or when legacy output is affected; a legacy syntax check is not React lifecycle acceptance. Use the existing Python progress helper to validate/refresh task-pack records when they change. These commands were **not rerun by this review**.
+Use `npm run legacy:check` when required by existing checks or when legacy output is affected; a legacy syntax check is not React lifecycle acceptance. Use the existing Python progress helper to validate/refresh task-pack records when they change. The original pinned review could not rerun these checks; the follow-up results and exact commands are recorded in §1.2 and verification entry 81.
 
 Start with relevant existing tests; add minimal regressions for changed behavior. Then run the applicable complete suite on a stable candidate tree. Do not add tests merely to increase totals, skip a failing assertion, weaken scope checks, or change expected financial figures to the implementation's own output.
 
@@ -1203,11 +1224,11 @@ Record: original criterion/action; exact source SHA and dirty diff/tree hash; pa
 
 This inventory preserves the original IDs. It was transcribed from the pinned detailed rows and counted programmatically. `Partial`, `Pending` and explicitly subcase-only verification remain open; ordinary `Complete`, `Reconciled` and `Verified` rows are not counted as new implementation work. Source: tracker §9.3–9.4. [S2]
 
-### 8.1 Open verification/action rows — 37
+### 8.1 Open verification/action rows — 33
 
 | Original action | Current row class | Specific remaining closure |
 |---|---|---|
-| [VP-003-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2601) | Partial | Finish modal-specific save, cancel, close, backdrop, Escape, Enter and focus-return coverage. |
+| [VP-003-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2601) | Partial | Dirty client-profile Escape/backdrop decisions now have Stay/Discard and focus-return proof at 320/390/768px (AT-53); finish dialog-specific save/cancel/close/Escape/Enter/focus-return coverage across the remaining active-modal families. See `docs/prototype/verification.md`, entry 83. |
 | [VP-003-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2602) | Partial | Complete dirty-form protection across remaining forms and route, hash, client, engagement and persona transitions. |
 | [VP-004-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2603) | Partial | Exercise recovery using authentic historical persisted shapes, not only current fixtures with old version numbers. |
 | [VP-008-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2609) | Partial | Close remaining Client 360 tab actions, exact targets and multiple engagement-scope combinations. |
@@ -1216,8 +1237,6 @@ This inventory preserves the original IDs. It was transcribed from the pinned de
 | [VP-011-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2612) | Partial | Complete stale-dialog, withdrawn/revised-response, return-reason and invalid-evidence cases. |
 | [VP-011-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2613) | Partial | Verify response methods and linked correspondence/document references for the permitted actors. |
 | [VP-012-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2615) | Partial | Close Closed-state and cross-view historical-output behavior across engagement transitions. |
-| [VP-017-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2620) | Partial | Finish invalid tenant/resource/person selections and setup rollback/recovery combinations. |
-| [VP-017-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2621) | Verified subcase only | Promote the verified skipped/failed-service subcase only after its full criterion is accounted for. |
 | [VP-019-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2622) | Partial | Complete professional-role approval evidence, expiry and narrow group/component grant combinations. |
 | [VP-020-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2624) | Partial | Complete workspace prerequisite, exact-root, retry, rename and permitted-scope combinations. |
 | [VP-021-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2626) | Partial | Complete document availability/restore, wrong-root and linked-version cases across relevant roles and record types. |
@@ -1231,32 +1250,31 @@ This inventory preserves the original IDs. It was transcribed from the pinned de
 | [VP-031-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2643) | Partial | Complete invoice date/reference and revision/correction cases; source-linked editing now exists. |
 | [VP-034-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2648) | Partial | Finish accounting period/book/client/chart edits and downstream rework across sibling engagements. |
 | [VP-034-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2649) | Partial | Close archived-account, dimension-only and migration cases without changing reviewed historical outputs. |
-| [VP-036-E03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2653) | Partial | Finish reviewed package-history and re-review after GL source replacement. |
-| [VP-038-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2654) | Partial | Close journal evidence/workpaper/finding linkage and remaining reflection/decision permutations. |
 | [VP-039-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2656) | Partial | Complete the bounded reconciliation currency/date/scope matrix and criterion-level evidence. |
 | [VP-040-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2657) | Partial | Finish current/prior source, mapping and layout regeneration cases with exact expected subtotals. |
 | [VP-040-E03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2658) | Verified subcase only | Close full supported statement coverage around the verified cash-flow/equity subcase. |
 | [VP-041-E03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2659) | Verified subcase only | Close the remaining disclosure/schedule rework and client-sharing acceptance beyond verified subcases. |
 | [VP-045-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2665) | Partial | Complete duplicate/mixed-context elimination and source/rate/perimeter invalidation cases. |
-| [VP-061-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2675) | Partial | Finish search scope/role/target coverage, including the source-confirmed sibling-engagement leak. |
+| [VP-061-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2675) | Partial | Finish search scope/role/target coverage; the F01 sibling-engagement and role leaks are fixed and tested. |
 | [VP-063-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2678) | Pending | Execute the approved criterion-level positive, invalid, scope, stale, rework, reload and failure matrix. |
 | [VP-063-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2679) | Pending | Bind each result to the exact source/build, fixture, assertion and artifact. |
-| [VP-063-E03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2680) | Pending | Demonstrate isolated deterministic runs, truthful failures and no business-provider egress. |
 | [VP-064-E01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2681) | Pending | Publish one consistent criterion-to-evidence map and reconcile conflicting status documents. |
 | [VP-064-E02](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2682) | Pending | Rehearse the presenter guide on the same pinned build, including fresh/empty and failure/rework paths. |
 
-### 8.2 Open scope/reconciliation rows — 4
+### 8.2 Open scope/reconciliation rows — 2
+
+**Closed since the original review inventory:** VP-064-R03 (excluded live-service scope and action-count reconciliation), VP-063-E03 (serialized current-candidate test run and no-external-request evidence; see `docs/prototype/verification.md`, entry 81), VP-017-E02 (AT-15/16 confirms setup skip and failed SharePoint/mail simulations leave local fixture jobs usable), VP-017-E01 (AT-15 + RR35 invalid-selection atomicity + VP-017 outcome matrix; see entry 84), VP-036-E03 (AT-36/AT-41 GL replacement-to-reviewed-output lifecycle; see entry 86), and VP-036-R01 (original bounded control comparison; see entry 87). VP-017 criterion sign-off and broader optional-service/provider acceptance remain Partial; VP-036 AC04's documented-size responsiveness and wider acceptance matrix remain open.
 
 | Original action | Current row class | Required decision or closure |
 |---|---|---|
 | [VP-003-R03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2688) | Partial | Identify and close genuinely unguarded forms without replacing the existing guard architecture. |
-| [VP-036-R01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2710) | Partial | Compare all bounded GL controls with the original story; do not add a ledger or external import provider. |
 | [VP-045-R01](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2717) | Partial | Resolve elimination counterparty/evidence/unmatched semantics against the original four criteria. |
-| [VP-064-R03](https://github.com/nirzaf/auditsphere-visual-prototype/blob/975502a1f0fb31db3814da6d6bf6854cf9c8879e/docs/Progress_Tracker.md#L2723) | Open | Remove excluded live-service items from the pending denominator and correct stale counts without renumbering. |
 
-**Important:** these 41 rows overlap capabilities and acceptance obligations. A scope row and a verification row can refer to the same feature. Nine Partial modules have no open module-local action in this inventory; that does not erase their original story/shared acceptance, and it does not justify inventing new work.
+**VP-064-R03 was reconciled on 2026-09-26** by removing excluded live-service integrations from the pending denominator and updating counts without renumbering original stories; it is no longer an open action row.
 
-The following Partial modules have complete local action rows apart from shared obligations: MOD-01, MOD-05, MOD-06, MOD-15, MOD-25, MOD-28, MOD-29, MOD-30 and MOD-34. MOD-06 nevertheless has the newly found shared-draft defect F05. MOD-39's settings actions are complete, but its shared IAM responsibility still links to VP-019-E01.
+**Important:** the current 35 rows overlap capabilities and acceptance obligations. A scope row and a verification row can refer to the same feature. Ten Partial modules have no open module-local action in this inventory; that does not erase their original story/shared acceptance, and it does not justify inventing new work.
+
+The following Partial modules have complete local action rows apart from shared obligations: MOD-01, MOD-05, MOD-06, MOD-15, MOD-21, MOD-25, MOD-28, MOD-29, MOD-30 and MOD-34. MOD-06's shared-draft defect F05 is fixed and regression-tested; original story acceptance remains open. MOD-21's bounded control comparison is complete, but broader VP-036 story acceptance remains open. MOD-39's settings actions are complete, but its shared IAM responsibility still links to VP-019-E01.
 
 ## 9. Cross-module acceptance journeys and completion gates
 
@@ -1280,8 +1298,8 @@ At least one complete primary journey must start with manually entered business 
 
 ### 9.2 Recommended order
 
-1. Fix F01, F02 and F05 first: scope leakage and draft loss undermine every otherwise polished module.
-2. Fix F03/F04 and reconcile the current action inventory/storage guidance.
+1. F01, F02 and F05 repair slice is implemented and regression-tested; retain those regressions while closing the remaining scope/draft-guard acceptance.
+2. F03/F04 and the action-count/storage-guidance reconciliation (41-row review baseline to 35 current open actions) are implemented; continue the broader shared UI and original-story acceptance.
 3. Close the remaining source/review/financial handoffs: MOD-20–26 and connected invoice/communication cases.
 4. Close the remaining portal, Client 360, role and proposal matrices; obtain authentic migration evidence.
 5. Reuse complete local-action evidence for the acceptance-only modules rather than rebuilding them.
@@ -1345,7 +1363,7 @@ rows = []
 
 def classify_status(value: str) -> tuple[str, bool]:
     value = value.strip().replace("**", "").casefold()
-    if value.startswith(("verified subcase", "subcase verified")):
+    if value.startswith(("verified subcase", "verified subcases", "subcase verified")):
         return "SUBCASE_ONLY", True
     if value.startswith("partial"):
         return "PARTIAL", True
@@ -1402,7 +1420,7 @@ summary["total_open_action_rows"] = sum(row["open"] for row in rows)
 print(json.dumps(summary, indent=2))
 ```
 
-Expected inventory at the reviewed snapshot: **84 verification rows / 37 open**, **38 scope rows / 4 open**, **41 total open action rows**. The review counted a manual transcription of these exact pinned IDs/status prefixes with Python; the diagnostic above is supplied for direct replay against the actual file. It was not run against a downloaded full checkout in this environment.
+Expected current inventory: **82 enumerated verification rows / 33 open** (45 Complete, 4 Verified, 27 Partial, 4 Pending, 2 verified-subcase follow-ups), **38 scope rows / 2 open** (2 Partial), **35 total open action rows**. Historical action totals were 41 before VP-064-R03, 40 after R03, 39 after VP-063-E03, 38 after VP-017-E02, 37 after VP-017-E01 and 36 after VP-036-E03; VP-036-R01 then closed on the bounded AT-36 control comparison. The diagnostic treats explicit verified-subcase follow-up as open and prints the exact current open IDs; run it against the current tracker before changing this count.
 
 ### 10.3 Standalone source-expression probe
 
@@ -1494,8 +1512,8 @@ All links below point to the reviewed SHA, so later repository changes cannot si
 
 | Reference | Source | Use in this review |
 |---|---|---|
-| S1 | Tracker summary and definitions | Reported module/story/test totals and stale 47-action summary. |
-| S2 | Tracker implementation, verification and scope queues | Exact 41-row open inventory, completed capabilities and reconciliation obligations. |
+| S1 | Tracker summary and definitions | Reported module/story/test totals; historical 47/41 action counts and current reconciled 40-row count. |
+| S2 | Tracker implementation, verification and scope queues | Original 41-row review inventory, interim 40- and 39-row inventories, current 38-row open inventory, completed capabilities and reconciliation obligations. |
 | S3 | App imports, shared guard and route wiring | Module representation, context-change mechanism and missing Budget/Template guard callback wiring. |
 | S4 | Shell search projection | Missing engagement/category checks for invoice and communication results. |
 | S5 | Shared guards | Client/engagement grant distinction, active persona and role-route policy. |
@@ -1524,4 +1542,6 @@ All links below point to the reviewed SHA, so later repository changes cannot si
 
 ---
 
-**Final decision:** do not declare 100% simulation completion yet. Fix the source-confirmed issues, close the actual remaining bounded acceptance work, reconcile stale documentation, and accept each module against its original contract. Preserve what already works.
+**Progress update — 2026-09-26:** commercial inquiry, client-profile and Client 360 PBC create, clarification and edit/reassignment forms now use separate keyed unsaved-form guards; dirty close/backdrop actions require a decision, and the shared transition prompt has explicit accessible dialog semantics. Focused Chrome verifies inquiry/profile/PBC Stay and Discard, inquiry/profile Save, and no persisted discarded request/thread edits. Current regression: 231/231 unit and 109/109 serialized E2E (5 static + 104 Chrome), production build/typecheck, lint and diff checks pass; no deployment performed. These changes add evidence to VP-003 but close no complete VP-003 acceptance row; the broad remaining guard matrix and other pending actions remain.
+
+**Final decision:** the five source-confirmed findings and the bounded VP-003 acquisition/client-profile/PBC draft-guard slice are fixed and regression-tested; tracker counts and storage guidance remain reconciled. Do not claim 100% completion: 36 action rows, 48 Partial stories and 29 Partial modules remain, alongside original-criterion evidence and human acceptance. Continue closing bounded acceptance work against the original contract, preserving what already works.

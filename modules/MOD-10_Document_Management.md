@@ -14,6 +14,8 @@
 
 Logical SharePoint hierarchy, metadata registration, revisions, availability, optional OneDrive and evidence replacement flows exist.
 
+Storage classes are feature-specific: registered library documents and workpaper evidence keep metadata/digest while original bytes stay in-session; accepted PBC response bytes persist in browser-local IndexedDB; generated artifacts also persist in IndexedDB. No bytes are sent to SharePoint or another provider by this simulation.
+
 ## Remaining work / demonstration limit
 
 Complete idempotent workspace/rename/link matrices and truthful byte-availability explanations.

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { RouteKey, AuditProcedureItem, AuditProgramTemplate, AuditRiskItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
-import { eligibleAuditRiskOwners } from '../../services/guards';
+import { eligibleAuditRiskOwners, hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 
 interface AuditRisksProgramsViewProps {
@@ -324,7 +324,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
       {activeTab === 'risks' && (
         <div className="stack">{coverageGapPanel}
           <div className="panel">
-            <div className="panel-head between"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3>{['manager', 'preparer'].includes(state.currentRole) && <button className="btn primary sm" onClick={() => setRiskDraft({ id: 'NEW', engagementId: selectedEng.id, title: '', area: '', assertions: [], description: '', rationale: '', response: '', owner: '', rating: 'Medium', linkedProcedureIds: [], revisions: [] })}><Icon name="plus" size="sm" /> Add assessed risk</button>}</div>
+            <div className="panel-head between"><h3>ISA 315 Assessed Risks of Material Misstatement · {risks.length}</h3>{hasAnyRole(state, ['manager', 'preparer']) && <button className="btn primary sm" onClick={() => setRiskDraft({ id: 'NEW', engagementId: selectedEng.id, title: '', area: '', assertions: [], description: '', rationale: '', response: '', owner: '', rating: 'Medium', linkedProcedureIds: [], revisions: [] })}><Icon name="plus" size="sm" /> Add assessed risk</button>}</div>
             <div className="tablewrap"><table>
               <thead><tr><th>Risk</th><th>Area / Rating</th><th>Assertions</th><th>Rationale</th><th>Planned response</th><th>Owner</th><th>Linked procedures</th><th>Action</th></tr></thead>
               <tbody>{risks.map(risk => <tr key={risk.id}>
@@ -332,7 +332,7 @@ export const AuditRisksProgramsView: React.FC<AuditRisksProgramsViewProps> = ({ 
                 <td>{risk.area}<div className={`badge ${risk.rating === 'Significant' ? 'amber' : 'green'}`}>{risk.rating}</div></td>
                 <td>{risk.assertions.join(', ')}</td><td>{risk.rationale}</td><td>{risk.response}</td><td>{risk.owner}</td>
                 <td>{risk.linkedProcedureIds.map(id => <span className="tag gray" key={id}>{id}</span>)}</td>
-                <td><button className="btn sm" disabled={!['manager', 'preparer'].includes(state.currentRole)} onClick={() => setRiskDraft(structuredClone(risk))}>Edit risk</button></td>
+                <td><button className="btn sm" disabled={!hasAnyRole(state, ['manager', 'preparer'])} onClick={() => setRiskDraft(structuredClone(risk))}>Edit risk</button></td>
               </tr>)}</tbody>
             </table></div>
           </div>

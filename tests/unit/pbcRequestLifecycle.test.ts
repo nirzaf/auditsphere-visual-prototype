@@ -48,6 +48,20 @@ describe('PBC request lifecycle (VP-023)', () => {
     assert.throws(() => prototypeStore.updatePbcRequest('ENG-26001', 'PBC-TEST-02', { due: '2026-10-01' }, 'late edit'), /cancelled/i);
   });
 
+  it('records client replies in the shared client-visible request timeline', () => {
+    prototypeStore.setPersona('client_finance');
+    prototypeStore.replyToPbcRequest('ENG-26001', 'PBC-03', 'We will upload the approved fixed-asset register tomorrow.');
+    const request = prototypeStore.getSnapshot().engagements.find(e => e.id === 'ENG-26001')!.pbc.find(p => p.id === 'PBC-03')!;
+    const reply = request.thread!.at(-1)!;
+    assert.equal(reply.kind, 'email');
+    assert.equal(reply.role, 'client_finance');
+    assert.equal(reply.clientVisible, true);
+    assert.match(reply.text, /approved fixed-asset register/);
+    assert.ok(Date.parse(reply.time));
+    prototypeStore.setPersona('manager');
+    assert.throws(() => prototypeStore.replyToPbcRequest('ENG-26001', 'PBC-03', 'Staff must not impersonate a client reply.'), /cannot reply to a client PBC request/i);
+  });
+
   it('cancels with a reason, retains shared files and history, and refuses double cancellation', () => {
     prototypeStore.addPbcRequest('ENG-26001', { id: 'PBC-TEST-03', title: 'Inventory listing', category: 'Operations', status: 'Draft', due: '2026-09-30', owner: 'finance@example.test', contributor: 'Rami Nasser', version: 1, engagementId: 'ENG-26001' });
     prototypeStore.presentPbcRequest('ENG-26001', 'PBC-TEST-03');

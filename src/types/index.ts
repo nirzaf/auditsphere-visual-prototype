@@ -15,7 +15,8 @@ export type RoleKey =
   | 'client'
   | 'billing'
   | 'records'
-  | 'admin';
+  | 'admin'
+  | 'superuser';
 
 export interface UserPersona {
   id: string;
@@ -25,7 +26,7 @@ export interface UserPersona {
   initials: string;
   role: RoleKey;
   label: string;
-  group: 'Commercial' | 'Professional' | 'Client' | 'Operations';
+  group: 'Commercial' | 'Professional' | 'Client' | 'Operations' | 'System / Prototype Testing';
   email: string;
   status: 'Active' | 'Inactive' | 'Disabled';
   demoClients?: string[];
@@ -388,6 +389,9 @@ export interface FinancialPackageRevision {
   revision: number;
   generation: number;
   sourceVersion: number;
+  /** Exact accepted GL source revision used to generate this package, when GL intake is configured. */
+  glSourceRevision?: number;
+  glSourceSha256?: string;
   mappingRevision: number;
   notes: string;
   noteApplicability?: 'Not assessed' | 'Applicable' | 'Not applicable';
@@ -999,6 +1003,7 @@ export interface GLTransactionItem {
   journalId: string;
   lineId: string;
   date: string;
+  serviceDate?: string;
   accountCode: string;
   accountName: string;
   debit: number;
@@ -1007,6 +1012,7 @@ export interface GLTransactionItem {
   description: string;
   reference?: string;
   dimensionDept?: string;
+  dimensions?: Record<string, string>;
 }
 
 export interface AdjustmentJournalItem {
@@ -1026,6 +1032,7 @@ export interface AdjustmentJournalItem {
     reflectionStatus: AdjustmentJournalItem['reflectionStatus'];
     reflectionSourceVersion?: number;
     reflectionEvidenceRef?: string;
+    supportLinks?: AdjustmentJournalSupportLinks;
     amendedAt: string;
     amendedByUserId: string;
     reason: string;
@@ -1047,6 +1054,7 @@ export interface AdjustmentJournalItem {
   reflectionHistory?: Array<{ status: AdjustmentJournalItem['reflectionStatus']; sourceVersion: number; evidenceRef?: string; recordedAt: string; recordedByUserId: string }>;
   rationale?: string;
   evidenceRef?: string;
+  supportLinks?: AdjustmentJournalSupportLinks;
   lines: Array<{
     accountCode: string;
     accountName: string;
@@ -1055,6 +1063,13 @@ export interface AdjustmentJournalItem {
     debit?: number;
     credit?: number;
   }>;
+}
+
+/** Exact source revisions supporting a proposed journal. A journal amendment may replace these pins. */
+export interface AdjustmentJournalSupportLinks {
+  evidence?: { id: string; evidenceVersion: number; documentId: string; documentVersion: number };
+  workpaper?: { id: string; version: number };
+  finding?: { id: string; revision: number };
 }
 
 export interface ReconciliationSchedule {

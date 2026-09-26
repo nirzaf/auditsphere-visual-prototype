@@ -891,6 +891,158 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     }
   });
 
+  it('VP-003-AC02: guards a commercial inquiry draft across route changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(item=>item.textContent.includes('Relationship owner'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Acquisition & Pipeline');
+      await clickButton('New Inquiry');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-labelledby="lead-create-title"] input[type="text"]');if(!input)throw Error('Prospective client input missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Guarded inquiry draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Client Portfolio');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'route change asks before dropping the inquiry draft');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-labelledby="lead-create-title"] input[type="text"]')?.value`), 'Guarded inquiry draft');
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('location.hash==="#clients"'), true);
+      assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).leads.some(lead=>lead.name==='Guarded inquiry draft')`), true, 'discard does not create a commercial inquiry');
+
+      await clickButtonStartingWith('Acquisition & Pipeline');
+      await clickButton('New Inquiry');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-labelledby="lead-create-title"] input[type="text"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Saved inquiry draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Client Portfolio');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true);
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser('location.hash==="#clients"'), true, 'Save records the inquiry before continuing');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).leads.some(lead=>lead.name==='Saved inquiry draft')`), true, 'the selected save action persists the new lead');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-003-AC02: guards client profile drafts across route changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      const originalName = await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients[0].name`);
+      const openEdit = () => browserTab!.evaluate(`document.querySelector('#client-edit-trigger-CL-001')?.click()`);
+      const setLegalName = async (name: string) => {
+        await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Legal Entity Name"]');if(!input)throw Error('Legal Entity Name input missing');input.focus();input.select();})()`);
+        await browserTab!.command('Input.insertText', { text: name });
+      };
+
+      await openEdit();
+      await setLegalName('Stay Preserves Client Draft');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[role="dialog"] h2')?.innerText`), 'Edit Client Profile', 'existing client profile editor opened');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Legal Entity Name"]')?.value`), 'Stay Preserves Client Draft', 'the editor retains the modified controlled value');
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'route transition prompts before dropping the dirty client profile');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Legal Entity Name"]')?.value`), 'Stay Preserves Client Draft', 'Stay leaves the profile modal and draft intact');
+
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true);
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('location.hash==="#jobs"'), true, 'Discard continues to the requested route');
+      assert.equal(await browserTab!.evaluate<string>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients[0].name`), originalName, 'Discard does not mutate the saved client record');
+
+      await clickButtonStartingWith('Client Portfolio');
+      await openEdit();
+      await setLegalName('Saved Client Draft');
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true);
+      await clickButton('Save and continue');
+      assert.equal(await waitForBrowser('location.hash==="#jobs"'), true, 'Save commits the profile before continuing');
+      assert.equal(await browserTab!.evaluate<boolean>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(client=>client.id==='CL-001'&&client.name==='Saved Client Draft')`), true, 'the saved profile change persists');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-003-AC02: guards a client PBC request draft across route changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(createInitialState()))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Client 360 Workspace');
+      await clickButtonStartingWith('PBC Requests');
+      await clickButton('New PBC Request');
+      const setTitle = (title: string) => browserTab!.evaluate(`(() => {const form=document.querySelector('form.panel-pad.grid2');const input=form?.querySelector('input:not([type=date])');if(!input)throw Error('PBC request title input missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(title)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await setTitle('Route-guarded information request');
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'leaving the request workspace asks how to handle the draft');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('form.panel-pad.grid2 input:not([type=date])')?.value`), 'Route-guarded information request', 'Stay preserves the request draft');
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true);
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('location.hash==="#jobs"'), true, 'Discard continues to the selected route');
+      assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.some(engagement=>engagement.pbc.some(request=>request.title==='Route-guarded information request'))`), true, 'discarded request is not persisted');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-003-AC02: guards PBC clarification and edit drafts across route changes', async () => {
+    const saved = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const fixture = createInitialState();
+      const request = fixture.engagements[0].pbc.find(item => item.id === 'PBC-01')!;
+      request.status = 'Received';
+      request.file = 'Replacement_Trial_Balance.csv';
+      request.description = 'Client-uploaded trial balance replacement';
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2',${JSON.stringify(JSON.stringify(fixture))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Client 360 Workspace');
+      await clickButtonStartingWith('PBC Requests');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tr')].find(item=>item.innerText.includes('PBC-01'));[...row.querySelectorAll('button')].find(button=>button.innerText.trim()==='Request clarification')?.click();})()`);
+      const setClarification = (message: string) => browserTab!.evaluate(`(() => {const field=document.querySelector('[aria-labelledby="pbc-clarification-title"] textarea');if(!field)throw Error('Clarification message field missing');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(field,${JSON.stringify(message)});field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await setClarification('Please upload the signed balance confirmation.');
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'clarification message is guarded');
+      await clickButton('Stay');
+      assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-labelledby="pbc-clarification-title"] textarea')?.value`), 'Please upload the signed balance confirmation.');
+      await clickButtonStartingWith('Jobs & Tasks');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('location.hash==="#jobs"'), true);
+      let current = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements[0].pbc.find(item=>item.id==='PBC-01')`);
+      assert.equal(current.status, 'Received');
+      assert.equal(!!current.thread?.some((message: any) => message.text === 'Please upload the signed balance confirmation.'), false, 'discard does not publish the clarification');
+
+      await clickButtonStartingWith('Client Portfolio');
+      await clickButton('Client 360 Workspace');
+      await clickButtonStartingWith('PBC Requests');
+      await browserTab!.evaluate(`(() => {const row=[...document.querySelectorAll('tr')].find(item=>item.innerText.includes('PBC-01'));[...row.querySelectorAll('button')].find(button=>button.innerText.trim()==='Edit / reassign')?.click();})()`);
+      await browserTab!.evaluate(`(() => {const field=document.querySelector('[aria-labelledby="pbc-edit-title"] input');if(!field)throw Error('PBC edit title missing');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'Edited but not saved');field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButtonStartingWith('Jobs & Tasks');
+      assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'request edit is guarded');
+      await clickButton('Discard and continue');
+      assert.equal(await waitForBrowser('location.hash==="#jobs"'), true);
+      current = await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements[0].pbc.find(item=>item.id==='PBC-01')`);
+      assert.equal(current.title, 'Year-end trial balance', 'discard leaves the shared request unchanged');
+    } finally {
+      await browserTab!.evaluate(`(() => {const k='ste-auditsphere-role-portals-v2';const v=${JSON.stringify(saved)};if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
   it('VP-003-E02: guards the consolidation output draft across route changes', async () => {
     const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
     try {
@@ -1364,9 +1516,38 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
         await clickButton('Add Client Profile');
         await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Legal Entity Name"]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,'AT53 cancelled client draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
         await browserTab!.evaluate(`(() => {const cancel=[...document.querySelectorAll('[role="dialog"] button')].find(button=>button.innerText.trim()==='Cancel');if(!cancel)throw Error('Client profile Cancel button missing');cancel.click();})()`);
+        assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'Cancel asks before discarding the edited profile');
+        await clickButton('Discard and continue');
         assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'Cancel closes the client profile dialog');
         assert.equal(await browserTab!.evaluate<boolean>(`(() => document.activeElement?.id==='add-client-profile-trigger')()`), true, 'Cancel restores focus to the client profile opener');
         assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(client=>client.name==='AT53 cancelled client draft')`), true, 'Cancel does not persist the profile draft');
+
+        await clickButton('Add Client Profile');
+        await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Legal Entity Name"]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,'AT53 Escape guarded client draft');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'Escape asks before discarding a dirty client profile');
+        await clickButton('Stay');
+        assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Legal Entity Name"]')?.value`), 'AT53 Escape guarded client draft', 'Stay retains the profile draft after Escape');
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        await browserTab!.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+        assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'a repeated Escape still requires an explicit decision');
+        await clickButton('Discard and continue');
+        assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'discard after Escape closes the profile');
+        assert.equal(await browserTab!.evaluate<boolean>(`document.activeElement?.id==='add-client-profile-trigger'`), true, 'discard after Escape restores focus to the profile opener');
+        assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(client=>client.name==='AT53 Escape guarded client draft')`), true, 'discard after Escape does not persist the profile draft');
+
+        await clickButton('Add Client Profile');
+        await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Legal Entity Name"]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(input,'AT53 backdrop guarded client draft');input.dispatchEvent(new Event('input',{bubbles:true}));const backdrop=document.querySelector('.modal-backdrop');if(!backdrop)throw Error('Client profile backdrop missing');backdrop.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
+        assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'backdrop asks before discarding a dirty client profile');
+        await clickButton('Stay');
+        assert.equal(await browserTab!.evaluate<string>(`document.querySelector('[aria-label="Legal Entity Name"]')?.value`), 'AT53 backdrop guarded client draft', 'Stay retains the profile draft after backdrop dismissal');
+        await browserTab!.evaluate(`(() => document.querySelector('.modal-backdrop')?.dispatchEvent(new MouseEvent('click',{bubbles:true})))()`);
+        assert.equal(await waitForBrowser('!![...document.querySelectorAll("[role=dialog] h2")].some(title=>title.innerText.includes("Unsaved changes"))'), true, 'repeated backdrop dismissal keeps the explicit decision');
+        await clickButton('Discard and continue');
+        assert.equal(await waitForBrowser('!document.querySelector("[role=dialog]")'), true, 'discard after backdrop dismissal closes the profile');
+        assert.equal(await browserTab!.evaluate<boolean>(`document.activeElement?.id==='add-client-profile-trigger'`), true, 'discard after backdrop dismissal restores focus to the profile opener');
+        assert.equal(await browserTab!.evaluate<boolean>(`!JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).clients.some(client=>client.name==='AT53 backdrop guarded client draft')`), true, 'discard after backdrop dismissal does not persist the profile draft');
 
         await clickButton('Add Client Profile');
         await browserTab!.evaluate(`(() => {const backdrop=document.querySelector('.modal-backdrop');if(!backdrop)throw Error('Client profile backdrop missing');backdrop.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()`);
@@ -1419,6 +1600,65 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');
     }
     assert.deepEqual(browserTab!.exceptions, []);
+  });
+
+  it('Superuser can open every product navigation area and preview a client-role projection', async () => {
+    const original = await browserTab!.evaluate<string | null>(`localStorage.getItem('ste-auditsphere-role-portals-v2')`);
+    try {
+      const fixture = createInitialState();
+      const clientRequest = fixture.engagements.find(item => item.id === 'ENG-26001')!.pbc.find(item => item.id === 'PBC-03')!;
+      clientRequest.thread = [
+        { id: 'TH-PBC03-PUBLIC', kind: 'request', author: 'Layla Rahman', role: 'manager', text: 'Please provide the approved fixed-asset register and useful-life schedule.', time: '2026-09-15T09:00:00.000Z', clientVisible: true },
+        { id: 'TH-PBC03-INTERNAL', kind: 'request', author: 'Layla Rahman', role: 'manager', text: 'Internal reviewer note: check depreciation assumptions before acceptance.', time: '2026-09-15T09:05:00.000Z', clientVisible: false }
+      ];
+      await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(JSON.stringify(fixture))})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#role-select")'), true);
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(item=>item.value==='superuser');if(!option)throw Error('Synthetic superuser persona missing');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'superuser');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`document.querySelector('#role-select')?.value==='superuser'&&document.body.innerText.includes('SUPERUSER · FULL PROTOTYPE ACCESS')`), true, 'identity selector and full-access banner identify the test persona');
+      const navLabels = await browserTab!.evaluate<string[]>(`[...document.querySelectorAll('#primary-navigation button')].map(button=>button.innerText.trim())`);
+      assert.ok(navLabels.length >= 30, `expected broad navigation across the 39-module catalogue; found ${navLabels.length} route entries`);
+      assert.ok(navLabels.some(label => label.includes('Firm Administration')) && navLabels.some(label => label.includes('Client Portal Preview')) && navLabels.some(label => label.includes('Group Consolidation')));
+      for (const label of navLabels) {
+        await clickButton(label);
+        const content = await browserTab!.evaluate<string>(`document.querySelector('main#main')?.innerText||''`);
+        assert.ok(content.trim().length > 0, `superuser route rendered no module content: ${label}`);
+        assert.doesNotMatch(content, /access denied|outside your access scope/i, `superuser route unexpectedly denied: ${label}`);
+      }
+      await clickButtonStartingWith('Module Guide & Tour');
+      assert.equal(await waitForBrowser(`document.querySelectorAll('main#main tbody tr').length===39`), true, 'module catalogue exposes exactly MOD-01 through MOD-39');
+      for (let moduleIndex = 0; moduleIndex < 39; moduleIndex++) {
+        const moduleId = await browserTab!.evaluate<string>(`document.querySelectorAll('main#main tbody tr')[${moduleIndex}]?.querySelector('td')?.innerText.split(' ')[0]||''`);
+        assert.equal(moduleId, `MOD-${String(moduleIndex + 1).padStart(2, '0')}`, `catalogue ordering includes ${moduleId} at index ${moduleIndex}`);
+        await browserTab!.evaluate(`document.querySelectorAll('main#main tbody tr')[${moduleIndex}]?.querySelectorAll('button')[1]?.click()`);
+        await new Promise(resolve => setTimeout(resolve, 150));
+        const moduleContent = await browserTab!.evaluate<string>(`document.querySelector('main#main')?.innerText||''`);
+        assert.ok(moduleContent.trim().length > 0, `${moduleId} mapped workspace is not empty`);
+        assert.doesNotMatch(moduleContent, /access denied|outside your access scope/i, `${moduleId} mapped workspace is not denied`);
+        if (moduleId === 'MOD-17') assert.equal(await browserTab!.evaluate<string>('location.hash'), '#clients', 'MOD-17 opens the client workspace for its Shell search workflow');
+        await clickButtonStartingWith('Module Guide & Tour');
+        assert.equal(await waitForBrowser(`document.querySelectorAll('main#main tbody tr').length===39`), true, `${moduleId} can return to the complete catalogue`);
+      }
+      await clickButton('Client Portal Preview');
+      assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="Preview client portal role"]')`), true, 'portal preview exposes an explicit simulated client role');
+      await browserTab!.evaluate(`(() => {const select=document.querySelector('[aria-label="Preview client portal role"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'client');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser(`document.body.innerText.includes('SUPERUSER PORTAL PREVIEW · Previewing as client')`), true, 'client projection is visibly distinct while retaining the superuser identity');
+      const portalState = await browserTab!.evaluate<any>(`(() => {const text=document.querySelector('main#main')?.innerText||'';const state=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return {role:state.currentRole,internalNoteVisible:text.includes('Fixed asset depreciation requires extra corroboration before partner sign-off.'),allClients:state.clients.length};})()`);
+      assert.equal(portalState.role, 'superuser', 'preview does not permanently switch or weaken the test identity');
+      assert.equal(portalState.internalNoteVisible, false, 'client projection does not expose the known internal staff note');
+      assert.equal(portalState.allClients, fixture.clients.length);
+      await clickButtonStartingWith('Information Requests');
+      assert.equal(await waitForBrowser(`document.querySelector('#pbc-reply-PBC-03')!==null`), true, 'client PBC request view includes a reply control');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const row=[...document.querySelectorAll('main#main tbody tr')].find(item=>item.innerText.includes('PBC-03'));const details=[...row.querySelectorAll('details')].find(item=>item.querySelector('summary')?.innerText.includes('Conversation'));if(!details)return false;details.querySelector('summary').click();return details.innerText.includes('Please provide the approved fixed-asset register')&&!details.innerText.includes('Internal reviewer note');})()`), true, 'client timeline shows only client-visible PBC messages and preserves privacy');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('#pbc-reply-PBC-03');const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;setter.call(input,'We will provide the signed schedule tomorrow.');input.dispatchEvent(new Event('input',{bubbles:true}));input.closest('form').requestSubmit();})()`);
+      assert.equal(await waitForBrowser(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26001').pbc.find(p=>p.id==='PBC-03').thread.some(m=>m.text==='We will provide the signed schedule tomorrow.'&&m.clientVisible===true)`), true, 'client reply is recorded in the shared PBC conversation timeline');
+      assert.deepEqual(browserTab!.exceptions, []);
+    } finally {
+      if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);
+      else await browserTab!.evaluate(`localStorage.removeItem('ste-auditsphere-role-portals-v2')`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
   });
 
   it('VP-051: reconciles scoped CSV/XLSX populations before testing and preserves replacement history', async () => {
@@ -3982,6 +4222,77 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {const reason=document.querySelector('[aria-label="Management package rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Reviewed replacement financial package revision 4.');reason.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Management package evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'Northstar board minutes 2026-09-24');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await clickButton('Acknowledge Package');
     assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002');return e.managementPackageDecision?.decision==='Acknowledged'&&e.managementPackageDecision.packageRevision===4&&e.managementPackageDecision.evidenceRef==='Northstar board minutes 2026-09-24'&&e.managementPackageDecisionHistory.some(d=>d.packageRevision===2&&d.decision==='Acknowledged');})()`), true, 'independent management acknowledgement pins replacement revision 4 while retaining revision 2 history');
+
+    // Close VP-036-E03 through a reviewed package before and after a GL source
+    // replacement; package revisions and artifact bytes must remain reproducible.
+    await setRole('manager');
+    await clickButton('Accounting Workbench');
+    await clickButtonStartingWith('General Ledger & Completeness');
+    const packageTB = await browserTab!.evaluate<any[]>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002').rows`);
+    const packageHeader='Entry Reference,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance,Department,Service Date';
+    const packageCell=(value:unknown)=>`"${String(value).replaceAll('"','""')}"`;
+    const packageLines=packageTB.flatMap((row:any,index:number)=>row.balance===0?[`J1,L${index+1}a,2026-09-23,${row.code},${packageCell(row.name)},1,0,QAR,GL source v1,0,${packageCell(row.dimensionDept||'')},2026-09-20`,`J1,L${index+1}b,2026-09-23,${row.code},${packageCell(row.name)},0,1,QAR,GL source v1,0,${packageCell(row.dimensionDept||'')},2026-09-20`]:[`J1,L${index+1},2026-09-23,${row.code},${packageCell(row.name)},${Math.max(row.balance,0)},${Math.max(-row.balance,0)},QAR,GL source v1,0,${packageCell(row.dimensionDept||'')},2026-09-20`]);
+    const packageCsv=[packageHeader,...packageLines].join('\n');
+    const uploadPackageGL=async(contents:string)=>browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="General ledger source file"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(contents)}],'reviewed-package-gl.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const importPackageGL=async(contents:string)=>{await uploadPackageGL(contents);assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="GL source column: Journal ID"]')`),true);await browserTab!.evaluate(`(() => {const control=document.querySelector('[aria-label="GL source column: Journal ID"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(control,'0');control.dispatchEvent(new Event('change',{bubbles:true}));})()`);assert.equal(await waitForBrowser('document.body.innerText.includes("0 validation errors")'),true);await clickButton('Import new revision');};
+    await importPackageGL(packageCsv);
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'),true,'initial source reconciles before a package is regenerated');
+    await clickButton('Financial Packages');
+    const packageFiveButton = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='+ Assemble New Revision (Rev 5)');if(!b)return false;b.click();return true;})()`);
+    assert.equal(packageFiveButton,true,'current validated package can be regenerated against reviewed GL source v1');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 5 saved with exact XLSX, DOCX and PDF files")'),true);
+    await setRole('manager');
+    await clickButton('Sign-offs & EQR');
+    await clickButton('Present Current Package');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(o=>o.textContent.includes('Aisha Saleh'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await waitForBrowser('JSON.parse(localStorage.getItem("ste-auditsphere-role-portals-v2")).currentRole === "client"'),true);
+    await clickButton('Management Approvals');
+    await browserTab!.evaluate(`(() => {const reason=document.querySelector('[aria-label="Management package rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Reviewed the regenerated package against GL source v1.');reason.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Management package evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'Northstar GL review evidence v1');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Acknowledge Package');
+    const reviewedV1 = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002');return {generation:e.generation,package:e.packageHistory.find(p=>p.revision===5),decision:e.managementPackageDecision};})()`);
+    assert.equal(reviewedV1.decision.packageRevision,5,'client acknowledgement reviews the package generated from GL source v1');
+    assert.equal(reviewedV1.package.glSourceRevision,1,'package snapshot records the exact GL source revision');
+    assert.match(reviewedV1.package.glSourceSha256,/^[a-f0-9]{64}$/,'package snapshot records the exact GL content digest');
+
+    await setRole('manager');
+    await clickButton('Accounting Workbench');
+    await clickButtonStartingWith('General Ledger & Completeness');
+    await importPackageGL(packageCsv.replaceAll('GL source v1','GL source v2'));
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Source v2") && document.body.innerText.includes("GL Fully Reconciled to TB")'),true,'replacement GL source v2 reconciles without changing TB');
+    const packageAfterGLReplacement = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002');return {generation:e.generation,candidate:e.candidate,packageRevision:e.packageRevision,history:e.packageHistory,decision:e.managementPackageDecision,presentation:e.managementPresentation,gl:e.glSourceHistory,rows:e.rows};})()`);
+    assert.equal(packageAfterGLReplacement.generation,reviewedV1.generation+1,'replacement advances the release basis generation');
+    assert.equal(packageAfterGLReplacement.candidate,null,'replacement removes the old frozen candidate');
+    assert.equal(packageAfterGLReplacement.packageRevision,5,'replacement does not rewrite or silently advance the prior package revision');
+    assert.equal(packageAfterGLReplacement.decision.packageRevision,5,'prior management acknowledgement remains explicitly pinned to its historical package');
+    assert.equal(packageAfterGLReplacement.decision.generation,reviewedV1.generation,'prior acknowledgement cannot be mistaken for approval of the new generation');
+    assert.equal(packageAfterGLReplacement.presentation.packageRevision,5,'old package presentation remains traceable as historical context');
+    assert.notEqual(packageAfterGLReplacement.presentation.generation,packageAfterGLReplacement.generation,'old package presentation is not current after replacement');
+    assert.equal(packageAfterGLReplacement.history.find((p:any)=>p.revision===5).id,reviewedV1.package.id,'reviewed package history remains present by exact identity');
+    assert.deepEqual(packageAfterGLReplacement.history.find((p:any)=>p.revision===5).artifacts,reviewedV1.package.artifacts,'package v1 artifact identities and hashes remain unchanged');
+    assert.notEqual(packageAfterGLReplacement.gl[0].sha256,packageAfterGLReplacement.gl[1].sha256,'replacement GL source has a new exact digest');
+    assert.deepEqual(packageAfterGLReplacement.rows,packageTB,'GL replacement does not mutate the trial-balance source');
+
+    await clickButton('Financial Packages');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Saved Revision 5 · Stale") && document.body.innerText.includes("Assemble a new revision before release")'),true,'saved package shows stale state after GL revision changes');
+    const retainedPackageBytes = await browserTab!.evaluate<any[]>(`(async()=>{const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));const p=s.engagements.find(e=>e.id==='ENG-26002').packageHistory.find(p=>p.revision===5);const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('ste-auditsphere-generated-artifacts',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const out=await Promise.all(p.artifacts.map(async a=>{const blob=await new Promise((resolve,reject)=>{const r=db.transaction('artifacts').objectStore('artifacts').get(a.id);r.onsuccess=()=>resolve(r.result?.blob);r.onerror=()=>reject(r.error)});const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');return {kind:a.kind,sha,expected:a.sha256,size:blob.size};}));db.close();return out})()`);
+    assert.ok(retainedPackageBytes.every((file:any)=>file.size>0&&file.sha===file.expected),'all prior reviewed package v1 artifact bytes remain exactly reproducible after GL replacement');
+    const packageSixButton = await browserTab!.evaluate<boolean>(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='+ Assemble New Revision (Rev 6)');if(!b)return false;b.click();return true;})()`);
+    assert.equal(packageSixButton,true,'the package can be regenerated after source replacement');
+    assert.equal(await waitForBrowser('document.body.innerText.includes("Package revision 6 saved with exact XLSX, DOCX and PDF files")'),true);
+    await setRole('manager');
+    await clickButton('Sign-offs & EQR');
+    await clickButton('Present Current Package');
+    await browserTab!.evaluate(`(() => {const select=document.querySelector('#role-select');const option=[...select.options].find(o=>o.textContent.includes('Aisha Saleh'));Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await clickButton('Management Approvals');
+    await browserTab!.evaluate(`(() => {const reason=document.querySelector('[aria-label="Management package rationale"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(reason,'Reviewed the replacement package against GL source v2.');reason.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Management package evidence"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(evidence,'Northstar GL review evidence v2');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await clickButton('Acknowledge Package');
+    const reviewedV2 = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(e=>e.id==='ENG-26002');return {history:e.packageHistory,decision:e.managementPackageDecision,gl:e.glSourceHistory};})()`);
+    assert.equal(reviewedV2.decision.packageRevision,6,'management independently reviews the package regenerated from GL source v2');
+    assert.equal(reviewedV2.decision.generation,packageAfterGLReplacement.generation+1);
+    assert.equal(reviewedV2.history.find((p:any)=>p.revision===6).sourceVersion,reviewedV1.package.sourceVersion,'package lineage retains the unchanged TB version as a distinct source dimension');
+    assert.equal(reviewedV2.history.find((p:any)=>p.revision===6).glSourceRevision,2,'replacement package pins GL source v2');
+    assert.equal(reviewedV2.history.find((p:any)=>p.revision===6).glSourceSha256,reviewedV2.gl[1].sha256,'replacement package digest is bound to exact GL v2 bytes');
+    assert.deepEqual(reviewedV2.history.find((p:any)=>p.revision===5).artifacts,reviewedV1.package.artifacts,'prior reviewed package v1 remains reproducible after re-review of v2');
     assert.deepEqual(browserTab!.exceptions, []);
   });
 
@@ -5255,11 +5566,22 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await setAccount(1, '1500');
     await setField('.modal-backdrop input[type="number"]', '1000');
     await setField('.modal-backdrop textarea', 'Accrue the year-end depreciation based on the approved asset schedule.');
+    await setField('#adjustment-support-evidence', 'EVD-02');
+    await setField('#adjustment-support-workpaper', 'WP-A1');
+    await setField('#adjustment-support-finding', 'FND-01');
     await clickButton('Propose Journal');
     const journal = await browserTab!.evaluate<any>(`(() => JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).adjustmentJournals.find(x=>x.title==='AT38 management review sample'))()`);
     assert.ok(journal?.id);
     assert.equal(journal.status, 'Draft');
     assert.equal(journal.preparedBy, 'Adam Khan');
+    assert.equal(journal.supportLinks.evidence.id, 'EVD-02');
+    assert.equal(journal.supportLinks.evidence.documentId, 'DOC-003');
+    assert.equal(journal.supportLinks.evidence.evidenceVersion, 2);
+    assert.equal(journal.supportLinks.evidence.documentVersion, 2);
+    assert.equal(journal.supportLinks.workpaper.id, 'WP-A1');
+    assert.equal(journal.supportLinks.workpaper.version, 2);
+    assert.equal(journal.supportLinks.finding.id, 'FND-01');
+    assert.ok(journal.supportLinks.finding.revision >= 1, 'finding revision is pinned explicitly');
 
     await switchPersona('Engagement manager', 'manager');
     await clickButton('Accounting Workbench');
@@ -5335,6 +5657,8 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     assert.equal(amendedJournal.amendmentHistory[0].status, 'Management accepted');
     assert.equal(amendedJournal.amendmentHistory[0].reflectionEvidenceRef, 'TB-IMPORT-REV-1');
     assert.equal(amendedJournal.amendmentHistory[0].reason, 'Corrected amount from approved supporting schedule.');
+    assert.deepEqual(amendedJournal.amendmentHistory[0].supportLinks, journal.supportLinks, 'the prior revision retains its exact support references');
+    assert.deepEqual(amendedJournal.supportLinks, journal.supportLinks, 'the amended revision keeps its support pins until explicitly changed');
     assert.deepEqual(await browserTab!.evaluate<any>(`JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001').rows`), sourceRowsBeforeReview, 'amending a journal leaves source TB rows unchanged');
     assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /Prior journal revisions \(1\)/, 'prior decision and journal revision remains visible');
 
@@ -5798,14 +6122,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const backupKey = `${key}.backup`;
     const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
     const futureState = createInitialState() as any;
-    futureState.schema = 28;
+    futureState.schema = 29;
     const futurePayload = JSON.stringify(futureState);
     const downloadDir = mkdtempSync(join(tmpdir(), 'auditsphere-preserved-export-'));
     try {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v28, newer than supported v27/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v29, newer than supported v28/);
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
       assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
@@ -5824,9 +6148,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'rejected import keeps the preserved backup unchanged');
       const validPayload = JSON.stringify(createInitialState());
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(validPayload)}],'recovered-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v27')`), true, 'successful import clears the recovery error');
+      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v28')`), true, 'successful import clears the recovery error');
       const restored = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(restored.schema, 27);
+      assert.equal(restored.schema, 28);
       assert.ok(restored.engagements > 0);
       assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
@@ -5838,12 +6162,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Reset to default')`), true, 'cancel disarms the reset without changing state');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'disarmed reset preserves the unsupported payload');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'disarmed reset leaves the exact backup intact');
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v28, newer than supported v27/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v29, newer than supported v28/);
       await clickButton('Reset to default');
       await clickButton('Confirm reset');
-      assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v27")'), true, 'confirmed reset returns to a usable baseline');
+      assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v28")'), true, 'confirmed reset returns to a usable baseline');
       const resetState = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(resetState.schema, 27);
+      assert.equal(resetState.schema, 28);
       assert.ok(resetState.engagements > 0);
       assert.equal(resetState.backup, futurePayload, 'reset preserves the unsupported payload for later export');
       assert.deepEqual(browserTab!.exceptions, []);
@@ -6345,12 +6669,12 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       await clickButton('Accounting Workbench');
       await clickButtonStartingWith('General Ledger & Completeness');
       assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="General ledger source file"]')`), true, await browserTab!.evaluate<string>('document.body.innerText.slice(-1800)'));
-      const header='Entry Reference,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance';
+      const header='Entry Reference,Line ID,Date,Account Code,Account Name,Debit,Credit,Currency,Description,Opening Balance,Department,Service Date';
       const csvCell=(value:unknown)=>`"${String(value).replaceAll('"','""')}"`;
-      const lines=fixtureEngagement.rows.flatMap((row,index)=>row.balance===0?[`J1,L${index+1}a,2026-09-23,${row.code},${csvCell(row.name)},1,0,QAR,Zero-balance control,0`,`J1,L${index+1}b,2026-09-23,${row.code},${csvCell(row.name)},0,1,QAR,Zero-balance control,0`]:[`J1,L${index+1},2026-09-23,${row.code},${csvCell(row.name)},${Math.max(row.balance,0)},${Math.max(-row.balance,0)},QAR,GL closing movement,0`]);
+      const lines=fixtureEngagement.rows.flatMap((row,index)=>row.balance===0?[`J1,L${index+1}a,2026-09-23,${row.code},${csvCell(row.name)},1,0,QAR,Zero-balance control,0,${csvCell(row.dimensionDept||'')},2026-09-20`,`J1,L${index+1}b,2026-09-23,${row.code},${csvCell(row.name)},0,1,QAR,Zero-balance control,0,${csvCell(row.dimensionDept||'')},2026-09-20`]:[`J1,L${index+1},2026-09-23,${row.code},${csvCell(row.name)},${Math.max(row.balance,0)},${Math.max(-row.balance,0)},QAR,GL closing movement,0,${csvCell(row.dimensionDept||'')},2026-09-20`]);
       const csv=[header,...lines].join('\n');
       const uploadCsv=async(contents:string)=>browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="General ledger source file"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(contents)}],'gl-source.csv',{type:'text/csv'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      const partialCsv=[header,...lines,'J2,PARTIAL-01,2026-09-23,1000,Cash,5,0,QAR,Incomplete received batch,0'].join('\n');
+      const partialCsv=[header,...lines,'J2,PARTIAL-01,2026-09-23,1000,Cash,5,0,QAR,Incomplete received batch,0,Treasury,2026-09-20'].join('\n');
       await uploadCsv(partialCsv);
       assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="GL source column: Journal ID"]')`), true);
       await browserTab!.evaluate(`(() => {const control=document.querySelector('[aria-label="GL source column: Journal ID"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(control,'0');control.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -6369,10 +6693,77 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
       await clickButton('Accounting Workbench'); await clickButtonStartingWith('General Ledger & Completeness');
       assert.equal(await waitForBrowser('document.body.innerText.includes("Source v1") && document.body.innerText.includes("GL Fully Reconciled to TB")'), true, await browserTab!.evaluate<string>(`document.body.innerText.slice(-800)`));
-      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.glSourceHistory?.[0];return r?.revision===1&&r.transactions.length===8&&r.transactions.every(t=>t.engagementId===e.id)&&r.openingBalances['1000']===0&&r.columnMapping?.journal==='1: Entry Reference'&&/^[a-f0-9]{64}$/.test(r.sha256);})()`), true, 'source rows, chosen mapping, engagement identity and file digest persist');
+      const glEvidence = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.glSourceHistory?.[0];const t=r?.transactions[0];return {revision:r?.revision,count:r?.transactions.length,allBound:r?.transactions.every(t=>t.engagementId===e.id),opening:r?.openingBalances['1000'],journal:r?.columnMapping?.journal,department:r?.columnMapping?.department,serviceDateColumn:r?.columnMapping?.serviceDate,transaction:t,expectedDepartment:e.rows.find(row=>row.code===t?.accountCode)?.dimensionDept,digest:r?.sha256};})()`);
+      assert.equal(glEvidence.revision===1&&glEvidence.count===8&&glEvidence.allBound&&glEvidence.opening===0&&glEvidence.journal==='1: Entry Reference'&&glEvidence.department==='11: Department'&&glEvidence.serviceDateColumn==='12: Service Date'&&glEvidence.transaction?.serviceDate==='2026-09-20'&&glEvidence.transaction?.dimensions?.Department===glEvidence.expectedDepartment&&/^[a-f0-9]{64}$/.test(glEvidence.digest), true, `source rows, mapping, dimension, service date, engagement identity and digest persist: ${JSON.stringify(glEvidence)}`);
+      assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""'),/GL Detailed Transactions \(8\)/,'source count is consistent with the eight imported rows before filtering');
       assert.match(await browserTab!.evaluate<string>('document.querySelector("main#main")?.innerText||""'), /Reconciled/);
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Filter GL journal"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'J1');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('[...document.querySelectorAll(".panel")].find(p=>p.querySelector("h3")?.innerText.includes("GL Detailed Transactions"))?.querySelectorAll("tbody tr").length===8'),true,'journal filter drills the mapped source to all eight lines in J1');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const panel=[...document.querySelectorAll('.panel')].find(p=>p.querySelector('h3')?.innerText.includes('GL Detailed Transactions'));return [...panel.querySelectorAll('tbody tr')].every(row=>row.innerText.includes('J1'));})()`),true,'every drill-down row matches the selected journal reference');
+      await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Filter GL journal"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Filter GL account"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'1000');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
       assert.equal(await waitForBrowser('[...document.querySelectorAll(".panel")].find(p=>p.querySelector("h3")?.innerText.includes("GL Detailed Transactions"))?.querySelectorAll("tbody tr").length===1'), true, 'account filter narrows the source-bound drill-down');
+      assert.equal(await browserTab!.evaluate<boolean>(`(() => {const panel=[...document.querySelectorAll('.panel')].find(p=>p.querySelector('h3')?.innerText.includes('GL Detailed Transactions'));return /service date/i.test(panel?.innerText||'')&&panel?.querySelector('tbody tr')?.innerText.includes('2026-09-20');})()`), true, 'transaction drill-down presents the independent service date field and imported date value');
+      await browserTab!.evaluate(`(() => {window.__glCsv={fileName:'',blob:null};window.__glUrl=URL.createObjectURL;window.__glAnchorClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{window.__glCsv.blob=blob;return 'blob:gl-export'};HTMLAnchorElement.prototype.click=function(){window.__glCsv.fileName=this.download};})()`);
+      await clickButton('Export filtered CSV');
+      const exportedGl = await browserTab!.evaluate<any>(`(async()=>({fileName:window.__glCsv.fileName,text:await window.__glCsv.blob.text()}))()`);
+      assert.match(exportedGl.fileName,/^GL_ENG-26001_v1\.csv$/);
+      assert.match(exportedGl.text,/Service Date/);
+      assert.match(exportedGl.text,/Department/);
+      assert.match(exportedGl.text,/Cost centre/);
+      assert.match(exportedGl.text,/Project/);
+      assert.match(exportedGl.text,/2026-09-20/);
+      assert.equal(exportedGl.text.split(/\r?\n/).filter((line:string)=>line.trim()).length,2,'filtered export contains only its header and the one source-scoped account row');
+
+      // Exercise the supported post-import review cycle with real UI commands: a
+      // manager prepares, an independent reviewer approves, a replacement stales
+      // that approval, and the manager/reviewer prepare and approve a new revision.
+      await clickButtonStartingWith('Reconciliations');
+      await clickButton('New Schedule');
+      await browserTab!.evaluate(`(() => {const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;const name=document.querySelector('[aria-label="Reconciliation name"]');set.call(name,'AT-36 GL replacement reconciliation');name.dispatchEvent(new Event('input',{bubbles:true}));const account=document.querySelector('[aria-label="Reconciliation account"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(account,'1000');account.dispatchEvent(new Event('change',{bubbles:true}));const date=document.querySelector('[aria-label="Reconciliation as-of date"]');set.call(date,'2026-12-31');date.dispatchEvent(new Event('input',{bubbles:true}));const balance=document.querySelector('[aria-label="Reconciliation statement balance"]');set.call(balance,'1000000');balance.dispatchEvent(new Event('input',{bubbles:true}));const evidence=document.querySelector('[aria-label="Reconciliation evidence"]');set.call(evidence,'DOC-002');evidence.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await clickButton('Save Reconciliation Draft');
+      let recRevision = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id==='ENG-26001').reconciliations.find(r=>r.name==='AT-36 GL replacement reconciliation')})()`);
+      assert.equal(recRevision.status,'Draft');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Approve schedule');
+      recRevision = await browserTab!.evaluate<any>(`(() => {const s=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2'));return s.engagements.find(e=>e.id==='ENG-26001').reconciliations.find(r=>r.name==='AT-36 GL replacement reconciliation')})()`);
+      assert.equal(recRevision.status,'Approved','independent reviewer approves the current GL-bound reconciliation');
+      assert.ok(recRevision.reviewedByUserId && recRevision.reviewedByUserId!==recRevision.preparedByUserId,'reviewer identity is independent from preparer');
+
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'manager');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButtonStartingWith('General Ledger & Completeness');
+      const replacementCsv=csv.replace('GL closing movement','Reviewed replacement source');
+      await uploadCsv(replacementCsv);
+      assert.equal(await waitForBrowser(`!!document.querySelector('[aria-label="GL source column: Journal ID"]')`),true,'replacement file presents the same explicit header mapping workflow');
+      await browserTab!.evaluate(`(() => {const control=document.querySelector('[aria-label="GL source column: Journal ID"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(control,'0');control.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      assert.equal(await waitForBrowser('document.body.innerText.includes("0 validation errors")'),true,'replacement rows pass the same source validation');
+      await clickButton('Import new revision');
+      assert.equal(await waitForBrowser('document.body.innerText.includes("Source v2") && document.body.innerText.includes("GL Fully Reconciled to TB")'),true,`replacement source imports as v2 without changing the TB: ${await browserTab!.evaluate<string>('document.body.innerText.slice(-1600)')}`);
+      const invalidated = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');const r=e.reconciliations.find(x=>x.name==='AT-36 GL replacement reconciliation');return {status:r.status,revision:r.revision,history:r.history,source:e.glSourceHistory.map(x=>({revision:x.revision,sha256:x.sha256,transactions:x.transactions})),rows:e.rows,generation:e.generation,candidate:e.candidate};})()`);
+      assert.equal(invalidated.status,'Stale','GL replacement immediately invalidates the approved dependent reconciliation');
+      assert.ok(invalidated.history.some((item:any)=>item.status==='Approved'&&item.reviewedByUserId===recRevision.reviewedByUserId),'previous independent approval remains in immutable reconciliation history');
+      assert.equal(invalidated.source.length,2);
+      assert.notEqual(invalidated.source[0].sha256,invalidated.source[1].sha256,'replacement source has its own exact content digest');
+      assert.equal(invalidated.source[0].transactions[0].description,'GL closing movement','prior source rows retain their exact original content');
+      assert.equal(invalidated.source[1].transactions[0].description,'Reviewed replacement source','replacement rows are retained as a separate immutable revision');
+      assert.deepEqual(invalidated.source[0].transactions.map(({description,...row}:any)=>row),invalidated.source[1].transactions.map(({description,...row}:any)=>row),'all non-description fields and source row identities remain comparable across the replacement');
+      assert.deepEqual(invalidated.rows,baselineRows,'GL replacement never mutates the accepted TB rows');
+      assert.equal(invalidated.candidate,null,'GL replacement clears any prior release candidate');
+
+      await clickButtonStartingWith('Reconciliations');
+      await clickButton('Rework stale schedule');
+      await clickButton('Save Reconciliation Draft');
+      const reworked = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');return e.reconciliations.find(x=>x.name==='AT-36 GL replacement reconciliation')})()`);
+      assert.equal(reworked.status,'Draft');
+      assert.equal(reworked.revision,recRevision.revision+1,'corrected schedule is saved as a new revision');
+      assert.equal(reworked.sourceVersion,fixtureEngagement.sourceVersion,'GL source revision remains distinct from the TB source version');
+      await browserTab!.evaluate(`(() => {const r=document.querySelector('#role-select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(r,'reviewer');r.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await clickButton('Approve schedule');
+      const reReviewed = await browserTab!.evaluate<any>(`(() => {const e=JSON.parse(localStorage.getItem('ste-auditsphere-role-portals-v2')).engagements.find(x=>x.id==='ENG-26001');return e.reconciliations.find(x=>x.name==='AT-36 GL replacement reconciliation')})()`);
+      assert.equal(reReviewed.status,'Approved','independent reviewer approves the post-replacement reconciliation revision');
+      assert.equal(reReviewed.revision,recRevision.revision+1);
+      assert.ok(reReviewed.reviewedByUserId && reReviewed.reviewedByUserId!==reworked.preparedByUserId);
+      assert.equal(reReviewed.history.some((item:any)=>item.status==='Approved'),true,'pre-replacement approval remains available beside the newly reviewed revision');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       if (original) await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-role-portals-v2', ${JSON.stringify(original)})`);

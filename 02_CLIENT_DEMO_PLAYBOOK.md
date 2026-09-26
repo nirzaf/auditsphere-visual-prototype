@@ -58,7 +58,7 @@ The existing broader presets may have different amounts (for example the group p
 
 ## 7. Client output and storage explanation
 
-A supported financial package can produce genuine watermarked XLSX/DOCX/PDF files with local hashes. The current group output is JSON. Metadata-only document references cannot promise original bytes after reload; durable PBC/generated/archive blobs have different local storage behavior. Explain the per-feature distinctions in [scope/storage guidance](reference/SCOPE_AND_STORAGE_BOUNDARIES.md).
+A supported financial package can produce genuine watermarked XLSX/DOCX/PDF files with local hashes. The current group output is JSON. Registered library documents and workpaper evidence retain metadata/digests but their original bytes stay in-session; accepted PBC response bytes persist in browser-local IndexedDB; generated financial and archive artifacts have their own IndexedDB paths. Explain the per-feature distinctions in [scope/storage guidance](reference/SCOPE_AND_STORAGE_BOUNDARIES.md).
 
 ## 8. Close the presentation
 

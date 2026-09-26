@@ -361,5 +361,11 @@
       "records"
     ],
     "condition": "Client-owned versus firm documents distinguished; recipient authority required."
+  },
+  {
+    "id": "prototype.full_access",
+    "label": "Full prototype testing access",
+    "roles": ["superuser"],
+    "condition": "Synthetic local demo identity only; business validation and client-facing information projections remain enforced."
   }
 ]

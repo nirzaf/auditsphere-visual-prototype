@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { RouteKey, EngagementRecord, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { isSuperuserRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { calculateRecordedWipValue, calculateReceivablesAging, formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
@@ -98,7 +99,7 @@ export const ReportingCentreView: React.FC<ReportingCentreViewProps> = ({ onNavi
     };
   });
 
-  const visibleReports = ['manager', 'partner'].includes(state.currentRole) ? REPORTS : state.currentRole === 'billing'
+  const visibleReports = isSuperuserRole(state.currentRole) || ['manager', 'partner'].includes(state.currentRole) ? REPORTS : state.currentRole === 'billing'
     ? REPORTS.filter(r => ['wip', 'utilization', 'clients', 'invoices', 'credits', 'receipts', 'ar', 'time', 'budget'].includes(r.key))
     : REPORTS.filter(r => ['clients', 'jobs', 'tasks', 'compliance'].includes(r.key));
   const report = visibleReports.some(r => r.key === selectedReport) ? selectedReport : visibleReports[0]?.key || 'clients';

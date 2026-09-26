@@ -5,7 +5,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState } from '../../src/store/initialState.js';
 import { prototypeStore } from '../../src/store/prototypeStore.js';
-import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, canReadSearchRecord, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope, eligibleAuditRiskOwners } from '../../src/services/guards.js';
+import { visibleClientIds, visibleEngagementIds, requireEngagementScope, canOpenRoute, canReadSearchRecord, GuardError, hasConsolidationGroupScope, hasSelectedEngagementScope, eligibleAuditRiskOwners, requireIndependentActor } from '../../src/services/guards.js';
 import { validateFixtures, migratePersistedState } from '../../src/services/migrations.js';
 import type { PrototypeState } from '../../src/types/index.js';
 import { seedPackageDefinition, seedManagementAcknowledgement } from './packageFixture.js';
@@ -62,6 +62,40 @@ describe('scope guards (AT-18)', () => {
   it('client identity with two grants sees both entities', () => {
     const clients = visibleClientIds(state, 'client_admin');
     assert.deepEqual([...(clients as string[])].sort(), ['CL-001', 'CL-003']);
+  });
+});
+
+describe('prototype superuser access', () => {
+  it('opens every route, sees every client, engagement and supported consolidation group', () => {
+    setPersona(state, 'AuditSphere Superuser');
+    const routes = ['overview','clients','client-detail','acquisition','proposals','engagements','jobs','job-templates','documents','communications','my-time','budgets','billing','receivables','accounting-setup','trial-balance','gl-transactions','account-mappings','adjustments','reconciliations','financial-statements','financial-packages','consolidation','onboarding','audit-planning','audit-risks','audit-fieldwork','sampling','audit','evidence','findings','reviews','approvals','quality','delivery','records','reports','search','administration','m365-setup','portal','services','role-guide','module-guide','requirements'] as const;
+    assert.ok(routes.every(route => canOpenRoute('superuser', route)), 'every declared product route is available');
+    assert.deepEqual(visibleClientIds(state), 'ALL');
+    assert.deepEqual(visibleEngagementIds(state), 'ALL');
+    assert.ok(state.consolidationGroups.every(group => hasConsolidationGroupScope(state, group.id)));
+  });
+
+  it('uses centralized command access, records the explicit SoD override, and preserves business validation', () => {
+    (prototypeStore as any).state = state;
+    prototypeStore.setPersona('superuser');
+    const proposal = state.proposals.find(item => item.id === 'PROP-001')!;
+    proposal.state = 'Internal review';
+    proposal.preparedBy = 'AuditSphere Superuser';
+    prototypeStore.reviewProposal(proposal.id, true);
+    assert.equal(proposal.state, 'Approved to send');
+    assert.match(state.events.find(event => event.ref === 'SUPERUSER-OVERRIDE')?.text || '', /Prototype Superuser Override.*commercially approve this proposal/);
+    assert.throws(() => prototypeStore.addReceipt({ ...state.receipts[0], id: 'RCPT-SUPERUSER-INVALID', receiptNumber: 'RCPT-SUPERUSER-INVALID', date: '2026-02-30' }), /valid date/i, 'authorization does not bypass accounting validation');
+  });
+
+  it('leaves ordinary role restrictions and client portal projection unchanged', () => {
+    assert.equal(canOpenRoute('billing', 'audit-risks'), false);
+    assert.equal(canOpenRoute('preparer', 'approvals'), false);
+    setPersona(state, 'Mona Khalil');
+    assert.deepEqual(visibleEngagementIds(state), ['ENG-26001']);
+    setPersona(state, 'Omar Nasser');
+    assert.equal(canOpenRoute('client', 'portal'), true);
+    assert.equal(canOpenRoute('client', 'audit-risks'), false);
+    assert.equal(visibleEngagementIds(state).includes('ENG-26002'), false);
   });
 });
 
@@ -328,7 +362,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 27);
+    assert.equal(migrated.schema, 28);
   });
   it('adds proposal catalogue and historical period/fee metadata when upgrading pre-v25 state', () => {
     const legacy = structuredClone(createInitialState()) as any;
@@ -400,11 +434,15 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(unresolved.invoices[0].lines, undefined, 'custom invoice details must not receive invented lines');
     assert.ok(validateFixtures(unresolved).some(issue => issue.code === 'INVOICE_LINES'));
   });
-  it('upgrades each persisted schema revision through current v27 without losing histories', () => {
+  it('upgrades each persisted schema revision through current v28 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 26; version++) {
+    for (let version = 0; version <= 27; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
+      if (version < 28) {
+        legacy.users = legacy.users.filter((user: any) => user.id !== 'superuser');
+        legacy.roleGrants = legacy.roleGrants.filter((grant: any) => grant.userId !== 'superuser');
+      }
       if (version < 22) {
         const component = legacy.consolidationGroups.find((group: any) => group.id === 'GRP-01')?.components.find((item: any) => item.componentId === 'ENG-26002');
         if (component) { component.role = 'Associate'; component.legalEntityName = 'Northstar Services (Associate)'; }
@@ -433,7 +471,8 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       if (version < 23) for (const group of legacy.consolidationGroups) { delete group.reportingBasis; group.components.forEach((component: any) => delete component.packageReview); }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 27, `schema ${version} should reach v27`);
+      assert.equal(migrated.schema, 28, `schema ${version} should reach v28`);
+      assert.equal(migrated.users.some(user => user.id === 'superuser' && user.role === 'superuser'), true, 'the v28 upgrade adds the synthetic prototype superuser');
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, version < 23 ? 'Pending' : seed.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status);
       assert.ok(Array.isArray(migrated.statementSetRevisions));
@@ -1562,6 +1601,104 @@ describe('adjustment approval lifecycle (AT-38)', () => {
   });
 });
 
+describe('adjustment journal support revision pins (VP-038-E01)', () => {
+  const makeJournal = (supportLinks?: any, id = 'AJ-SUPPORT') => ({
+    id, engagementId: 'ENG-26001', title: 'Support-linked adjustment', status: 'Draft' as const,
+    preparedBy: 'Adam Khan', reflectionStatus: 'Not reflected' as const, reflectedInClientBooks: false,
+    rationale: 'Adjust fixed-asset depreciation to the approved schedule.', supportLinks,
+    lines: [
+      { accountCode: '5000', accountName: 'Operating expenses', type: 'debit' as const, amount: 100, debit: 100, credit: 0 },
+      { accountCode: '1500', accountName: 'Property, plant and equipment', type: 'credit' as const, amount: 100, debit: 0, credit: 100 }
+    ]
+  });
+
+  it('pins exact evidence, workpaper and finding revisions and rejects each stale pin at decisions', () => {
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    const evidence = state.evidenceCatalogue.find(item => item.id === 'EVD-02')!;
+    const document = state.documents.find(item => item.id === evidence.documentId)!;
+    const workpaper = state.engagements.find(item => item.id === 'ENG-26001')!.workpapers.find(item => item.id === 'WP-A1')!;
+    const finding = state.findings.find(item => item.id === 'FND-01')!;
+    const pins = () => ({
+      evidence: { id: evidence.id, evidenceVersion: evidence.version, documentId: document.id, documentVersion: document.version },
+      workpaper: { id: workpaper.id, version: workpaper.version },
+      finding: { id: finding.id, revision: finding.revision || 1 }
+    });
+    const originalPins = pins();
+    prototypeStore.addAdjustmentJournal(makeJournal(originalPins));
+    assert.deepEqual(state.adjustmentJournals.find(item => item.id === 'AJ-SUPPORT')?.supportLinks, originalPins);
+
+    setPersona(state, 'Layla Rahman');
+    evidence.version++;
+    assert.match(prototypeStore.getAdjustmentSupportIssue('ENG-26001', originalPins) || '', /not adequate at the pinned current evidence/);
+    assert.throws(() => prototypeStore.reviewAdjustmentJournal('AJ-SUPPORT', true), /pinned current evidence/);
+    evidence.version--;
+    workpaper.version++;
+    assert.throws(() => prototypeStore.reviewAdjustmentJournal('AJ-SUPPORT', true), /workpaper revision is stale/);
+    workpaper.version--;
+    finding.revision = 2;
+    assert.throws(() => prototypeStore.reviewAdjustmentJournal('AJ-SUPPORT', true), /finding revision is stale/);
+    finding.revision = 1;
+    prototypeStore.reviewAdjustmentJournal('AJ-SUPPORT', true);
+
+    setPersona(state, 'Omar Nasser');
+    finding.revision = 2;
+    assert.throws(() => prototypeStore.recordAdjustmentManagementDecision('AJ-SUPPORT', true), /finding revision is stale/);
+    finding.revision = 1;
+    prototypeStore.recordAdjustmentManagementDecision('AJ-SUPPORT', true);
+    const accepted = state.adjustmentJournals.find(item => item.id === 'AJ-SUPPORT')!;
+    setPersona(state, 'Layla Rahman');
+    assert.throws(() => prototypeStore.updateAdjustmentJournal({ ...accepted, supportLinks: undefined }), /supporting references.*immutable/);
+
+    prototypeStore.updateAdjustmentJournal({ ...accepted, reflectionStatus: 'Reflected in TB', reflectedInClientBooks: true, reflectionSourceVersion: 1, reflectionEvidenceRef: 'TB-IMPORT-REV-1' });
+    const reflected = state.adjustmentJournals.find(item => item.id === 'AJ-SUPPORT')!;
+    workpaper.version++;
+    assert.throws(() => prototypeStore.markAdjustmentJournalReportingIncluded('AJ-SUPPORT'), /workpaper revision is stale/);
+    assert.match(prototypeStore.getAdjustmentSupportIssues('ENG-26001')['AJ-SUPPORT'] || '', /workpaper revision is stale/);
+    const currentPins = pins();
+    const sourceRows = structuredClone(state.engagements.find(item => item.id === 'ENG-26001')!.rows);
+    setPersona(state, 'Adam Khan');
+    const revisedLines = [
+      { ...reflected.lines[0], amount: 110, debit: 110 },
+      { ...reflected.lines[1], amount: 110, credit: 110 }
+    ];
+    prototypeStore.amendAdjustmentJournal('AJ-SUPPORT', { title: 'Support-linked adjustment amended', lines: revisedLines, rationale: reflected.rationale || '', supportLinks: currentPins }, 'Updated to the current workpaper revision.');
+    const amended = state.adjustmentJournals.find(item => item.id === 'AJ-SUPPORT')!;
+    assert.equal(amended.status, 'Draft');
+    assert.deepEqual(amended.supportLinks, currentPins);
+    assert.deepEqual(amended.amendmentHistory?.[0].supportLinks, originalPins, 'the predecessor keeps its exact historical pins');
+    assert.deepEqual(state.engagements.find(item => item.id === 'ENG-26001')!.rows, sourceRows, 'support-link amendment never mutates source trial-balance rows');
+  });
+
+  it('rejects foreign, unavailable, superseded and stale support references atomically', () => {
+    const state = createInitialState();
+    (prototypeStore as any).state = state;
+    setPersona(state, 'Adam Khan');
+    const foreignDoc = { ...state.documents.find(item => item.id === 'DOC-002')!, id: 'DOC-FOREIGN', clientId: 'CL-002', engagementId: 'ENG-26002' };
+    state.documents.push(foreignDoc);
+    state.evidenceCatalogue.push({ ...state.evidenceCatalogue.find(item => item.id === 'EVD-01')!, id: 'EVD-FOREIGN', documentId: foreignDoc.id });
+    const foreignFinding = { ...state.findings.find(item => item.id === 'FND-01')!, id: 'FND-FOREIGN', engagementId: 'ENG-26002' };
+    state.findings.push(foreignFinding);
+    const attempts = [
+      { evidence: { id: 'EVD-FOREIGN', evidenceVersion: 1, documentId: 'DOC-FOREIGN', documentVersion: 1 } },
+      { workpaper: { id: 'WP-FOREIGN', version: 1 } },
+      { finding: { id: 'FND-FOREIGN', revision: 1 } }
+    ];
+    attempts.forEach((supportLinks, index) => assert.throws(() => prototypeStore.addAdjustmentJournal(makeJournal(supportLinks, `AJ-FOREIGN-${index}`)), /within this engagement|within this engagement|must belong to this engagement/));
+    assert.equal(state.adjustmentJournals.some(item => item.id.startsWith('AJ-FOREIGN-')), false, 'rejected support cannot partially create journal records');
+
+    const evidence = state.evidenceCatalogue.find(item => item.id === 'EVD-02')!;
+    const document = state.documents.find(item => item.id === evidence.documentId)!;
+    const staleEvidence = { evidence: { id: evidence.id, evidenceVersion: evidence.version, documentId: document.id, documentVersion: document.version + 1 } };
+    assert.throws(() => prototypeStore.addAdjustmentJournal(makeJournal(staleEvidence, 'AJ-STALE-SUPPORT')), /pinned current evidence/);
+    document.brokenLink = true;
+    const unavailable = { evidence: { id: evidence.id, evidenceVersion: evidence.version, documentId: document.id, documentVersion: document.version } };
+    assert.throws(() => prototypeStore.addAdjustmentJournal(makeJournal(unavailable, 'AJ-UNAVAILABLE-SUPPORT')), /available document/);
+    assert.equal(state.adjustmentJournals.some(item => ['AJ-STALE-SUPPORT', 'AJ-UNAVAILABLE-SUPPORT'].includes(item.id)), false);
+  });
+});
+
 describe('evidence adequacy (AT-20/AT-46)', () => {
   it('persists attributable adequacy and requires rationale for deficiency', async () => {
     const { prototypeStore } = await import('../../src/store/prototypeStore.js');
@@ -2470,6 +2607,43 @@ describe('prototype workflow guards & lifecycle (F03, F04, F05, F06, F13)', () =
     assert.equal(engagement.cashFlowScheduleHistory[0].status, 'Stale', 'support replacement stales the reviewed prior schedule');
     assert.equal(engagement.packageHistory.at(-1).generation, priorPackageGeneration, 'saved package snapshot remains immutable');
     assert.notEqual(engagement.packageHistory.at(-1).generation, engagement.generation, 'support replacement stales package generation');
+  });
+
+  it('pins newly assembled package revisions to the exact accepted GL source hash', () => {
+    (prototypeStore as any).state = state;
+    (prototypeStore as any).isSessionOnly = false;
+    (prototypeStore as any).persist = () => {};
+    const engagement = state.engagements.find(item => item.id === 'ENG-26001')!;
+    const sourceV1 = { revision: 1, sha256: '1'.repeat(64), transactions: [] };
+    engagement.glSourceHistory = [sourceV1] as any;
+    setPersona(state, 'Layla Rahman');
+    const artifacts = [
+      { id: 'PKG-GL-XLSX', name: 'package.xlsx', kind: 'XLSX' as const, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size: 1, sha256: 'a'.repeat(64) },
+      { id: 'PKG-GL-DOCX', name: 'package.docx', kind: 'DOCX' as const, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1, sha256: 'b'.repeat(64) },
+      { id: 'PKG-GL-PDF', name: 'package.pdf', kind: 'PDF' as const, mimeType: 'application/pdf', size: 1, sha256: 'c'.repeat(64) }
+    ];
+    const nextRecord = (revision: number, generation: number, glSourceRevision: number, glSourceSha256: string) => ({
+      id: `PKG-GL-${revision}`, engagementId: engagement.id, revision, generation,
+      sourceVersion: engagement.sourceVersion, glSourceRevision, glSourceSha256, mappingRevision: 1,
+      notes: '', noteRevision: revision, sections: [{ id: 'bs', title: 'Balance sheet', desc: '', enabled: true, order: 1 }],
+      validation: { passed: true, trialBalanceNet: 0, pendingWorkpapers: 0, openReviews: 0, materialFindings: 0 },
+      artifacts: artifacts.map(artifact => ({ ...artifact, id: `${artifact.id}-${revision}` })), createdAt: '2026-09-26T00:00:00Z', createdBy: state.currentPerson, createdByUserId: state.currentUserId
+    });
+    assert.throws(() => prototypeStore.saveFinancialPackageRevision(nextRecord(engagement.packageRevision + 1, engagement.generation + 1, 1, 'f'.repeat(64)) as any), /current TB\/GL source/);
+    prototypeStore.saveFinancialPackageRevision(nextRecord(engagement.packageRevision + 1, engagement.generation + 1, sourceV1.revision, sourceV1.sha256) as any);
+    const prior = engagement.packageHistory.at(-1)!;
+    assert.equal(prior.glSourceRevision, 1);
+    assert.equal(prior.glSourceSha256, sourceV1.sha256);
+
+    const sourceV2 = { revision: 2, sha256: '2'.repeat(64), transactions: [] };
+    engagement.glSourceHistory.push(sourceV2 as any);
+    engagement.generation++;
+    engagement.candidate = null;
+    assert.throws(() => prototypeStore.saveFinancialPackageRevision(nextRecord(engagement.packageRevision + 1, engagement.generation + 1, sourceV1.revision, sourceV1.sha256) as any), /current TB\/GL source/);
+    prototypeStore.saveFinancialPackageRevision(nextRecord(engagement.packageRevision + 1, engagement.generation + 1, sourceV2.revision, sourceV2.sha256) as any);
+    assert.equal(engagement.packageHistory.at(-1)?.glSourceRevision, 2);
+    assert.equal(engagement.packageHistory.at(-1)?.glSourceSha256, sourceV2.sha256);
+    assert.equal(engagement.packageHistory[0].glSourceSha256, sourceV1.sha256, 'accepted predecessor package source hash remains immutable');
   });
 
   it('risk and procedure links are reciprocal and engagement scoped (VP-049)', async () => {

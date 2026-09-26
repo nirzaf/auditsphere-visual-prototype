@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, TimeEntryItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, isSuperuserRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
@@ -13,6 +14,7 @@ interface TimeTrackingViewProps {
 
 export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
+  const isSuperuser = isSuperuserRole(state.currentRole);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [entryToReturn, setEntryToReturn] = useState<TimeEntryItem | null>(null);
@@ -227,7 +229,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
                   <td>
                     {t.status === 'Submitted' && (
                       <div className="row" style={{ gap: 6 }}>
-                        {['manager', 'reviewer', 'partner'].includes(state.currentRole) && t.person !== state.currentPerson && (
+                        {hasAnyRole(state, ['manager', 'reviewer', 'partner']) && (t.person !== state.currentPerson || isSuperuser) && (
                           <>
                             <button
                               className="btn sm"
@@ -247,17 +249,17 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ onNavigate, 
                             </button>
                           </>
                         )}
-                        {['manager', 'reviewer', 'partner'].includes(state.currentRole) && t.person === state.currentPerson && <span className="caption" title="Independent review required">Self-review not permitted</span>}
-                        {!['manager', 'reviewer', 'partner'].includes(state.currentRole) && <span className="caption">Awaiting review</span>}
+                        {hasAnyRole(state, ['manager', 'reviewer', 'partner']) && t.person === state.currentPerson && !isSuperuser && <span className="caption" title="Independent review required">Self-review not permitted</span>}
+                        {!hasAnyRole(state, ['manager', 'reviewer', 'partner']) && <span className="caption">Awaiting review</span>}
                       </div>
                     )}
                     {t.status === 'Approved' && (
                       <div className="stack" style={{ gap: 4 }}>
                         <span className="caption">By {t.reviewedBy}{t.reviewedAt ? ` · ${new Date(t.reviewedAt).toLocaleDateString()}` : ''}</span>
-                        {(t.person === state.currentPerson || ['manager', 'partner'].includes(state.currentRole)) && <button className="btn sm ghost" onClick={() => openRevision(t, 'approved')}>Correct approved time</button>}
+                        {(t.person === state.currentPerson || hasAnyRole(state, ['manager', 'partner'])) && <button className="btn sm ghost" onClick={() => openRevision(t, 'approved')}>Correct approved time</button>}
                       </div>
                     )}
-                    {t.status === 'Returned' && t.person === state.currentPerson && <button className="btn sm ghost" onClick={() => openRevision(t, 'returned')}>Resubmit correction</button>}
+                    {t.status === 'Returned' && (t.person === state.currentPerson || isSuperuser) && <button className="btn sm ghost" onClick={() => openRevision(t, 'returned')}>Resubmit correction</button>}
                   </td>
                 </tr>
               ))}

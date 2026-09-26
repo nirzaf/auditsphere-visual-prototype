@@ -1,6 +1,7 @@
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ClientRecord, PrototypeState } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 
 type ClientDraft = Omit<ClientRecord, 'accountingProfile' | 'customFields' | 'relationshipGroupId'>;
 
@@ -9,7 +10,9 @@ interface ClientProfileModalProps {
   currentPerson: string;
   state: PrototypeState;
   onClose: () => void;
+  onRequestClose: () => void;
   onSave: (draft: ClientDraft, expectedProfileRevision?: number) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
 const eligibleUsers = (state: PrototypeState, clientId: string | undefined, roles: string[]) => state.users.filter(user => {
@@ -19,7 +22,7 @@ const eligibleUsers = (state: PrototypeState, clientId: string | undefined, role
   return grant.some(item => item.scopeKind === 'Global' || item.scopeKind === 'Client' && item.scopeId === clientId || item.scopeKind === 'Engagement' && state.engagements.some(engagement => engagement.id === item.scopeId && engagement.client === clientId));
 });
 
-export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing, currentPerson, state, onClose, onSave }) => {
+export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing, currentPerson, state, onClose, onRequestClose, onSave, onRegisterUnsavedForm }) => {
   const [draft, setDraft] = useState<ClientDraft>(() => ({
     id: existing?.id || '',
     code: existing?.code || '',
@@ -45,6 +48,11 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing
     manager: existing?.manager || '',
     notes: existing?.notes || '',
   }));
+  const initialDraft = useRef(JSON.stringify(draft));
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const saveDraftRef = useRef<() => boolean>(() => false);
+  const form = useRef<HTMLFormElement>(null);
   const [error, setError] = useState('');
   const clients = state.clients.filter(client => client.id !== existing?.id);
   const similarWarnings = prototypeStore.getClientProfileWarnings(draft, existing?.id);
@@ -52,8 +60,8 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing
   const managers = eligibleUsers(state, existing?.id, ['manager']);
   const partners = eligibleUsers(state, existing?.id, ['partner']);
   const set = <K extends keyof ClientDraft>(key: K, value: ClientDraft[K]) => setDraft(previous => ({ ...previous, [key]: value }));
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  const saveDraft = (): boolean => {
+    if (!form.current?.reportValidity()) return false;
     setError('');
     try {
       const assignedOwners = eligibleUsers(state, existing?.id, ['relationship', 'manager', 'partner']).map(user => user.name);
@@ -65,12 +73,31 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing
       })();
       if (!assignedOwners.includes(draft.relationshipOwner)) throw new Error('Choose an active, in-scope relationship owner.');
       const normalized = { ...draft, id, code, initials: (draft.name.trim().slice(0, 2) || 'CL').toUpperCase(), industry: draft.industry.trim() || 'Unspecified', jurisdiction: draft.jurisdiction.trim() || 'Unspecified', contact: draft.contact.trim(), email: draft.email?.trim() || '', phone: draft.phone?.trim() || '', address: draft.address?.trim() || '', website: draft.website?.trim() || '', tradingName: draft.tradingName?.trim(), registrationNumber: draft.registrationNumber?.trim(), manager: draft.manager || undefined, partner: draft.partner || undefined, notes: draft.notes?.trim() || '', revenue: Number(draft.revenue) };
-      try { onSave(normalized, existing ? existing.profileRevision || 0 : undefined); }
-      catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Client profile could not be saved.'); }
+      try {
+        onSave(normalized, existing ? existing.profileRevision || 0 : undefined);
+        return true;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Client profile could not be saved.');
+        return false;
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Client profile could not be saved.');
+      return false;
     }
   };
+  saveDraftRef.current = saveDraft;
+  const submit = (event: FormEvent) => { event.preventDefault(); saveDraft(); };
+
+  useLayoutEffect(() => {
+    const guard: UnsavedFormGuard = {
+      label: existing ? 'client profile' : 'new client profile',
+      isDirty: () => JSON.stringify(draftRef.current) !== initialDraft.current,
+      save: () => saveDraftRef.current(),
+      discard: onClose,
+    };
+    onRegisterUnsavedForm(guard, 'client-profile');
+    return () => onRegisterUnsavedForm(null, 'client-profile');
+  }, [existing, onClose, onRegisterUnsavedForm]);
   const input = (label: string, key: keyof ClientDraft, type = 'text', required = false) => (
     <label className="caption">{label}
       <input className="input" aria-label={label} type={type} value={(draft[key] as string | number | undefined) ?? ''} required={required}
@@ -79,13 +106,13 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing
     </label>
   );
 
-  return <div className="modal-backdrop" onClick={onClose}>
+  return <div className="modal-backdrop" onClick={onRequestClose}>
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="client-profile-title" style={{ maxWidth: 720 }} onClick={event => event.stopPropagation()}>
       <div className="modal-head">
         <h2 id="client-profile-title">{existing ? 'Edit Client Profile' : 'Create Client Profile'}</h2>
-        <button type="button" className="icon-btn" aria-label="Close client profile" onClick={onClose}>✕</button>
+      <button type="button" className="icon-btn" aria-label="Close client profile" onClick={onRequestClose}>✕</button>
       </div>
-      <form onSubmit={submit}>
+      <form ref={form} onSubmit={submit}>
         <div className="modal-body stack" style={{ gap: 12, maxHeight: '70vh', overflowY: 'auto' }}>
           <div className="grid2">
             {input('Client Code', 'code', 'text', true)}
@@ -144,7 +171,7 @@ export const ClientProfileModal: React.FC<ClientProfileModalProps> = ({ existing
           {error && <div className="panel panel-pad" style={{ color: 'var(--red)' }} role="alert">{error}</div>}
         </div>
         <div className="modal-foot">
-          <button type="button" className="btn ghost sm" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn ghost sm" onClick={onRequestClose}>Cancel</button>
           <button type="submit" className="btn primary sm">{existing ? 'Save Client Profile' : 'Create Client'}</button>
         </div>
       </form>

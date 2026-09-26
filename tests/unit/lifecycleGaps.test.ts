@@ -71,6 +71,11 @@ describe('adjustment reporting inclusion chain (MOD-22/MOD-34)', () => {
     assert.equal(included.status, 'Reporting included');
     assert.equal(included.reportingIncludedBy, 'Layla Rahman');
     assert.ok(included.reportingIncludedAt);
+    assert.throws(
+      () => prototypeStore.markAdjustmentJournalReportingIncluded('AJ-INCLUDE'),
+      /Only a management-accepted adjustment can be recorded as included in reporting/,
+      'a reporting-included journal cannot be included a second time'
+    );
   });
 
   it('a linked finding is then dispositionable as Corrected in TB from a live session', () => {

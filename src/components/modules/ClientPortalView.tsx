@@ -19,10 +19,13 @@ interface ClientPortalViewProps {
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }) => {
   const state = prototypeStore.getSnapshot();
+  const [previewRole, setPreviewRole] = useState<'client_admin' | 'client_finance' | 'client'>('client_finance');
+  const portalRole = state.currentRole === 'superuser' ? previewRole : state.currentRole;
   const [activeSub, setActiveSub] = useState<'home' | 'status' | 'pbc' | 'docs' | 'messages' | 'packages' | 'invoices' | 'approvals' | 'proposals'>('home');
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadPbcModal, setUploadPbcModal] = useState<PbcRequestItem | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [pbcReplies, setPbcReplies] = useState<Record<string, string>>({});
   const [rejectingAdjustmentId, setRejectingAdjustmentId] = useState<string | null>(null);
   const [adjustmentRejectNote, setAdjustmentRejectNote] = useState('');
   const [proposalContact, setProposalContact] = useState('');
@@ -141,6 +144,18 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
     }
   };
 
+  const handlePbcReply = (event: React.FormEvent, request: PbcRequestItem) => {
+    event.preventDefault();
+    if (!eng) return;
+    try {
+      prototypeStore.replyToPbcRequest(eng.id, request.id, pbcReplies[request.id] || '');
+      setPbcReplies(current => ({ ...current, [request.id]: '' }));
+      triggerNotice(`Reply added to ${request.id}'s client-visible timeline.`);
+    } catch (err) {
+      triggerNotice(err instanceof Error ? err.message : 'Reply could not be added.');
+    }
+  };
+
   const handleManagementApproval = () => {
     if (!eng) return;
     try {
@@ -206,12 +221,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
               <span className="caption" style={{ color: '#00c7a2' }}>CLIENT SECURE PORTAL</span>
               <h2 style={{ color: '#fff', margin: 0 }}>{client.name}</h2>
               <div className="cell-sub" style={{ color: '#9fc4c9' }}>
-                Logged in as: {state.currentPerson} ({state.currentRole})
+                {state.currentRole === 'superuser' ? `SUPERUSER PORTAL PREVIEW · Previewing as ${portalRole.replace('_', ' ')}` : `Logged in as: ${state.currentPerson} (${state.currentRole})`}
               </div>
             </div>
           </div>
 
           <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+            {state.currentRole === 'superuser' && <label className="caption" style={{ color: '#9fc4c9' }}>Preview client role
+              <select className="input sm" aria-label="Preview client portal role" style={{ background: '#193f49', color: '#fff', borderColor: '#2e5661', marginLeft: 6 }} value={previewRole} onChange={event => setPreviewRole(event.target.value as typeof previewRole)}>
+                <option value="client_admin" style={{ color: '#000' }}>Client administrator</option>
+                <option value="client_finance" style={{ color: '#000' }}>Finance contributor</option>
+                <option value="client" style={{ color: '#000' }}>Management approver</option>
+              </select>
+            </label>}
             {availableClients.length > 1 && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                 <span className="caption" style={{ color: '#9fc4c9' }}>Switch Entity:</span>
@@ -265,7 +287,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
             { key: 'messages', label: 'Messages & Mail' },
             { key: 'packages', label: 'Published Reports' },
             { key: 'invoices', label: 'Fee Invoices' },
-            ...(state.currentRole === 'client' ? [{ key: 'proposals', label: 'Proposals & Terms' }, { key: 'approvals', label: 'Management Approvals' }] : [])
+            ...(portalRole === 'client' ? [{ key: 'proposals', label: 'Proposals & Terms' }, { key: 'approvals', label: 'Management Approvals' }] : [])
           ].map(t => (
             <button
               key={t.key}
@@ -375,6 +397,26 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
                             ))}
                           </details>
                         )}
+                        <details className="mt4">
+                          <summary className="cell-sub text-teal">Conversation &amp; timeline ({p.thread?.filter(message => message.clientVisible === true).length || 0})</summary>
+                          <div className="stack mt8" role="log" aria-label={`Client-visible conversation for ${p.id}`} style={{ gap: 6 }}>
+                            {(p.thread || []).filter(message => message.clientVisible === true).map(message => (
+                              <div className="borderbox" key={message.id} style={{ padding: 8 }}>
+                                <div className="between"><b>{message.author}</b><span className="caption">{Number.isNaN(Date.parse(message.time)) ? message.time : new Date(message.time).toLocaleString('en-GB')}</span></div>
+                                <div className="cell-sub">{message.kind === 'response' ? 'File response' : message.kind === 'clarification' ? 'Audit clarification' : 'Message'}{message.file ? ` · ${message.file}${message.version ? ` · v${message.version}` : ''}` : ''}</div>
+                                <p className="sub mt4" style={{ whiteSpace: 'pre-line' }}>{message.text}</p>
+                              </div>
+                            ))}
+                            {!p.thread?.some(message => message.clientVisible === true) && <p className="caption">No messages yet. Replies and file responses appear here for both parties.</p>}
+                          </div>
+                          {['Requested', 'Needs clarification', 'Received'].includes(p.status) && (
+                            <form className="stack mt8" onSubmit={event => handlePbcReply(event, p)} style={{ gap: 6 }}>
+                              <label className="caption" htmlFor={`pbc-reply-${p.id}`}>Reply to the audit team</label>
+                              <textarea id={`pbc-reply-${p.id}`} className="input" rows={2} maxLength={2000} value={pbcReplies[p.id] || ''} onChange={event => setPbcReplies(current => ({ ...current, [p.id]: event.target.value }))} placeholder="Ask a question or add context for your upload" />
+                              <div><button className="btn sm" type="submit" disabled={!(pbcReplies[p.id] || '').trim()}>Send reply</button></div>
+                            </form>
+                          )}
+                        </details>
                       </td>
                       <td>{p.category}</td>
                       <td>{p.due}</td>
@@ -549,7 +591,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
         </div>
       )}
 
-      {activeSub === 'proposals' && state.currentRole === 'client' && (
+      {activeSub === 'proposals' && portalRole === 'client' && (
         <div className="panel panel-pad">
           <h3>Proposals &amp; Engagement Terms</h3>
           <p className="sub mt8">Review the exact revision formally presented to this client. A recorded response does not create an engagement or authorize work.</p>
@@ -573,7 +615,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onNavigate }
         </div>
       )}
 
-      {activeSub === 'approvals' && state.currentRole === 'client' && (
+      {activeSub === 'approvals' && portalRole === 'client' && (
         <div className="panel panel-pad">
           <h3>Presented Financial Package</h3>
           {!eng?.managementPresentation ? <p className="sub mt8">No package has been deliberately presented for management review.</p> : <div className="borderbox mt12" key={`${eng.id}-${eng.managementPresentation.packageRevision}`}>

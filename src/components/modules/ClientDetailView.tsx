@@ -17,10 +17,11 @@ interface ClientDetailViewProps {
   searchTargetId?: string;
   onBack: () => void;
   onNavigate: (route: RouteKey) => void;
-  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null) => void;
+  onBeforeContextChange: (change: () => void) => void;
+  onRegisterUnsavedForm: (guard: UnsavedFormGuard | null, key?: string) => void;
 }
 
-export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate, onRegisterUnsavedForm }) => {
+export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, searchTargetId, onBack, onNavigate, onBeforeContextChange, onRegisterUnsavedForm }) => {
   const state = prototypeStore.getSnapshot();
   const searchContact = state.contacts.find(contact => contact.id === searchTargetId && contact.clientId === clientId);
   const engagementScope = visibleEngagementIds(state);
@@ -77,8 +78,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [pbcCategory, setPbcCategory] = useState('Financial records');
   const [pbcDue, setPbcDue] = useState(state.asOfDate);
   const [pbcContributor, setPbcContributor] = useState(client.contact || '');
+  const pbcForm = useRef<HTMLFormElement>(null);
+  const initialPbcDraft = useRef({ engagementId: engagements[0]?.id || '', title: '', category: 'Financial records', due: state.asOfDate, contributor: client.contact || '' });
   const [clarification, setClarification] = useState<{ engagementId: string; request: PbcRequestItem } | null>(null);
   const [clarificationText, setClarificationText] = useState('');
+  const clarificationForm = useRef<HTMLFormElement>(null);
   // VP-023: request edit/reassignment/cancellation with attribution and retained history.
   const [editingRequest, setEditingRequest] = useState<ClientPbcRequest | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -86,6 +90,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
   const [editDue, setEditDue] = useState('');
   const [editRecipient, setEditRecipient] = useState('');
   const [editReason, setEditReason] = useState('');
+  const editRequestForm = useRef<HTMLFormElement>(null);
   const [requestNotice, setRequestNotice] = useState('');
   const [requestStatusFilter, setRequestStatusFilter] = useState('All');
   const [requestSearch, setRequestSearch] = useState('');
@@ -165,8 +170,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
       isDirty: () => showAddContact && (Boolean(editingContactId) || Boolean(contactName.trim() || contactEmail.trim() || contactPhone.trim() || contactTitle.trim() || contactResponsibility.trim() || contactEffectiveFrom || contactEffectiveTo)),
       save: saveContact,
       discard: discardContact
-    });
-    return () => onRegisterUnsavedForm(null);
+    }, 'client-contact');
+    return () => onRegisterUnsavedForm(null, 'client-contact');
   }, [onRegisterUnsavedForm, showAddContact, editingContactId, contactName, contactEmail, contactPhone, contactTitle, contactResponsibility, contactEffectiveFrom, contactEffectiveTo, saveContact, discardContact]);
   const editContact = (contact: ClientContact) => {
     setEditingContactId(contact.id); setContactName(contact.name); setContactEmail(contact.email); setContactPhone(contact.phone || ''); setContactTitle(contact.title || ''); setContactResponsibility(contact.responsibility || ''); setContactEffectiveFrom(contact.effectiveFrom || ''); setContactEffectiveTo(contact.effectiveTo || ''); setContactActive(contact.active); setShowAddContact(true);
@@ -183,16 +188,29 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     } catch (error) { setClientNotice(error instanceof Error ? error.message : 'Custom value could not be saved.'); }
   };
 
-  const handleCreatePbc = (e: React.FormEvent) => {
-    e.preventDefault();
+  const savePbcDraft = () => {
+    if (!pbcForm.current?.reportValidity()) return false;
     try {
       const request: PbcRequestItem = { id: `PBC-${crypto.randomUUID()}`, title: pbcTitle, category: pbcCategory, status: 'Draft', due: pbcDue, owner: state.currentPerson, contributor: pbcContributor, version: 1 };
       prototypeStore.addPbcRequest(pbcEngagementId, request);
       setRequestNotice('Draft information request saved. Present it when ready for the client portal.');
       setShowPbcForm(false);
       setPbcTitle('');
-    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be saved.'); }
+      return true;
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be saved.'); return false; }
   };
+  const handleCreatePbc = (e: React.FormEvent) => { e.preventDefault(); savePbcDraft(); };
+
+  useEffect(() => {
+    const guard: UnsavedFormGuard = {
+      label: 'PBC request draft',
+      isDirty: () => showPbcForm && JSON.stringify({ engagementId: pbcEngagementId, title: pbcTitle, category: pbcCategory, due: pbcDue, contributor: pbcContributor }) !== JSON.stringify(initialPbcDraft.current),
+      save: savePbcDraft,
+      discard: () => { setShowPbcForm(false); setPbcTitle(''); setPbcCategory(initialPbcDraft.current.category); setPbcDue(initialPbcDraft.current.due); setPbcContributor(initialPbcDraft.current.contributor); setPbcEngagementId(initialPbcDraft.current.engagementId); }
+    };
+    onRegisterUnsavedForm(guard, 'client-pbc-create');
+    return () => onRegisterUnsavedForm(null, 'client-pbc-create');
+  }, [showPbcForm, pbcEngagementId, pbcTitle, pbcCategory, pbcDue, pbcContributor, onRegisterUnsavedForm]);
 
   const handlePresentPbc = (engagementId: string, requestId: string) => {
     try { prototypeStore.presentPbcRequest(engagementId, requestId); setRequestNotice('Information request presented to the client portal.'); }
@@ -204,26 +222,52 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
     catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Response could not be accepted.'); }
   };
 
-  const handleClarification = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clarification) return;
+  const saveClarification = () => {
+    if (!clarification || !clarificationForm.current?.reportValidity()) return false;
     try {
       prototypeStore.requestPbcClarification(clarification.engagementId, clarification.request.id, clarificationText);
       setClarification(null);
       setClarificationText('');
       setRequestNotice('Clarification requested; the client can replace its response.');
-    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Clarification could not be recorded.'); }
+      return true;
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Clarification could not be recorded.'); return false; }
   };
+  const handleClarification = (e: React.FormEvent) => { e.preventDefault(); saveClarification(); };
 
-  const handleUpdatePbc = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingRequest) return;
+  const savePbcUpdate = () => {
+    if (!editingRequest || !editRequestForm.current?.reportValidity()) return false;
     try {
       prototypeStore.updatePbcRequest(editingRequest.engagementId, editingRequest.id, { title: editTitle, description: editDescription, due: editDue, owner: editRecipient }, editReason);
       setEditingRequest(null);
       setRequestNotice('Request updated; the edit is recorded in its thread with the reason and actor.');
-    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be updated.'); }
+      return true;
+    } catch (err) { setRequestNotice(err instanceof Error ? err.message : 'Request could not be updated.'); return false; }
   };
+  const handleUpdatePbc = (e: React.FormEvent) => { e.preventDefault(); savePbcUpdate(); };
+
+  useEffect(() => {
+    const clarificationGuard: UnsavedFormGuard = {
+      label: 'PBC clarification message',
+      isDirty: () => Boolean(clarification && clarificationText.trim()),
+      save: saveClarification,
+      discard: () => { setClarification(null); setClarificationText(''); }
+    };
+    const editGuard: UnsavedFormGuard = {
+      label: 'PBC request edit',
+      isDirty: () => Boolean(editingRequest && (editTitle !== editingRequest.title || editDescription !== (editingRequest.description || '') || editDue !== editingRequest.due || editRecipient !== editingRequest.owner || editReason.trim())),
+      save: savePbcUpdate,
+      discard: () => { setEditingRequest(null); setEditReason(''); }
+    };
+    onRegisterUnsavedForm(clarificationGuard, 'client-pbc-clarification');
+    onRegisterUnsavedForm(editGuard, 'client-pbc-edit');
+    return () => {
+      onRegisterUnsavedForm(null, 'client-pbc-clarification');
+      onRegisterUnsavedForm(null, 'client-pbc-edit');
+    };
+  }, [clarification, clarificationText, editingRequest, editTitle, editDescription, editDue, editRecipient, editReason, onRegisterUnsavedForm]);
+
+  const requestClarificationClose = () => onBeforeContextChange(() => { setClarification(null); setClarificationText(''); });
+  const requestPbcEditClose = () => onBeforeContextChange(() => { setEditingRequest(null); setEditReason(''); });
 
   const handleCancelPbc = (p: ClientPbcRequest) => {
     const reason = window.prompt('Reason for cancelling this information request (required):');
@@ -591,7 +635,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
             <h3>PBC Information Requests</h3>
             <div className="row" style={{ gap: 10 }}>
               <span className="caption">Total: {pbcRequests.length}</span>
-              <button className="btn primary sm" onClick={() => setShowPbcForm(!showPbcForm)}>{showPbcForm ? 'Close request form' : 'New PBC Request'}</button>
+              <button className="btn primary sm" onClick={() => showPbcForm ? onBeforeContextChange(() => setShowPbcForm(false)) : setShowPbcForm(true)}>{showPbcForm ? 'Close request form' : 'New PBC Request'}</button>
             </div>
           </div>
           {requestNotice && <div role="status" className="panel-pad sub">{requestNotice}</div>}
@@ -600,7 +644,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
             <label className="caption">Search requests <input aria-label="Search PBC requests" className="input" value={requestSearch} onChange={event => setRequestSearch(event.target.value)} placeholder="Title, ID, category or contact" /></label>
             <span className="caption">Showing {visiblePbcRequests.length} of {pbcRequests.length}</span>
           </div>
-          {showPbcForm && <form className="panel-pad grid2" onSubmit={handleCreatePbc}>
+          {showPbcForm && <form ref={pbcForm} className="panel-pad grid2" onSubmit={handleCreatePbc}>
             <div><label className="caption">Engagement</label><select className="input" value={pbcEngagementId} onChange={e => setPbcEngagementId(e.target.value)} required>{engagements.map(e => <option key={e.id} value={e.id}>{e.id} · FY {e.year} · {e.service}</option>)}</select></div>
             <div><label className="caption">Request title</label><input className="input" value={pbcTitle} onChange={e => setPbcTitle(e.target.value)} required /></div>
             <div><label className="caption">Category</label><input className="input" value={pbcCategory} onChange={e => setPbcCategory(e.target.value)} required /></div>
@@ -642,7 +686,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
                         {p.status === 'Cancelled' && <span className="caption">Cancelled — history retained</span>}
                         {p.status === 'Received' && <><button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request clarification</button><button className="btn sm primary" onClick={() => handleAcceptPbc(p.engagementId, p.id)}>Accept response</button></>}
                         {p.status === 'Accepted' && <button className="btn sm" onClick={() => { setClarification({ engagementId: p.engagementId, request: p }); setClarificationText(''); }}>Request replacement</button>}
-                        {p.thread?.length ? <details><summary className="caption">{p.thread.length} messages</summary>{p.thread.map(message => <div className="cell-sub" key={message.id}>{message.kind}: {message.text}</div>)}</details> : null}
+                        {p.thread?.length ? <details><summary className="caption">Conversation &amp; timeline ({p.thread.length})</summary><div className="stack mt8" role="log" aria-label={`Conversation timeline for ${p.id}`} style={{ gap: 6 }}>{p.thread.map(message => <div className="borderbox" key={message.id} style={{ padding: 8 }}><div className="between"><b>{message.author} · {message.role}</b><span className="caption">{Number.isNaN(Date.parse(message.time)) ? message.time : new Date(message.time).toLocaleString('en-GB')}</span></div><div className="cell-sub">{message.kind}{message.file ? ` · ${message.file}${message.version ? ` · v${message.version}` : ''}` : ''}{message.clientVisible === false ? ' · staff only' : ' · client visible'}</div><p className="sub mt4" style={{ whiteSpace: 'pre-line' }}>{message.text}</p></div>)}</div></details> : null}
                       </div>
                     </td>
                   </tr>
@@ -864,16 +908,16 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
         </div>
       )}
 
-      {clarification && <div className="modal-backdrop" onClick={() => setClarification(null)}><div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-head"><h2>Request Clarification</h2><button className="icon-btn" onClick={() => setClarification(null)}>✕</button></div>
-        <form onSubmit={handleClarification}><div className="modal-body stack" style={{ gap: 10 }}>
+      {clarification && <div className="modal-backdrop" onClick={requestClarificationClose}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="pbc-clarification-title" onClick={e => e.stopPropagation()}>
+        <div className="modal-head"><h2 id="pbc-clarification-title">Request Clarification</h2><button type="button" className="icon-btn" onClick={requestClarificationClose}>✕</button></div>
+        <form ref={clarificationForm} onSubmit={handleClarification}><div className="modal-body stack" style={{ gap: 10 }}>
           <p className="sub">{clarification.request.title} · {clarification.request.id}. This message is visible to the client in the local portal.</p>
           <label className="caption">Clarification details<textarea className="input" value={clarificationText} onChange={e => setClarificationText(e.target.value)} required /></label>
-        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setClarification(null)}>Cancel</button><button type="submit" className="btn primary sm">Send clarification</button></div></form>
+        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={requestClarificationClose}>Cancel</button><button type="submit" className="btn primary sm">Send clarification</button></div></form>
       </div></div>}
-      {editingRequest && <div className="modal-backdrop" onClick={() => setEditingRequest(null)}><div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-head"><h2>Edit information request</h2><button className="icon-btn" onClick={() => setEditingRequest(null)}>✕</button></div>
-        <form onSubmit={handleUpdatePbc}><div className="modal-body stack" style={{ gap: 10 }}>
+      {editingRequest && <div className="modal-backdrop" onClick={requestPbcEditClose}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="pbc-edit-title" onClick={e => e.stopPropagation()}>
+        <div className="modal-head"><h2 id="pbc-edit-title">Edit information request</h2><button type="button" className="icon-btn" onClick={requestPbcEditClose}>✕</button></div>
+        <form ref={editRequestForm} onSubmit={handleUpdatePbc}><div className="modal-body stack" style={{ gap: 10 }}>
           <p className="sub">{editingRequest.id} · identity, attribution and prior submissions are retained; the edit is recorded in the request thread.</p>
           <label className="caption">Request title<input className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} required /></label>
           <label className="caption">Client-facing description<textarea className="input" rows={2} value={editDescription} onChange={e => setEditDescription(e.target.value)} /></label>
@@ -882,7 +926,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({ clientId, se
             <label className="caption">Client recipient<select className="input" value={editRecipient} onChange={e => setEditRecipient(e.target.value)} required><option value="">Select active client contact</option>{contacts.filter(contact => contact.active).map(contact => <option key={contact.id} value={contact.name}>{contact.name} · {contact.email}</option>)}</select></label>
           </div>
           <label className="caption">Reason for this edit (required, recorded with your name) *<input className="input" value={editReason} onChange={e => setEditReason(e.target.value)} required /></label>
-        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={() => setEditingRequest(null)}>Close</button><button type="submit" className="btn primary sm">Save edit</button></div></form>
+        </div><div className="modal-foot"><button type="button" className="btn ghost sm" onClick={requestPbcEditClose}>Close</button><button type="submit" className="btn primary sm">Save edit</button></div></form>
       </div></div>}
     </div>
   );

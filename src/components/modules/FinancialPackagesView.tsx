@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { exportService } from '../../services/exportService';
 import { applyReportingAdjustments, calculateIncomeStatement } from '../../services/calculations';
@@ -33,6 +34,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   const client = state.clients.find(c => c.id === selectedEng?.client);
   const savedPackage = selectedEng?.packageHistory?.find(p => p.revision === selectedEng.packageRevision);
   const currentMapping = [...(state.accountMappingRevisions || []).filter(item => item.engagementId === selectedEng?.id)].sort((a, b) => b.revision - a.revision)[0];
+  const currentGLSource = selectedEng?.glSourceHistory?.at(-1);
   const cashFlowSchedule = selectedEng?.cashFlowScheduleHistory?.at(-1);
   const cashFlowReady = Boolean(selectedEng && cashFlowSchedule?.status === 'Reviewed' && cashFlowSchedule.sourceVersion === selectedEng.sourceVersion && cashFlowSchedule.mappingRevision === currentMapping?.revision && currentMapping.status === 'Approved');
   const equityMovements = cashFlowSchedule?.movements.filter(item => ['Equity contribution', 'Equity distribution'].includes(item.category)) || [];
@@ -94,7 +96,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
   }
 
   // Pre-release validation summary gates
-  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion);
+  const adjustmentResult = applyReportingAdjustments(selectedEng.rows, state.adjustmentJournals.filter(j => j.engagementId === selectedEng.id), selectedEng.sourceVersion, prototypeStore.getAdjustmentSupportIssues(selectedEng.id));
   const packageRows = adjustmentResult.rows;
   const equityClosing = (cashFlowSchedule?.openingEquity ?? 0) + equityNetMovement + calculateIncomeStatement(packageRows).netProfit;
   const tbSum = packageRows.reduce((sum, r) => sum + r.balance, 0);
@@ -149,6 +151,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
     `Quality Reviewer: ${selectedEng.eqrRequired ? 'Dr. Tariq Al-Sayed (EQR)' : 'N/A (EQR not required)'}`,
     `Package Revision: Version ${revision}`,
     `Source Revision: TB v${selectedEng.sourceVersion}`,
+    ...(currentGLSource ? [`GL Source Revision: v${currentGLSource.revision} · SHA-256 ${currentGLSource.sha256}`] : []),
     `Mapping Revision: v${currentMapping?.revision || 0}`,
     ...(included.some(section => section.id === 'cf') && cashFlowSchedule ? [`Cash-flow Schedule Revision: v${cashFlowSchedule.revision}`] : []),
     ...(included.some(section => section.id === 'eq') && cashFlowSchedule ? [`Equity Schedule Revision: v${cashFlowSchedule.revision}`] : []),
@@ -191,6 +194,7 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         ] : []),
         ['Total', '', '', tbSum],
         ['Source revision', '', '', selectedEng.sourceVersion],
+        ...(currentGLSource ? [['GL source revision', '', '', currentGLSource.revision], ['GL source SHA-256', '', '', currentGLSource.sha256]] : []),
         ['Mapping revision', '', '', currentMapping?.revision || 0],
         ['Package revision', '', '', revision]
       ];
@@ -207,6 +211,8 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
         revision,
         generation: selectedEng.generation + 1,
         sourceVersion: selectedEng.sourceVersion,
+        glSourceRevision: currentGLSource?.revision,
+        glSourceSha256: currentGLSource?.sha256,
         mappingRevision: currentMapping?.revision || 0,
         cashFlowScheduleRevision: (cashFlowRequired && cashFlowReady || equityRequired && equityReady) ? cashFlowSchedule!.revision : undefined,
         notes: packageNotes,
@@ -278,9 +284,9 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
           <div>
             <span className="eyebrow">ACTIVE PACKAGE LINEAGE</span>
             <h2>{client?.name} · Rev {selectedEng.packageRevision}</h2>
-            <p className="sub">Source v{savedPackage?.sourceVersion ?? 'not assembled'} · Mapping v{savedPackage?.mappingRevision ?? 'not assembled'} · Generation {selectedEng.generation}</p>
+            <p className="sub">TB v{savedPackage?.sourceVersion ?? 'not assembled'} · GL {savedPackage?.glSourceRevision === undefined ? 'not configured' : `v${savedPackage.glSourceRevision} · SHA-256 ${savedPackage.glSourceSha256}`} · Mapping v{savedPackage?.mappingRevision ?? 'not assembled'} · Generation {selectedEng.generation}</p>
           </div>
-          <button className="btn sm" disabled={assembling || !['manager', 'preparer'].includes(state.currentRole)} onClick={handleAssembleNewRevision}>
+          <button className="btn sm" disabled={assembling || !hasAnyRole(state, ['manager', 'preparer'])} onClick={handleAssembleNewRevision}>
             {assembling ? 'Saving exact artifacts…' : `+ Assemble New Revision (Rev ${selectedEng.packageRevision + 1})`}
           </button>
         </div>
@@ -295,9 +301,10 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
 
       {savedPackage && (
         <div className="panel panel-pad">
-          <h3>Saved Revision {savedPackage.revision} · {savedPackage.generation === selectedEng.generation && savedPackage.sourceVersion === selectedEng.sourceVersion && savedPackage.mappingRevision === (currentMapping?.revision || 0) ? (savedPackage.validation.passed ? 'Validated' : 'Validation blocked') : 'Stale'}</h3>
+          <h3>Saved Revision {savedPackage.revision} · {savedPackage.generation === selectedEng.generation && savedPackage.sourceVersion === selectedEng.sourceVersion && savedPackage.glSourceRevision === currentGLSource?.revision && savedPackage.glSourceSha256 === currentGLSource?.sha256 && savedPackage.mappingRevision === (currentMapping?.revision || 0) ? (savedPackage.validation.passed ? 'Validated' : 'Validation blocked') : 'Stale'}</h3>
           <p className="sub mt4">Notes revision {savedPackage.noteRevision} · assembled by {savedPackage.createdBy} · {new Date(savedPackage.createdAt).toLocaleString('en-GB')}</p>
           {savedPackage.sourceVersion !== selectedEng.sourceVersion && <p role="status" className="mt8">This package is pinned to TB source v{savedPackage.sourceVersion}; current source is v{selectedEng.sourceVersion}. Assemble a new revision before release.</p>}
+          {(savedPackage.glSourceRevision !== currentGLSource?.revision || savedPackage.glSourceSha256 !== currentGLSource?.sha256) && <p role="status" className="mt8">This package is pinned to GL source {savedPackage.glSourceRevision === undefined ? 'not configured' : `v${savedPackage.glSourceRevision} (${savedPackage.glSourceSha256})`}; current GL source is {currentGLSource ? `v${currentGLSource.revision} (${currentGLSource.sha256})` : 'not configured'}. Assemble a new revision before release.</p>}
           {savedPackage.generation !== selectedEng.generation && <p role="status" className="mt8">This package is pinned to generation {savedPackage.generation}; accounting or engagement context changed to generation {selectedEng.generation}. Assemble a new revision before release.</p>}
           {savedPackage.mappingRevision !== (currentMapping?.revision || 0) && <p role="status" className="mt8">This package is pinned to mapping v{savedPackage.mappingRevision}; the current mapping is v{currentMapping?.revision || 0}. Assemble a new revision before release.</p>}
           <div className="tablewrap mt8"><table>
@@ -440,11 +447,11 @@ export const FinancialPackagesView: React.FC<FinancialPackagesViewProps> = ({ on
             </div>
             {item.applicability === 'Applicable' ? <><textarea className="input mt8" aria-label={`${item.title} disclosure text`} value={item.text} disabled={item.status === 'Reviewed'} placeholder="Prepared disclosure content" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, text: e.target.value } : row))} /><label className="caption mt8">Evidence document ID<input aria-label="Evidence document ID" className="input mt4" value={item.evidenceRef || ''} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, evidenceRef: e.target.value } : row))} /></label></> : <textarea className="input mt8" aria-label={`${item.title} not-applicable rationale`} value={item.rationale || ''} disabled={item.status === 'Reviewed'} placeholder="Reason this disclosure is not applicable" onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, rationale: e.target.value } : row))} />}
             <label className="caption mt8"><input type="checkbox" aria-label={`${item.title} client sharing`} checked={item.sharedWithClient} disabled={item.status === 'Reviewed'} onChange={e => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, sharedWithClient: e.target.checked } : row))} /> Include this note in the client package</label>
-            {item.status === 'Reviewed' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, status: 'Draft', reviewedByUserId: undefined, reviewedAt: undefined } : row))}>Revise disclosure</button>}
-            {item.status === 'Draft' && ['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure saved as a new draft revision.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Save preparer draft</button>}
-            {item.status === 'Draft' && ['reviewer', 'partner', 'eqr'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.reviewDisclosure(selectedEng.id, item.id, item.revision); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure independently reviewed.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Review independently</button>}
+            {item.status === 'Reviewed' && hasAnyRole(state, ['manager', 'preparer']) && <button className="btn sm mt8" onClick={() => setDisclosures(items => items.map(row => row.id === item.id ? { ...row, status: 'Draft', reviewedByUserId: undefined, reviewedAt: undefined } : row))}>Revise disclosure</button>}
+            {item.status === 'Draft' && hasAnyRole(state, ['manager', 'preparer']) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.saveDisclosureReview(selectedEng.id, { id: item.id, title: item.title, applicability: item.applicability, text: item.text, evidenceRef: item.evidenceRef, rationale: item.rationale, sharedWithClient: item.sharedWithClient }); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure saved as a new draft revision.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Save preparer draft</button>}
+            {item.status === 'Draft' && hasAnyRole(state, ['reviewer', 'partner', 'eqr']) && <button className="btn sm mt8" onClick={() => { try { prototypeStore.reviewDisclosure(selectedEng.id, item.id, item.revision); const saved = prototypeStore.getSnapshot().engagements.find(eng => eng.id === selectedEng.id)?.disclosureHistory || []; setDisclosures(saved); initialDraft.current = JSON.stringify({ packageNotes, noteApplicability, disclosures: saved, sections }); triggerNotice('success', 'Disclosure independently reviewed.'); } catch (err: any) { triggerNotice('error', err.message); } }}>Review independently</button>}
           </div>)}
-          {['manager', 'preparer'].includes(state.currentRole) && <button className="btn sm mt8" onClick={() => setDisclosures(items => [...items, { id: crypto.randomUUID(), title: '', applicability: 'Applicable', text: '', sharedWithClient: false, revision: 0, status: 'Draft', preparedByUserId: '' }])}>Add disclosure</button>}
+          {hasAnyRole(state, ['manager', 'preparer']) && <button className="btn sm mt8" onClick={() => setDisclosures(items => [...items, { id: crypto.randomUUID(), title: '', applicability: 'Applicable', text: '', sharedWithClient: false, revision: 0, status: 'Draft', preparedByUserId: '' }])}>Add disclosure</button>}
         </div>
       </div>
     </div>

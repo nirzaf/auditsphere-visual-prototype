@@ -79,6 +79,8 @@ Use the current package scripts and existing tests. For a reproduced defect, add
 
 For documentation-only reconciliation, record the source comparisons and resulting agreement rather than pretending application tests ran. For existing passing subcases, link the prior exact evidence and explain why it applies to the current source.
 
+**Storage clarification (2026-09-26):** “Uploads” in the historical criterion above means registered library/evidence originals: only metadata and SHA-256 persist, while original bytes remain in-session. Accepted PBC response bytes are a separate class and persist in browser-local IndexedDB; generated artifacts also use IndexedDB with SHA-256 verification. The current [scope/storage guidance](../../reference/SCOPE_AND_STORAGE_BOUNDARIES.md) and README describe these distinctions.
+
 ## Boundaries and handoff
 
 Keep synthetic browser-local scope. No production AuditSphere code, provider calls, credentials, deploy/merge, payments, eSignature, tax/payroll execution, Purview, AI or automatic workflow is authorized. Preserve source/history and existing guard behavior.

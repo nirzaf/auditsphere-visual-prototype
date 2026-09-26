@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, BudgetRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
 import { formatCurrency, formatMinutesToHours, getEffectiveTimeEntries } from '../../services/calculations';
-import { canOpenRoute, visibleEngagementIds } from '../../services/guards';
+import { canOpenRoute, visibleEngagementIds, hasAnyRole } from '../../services/guards';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
 import { Icon } from '../common/Icons';
 
@@ -209,7 +209,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate, onRegister
           <p>Track planned versus actual hours, staff cost rates, and billing realization margins.</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
-          {['billing', 'manager', 'partner'].includes(state.currentRole) ? (
+          {hasAnyRole(state, ['billing', 'manager', 'partner']) ? (
             <button className="btn primary sm" onClick={handleOpenAuthorModal}>
               <Icon name="plus" /> Author New Budget Version
             </button>
@@ -273,7 +273,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({ onNavigate, onRegister
               <div className="borderbox mt16 text-center" style={{ padding: 24 }}>
                 <b>No budget lines configured for this engagement.</b>
                 <p className="sub mt4">Use the authoring button above to establish planned hours and staff rates.</p>
-                {['billing', 'manager', 'partner'].includes(state.currentRole) && (
+                {hasAnyRole(state, ['billing', 'manager', 'partner']) && (
                   <button className="btn primary sm mt12" onClick={handleOpenAuthorModal}>
                     Create Initial Budget Version
                   </button>

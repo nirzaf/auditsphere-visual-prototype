@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, hasRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { loadVerifiedArtifact } from '../../services/artifactStore';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
@@ -88,7 +89,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
       triggerNotice('error', 'Must freeze release candidate first before issuing delivery.');
       return false;
     }
-    if (state.currentRole !== 'partner') return false;
+    if (!hasRole(state, 'partner')) return false;
     try {
       for (const artifact of selectedEng.candidate.manifest) await loadVerifiedArtifact(artifact);
       prototypeStore.issueRelease(selectedEng.id, dispatchNote, recipientText.split(/[;,\n]/));
@@ -267,7 +268,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                 </div>
                 <p className="caption mt8">The frozen manifest identifies the verified generated files and digests. The local release record does not send them to recipients.</p>
                 <div className="row mt12" style={{ gap: 10 }}>
-                  <button className="btn primary sm" onClick={handleIssueRelease} disabled={state.currentRole !== 'partner'}>
+                  <button className="btn primary sm" onClick={handleIssueRelease} disabled={!hasRole(state, 'partner')}>
                     Record Local Release
                   </button>
                   <button className="btn ghost sm" onClick={() => { amendBaseline.current = amendReason; setShowAmendModal(true); }}>
@@ -323,7 +324,7 @@ export const ReleaseCompletionView: React.FC<ReleaseCompletionViewProps> = ({ on
                     <td>{rel.dispatchNote}</td>
                     <td>
                       {!selectedEng.releases.some(next => next.predecessorId === rel.id) && (
-                        <button className="btn sm ghost" disabled={!['manager', 'partner'].includes(state.currentRole)} onClick={() => { amendBaseline.current = amendReason; setShowAmendModal(true); }}>
+                        <button className="btn sm ghost" disabled={!hasAnyRole(state, ['manager', 'partner'])} onClick={() => { amendBaseline.current = amendReason; setShowAmendModal(true); }}>
                           Re-open for Amendment
                         </button>
                       )}

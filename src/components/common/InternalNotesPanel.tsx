@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CommentItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, isSuperuserRole } from '../../services/guards';
 import { canOpenRoute, isClientRole, visibleClientIds, visibleEngagementIds } from '../../services/guards';
 
 type SubjectType = 'client' | 'engagement';
@@ -26,7 +27,7 @@ export function InternalNotesPanel({ subjectType, subjectId }: { subjectType: Su
     const comment = state.comments.find(record => record.id === item.commentId);
     return comment?.subjectType === subjectType && comment.subjectId === subjectId;
   });
-  const isModerator = ['manager', 'partner'].includes(state.currentRole);
+  const isModerator = hasAnyRole(state, ['manager', 'partner']);
 
   const save = (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,7 +61,7 @@ export function InternalNotesPanel({ subjectType, subjectId }: { subjectType: Su
         <div className="between"><b>{comment.author}{comment.edited ? ' · edited' : ''}</b><time className="caption">{new Date(comment.createdAt).toLocaleString()}</time></div>
         <p>{comment.text}</p>
         {hidden && <p className="caption">Hidden by moderator · {comment.moderationHistory?.at(-1)?.reason}</p>}
-        {!hidden && comment.author === state.currentPerson && <button type="button" className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => { setEditingId(comment.id); setText(comment.text); }}>Edit note</button>}
+        {!hidden && (comment.author === state.currentPerson || isSuperuserRole(state.currentRole)) && <button type="button" className="btn sm ghost" aria-label={`Edit internal note ${comment.id}`} onClick={() => { setEditingId(comment.id); setText(comment.text); }}>Edit note</button>}
       </article>;
     }) : <p className="caption">No internal notes yet.</p>}
   </section>;

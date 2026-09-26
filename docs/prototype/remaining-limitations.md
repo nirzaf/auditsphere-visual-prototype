@@ -80,32 +80,33 @@ Automated sources explicitly trace AT-01 through AT-55; supplemental journeys AT
   unknown-dimension, over-limit, unmapped-account and stale-context inputs.
   The store also rejects invalid dimension values atomically. MOD-21 remains
   Partial for the separate GL intake and opening/movement/closing work in
-  VP-036.
+  VP-036; its bounded original-control comparison is complete, but broad
+  story/criterion acceptance remains open.
 
 - **VP-036 — general-ledger intake (Partial):** AT-36 imports period-bounded
   CSV/XLSX journal lines with explicit opening balances, retains immutable
   engagement-scoped revisions, and reconciles opening plus movement to the
   closing TB by account. Preparers can map unfamiliar headers; the selected
   source-column mapping is retained with each revision. Scoped filters/export
-  and dependent reconciliation/release invalidation are covered. Partial-batch
-  cases and the remaining negative/output-review matrix remain open for
-  acceptance.
+  and dependent reconciliation/release invalidation are covered. VP-036-R01's
+  bounded comparison of mapping, opening coverage, source filters, visible
+  journal identifiers, filtered CSV and no-posting behavior is complete (entry
+  87). Partial-batch cases, the broader negative/output-review and actor
+  matrices, and documented-size responsiveness remain open for acceptance; the
+  eight-row fixture does not establish performance at that size.
 
-- **VP-038 — adjustment journals (Partial):** Reflection decisions now offer
-  Not reflected, Reflected in TB, Partially reflected and Unknown, pinned to the
-  current TB source revision. Unit checks confirm partial/unknown/rejected
-  journals are not silently applied and stale reflected decisions block output;
-  Chrome verifies the selected status and prior decision history persist. The
-  former lifecycle dead-end is closed: a management-accepted journal reflected
-  at the current source revision can now be recorded as Reporting included in a
-  live session, which makes the linked finding's Corrected-in-TB disposition
-  reachable end-to-end (unit + Chrome verified, 2026-09-26); technical-review
-  rejection also records a bounded rationale shown on the journal. VP-038-E01/E02
-  Chrome imports a replacement TB, shows stale reflected journals excluded from
-  financial statements, and verifies a new evidence reference/re-confirmation
-  against the current source, preserved v1 decision history and no duplicate
-  reporting effect. Journal amendment combinations and broader evidence/workpaper/
-  finding linkage matrices remain open.
+- **VP-038 — adjustment journals (Partial):** Bounded verification actions
+  VP-038-E01/E02 are complete (2026-09-26): revision-pinned evidence/document,
+  workpaper and finding links reject foreign, unavailable and stale references;
+  stale support blocks decisions and reporting with a reason; amendment history
+  preserves predecessor pins. Unit/Chrome coverage spans accepted/unreflected,
+  reflected, rejected, partial, unknown, stale source and stale support outcomes,
+  duplicate inclusion rejection, fresh review after amendment, unchanged source
+  rows, and TB v1→v2 re-confirmation with no duplicate effect. The current
+  verification is build PASS, unit 240/240, full E2E 110/110, focused Chrome
+  2/2. VP-038 remains Partial: AC01 and AC04 are not signed off, malformed or
+  mixed-context line coverage and human review remain open. Real ledger posting
+  is out of scope; no production ledger behavior is claimed.
 
 - **VP-034 — accounting setup:** client legal entity, reporting basis and
   currency; versioned chart accounts with parent/posting/active state; owned
@@ -518,8 +519,8 @@ A module-by-module lifecycle audit closed the following genuine gaps (unit + Chr
 
 ## Verification snapshot
 
-Latest local verification: 231/231 unit checks and 105/105 E2E checks (5 static + 100 Chrome) passed on
-2026-09-26 at HEAD `e6a6edb` — the review-guide findings F01–F05 (search authorization
+Latest local verification: 238/238 unit checks and 110/110 E2E checks (5 static + 105 Chrome) passed on
+2026-09-26 against the uncommitted application changes based on documentation HEAD `ffcf34c`; these latest GL-lineage and re-review changes have not been deployed. The last deployed Cloudflare Pages release is `ffe31d01`, previously verified at `https://prototype.steaudit.com`. The built-in browser opened all 39 module-catalogue entries, all nine client portal tabs, the PBC upload dialog, the reply composer and sidebar collapse/expand. MOD-17's Shell-search workspace now maps to `clients`; client-visible PBC conversation entries and replies display in a shared request timeline while staff-only entries remain hidden in the client projection. A reply was persisted and privacy-checked by the isolated Chrome fixture, but no test reply or upload was saved in the live browser profile. The review-guide findings F01–F05 (search authorization
 before projection, draft-safe destructive reset, truthful context header, unique
 navigation ID, budget/template draft guards) are implemented and carry dedicated
 browser regressions that pass in the full suite. The prior 224/224 + 98/98 run at
@@ -527,6 +528,8 @@ browser regressions that pass in the full suite. The prior 224/224 + 98/98 run a
 (firm-settings prospective consumption, source-linked invoice revision,
 search target-state matrix, TB-replacement journal staleness, grant
 evidence/role-combination matrix) is retained as historical detail below. AT-30 covers invoice account/contact snapshots, multiple ad-hoc lines, approved-time source reservation, explicit draft cancellation and re-reservation; approved invoice cancellation is rejected. AT-31 also covers return with reason, credit revision 2, independent reapproval of that exact revision, local issue and no payment movement. AT-32 covers receipt split, selective allocation reversal and balances; store guards reject malformed metadata, seeded allocations and stale receipt caches atomically. AT-34 verifies client-wide profile revision, sibling mapping/statement/package invalidation, retained prior package state, and closed-period TB/GL import denial. AT-36 verifies mapped GL tie-out and store guards reject unrecognized or inactive posting chart accounts before committing a GL revision. VP-006 supports full profile fields, revision-checked editing, soft archive/reactivation, duplicate and similar-entity checks, scoped profile editing and blocks new active work for suspended/archived clients. AT-05/AT-06 browser lifecycle covers edit, suspension, retained contacts, archive and reactivation; a store test confirms established engagement, invoice, document and workpaper links remain. VP-007 contact revision history and non-authorizing group behavior pass. VP-008 opens all 12 tabs under CL-001/CL-002 and, under an ENG-26001-only manager grant, filters the portfolio engagement count/Open Work shortcut and every Client 360 tab to ENG-26001 while excluding an ENG-26003-only PBC sentinel; it also preserves portfolio filters and context on back/forward. CL-002 creation journeys cover a job, PBC request, internal note and Draft invoice. VP-025 AT-18 verifies mounted portal entity refresh across client identities; VP-025-E03 covers no-access and unpresented-package states, withdrawn DOC-002 exclusion and separate package acknowledgement/management representation records; wider portal list and actor matrices remain open. AT-02/AT-54 cross-tab conflict, expiry and storage-denial checks now pass with the new profile form. VP-048 requires deliberate benchmark and percentage inputs, validates assigned staff and dates, and invalidates cleared fieldwork after approved materiality changes. VP-002 redirects every former role-view hash route into the React application and preserves browser history with current role guards. VP-017 AT-15 now exercises Start/Skip and four-step tenant/resource/optional/review navigation, backtracking, cancellation without persistence, reviewed configuration save and reload. Its wrong-tenant case holds site/library/root fixed and proves explicit recovery while stale identity still blocks overall readiness; a separate root-only change stales prior results, produces access-denied, then recovers. RR35 rejects invalid tenant/domain lengths, credentialed or queried URLs, invalid library/root/mailbox values and missing/duplicate/inactive/unknown-role identity mappings atomically; unit tests now cover all six simulated outcomes on each capability while broad browser invalid-resource and outage matrices remain outstanding.
+
+The canonical tracker now has **34 open action rows**: 32 verification/evidence follow-ups and 2 scope reconciliations. The 41-row original review baseline and 40-, 39-, 38-, 37-, 36- and 35-row interim counts are retained in the dated guide/verification history. VP-064-R03, VP-063-E03, VP-036-E03, VP-036-R01, VP-038-E01/E02 and bounded VP-017-E01/E02 evidence actions are closed; VP-063-E01/E02 and VP-064-E01/E02 remain open, and all 48 Partial stories / 29 Partial modules still require acceptance closure. The VP-017 criteria remain partially evidenced rather than fully accepted.
 The VP-042 AT-38/40 package subcase confirms internal-only disclosure/comment/workpaper references do not
 appear in generated XLSX, DOCX, PDF bytes, or the client portal. The Chrome suite blocks
 non-local HTTP(S) requests with CDP Fetch and asserts no external request was

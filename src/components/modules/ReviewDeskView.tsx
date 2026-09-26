@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, ReviewNoteItem } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { eligibleReviewAssignees, visibleEngagementIds } from '../../services/guards';
 import { exportService } from '../../services/exportService';
@@ -253,7 +254,7 @@ export const ReviewDeskView: React.FC<ReviewDeskViewProps> = ({ onNavigate, onRe
                       {r.status === 'Cleared' && (
                         <span className="caption">Cleared</span>
                       )}
-                      {['manager', 'reviewer', 'partner'].includes(state.currentRole) && r.status !== 'Cleared' && eligibleReviewAssignees(state, engagementId).length > 0 && <>
+                      {hasAnyRole(state, ['manager', 'reviewer', 'partner']) && r.status !== 'Cleared' && eligibleReviewAssignees(state, engagementId).length > 0 && <>
                         <select aria-label={`Reassign ${engagementId} ${r.id}`} className="input" value={reassignmentTargets[`${engagementId}:${r.id}`] || r.assignedUserId || eligibleReviewAssignees(state, engagementId).find(user => user.name === (r.assignee || r.assigned))?.id || ''} onChange={event => setReassignmentTargets({ ...reassignmentTargets, [`${engagementId}:${r.id}`]: event.target.value })}>
                           {eligibleReviewAssignees(state, engagementId).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                         </select>

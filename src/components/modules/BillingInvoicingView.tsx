@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey, InvoiceRecord, InvoiceLineItem, CreditNoteRecord } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { formatCurrency, getEffectiveTimeEntries } from '../../services/calculations';
 import { exportService } from '../../services/exportService';
@@ -429,7 +430,7 @@ export const BillingInvoicingView: React.FC<BillingInvoicingViewProps> = ({ onNa
                             {canReviseInvoice(inv) && <button className="btn sm ghost" onClick={() => handleReviseInvoice(inv)}>Edit</button>}
                             <button className="btn sm ghost" onClick={() => handleApprove(inv)}>Approve</button>
                             <button className="btn sm ghost text-danger" onClick={() => handleReturnInvoice(inv)}>Return</button>
-                            {['billing', 'manager', 'partner'].includes(state.currentRole) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
+                            {hasAnyRole(state, ['billing', 'manager', 'partner']) && <button className="btn sm ghost text-danger" onClick={() => handleCancelDraft(inv)}>Cancel Draft</button>}
                           </>
                         )}
                         {inv.status === 'Approved' && (

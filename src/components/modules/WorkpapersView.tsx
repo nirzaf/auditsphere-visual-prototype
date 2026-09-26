@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouteKey } from '../../types';
 import { prototypeStore } from '../../store/prototypeStore';
+import { hasAnyRole, isSuperuserRole } from '../../services/guards';
 import { Icon } from '../common/Icons';
 import { sha256OfFile } from '../../services/fileMetadata';
 import { UnsavedFormGuard } from '../../services/unsavedFormGuard';
@@ -181,7 +182,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
           <label className="caption">Template<select className="input" aria-label="Published workpaper template" value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.filter(item => item.status === 'Published').map(item => <option key={item.id} value={item.id}>{item.name} · v{item.version}</option>)}</select></label>
           <label className="caption">Preparer<select className="input" aria-label="Workpaper preparer" value={templatePreparerId} onChange={event => setTemplatePreparerId(event.target.value)}>{state.users.filter(user => user.role === 'preparer' && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
           <label className="caption">Reviewer<select className="input" aria-label="Workpaper reviewer" value={templateReviewerId} onChange={event => setTemplateReviewerId(event.target.value)}>{state.users.filter(user => ['reviewer', 'manager', 'partner', 'eqr'].includes(user.role) && user.status === 'Active').map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
-          <button className="btn primary sm" disabled={!templates.some(item => item.id === templateId && item.status === 'Published') || !['manager', 'partner'].includes(state.currentRole)} onClick={() => { try { const id = prototypeStore.createWorkpaperFromTemplate(selectedEng.id, templateId, templatePreparerId, templateReviewerId); setSelectedWpId(id); setActiveTab('overview'); triggerNotice('success', `${id} created with fresh work state.`); } catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not create workpaper.'); } }}>Create workpaper</button>
+          <button className="btn primary sm" disabled={!templates.some(item => item.id === templateId && item.status === 'Published') || !hasAnyRole(state, ['manager', 'partner'])} onClick={() => { try { const id = prototypeStore.createWorkpaperFromTemplate(selectedEng.id, templateId, templatePreparerId, templateReviewerId); setSelectedWpId(id); setActiveTab('overview'); triggerNotice('success', `${id} created with fresh work state.`); } catch (error) { triggerNotice('error', error instanceof Error ? error.message : 'Could not create workpaper.'); } }}>Create workpaper</button>
           {templates.find(item => item.id === templateId)?.sampleFileName && <a className="btn sm ghost" href={`/templates/${encodeURIComponent(templates.find(item => item.id === templateId)!.sampleFileName!)}`} download>Download genuine sample XLSX</a>}
         </div>
         <p className="caption mt8">A new workpaper keeps the published template revision and starts without evidence, uploaded files, conclusions or clearance.</p>
@@ -511,7 +512,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
                   </span>
                 </div>
 
-                {['manager', 'partner'].includes(state.currentRole) && <div className="borderbox mt12" style={{ padding: 12 }}>
+                {hasAnyRole(state, ['manager', 'partner']) && <div className="borderbox mt12" style={{ padding: 12 }}>
                   <h4>Reassign workpaper responsibility</h4>
                   <div className="row mt8" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <select className="input" aria-label="Assignment role" value={assignmentRole} onChange={event => setAssignmentRole(event.target.value as 'preparer' | 'reviewer')}><option value="preparer">Preparer</option><option value="reviewer">Reviewer</option></select>
@@ -553,7 +554,7 @@ export const WorkpapersView: React.FC<WorkpapersViewProps> = ({ onNavigate, sear
                     </div>
                     <button
                       className="btn primary sm mt12"
-                      disabled={wp.status !== 'Submitted' || wp.submittedVersion !== wp.version || wp.reviewer !== state.currentPerson}
+                      disabled={wp.status !== 'Submitted' || wp.submittedVersion !== wp.version || (wp.reviewer !== state.currentPerson && !isSuperuserRole(state.currentRole))}
                       onClick={handleClearWorkpaper}
                     >
                       Sign & Clear Workpaper

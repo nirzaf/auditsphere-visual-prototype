@@ -713,5 +713,22 @@
     ],
     "demoClients": [],
     "demoLevel": "Interactive role-specific frontend; no backend authentication or authorization."
+  },
+  "superuser": {
+    "label": "Superuser · Full Prototype Access",
+    "name": "AuditSphere Superuser",
+    "initials": "SU",
+    "group": "System / Prototype Testing",
+    "home": "Full prototype testing workspace",
+    "tagline": "Exercise every supported module from one clearly marked synthetic testing identity.",
+    "routes": ["all-supported-modules"],
+    "scope": "All synthetic clients, engagements, groups and module data in this browser prototype.",
+    "features": ["All 39 module workspaces", "Administration and scenario recovery", "Client-role portal preview", "Audited prototype override for independent-actor checks"],
+    "can": ["Navigate and test every supported prototype feature", "Inspect all synthetic client, engagement and group contexts", "Use a clearly labelled test override for workflow separation-of-duties scenarios"],
+    "cannot": ["This identity is not production authentication", "Business/data validation and client-portal disclosure filters remain enforced"],
+    "handoff": "Superuser override events are labelled Prototype Superuser Override; use ordinary personas to verify the normal access boundaries.",
+    "refs": ["Prototype testing persona"],
+    "demoClients": ["ALL"],
+    "demoLevel": "Synthetic browser-only testing identity; no production authentication or authorization."
   }
 }
