@@ -40,6 +40,7 @@
 
 /* Collapsible sidebar (desktop; mobile keeps its off-canvas drawer) */
 .sidebar-toggle{display:inline-flex}
+.sidebar-toggle{min-width:44px;min-height:44px}
 .sidebar-toggle .icon{transform:rotate(180deg);transition:transform .18s ease}
 #app-root.sidebar-collapsed .sidebar-toggle .icon{transform:rotate(0)}
 .sidebar{transition:width .18s ease}
@@ -50,9 +51,10 @@
 #app-root.sidebar-collapsed .workspaceselect,
 #app-root.sidebar-collapsed .nav-label,
 #app-root.sidebar-collapsed .navitem span,
-#app-root.sidebar-collapsed .side-demo,
-#app-root.sidebar-collapsed .side-footer{display:none}
+#app-root.sidebar-collapsed .side-demo{display:none}
 #app-root.sidebar-collapsed .navitem{justify-content:center;padding:11px 0}
+#app-root.sidebar-collapsed .side-footer{padding:10px 8px}
+#app-root.sidebar-collapsed .side-footer .navitem{padding:11px 0}
 @media(max-width:760px){.sidebar-toggle{display:none}#app-root.sidebar-collapsed .shell{margin-left:0}}
 
 /* Client profile form remains usable at tablet widths. */

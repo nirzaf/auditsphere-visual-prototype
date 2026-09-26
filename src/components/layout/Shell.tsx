@@ -391,7 +391,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
       )}
 
       {/* Main Sidebar */}
-      <aside ref={mobileNavigation} id="primary-navigation" aria-label="Primary navigation" className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside ref={mobileNavigation} id="primary-sidebar" aria-label="Primary navigation" className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brandmark">
             <Icon name="layers" />
@@ -448,6 +448,8 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
           </div>
           <button
             className="navitem"
+            aria-label={sidebarCollapsed ? 'Reset Demo State' : undefined}
+            title="Reset Demo State"
             onClick={() => {
               prototypeStore.resetState();
               triggerToast('Demo state reset to initial baseline.');
@@ -468,6 +470,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               onClick={toggleSidebarCollapsed}
               aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               aria-expanded={!sidebarCollapsed}
+              aria-controls="primary-sidebar"
               title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               <Icon name="arrow" />
@@ -478,7 +481,7 @@ export const Shell: React.FC<ShellProps> = ({ currentRoute, onRouteChange, onSel
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
               aria-expanded={mobileMenuOpen}
-              aria-controls="primary-navigation"
+              aria-controls="primary-sidebar"
             >
               <Icon name="menu" />
             </button>

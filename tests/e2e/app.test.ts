@@ -309,6 +309,34 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     await browserTab!.evaluate(`(() => {for(const key of Object.keys(sessionStorage))if(key.startsWith('ste-auditsphere-client-list-filters:'))sessionStorage.removeItem(key);})()`);
   });
 
+  it('UIX-02: desktop sidebar collapses and expands accessibly without losing navigation actions', async () => {
+    await browserTab!.evaluate(`localStorage.setItem('ste-auditsphere-sidebar-collapsed','0');location.reload()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.sidebar-toggle[aria-label="Collapse sidebar"]')!==null`), true);
+    const expandedWidth = await browserTab!.evaluate<number>(`document.querySelector('.sidebar').getBoundingClientRect().width`);
+    assert.ok(expandedWidth > 200, `expanded sidebar should retain its full width, got ${expandedWidth}px`);
+
+    await browserTab!.evaluate(`document.querySelector('.sidebar-toggle').click()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.sidebar-toggle[aria-label="Expand sidebar"]')!==null`), true);
+    const collapsed = await browserTab!.evaluate<any>(`(() => {
+      const sidebar=document.querySelector('.sidebar');
+      const nav=document.querySelector('nav[aria-label="Main navigation"]');
+      const item=nav?.querySelector('.navitem');
+      const reset=document.querySelector('.side-footer .navitem');
+      return {width:sidebar?.getBoundingClientRect().width,expanded:document.querySelector('.sidebar-toggle')?.getAttribute('aria-expanded'),controls:document.querySelector('.sidebar-toggle')?.getAttribute('aria-controls'),navId:nav?.id,firstLabel:item?.getAttribute('aria-label'),resetLabel:reset?.getAttribute('aria-label'),preference:localStorage.getItem('ste-auditsphere-sidebar-collapsed')};
+    })()`);
+    assert.ok(collapsed.width <= 80, `collapsed sidebar should be compact, got ${collapsed.width}px`);
+    assert.equal(collapsed.expanded, 'false');
+    assert.equal(collapsed.controls, 'primary-sidebar');
+    assert.equal(collapsed.navId, 'primary-navigation');
+    assert.equal(collapsed.firstLabel, 'Practice Overview');
+    assert.equal(collapsed.resetLabel, 'Reset Demo State', 'footer action stays available when collapsed');
+    assert.equal(collapsed.preference, '1', 'collapse preference should persist');
+
+    await browserTab!.evaluate(`document.querySelector('.sidebar-toggle').click()`);
+    assert.equal(await waitForBrowser(`document.querySelector('.sidebar-toggle[aria-label="Collapse sidebar"]')!==null`), true);
+    assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem('ste-auditsphere-sidebar-collapsed')`), '0');
+  });
+
   it('UIX-01: exposes keyboard skip navigation and usable mobile navigation targets', async () => {
     try {
       await browserTab!.command('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
@@ -5569,14 +5597,14 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
     const backupKey = `${key}.backup`;
     const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
     const futureState = createInitialState() as any;
-    futureState.schema = 26;
+    futureState.schema = 27;
     const futurePayload = JSON.stringify(futureState);
     const downloadDir = mkdtempSync(join(tmpdir(), 'auditsphere-preserved-export-'));
     try {
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
       await browserTab!.command('Page.reload');
       assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v26, newer than supported v25/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v27, newer than supported v26/);
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'unsupported future state is retained byte-for-byte');
       assert.equal(await browserTab!.evaluate<boolean>(`!!document.querySelector('[aria-label="Import validated state JSON"]') && [...document.querySelectorAll('button')].some(b=>b.innerText==='Export preserved payload')`), true, 'recovery offers import and exact backup export');
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir });
@@ -5595,9 +5623,9 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'rejected import keeps the preserved backup unchanged');
       const validPayload = JSON.stringify(createInitialState());
       await browserTab!.evaluate(`(() => {const input=document.querySelector('[aria-label="Import validated state JSON"]');const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(validPayload)}],'recovered-state.json',{type:'application/json'}));Object.defineProperty(input,'files',{configurable:true,value:transfer.files});input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v25')`), true, 'successful import clears the recovery error');
+      assert.equal(await waitForBrowser(`!document.body.innerText.includes('newer than supported v26')`), true, 'successful import clears the recovery error');
       const restored = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(restored.schema, 25);
+      assert.equal(restored.schema, 26);
       assert.ok(restored.engagements > 0);
       assert.equal(restored.backup, futurePayload, 'import retains the rejected future payload as a backup');
       await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(futurePayload)})`);
@@ -5609,18 +5637,45 @@ describe('actual Chrome browser acceptance', { concurrency: false }, () => {
       assert.equal(await waitForBrowser(`[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Reset to default')`), true, 'cancel disarms the reset without changing state');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`), futurePayload, 'disarmed reset preserves the unsupported payload');
       assert.equal(await browserTab!.evaluate<string>(`localStorage.getItem(${JSON.stringify(backupKey)})`), futurePayload, 'disarmed reset leaves the exact backup intact');
-      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v26, newer than supported v25/);
+      assert.match(await browserTab!.evaluate<string>('document.body.innerText'), /schema v27, newer than supported v26/);
       await clickButton('Reset to default');
       await clickButton('Confirm reset');
-      assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v25")'), true, 'confirmed reset returns to a usable baseline');
+      assert.equal(await waitForBrowser('!document.body.innerText.includes("newer than supported v26")'), true, 'confirmed reset returns to a usable baseline');
       const resetState = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,engagements:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).engagements.length,backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
-      assert.equal(resetState.schema, 25);
+      assert.equal(resetState.schema, 26);
       assert.ok(resetState.engagements > 0);
       assert.equal(resetState.backup, futurePayload, 'reset preserves the unsupported payload for later export');
       assert.deepEqual(browserTab!.exceptions, []);
     } finally {
       await browserTab!.command('Page.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
       rmSync(downloadDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await browserTab!.evaluate(`(() => {const key=${JSON.stringify(key)},backupKey=${JSON.stringify(backupKey)};if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});})()`);
+      await browserTab!.command('Page.reload');
+      await waitForBrowser('!!document.querySelector("#app-root .brandname")');
+    }
+  });
+
+  it('VP-004/v26: recovers a missing invoice client from its unique engagement and preserves the source payload', async () => {
+    const key = 'ste-auditsphere-role-portals-v2';
+    const backupKey = `${key}.backup`;
+    const original = await browserTab!.evaluate<any>(`({state:localStorage.getItem(${JSON.stringify(key)}),backup:localStorage.getItem(${JSON.stringify(backupKey)})})`);
+    const legacyState = createInitialState() as any;
+    legacyState.schema = 25;
+    delete legacyState.invoices.find((invoice: any) => invoice.id === 'INV-26001').clientId;
+    const payload = JSON.stringify(legacyState);
+    try {
+      await browserTab!.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(payload)})`);
+      await browserTab!.command('Page.reload');
+      assert.equal(await waitForBrowser('!!document.querySelector("#app-root .brandname")'), true);
+      const state = await browserTab!.evaluate<any>(`({schema:JSON.parse(localStorage.getItem(${JSON.stringify(key)})).schema,backup:localStorage.getItem(${JSON.stringify(backupKey)}),recovery:document.body.innerText.includes('Saved demo state failed integrity validation')})`);
+      assert.equal(state.schema, 25, 'valid migrated state remains in memory until a user change persists it');
+      assert.equal(state.backup, payload, 'the exact pre-migration payload remains recoverable');
+      assert.equal(state.recovery, false, 'a uniquely resolvable invoice no longer blocks the saved workspace');
+      await browserTab!.evaluate(`document.querySelector('.sidebar-toggle')?.click()`);
+      await browserTab!.evaluate(`document.querySelector('.navitem[aria-label="Billing & Invoices"]')?.click()`);
+      assert.equal(await waitForBrowser(`location.hash==='#billing'`), true, 'the recovered state can continue to the billing workspace');
+      assert.equal(await browserTab!.evaluate<number>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)})).invoices.find(invoice=>invoice.id==='INV-26001').clientId`), undefined, "loading alone does not overwrite the user's original payload");
+    } finally {
       await browserTab!.evaluate(`(() => {const key=${JSON.stringify(key)},backupKey=${JSON.stringify(backupKey)};if(${JSON.stringify(original.state)}===null)localStorage.removeItem(key);else localStorage.setItem(key,${JSON.stringify(original.state)});if(${JSON.stringify(original.backup)}===null)localStorage.removeItem(backupKey);else localStorage.setItem(backupKey,${JSON.stringify(original.backup)});})()`);
       await browserTab!.command('Page.reload');
       await waitForBrowser('!!document.querySelector("#app-root .brandname")');

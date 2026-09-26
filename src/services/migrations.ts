@@ -4,7 +4,7 @@
 
 import type { PrototypeState } from '../types';
 
-export const CURRENT_SCHEMA = 25;
+export const CURRENT_SCHEMA = 26;
 
 export interface MigrationResult {
   state: PrototypeState;
@@ -404,6 +404,18 @@ export function migratePersistedState(parsed: unknown, fresh: PrototypeState): M
       client.profileRevision ??= 0;
     }
     warnings.push('Initialized client entity types and profile revisions while preserving client IDs and linked work (v24).');
+  }
+  if (from < 26) {
+    for (const invoice of state.invoices || []) {
+      if (invoice.clientId) continue;
+      const engagementId = invoice.engagementId || invoice.eng;
+      const matches = state.engagements.filter(item => item.id === engagementId);
+      const clientId = matches.length === 1 ? matches[0].client : undefined;
+      if (clientId && state.clients.some(client => client.id === clientId)) {
+        invoice.clientId = clientId;
+        warnings.push(`Linked invoice ${invoice.id} to client ${clientId} using its unique engagement ${engagementId} (v26).`);
+      }
+    }
   }
   for (const evidence of state.evidenceCatalogue || []) {
     evidence.linkedProcedureHistory ||= [];

@@ -304,7 +304,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migratedFrom, 2);
     assert.equal(migrated.engagements.length > 0, true);
     assert.equal(warnings.length > 0, true);
-    assert.equal(migrated.schema, 25);
+    assert.equal(migrated.schema, 26);
   });
   it('adds proposal catalogue and historical period/fee metadata when upgrading pre-v25 state', () => {
     const legacy = structuredClone(createInitialState()) as any;
@@ -342,9 +342,26 @@ describe('fixture integrity (AT-02/AT-54)', () => {
     assert.equal(migrated.acceptanceCases?.[0].screeningEvidence && Object.keys(migrated.acceptanceCases[0].screeningEvidence || {}).length, 0);
     assert.equal(migrated.acceptanceCases?.[0].history?.[0].notes, 'Prior decision');
   });
-  it('upgrades each persisted schema revision through current v25 without losing histories', () => {
+  it('repairs a missing invoice client only through its unique linked engagement', () => {
+    const legacy = structuredClone(createInitialState()) as any;
+    legacy.schema = 25;
+    delete legacy.invoices[0].clientId;
+    const { state: migrated, warnings } = migratePersistedState(legacy, createInitialState());
+    assert.equal(migrated.invoices[0].clientId, 'CL-001');
+    assert.ok(warnings.some(warning => warning.includes('Linked invoice INV-26001 to client CL-001')));
+    assert.deepEqual(validateFixtures(migrated), []);
+
+    const ambiguous = structuredClone(createInitialState()) as any;
+    ambiguous.schema = 25;
+    delete ambiguous.invoices[0].clientId;
+    ambiguous.engagements.push({ ...ambiguous.engagements[0], client: 'CL-002' });
+    const unresolved = migratePersistedState(ambiguous, createInitialState()).state;
+    assert.equal(unresolved.invoices[0].clientId, undefined, 'do not guess when an engagement ID is ambiguous');
+    assert.ok(validateFixtures(unresolved).some(issue => issue.code === 'FK_INVOICE_CLIENT'));
+  });
+  it('upgrades each persisted schema revision through current v26 without losing histories', () => {
     const seed = createInitialState();
-    for (let version = 0; version <= 24; version++) {
+    for (let version = 0; version <= 25; version++) {
       const legacy = structuredClone(seed) as any;
       legacy.schema = version;
       if (version < 22) {
@@ -375,7 +392,7 @@ describe('fixture integrity (AT-02/AT-54)', () => {
       if (version < 21) legacy.archives?.forEach((archive: any) => { delete archive.history; delete archive.predecessorArchiveId; });
       if (version < 23) for (const group of legacy.consolidationGroups) { delete group.reportingBasis; group.components.forEach((component: any) => delete component.packageReview); }
       const { state: migrated } = migratePersistedState(legacy, createInitialState());
-      assert.equal(migrated.schema, 25, `schema ${version} should reach v25`);
+      assert.equal(migrated.schema, 26, `schema ${version} should reach v26`);
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.role, 'Subsidiary');
       assert.equal(migrated.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status, version < 23 ? 'Pending' : seed.consolidationGroups[0].components.find(item => item.componentId === 'ENG-26002')?.status);
       assert.ok(Array.isArray(migrated.statementSetRevisions));
